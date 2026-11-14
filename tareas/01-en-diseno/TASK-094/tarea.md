@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-094-f1-18-adr-hito-de-decisiones-adr-en-init
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1163455
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -36,3 +36,10 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T16:16:49Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T16:22:46Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-14T16:22:45Z | diseno | agente:af45bd1a014dc7307 | 34 | 97122 | 1048253 | 18046 | 23 | 1163455 | - | - |
