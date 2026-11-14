@@ -1,0 +1,144 @@
+git: git version 2.56.0.windows.4; MAX_INTENTOS=5; ESPERA_BASE=2s
+
+=== 1. Altas concurrentes: 3 clones x 4 altas, a la vez, en segundo plano (ESPERA_BASE=2s) ===
+[c1] intento 1: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 1.36s
+[c1] intento 2: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 3.42s
+[c1] intento 3: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 4.06s
+[c1] alta|alta 1 de c1 -> Publicada (intentos=4) TASK-005
+[c1] alta|alta 2 de c1 -> Publicada (intentos=1) TASK-006
+[c1] alta|alta 3 de c1 -> Publicada (intentos=1) TASK-007
+[c1] alta|alta 4 de c1 -> Publicada (intentos=1) TASK-008
+[c2] intento 1: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 1.43s
+[c2] intento 2: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 2.90s
+[c2] intento 3: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 6.41s
+[c2] intento 4: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 10.94s
+[c2] alta|alta 1 de c2 -> Publicada (intentos=5) TASK-009
+[c2] alta|alta 2 de c2 -> Publicada (intentos=1) TASK-010
+[c2] alta|alta 3 de c2 -> Publicada (intentos=1) TASK-011
+[c2] alta|alta 4 de c2 -> Publicada (intentos=1) TASK-012
+[c3] alta|alta 1 de c3 -> Publicada (intentos=1) TASK-001
+[c3] alta|alta 2 de c3 -> Publicada (intentos=1) TASK-002
+[c3] alta|alta 3 de c3 -> Publicada (intentos=1) TASK-003
+[c3] alta|alta 4 de c3 -> Publicada (intentos=1) TASK-004
+carpetas TASK-* en origin: 12 ; titulos distintos: 12 ; entradas en ROADMAP.md: 12
+IDs consecutivos desde TASK-001: si
+altas publicadas: 12 ; agotadas: 0 ; pushes rechazados y reintentados: 7 ; maximo de intentos de una alta publicada: 5 ; duracion: 58s
+commits locales sin publicar en los 3 clones: 0 (una Agotada no deja nada escrito)
+commits en origin/taskcode/tareas: 13 (1 inicial + 12) ; merges: 0
+remoto con receive.denyNonFastForwards=true; el guion no usa --force
+RESULTADO 1: 12/12 altas publicadas, 0 agotadas; 12 IDs distintos y consecutivos=si; 12 titulos (ninguna alta pisada); ROADMAP con 12 entradas; 7 reintentos; historia lineal sin force
+
+=== 1b. Base de la espera: 3 rondas con 0.1s, 0.5s y 2s (MAX_INTENTOS=5) ===
+duracion media de una transaccion sin contencion: 2642 ms
+base 0.1s ronda 1: publicadas 11/12, agotadas 1, reintentos 14, max intentos 5, IDs consecutivos si, commits locales 0, 65s
+base 0.1s ronda 2: publicadas 11/12, agotadas 1, reintentos 16, max intentos 4, IDs consecutivos si, commits locales 0, 69s
+base 0.1s ronda 3: publicadas 11/12, agotadas 1, reintentos 15, max intentos 4, IDs consecutivos si, commits locales 0, 56s
+RESULTADO 1b: base 0.1s -> 3 agotadas de 36 altas, 45 reintentos en 3 rondas
+base 0.5s ronda 1: publicadas 11/12, agotadas 1, reintentos 11, max intentos 5, IDs consecutivos si, commits locales 0, 46s
+base 0.5s ronda 2: publicadas 11/12, agotadas 1, reintentos 11, max intentos 5, IDs consecutivos si, commits locales 0, 53s
+base 0.5s ronda 3: publicadas 11/12, agotadas 1, reintentos 11, max intentos 5, IDs consecutivos si, commits locales 0, 49s
+RESULTADO 1b: base 0.5s -> 3 agotadas de 36 altas, 33 reintentos en 3 rondas
+base 2s ronda 1: publicadas 12/12, agotadas 0, reintentos 7, max intentos 5, IDs consecutivos si, commits locales 0, 52s
+base 2s ronda 2: publicadas 12/12, agotadas 0, reintentos 6, max intentos 5, IDs consecutivos si, commits locales 0, 48s
+base 2s ronda 3: publicadas 11/12, agotadas 1, reintentos 8, max intentos 4, IDs consecutivos si, commits locales 0, 56s
+RESULTADO 1b: base 2s -> 1 agotadas de 36 altas, 21 reintentos en 3 rondas
+
+=== 2. Toma concurrente: ana y beto lanzan start sobre TASK-001 a la vez ===
+[ana] alta|tarea disputada -> Publicada (intentos=1) TASK-001
+[ana] start|TASK-001|ana -> Publicada (intentos=1) TASK-001 para ana
+[ana] start: rama feature/task-001 y worktree creados
+[ana] codigo de salida: 0
+[beto] intento 1: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 1.42s
+[beto] start|TASK-001|beto -> Rechazada (la lleva ana) en el intento 2
+[beto] start: Rechazada (codigo 3); no se crea rama ni worktree
+[beto] codigo de salida: 3
+asignado en origin: ana
+ramas feature/* en el clon de ana: feature/task-001 
+ramas feature/* en el clon de beto: 
+-- idempotencia: ana repite start
+[ana] start|TASK-001|ana -> Publicada (sin cambios: ya la llevaba ana)
+[ana] start: rama feature/task-001 y worktree creados
+[ana] codigo de salida: 0
+commits en origin tras repetir: 3 (1 inicial + alta + toma)
+RESULTADO 2: TASK-001 la lleva ana; el otro recibe Rechazada (la lleva ana); ramas: ganador 1, perdedor 0; repetir start es idempotente
+
+=== 3a. Rebase ingenuo: c1 y c2 crean la siguiente desde el mismo estado y c2 hace pull --rebase ===
+c1 calcula en local: TASK-001
+c2 calcula en local: TASK-001
+c1 push OK
+c2 push:  ! [rejected]        taskcode/tareas -> taskcode/tareas (fetch first)
+  UU ROADMAP.md
+  AA TASK-001/tarea.md
+pull --rebase: conflicto en: ROADMAP.md TASK-001/tarea.md 
+RESULTADO 3a: pull --rebase con el mismo ID -> conflicto en: ROADMAP.md TASK-001/tarea.md 
+
+=== 3b. Re-ejecucion: c2 calcula su alta, c1 publica antes, c2 reintenta ===
+c2 tiene listo en local, sin publicar: alta de c2 (re-ejecucion)
+[c1] alta|de c1 (re-ejecucion) -> Publicada (intentos=1) TASK-002
+[c2] intento 1: push rechazado (non-fast-forward); commit descartado, re-ejecucion tras 1.02s
+[c2] alta|de c2 (re-ejecucion) -> Publicada (intentos=2) TASK-003
+origin/taskcode/tareas:
+  # Roadmap
+  - TASK-001: planificada - de c1
+  - TASK-002: planificada - de c1 (re-ejecucion)
+  - TASK-003: planificada - de c2 (re-ejecucion)
+RESULTADO 3b: re-ejecucion -> 3 carpetas distintas, sin conflicto; c2 recalculo su ID (TASK-003)
+
+=== 4. Sin red: alta y start con el remoto inalcanzable ===
+[ana] alta|tarea de ana -> Publicada (intentos=1) TASK-001
+[ana] alta|alta sin red -> SinRed (exige red; nada escrito)
+[ana] start|TASK-001|ana -> SinRed (exige red; nada escrito)
+[ana] start: SinRed (codigo 4); no se crea rama ni worktree
+codigos: alta=4 (SinRed), start=4 (SinRed)
+HEAD de tareas/ igual que antes: si ; git status de tareas/: '' (vacio = limpio)
+ramas feature/*: '' (vacio = ninguna)
+RESULTADO 4: sin red alta=SinRed y start=SinRed; sin commit local=si; worktree limpio=si
+
+=== 5. Sin red: transicion de una tarea propia queda pendiente y se publica re-ejecutandola ===
+[ana] start|TASK-001|ana -> Publicada (intentos=1) TASK-001 para ana
+[ana] start: rama feature/task-001 y worktree creados
+[ana] transicion|TASK-001|en-revision|ana -> SinRed (pendiente de publicar: commit local)
+codigo: 4 (SinRed) ; commits pendientes de publicar: 1 (81e6526 transicion TASK-001 en-revision ana)
+-- una tarea ajena sin red se rechaza (beto sin red intenta mover TASK-001)
+[beto] transicion|TASK-001|terminada|beto -> Rechazada (la lleva ana, no beto)
+[beto] codigo de salida: 3
+-- mientras, beto (con red) da de alta otra tarea: el remoto avanza
+[beto] alta|tarea de beto -> Publicada (intentos=1) TASK-002
+-- vuelve la red de ana; su siguiente operacion publica lo pendiente
+[ana] pendiente re-ejecutada: transicion|TASK-001|en-revision|ana
+[ana] alta|ana tras volver la red -> Publicada (intentos=1) TASK-003
+estado de TASK-001 en origin: en-revision
+el commit pendiente 81e6526 esta tal cual en origin: no (no = se re-ejecuto sobre lo nuevo, no se rebaso)
+pendientes tras publicar: 0
+  # Roadmap
+  - TASK-001: en-revision (lo lleva ana) - tarea de ana
+  - TASK-002: planificada - tarea de beto
+  - TASK-003: planificada - ana tras volver la red
+RESULTADO 5: sin red la transicion propia queda pendiente (SinRed); al volver la red TASK-001=en-revision en origin, re-ejecutada; la ajena se rechaza
+
+=== 6. Repo sin remoto (una persona, RN-06): el commit local es la transaccion ===
+[solo] alta|primera -> Publicada (repo sin remoto: commit local) TASK-001
+[solo] import|2|lote -> Publicada (repo sin remoto: commit local) TASK-002 TASK-003
+[solo] start|TASK-001|carlos -> Publicada (repo sin remoto: commit local) TASK-001 para carlos
+[solo] start: rama feature/task-001 y worktree creados
+[solo] start|TASK-001|agente -> Rechazada (la lleva carlos)
+commits en taskcode/tareas: 4 ; ramas feature/*: feature/task-001
+  # Roadmap
+  - TASK-001: en-curso (lo lleva carlos) - primera
+  - TASK-002: planificada - lote 1
+  - TASK-003: planificada - lote 2
+RESULTADO 6: sin remoto alta, import (3 IDs en 1 commit) y start=Publicada; segundo start=Rechazada
+
+=== 7. Resumen ===
+RESULTADO 1: 12/12 altas publicadas, 0 agotadas; 12 IDs distintos y consecutivos=si; 12 titulos (ninguna alta pisada); ROADMAP con 12 entradas; 7 reintentos; historia lineal sin force
+RESULTADO 1b: base 0.1s -> 3 agotadas de 36 altas, 45 reintentos en 3 rondas
+RESULTADO 1b: base 0.5s -> 3 agotadas de 36 altas, 33 reintentos en 3 rondas
+RESULTADO 1b: base 2s -> 1 agotadas de 36 altas, 21 reintentos en 3 rondas
+RESULTADO 2: TASK-001 la lleva ana; el otro recibe Rechazada (la lleva ana); ramas: ganador 1, perdedor 0; repetir start es idempotente
+RESULTADO 3a: pull --rebase con el mismo ID -> conflicto en: ROADMAP.md TASK-001/tarea.md 
+RESULTADO 3b: re-ejecucion -> 3 carpetas distintas, sin conflicto; c2 recalculo su ID (TASK-003)
+RESULTADO 4: sin red alta=SinRed y start=SinRed; sin commit local=si; worktree limpio=si
+RESULTADO 5: sin red la transicion propia queda pendiente (SinRed); al volver la red TASK-001=en-revision en origin, re-ejecutada; la ajena se rechaza
+RESULTADO 6: sin remoto alta, import (3 IDs en 1 commit) y start=Publicada; segundo start=Rechazada
+
+FIN PoC
