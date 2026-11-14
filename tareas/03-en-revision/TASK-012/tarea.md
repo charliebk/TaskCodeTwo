@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2006835
 tokens_implementacion: 17876333
-tokens_revision: 13249104
+tokens_revision: 14689719
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-002, TASK-008]
@@ -52,6 +52,7 @@ Tarea F1-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T12:12:41Z | implementacion | agente:a64e221658539d488 | 116 | 479790 | 10096105 | 110223 | 17 | 10686234 | - | - |
 | 2026-11-14T12:27:28Z | revision | agente:a69450eddd3b1991b | 98 | 199118 | 8462467 | 58566 | 8 | 8720249 | 1 | - |
 | 2026-11-14T13:05:25Z | revision | agente:a6be17e5ef0fa24af | 52 | 221490 | 4262871 | 44442 | 11 | 4528855 | 2 | - |
+| 2026-11-14T13:21:51Z | revision | agente:a790aa171bab31ad6 | 22 | 153713 | 1268401 | 18479 | 9 | 1440615 | 3 | - |
 
 ## Autorrevision
 
@@ -62,3 +63,7 @@ Tarea F1-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 ## Rondas extra
 
 - Ronda 3: Carlos (2026-11-14: «me interesa que los ADR de este plugin sean lo mas fiel posibles a los datos recolectados»); la correccion de la ronda 1 introdujo IMPORTANTE-5 (check estado ejecutaba el comprobador del PR), que se corrige siempre y se verifica en una ronda mas.
+
+## Verificacion ligera
+
+- 2026-11-14T13:21:56Z: ronda 3; commit revisado 72901f6338a1ace9a6f84d7bdbc379517af85c28; commit verificado 485052d4fa22e7267899865caace8b03d117c4da; ficheros: docs/adr/F1-11-extensiones-declaradas.md; corregidos: MEN-1; pendientes: ninguno
