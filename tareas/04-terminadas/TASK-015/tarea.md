@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-015-f1-13-adr-adaptador-de-plataforma-github
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Tarea F1-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T19:42:08Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T20:12:05Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T20:26:08Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T20:39:11Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -73,3 +74,8 @@ Tarea F1-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 - **Revision**: ronda 1 cambios (IMP-1 G09 vendido como garantia en Ultimate; IMP-2 filas «empiricas» con solo un 401/403 anonimo; MEN-1..3), corregido en ca2d75f; ronda 2 aprobada con correcciones; MEN-6..8 (`..` en la lista blanca, GH-03 como prueba debil, fila del indice larga) corregidos en b6e0181 (`verificar-menores` no reconoce MEN-6 por vivir en `poc/`, ver `revision/menores-pendientes.md`).
 - Implementacion por un agente implementador; revision por dos agentes independientes. `taskctl doctor` con 0 errores. Remotos solo leidos (incluido el repo temporal `charliebk/taskcodetwo-poc-f1-1`, que sigue pendiente de borrar por Carlos). Temporales borrados.
 
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 57 min
+- Cierre (finish): 26 s, de 2026-11-14T20:38:45Z a 2026-11-14T20:39:11Z

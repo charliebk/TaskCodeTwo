@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-015 — F1-13 ADR adaptador de plataforma GitHub y GitLab · etiquetas: (sin etiquetas) · rama feature/task-015-f1-13-adr-adaptador-de-plataforma-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-015/
 - TASK-014 — F1-14 ADR distribucion e instalacion · etiquetas: (sin etiquetas) · rama feature/task-014-f1-14-adr-distribucion-e-instalacion · terminada 2026-11-14 · tareas/04-terminadas/TASK-014/
 - TASK-094 — F1-18 ADR hito de decisiones (ADR) en init y en actualizar · etiquetas: (sin etiquetas) · rama feature/task-094-f1-18-adr-hito-de-decisiones-adr-en-init · terminada 2026-11-14 · tareas/04-terminadas/TASK-094/
 - TASK-013 — F1-12 ADR actualizacion de proyectos entre versiones · etiquetas: (sin etiquetas) · rama feature/task-013-f1-12-adr-actualizacion-de-proyectos-ent · terminada 2026-11-14 · tareas/04-terminadas/TASK-013/
