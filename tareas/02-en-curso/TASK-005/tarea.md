@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-005-f1-4-adr-capa-de-operaciones-git-github
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T04:50:35Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T04:54:31Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T04:54:32Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
