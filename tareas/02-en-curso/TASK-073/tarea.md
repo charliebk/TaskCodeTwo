@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-073-f1-15-adr-seleccion-de-skills-agentes-y
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 |---|---|---|---|---|
 | 2026-11-14T20:39:39Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T20:49:09Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T20:49:11Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
