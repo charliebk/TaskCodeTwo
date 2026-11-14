@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-003-f1-2-adr-escrituras-atomicas-reserva-de
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 242980
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -38,3 +38,10 @@ Tarea F1-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T03:06:51Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T03:10:31Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-14T03:10:22Z | diseno | agente:aef5cb6ada7ad952d | 16 | 43789 | 188550 | 10625 | 15 | 242980 | - | - |
