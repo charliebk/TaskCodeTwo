@@ -1,4 +1,4 @@
-# Dependencias y builds
+﻿# Dependencias y builds
 node_modules/
 dist/
 
@@ -10,6 +10,7 @@ dist/
 
 # IDE y sistema
 .idea/
+*.iml
 .vscode/
 .DS_Store
 Thumbs.db
