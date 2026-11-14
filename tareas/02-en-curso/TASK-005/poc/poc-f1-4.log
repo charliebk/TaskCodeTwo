@@ -1,0 +1,197 @@
+
+=== A. Linea base: llamadas git/gh de los agentes en TASK-002..004 (solo lectura de transcripciones) ===
+carpeta de transcripciones: /c/Users/nullcad2025/.claude/projects/C--Users-nullcad2025-Documents-sources-Personal-TaskCodeTwo
+TASK-002: agentes 2 (faltan: ninguno) + sesion principal en [2026-11-14T02:48:26Z, 2026-11-14T03:06:24Z]; turnos del asistente: 63
+  llamadas con git/gh: 17 (lectura 5, escritura/red 12; solo git 1, compuestas 16)
+  bytes de su resultado: 21715 (lectura 12724, escritura/red 8991; solo git 385)
+  turnos restantes tras cada una: media 12.3, max 36 ; bytes x turnos restantes: 252630 (~63157 tokens releidos, a 4 bytes/token)
+  subcomandos: gh api=9, gh pr=6, git commit=4, git status=3, git clean=3, git log=2, git =2, gh repo=2, gh run=2, git worktree=2, git branch=2, git add=2, git remote=1, gh auth=1, gh gist=1, git rev-parse=1
+  llamadas a taskctl (sin git en la misma linea): 9, bytes 12411
+RESULTADO A: TASK-002 llamadas git/gh=17 escritura/red=12 bytes=21715 bytes*turnos=252630
+TASK-003: agentes 3 (faltan: ninguno) + sesion principal en [2026-11-14T03:06:24Z, 2026-11-14T03:58:26Z]; turnos del asistente: 87
+  llamadas con git/gh: 14 (lectura 10, escritura/red 4; solo git 0, compuestas 14)
+  bytes de su resultado: 24877 (lectura 21995, escritura/red 2882; solo git 0)
+  turnos restantes tras cada una: media 10.9, max 46 ; bytes x turnos restantes: 588919 (~147229 tokens releidos, a 4 bytes/token)
+  subcomandos: git status=7, git log=5, git commit=4, git branch=3, git add=2, git init=2, git =1, git show=1, git rev-parse=1, git remote=1, git push=1, git diff=1
+  llamadas a taskctl (sin git en la misma linea): 3, bytes 2641
+RESULTADO A: TASK-003 llamadas git/gh=14 escritura/red=4 bytes=24877 bytes*turnos=588919
+TASK-004: agentes 4 (faltan: ninguno) + sesion principal en [2026-11-14T03:58:26Z, 2026-11-14T04:50:27Z]; turnos del asistente: 125
+  llamadas con git/gh: 26 (lectura 20, escritura/red 6; solo git 2, compuestas 24)
+  bytes de su resultado: 53542 (lectura 49073, escritura/red 4469; solo git 613)
+  turnos restantes tras cada una: media 16.9, max 58 ; bytes x turnos restantes: 1579526 (~394881 tokens releidos, a 4 bytes/token)
+  subcomandos: git log=16, git status=12, git rev-list=10, git branch=9, git commit=5, git show=5, git =3, git ls-remote=3, git add=3, git diff=3, git tag=2, git remote=1, git merge-base=1, git init=1, git clone=1, git push=1, git rev-parse=1
+  llamadas a taskctl (sin git en la misma linea): 2, bytes 1664
+RESULTADO A: TASK-004 llamadas git/gh=26 escritura/red=6 bytes=53542 bytes*turnos=1579526
+RESULTADO A: total 3 tareas llamadas git/gh=57 escritura/red=22 bytes=100134 bytes*turnos=2421075 taskctl=14 (bytes 16716)
+
+=== B0. Entorno ===
+git: git version 2.56.0.windows.4
+LC_ALL=es_ES.UTF-8 git status (crudo, en este repo de prueba) frente a LC_ALL=C:
+  es_ES: On branch develop
+  C    : On branch develop
+  salida cruda distinta entre es_ES y C: no (este Git for Windows no trae catalogos de traduccion)
+  catalogos de traduccion de git instalados: no
+
+=== B1. Operaciones de la lista cerrada: caller con LC_ALL=C (fixture C) ===
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=1   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl validar-base develop   [en principal]
+  1a: validar-base ok base=origin/develop commit=33956fe8dd2e   (codigo 0, 56 bytes)
+  2a: validar-base ok base=origin/develop commit=33956fe8dd2e   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl comprobar-id TASK-007   [en principal]
+  1a: comprobar-id libre id=TASK-007   (codigo 0, 31 bytes)
+  2a: comprobar-id libre id=TASK-007   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl crear-rama-y-worktree TASK-007 feature login origin/develop   [en principal]
+  1a: crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 base=33956fe8dd2e   (codigo 0, 109 bytes)
+  2a: crear-rama-y-worktree sin-cambios rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl localizar-principal    [en principal/.taskcode/worktrees/TASK-007]
+  1a: localizar-principal ok ruta=principal   (codigo 0, 38 bytes)
+  2a: localizar-principal ok ruta=principal   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl guardar feat(TASK-007): login g.txt   [en principal/.taskcode/worktrees/TASK-007]
+  1a: guardar ok commit=48d72d1e513b ficheros=1 sin-guardar=0   (codigo 0, 56 bytes)
+  2a: guardar sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-007]
+  1a: push ok rama=feature/task-007-login commit=48d72d1e513b intentos=1   (codigo 0, 67 bytes)
+  2a: push sin-cambios rama=feature/task-007-login   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl comprobar-id TASK-007   [en principal]
+  1a: comprobar-id ocupada id=TASK-007 ramas=feature/task-007-login   (codigo 3, 62 bytes)
+  2a: comprobar-id ocupada id=TASK-007 ramas=feature/task-007-login   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=2   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl actualizar-rama    [en principal/.taskcode/worktrees/TASK-007]
+  1a: actualizar-rama ok base=origin/develop commit=201568008941   (codigo 0, 59 bytes)
+  2a: actualizar-rama sin-cambios base=origin/develop   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-007]
+  1a: push ok rama=feature/task-007-login commit=201568008941 intentos=1   (codigo 0, 67 bytes)
+  2a: push sin-cambios rama=feature/task-007-login   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl diff-tarea    [en principal/.taskcode/worktrees/TASK-007]
+  1a: diff-tarea ok base=7247588979ba ficheros=1 lineas=+1,-0   (codigo 0, 56 bytes)
+  2a: diff-tarea ok base=7247588979ba ficheros=1 lineas=+1,-0   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- se pierden worktree y rama local de TASK-007 (simulado por el guion, fuera del registro de operaciones)
+$ taskctl reanudar TASK-007   [en principal]
+  1a: reanudar ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 creado=rama,worktree   (codigo 0, 99 bytes)
+  2a: reanudar sin-cambios rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=3   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl quitar-worktree TASK-007   [en principal]
+  1a: quitar-worktree ok id=TASK-007 rama=feature/task-007-login conservada=si   (codigo 0, 73 bytes)
+  2a: quitar-worktree sin-cambios id=TASK-007   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl actualizar-principal    [en principal]
+  1a: actualizar-principal ok commit=bb8940ad4d76   (codigo 0, 44 bytes)
+  2a: actualizar-principal sin-cambios commit=bb8940ad4d76   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl tag-anotado v0.1.0 origin/main   [en principal]
+  1a: tag-anotado ok tag=v0.1.0 commit=47ea7e825b84   (codigo 0, 46 bytes)
+  2a: tag-anotado sin-cambios tag=v0.1.0 commit=47ea7e825b84   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl notas-release v0.1.0   [en principal]
+  1a: notas-release ok tag=v0.1.0 prs=1 fichero=.git/taskcode/notas/v0.1.0.md   (codigo 0, 72 bytes)
+  2a: notas-release ok tag=v0.1.0 prs=1 fichero=.git/taskcode/notas/v0.1.0.md   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl commit-estado TASK-007 terminada   [en principal]
+  1a: commit-estado ok id=TASK-007 estado=terminada intentos=1   (codigo 0, 57 bytes)
+  2a: commit-estado sin-cambios id=TASK-007 estado=terminada   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl validar-base hotfix   [en principal]
+  1a: validar-base ok base=v0.1.0 commit=47ea7e825b84   (codigo 0, 48 bytes)
+  2a: validar-base ok base=v0.1.0 commit=47ea7e825b84   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- sin red: origin apunta a una ruta inexistente (cambio del guion)
+$ taskctl fetch    [en principal]
+  1a: fetch sinred remoto=origin   (codigo 4, 27 bytes)
+      stderr: fetch: no se pudo leer origin
+  2a: fetch sinred remoto=origin   (codigo 4) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl comprobar-id TASK-009   [en principal]
+  1a: comprobar-id sinred id=TASK-009   (codigo 4, 32 bytes)
+  2a: comprobar-id sinred id=TASK-009   (codigo 4) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+
+=== B1. La misma secuencia con LC_ALL=es_ES.UTF-8 (fixture ES) ===
+(salida completa igual a la de la fixture C salvo el LC_ALL; comparacion abajo)
+operaciones ejecutadas por fixture: 22 (cada una dos veces)
+lineas de salida distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0
+RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 22 ok / 0 mal ; es_ES 22 ok / 0 mal
+RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 22
+RESULTADO B1: salidas que incumplen el contrato (<=5 lineas, sin ANSI, 'op resultado clave=valor'): 0
+RESULTADO B1: bytes de las lineas de contrato de las 22 operaciones del ciclo (1a ejecucion): 1147
+RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:1 4:2 
+
+=== B2. Ciclo con conflicto provocado (fixture K, caller LC_ALL=es_ES.UTF-8) ===
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=1   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl crear-rama-y-worktree TASK-008 fix crash origin/develop   [en principal]
+  1a: crear-rama-y-worktree ok rama=fix/task-008-crash worktree=.taskcode/worktrees/TASK-008 base=33956fe8dd2e   (codigo 0, 105 bytes)
+  2a: crear-rama-y-worktree sin-cambios rama=fix/task-008-crash worktree=.taskcode/worktrees/TASK-008   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl guardar fix(TASK-008): crash f.txt   [en principal/.taskcode/worktrees/TASK-008]
+  1a: guardar ok commit=b80209ce61e1 ficheros=1 sin-guardar=0   (codigo 0, 56 bytes)
+  2a: guardar sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-008]
+  1a: push ok rama=fix/task-008-crash commit=b80209ce61e1 intentos=1   (codigo 0, 63 bytes)
+  2a: push sin-cambios rama=fix/task-008-crash   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- la plataforma integra en develop otro PR que toca la misma linea
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=2   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl actualizar-rama    [en principal/.taskcode/worktrees/TASK-008]
+  1a: actualizar-rama conflicto base=origin/develop ficheros=f.txt   (codigo 6, 61 bytes)
+      stderr: resuelve f.txt y lanza guardar
+  2a: actualizar-rama conflicto base=origin/develop ficheros=f.txt   (codigo 6) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+estado del worktree: MERGE_HEAD=si ; status: UU f.txt 
+$ taskctl guardar otra cosa nota.txt   [en principal/.taskcode/worktrees/TASK-008]
+  1a: guardar rechazada motivo=conflicto-sin-resolver ficheros=f.txt   (codigo 3, 63 bytes)
+  2a: guardar rechazada motivo=conflicto-sin-resolver ficheros=f.txt   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl guardar resolver f.txt   [en principal/.taskcode/worktrees/TASK-008]
+  1a: guardar rechazada motivo=marcas-de-conflicto ficheros=f.txt   (codigo 3, 60 bytes)
+  2a: guardar rechazada motivo=marcas-de-conflicto ficheros=f.txt   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- el agente resuelve f.txt (lo hace el guion) y lanza guardar
+$ taskctl guardar merge(TASK-008): develop en la rama f.txt   [en principal/.taskcode/worktrees/TASK-008]
+  1a: guardar ok commit=6fdf3ce3366c tipo=merge ficheros=1   (codigo 0, 53 bytes)
+  2a: guardar sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+padres del commit guardado: 2
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-008]
+  1a: push ok rama=fix/task-008-crash commit=6fdf3ce3366c intentos=1   (codigo 0, 63 bytes)
+  2a: push sin-cambios rama=fix/task-008-crash   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl actualizar-rama    [en principal/.taskcode/worktrees/TASK-008]
+  1a: actualizar-rama sin-cambios base=origin/develop   (codigo 0, 48 bytes)
+  2a: actualizar-rama sin-cambios base=origin/develop   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl fetch    [en principal]
+  1a: fetch ok refs=2   (codigo 0, 16 bytes)
+  2a: fetch sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl quitar-worktree TASK-008   [en principal]
+  1a: quitar-worktree ok id=TASK-008 rama=fix/task-008-crash conservada=si   (codigo 0, 69 bytes)
+  2a: quitar-worktree sin-cambios id=TASK-008   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl actualizar-principal    [en principal]
+  1a: actualizar-principal ok commit=a95c434489fa   (codigo 0, 44 bytes)
+  2a: actualizar-principal sin-cambios commit=a95c434489fa   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+f.txt en develop: linea 1 de TASK-008 y de otro PR
+RESULTADO B2: actualizar-rama con conflicto -> codigo 6 (esperado 6); guardar de otra ruta con el conflicto abierto -> 3 (3); guardar con marcas -> 3 (3)
+RESULTADO B2: pasos idempotentes 14 ok / 0 mal ; salidas fuera de contrato: 0
+-- registro de comandos de las operaciones (todas las fixtures): 283 llamadas a git
+control del patron de prohibidos: casa 7 de 7 lineas prohibidas y 0 de 3 permitidas (esperado 7)
+subcomandos usados por las operaciones: add=6 branch=10 commit=6 describe=4 diff=11 fetch=26 for-each-ref=46 log=8 ls-remote=16 merge=7 merge-base=11 pull=6 push=10 rev-parse=82 show-ref=8 status=10 tag=2 worktree=14 
+RESULTADO B2: comandos prohibidos en el registro (rebase, stash, clean, reset, push --force/--delete, branch -d/-D): 0 ; merge con el principal en develop/main: 0 ; reset de commit-estado ejecutado: 0
+
+=== B3. Bytes: salida cruda de git frente a la linea de contrato (fixture R, sin -q y con el entorno por defecto) ===
+worktree add           crudo  154 bytes /  3 lineas ; contrato 109 bytes / 1 linea ; crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 base=33956fe8dd2e
+push                   crudo  289 bytes /  3 lineas ; contrato  67 bytes / 1 linea ; push ok rama=feature/task-007-login commit=48d72d1e513b intentos=1
+fetch                  crudo  186 bytes /  2 lineas ; contrato  16 bytes / 1 linea ; fetch ok refs=2
+merge (actualizar)     crudo  105 bytes /  4 lineas ; contrato  59 bytes / 1 linea ; actualizar-rama ok base=origin/develop commit=201568008941
+status / diff-tarea    crudo  191 bytes /  5 lineas ; contrato  56 bytes / 1 linea ; diff-tarea ok base=7247588979ba ficheros=1 lineas=+1,-0
+salida cruda de push (rutas acortadas):
+  | To <poc>/R/origin.git
+  |  * [new branch]      feature/task-007-login -> feature/task-007-login
+  | branch 'feature/task-007-login' set up to track 'origin/feature/task-007-login'.
+RESULTADO B3: 5 operaciones: crudo 925 bytes, contrato 307 bytes (67% menos)
+
+=== Resumen ===
+RESULTADO A: TASK-002 llamadas git/gh=17 escritura/red=12 bytes=21715 bytes*turnos=252630
+RESULTADO A: TASK-003 llamadas git/gh=14 escritura/red=4 bytes=24877 bytes*turnos=588919
+RESULTADO A: TASK-004 llamadas git/gh=26 escritura/red=6 bytes=53542 bytes*turnos=1579526
+RESULTADO A: total 3 tareas llamadas git/gh=57 escritura/red=22 bytes=100134 bytes*turnos=2421075 taskctl=14 (bytes 16716)
+RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 22 ok / 0 mal ; es_ES 22 ok / 0 mal
+RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 22
+RESULTADO B1: salidas que incumplen el contrato (<=5 lineas, sin ANSI, 'op resultado clave=valor'): 0
+RESULTADO B1: bytes de las lineas de contrato de las 22 operaciones del ciclo (1a ejecucion): 1147
+RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:1 4:2 
+RESULTADO B2: actualizar-rama con conflicto -> codigo 6 (esperado 6); guardar de otra ruta con el conflicto abierto -> 3 (3); guardar con marcas -> 3 (3)
+RESULTADO B2: pasos idempotentes 14 ok / 0 mal ; salidas fuera de contrato: 0
+RESULTADO B2: comandos prohibidos en el registro (rebase, stash, clean, reset, push --force/--delete, branch -d/-D): 0 ; merge con el principal en develop/main: 0 ; reset de commit-estado ejecutado: 0
+RESULTADO B3: 5 operaciones: crudo 925 bytes, contrato 307 bytes (67% menos)
