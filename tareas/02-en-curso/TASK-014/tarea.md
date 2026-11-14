@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-014-f1-14-adr-distribucion-e-instalacion
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 |---|---|---|---|---|
 | 2026-11-14T17:40:08Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T17:49:18Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T17:50:22Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
