@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 416216
 tokens_implementacion: 5655771
-tokens_revision: 5220538
+tokens_revision: 8267586
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-004]
@@ -52,6 +52,7 @@ Tarea F1-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-14T05:59:01Z | implementacion | agente:a47add20da8cde43c | 68 | 179766 | 4428518 | 47088 | 15 | 4655440 | - | - |
 | 2026-11-14T06:04:46Z | revision | agente:a8a9fe6f70978482f | 30 | 147481 | 1601377 | 22200 | 10 | 1771088 | 1 | - |
 | 2026-11-14T06:17:16Z | revision | agente:acab03903595e6d25 | 54 | 170742 | 3237833 | 40821 | 11 | 3449450 | 2 | - |
+| 2026-11-14T06:25:45Z | revision | agente:a14332b844588cfa1 | 46 | 128451 | 2876521 | 42030 | 6 | 3047048 | 3 | - |
 
 ## Autorrevision
 
@@ -62,3 +63,7 @@ Tarea F1-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 ## Rondas extra
 
 - Ronda 3: Carlos, con la consigna «responder la opcion recomendada»; la correccion de la ronda 1 introdujo tres IMPORTANTE (IMP-3, IMP-4, IMP-5) que se corrigen siempre y salen baratos, asi que se corrigen en una ronda mas en vez de cerrar con ellos abiertos o volver a diseno.
+
+## Verificacion ligera
+
+- 2026-11-14T06:25:48Z: ronda 3; commit revisado 38166f29fef407ae4ef1c93b19b8d98bea0499a4; commit verificado a7bafb0dc379338b41116214f1e4e6465df2fba1; ficheros: docs/adr/F1-5-puertas-en-github.md; corregidos: MEN-5, MEN-6; pendientes: ninguno
