@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
 
-## Planificadas (00-planificadas) — 80
+## Planificadas (00-planificadas) — 79
 
 ```text
 ID        Titulo                                                                 Asignado
 --------  ---------------------------------------------------------------------  -------------
-TASK-014  F1-14 ADR distribucion e instalacion                                   (sin asignar)
 TASK-015  F1-13 ADR adaptador de plataforma GitHub y GitLab                      (sin asignar)
 TASK-016  F2-1 Esqueleto: TypeScript, build reproducible                         (sin asignar)
 TASK-017  F2-2 Capa de operaciones Git deterministas                             (sin asignar)
@@ -89,7 +88,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 14
+## Terminadas (04-terminadas) — 15
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -107,5 +106,6 @@ TASK-010  F1-9 ADR formato de tarea, plan y especificacion                      
 TASK-011  F1-10 ADR carriles y modo automatico                                      charlie.bk@gmail.com
 TASK-012  F1-11 ADR extensiones declaradas                                          charlie.bk@gmail.com
 TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                      charlie.bk@gmail.com
+TASK-014  F1-14 ADR distribucion e instalacion                                      charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 ```

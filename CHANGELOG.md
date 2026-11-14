@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-014 (feature) — F1-14 ADR distribucion e instalacion (2026-11-14)
 - TASK-094 (feature) — F1-18 ADR hito de decisiones (ADR) en init y en actualizar (2026-11-14)
 - TASK-013 (feature) — F1-12 ADR actualizacion de proyectos entre versiones (2026-11-14)
 - TASK-012 (feature) — F1-11 ADR extensiones declaradas (2026-11-14)

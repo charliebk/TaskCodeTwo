@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-014-f1-14-adr-distribucion-e-instalacion
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Tarea F1-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T17:50:22Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T18:46:57Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T19:15:49Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T19:36:36Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -80,3 +81,9 @@ Tarea F1-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 - **Revision**: ronda 1 cambios (IMP-1 el guion fijaba la ruta `02-en-curso`; MEN-1..5), corregido en 4456a70; ronda 2 aprobada con correcciones; MEN-6..10 (contradicciones de la cache, MiB por contexto, cifras de reloj marcadas, activo para F1-8, quien calcula el hash) corregidos en 463f9fc (`verificar-menores` no reconoce MEN-7 por vivir en `poc/`, ver `revision/menores-pendientes.md`).
 - Tres agentes implementadores (Rust, TypeScript, medicion y ADR; el de TypeScript se paro para que no se pisara con el medidor) y dos revisores independientes. `taskctl doctor` con 0 errores. Pilotos solo leidos. Temporales borrados.
 
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 106 min
+- Paso de la hora: 106 min reales frente a 210 estimados
+- Cierre (finish): 8 s, de 2026-11-14T19:36:28Z a 2026-11-14T19:36:36Z
