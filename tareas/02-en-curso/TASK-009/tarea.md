@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-009-f1-8-adr-seguridad
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F1-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T07:43:12Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T07:53:47Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T07:54:17Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
