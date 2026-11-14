@@ -414,7 +414,7 @@ ramas base como únicas ramas permitidas. Ningún workflow con
 
    | Quién lee texto hostil | Puede | No puede (y quién lo impide) |
    |---|---|---|
-   | Agente en local (también en lote, RR-18) | ejecutar en la sesión de la persona; empujar ramas de tarea y `taskcode/tareas`; abrir PR | **salvo A4/A5**, mientras el token y la clave de la persona estén al alcance de su sesión, la plataforma no lo impide: aprobar (`carril` solo cuenta personas, F1-5); integrar sin la aprobación de la persona (rulesets sin bypass); firmar un `approve` (FIDO o frase, F1-6). Sin salvedad: tocar workflows con su identidad (sin `workflows`, F1-6); publicar checks con su identidad (sin `checks:write`) |
+   | Agente en local (también en lote, RR-18) | ejecutar en la sesión de la persona; empujar ramas de tarea y `taskcode/tareas`; abrir PR | **salvo A4/A5**, mientras el token y la clave de la persona estén al alcance de su sesión, la plataforma no lo impide: aprobar (`carril` solo cuenta personas, F1-5); integrar sin la aprobación de la persona (rulesets sin bypass); firmar un `approve` (FIDO o frase, F1-6); tocar workflows (con su identidad no puede: la App no tiene `workflows`, F1-6; pero el token de la persona en esta máquina sí tiene el scope `workflow`, observado con `gh auth status` el 2026-11-14); publicar checks con su identidad (sin `checks:write`). Todo lo de esta celda queda condicionado a resolver A5 |
    | Revisor IA en CI | emitir hallazgos JSON | ejecutar nada (job 2 sin código del PR); aprobar ni mergear (App con solo `checks:write`, F1-6); poner el check en verde con prosa: el resultado lo calcula el job con reglas (CRÍTICO o IMPORTANTE abierto → rojo; hallazgo sin evidencia → rechazado, F6-4) |
 
    Un `revision-ia` en verde por inyección no integra nada: la puerta es la
@@ -650,6 +650,8 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   ejecución o por glob no entran (PoC A, control de límite).
 
 ## No verificado
+
+- Que un agente que use el token de la persona (A5) no pueda empujar cambios en `.github/workflows/`: el token observado tiene el scope `workflow` (`gh auth status`, 2026-11-14, sin mostrar el token), así que lo puede hacer hasta que A5 se resuelva; no se ha probado empujando nada.
 
 - **Completitud del lint de clases** (PoC B1): es heurístico. Detecta los
   20 negativos de la PoC, entre ellos las cinco variantes de la revisión 1
