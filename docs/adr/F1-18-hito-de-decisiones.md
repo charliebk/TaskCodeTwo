@@ -576,9 +576,17 @@ OpenDockTrading solo tienen «Real» en **5 / 3**.
    - `tc2 hito abrir (--desde <propuesta> | --tareas <IDs>)`: persona; crea
      las tareas de la propuesta (o marca las que ya existen) con `hito: true`
      y escribe el registro firmado. Si el registro existe, la nueva lista
-     sustituye a la anterior con una firma nueva.
+     sustituye a la anterior con una firma nueva, conserva `descartadas` y
+     borra un `no_necesario` previo (abrir el hito revoca la declaración);
+     el comando lo avisa antes de firmar.
    - `tc2 hito descartar <ID> --motivo "<texto>"`: persona; descarta una
      tarea del hito y apunta el motivo en `descartadas`, firmado.
+   - `abrir`, `descartar` y `no-necesario` parten siempre de la **última
+     versión firmada** del registro, no del fichero tal como esté en la rama,
+     y muestran el diff frente a ella antes de firmar: así una edición del
+     agente sin firma no se blanquea con la firma de la persona (revisión 2,
+     MEN-5; reproducido por el revisor con `descartar` sobre una lista
+     reducida a TASK-001).
    - `tc2 hito no-necesario [--desde <informe>] --motivo "<texto>"`: persona;
      crea el registro si no existe (con `tareas: []`) o añade la firma.
    - El único hook previsto es un atajo PreToolUse opcional que llama a
@@ -640,7 +648,9 @@ OpenDockTrading solo tienen «Real» en **5 / 3**.
     lista «**4** precondición» para `actualizar`, pero en F1-2 y F1-4 el 4 es
     `sinred`, y `start` ya devuelve `sinred` (F1-2). La puerta usa el código
     `rechazada` (3) del contrato de F1-4, con `motivo=hito-<estado>`. El choque
-    del 4 de F1-12 con F1-4 queda para F2-3, que fija los números.
+    del 4 de F1-12 con F1-4 queda para F2-3, que fija los números; también
+    el 3, que en F1-4 es `rechazada` y en F1-12 «plan cambiado»: F2-3 recibe
+    los dos choques como entrada explícita (revisión 2, MEN-7).
 12. **Firma de la lista** (revisión 1, IMP-1): el plan solo pedía firma de
     persona para «no necesario». Con eso, cambiar la lista o descartar las
     tareas daba `cerrado` sin firma. La lista `tareas` y los descartes pasan

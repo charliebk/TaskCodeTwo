@@ -2,7 +2,7 @@
 
 - Commit revisado: bdc5b032d60f7aa0697c778e8398d62e2c9401a6 (HEAD al reproducir: 7d3f0ad, solo anade la peticion)
 - Revisor: code-quality-reviewer
-- Veredicto: aprobada-con-correcciones
+- Veredicto: aprobada con correcciones
 
 Pase generico, verificacion acotada al diff de la correccion (283d19c). Profundidad: IMP-1, IMP-2 e IMP-3 a fondo y reproducidos; MEN-1..MEN-4 comprobados por lectura y por el log; F1-12, F1-2 y F1-4 contrastados solo en los puntos que el ADR cita.
 
