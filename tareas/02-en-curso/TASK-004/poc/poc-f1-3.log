@@ -1,0 +1,149 @@
+
+=== 0. Preparacion: remoto bare local, develop y main, rama de estado montada en tareas/ ===
+git: git version 2.56.0.windows.4
+remoto: C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-004/poc/origin.git ; receive.denyNonFastForwards=true
+ramas en origin: develop main taskcode/tareas 
+
+=== 1a. Dos tareas en paralelo: start de TASK-007 (feature) y TASK-008 (fix), cada una en su worktree ===
+[estado] TASK-007 -> en-curso (ana); escrito desde principal en principal/tareas
+[start] TASK-007: rama feature/task-007-login desde origin/develop; worktree principal/.taskcode/worktrees/TASK-007
+[estado] TASK-008 -> en-curso (beto); escrito desde principal en principal/tareas
+[start] TASK-008: rama fix/task-008-crash-al-guardar desde origin/develop; worktree principal/.taskcode/worktrees/TASK-008
+principal                              be06ce0 [develop]
+principal/.taskcode/worktrees/TASK-007 be06ce0 [feature/task-007-login]
+principal/.taskcode/worktrees/TASK-008 be06ce0 [fix/task-008-crash-al-guardar]
+principal/tareas                       535be49 [taskcode/tareas]
+
+=== 1b. Limites: la misma rama no entra en dos worktrees; tareas/ no se monta en un worktree de tarea ===
+worktree add de feature/task-007-login otra vez (exit 128): Preparing worktree (checking out 'feature/task-007-login')
+fatal: 'feature/task-007-login' is already used by worktree at 'C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-004/poc/principal/.taskcode/worktrees/TASK-007'
+worktree add de taskcode/tareas dentro de TASK-007 (exit 128): Preparing worktree (checking out 'taskcode/tareas')
+fatal: 'taskcode/tareas' is already used by worktree at 'C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-004/poc/principal/tareas'
+RESULTADO 1b: segunda vez la misma rama -> exit 128; taskcode/tareas en un worktree de tarea -> exit 128 (los dos rechazados por Git: si)
+
+=== 1c. Trabajo en cada worktree y estado escrito desde el worktree de tarea en tareas/ del principal ===
+principal detectado desde TASK-007: principal
+[estado] TASK-007 -> en-curso:implementando (ana); escrito desde principal/.taskcode/worktrees/TASK-007 en principal/tareas
+tareas/ existe dentro del worktree de TASK-007: no
+TASK-007 en tareas/ del principal: en-curso:implementando ; en origin/taskcode/tareas: en-curso:implementando
+git status TASK-007: '' ; TASK-008: '' ; principal (develop): '' ; tareas/: '' (vacio = limpio)
+HEAD de TASK-007 sin cambios tras escribir estado: si
+commits de las ramas de codigo que tocan tareas/: 0
+RESULTADO 1c: estado escrito desde el worktree de tarea en tareas/ del principal y publicado=si; git status limpio en TASK-007, TASK-008, principal y tareas/=si
+
+=== 1d. review: push de las ramas y unicidad del ID contra el remoto sin mirar el slug ===
+[review] TASK-007: push de feature/task-007-login; PR feature/task-007-login -> develop
+[review] TASK-008: push de fix/task-008-crash-al-guardar; PR fix/task-008-crash-al-guardar -> develop
+ramas del remoto con el ID 007: feature/task-007-login 
+[start] TASK-007 Rechazada: el ID ya tiene rama en el remoto: feature/task-007-login
+start de feature/task-007-otro-slug: codigo 3 ; existe la rama en local: 0
+RESULTADO 1d: feature/task-007-otro-slug detectada como el mismo ID por ls-remote '*/task-007-*' -> Rechazada (codigo 3), sin rama ni worktree
+
+=== 2a. finish de TASK-007 y TASK-008: merge del PR sin fast-forward en develop, worktree fuera, rama conservada ===
+[pr #1] feature/task-007-login -> develop: merge 95c68da
+[pr #2] fix/task-008-crash-al-guardar -> develop: merge ad78394
+[finish] TASK-007: worktree quitado; rama conservada; develop del principal al dia
+[finish] TASK-008: worktree quitado; rama conservada; develop del principal al dia
+worktrees del principal:
+principal        ad78394 [develop]
+principal/tareas bd3c82b [taskcode/tareas]
+ramas de tarea en local: feature/task-007-login fix/task-008-crash-al-guardar 
+ramas de tarea en origin: feature/task-007-login fix/task-008-crash-al-guardar 
+primer padre de develop (origin):
+  ad78394 95c68da 9cae59d | Merge pull request #2 from fix/task-008-crash-al-guardar
+  95c68da be06ce0 cddf762 | Merge pull request #1 from feature/task-007-login
+  be06ce0  | inicial
+RESULTADO 2a: 2 merges sin fast-forward en develop; en el primer padre solo hay merges de PR salvo 1 commit (el inicial); ramas conservadas en local y en origin; worktrees quitados
+
+=== 2b. release v0.1.0: PR develop -> main con merge commit, tag anotado en el merge, notas desde los PR ===
+[pr #3] develop -> main: merge 459c64a
+[release] v0.1.0 sobre 459c64a; notas desde el inicio (git log --merges --first-parent):
+  - Merge pull request #2 from fix/task-008-crash-al-guardar: TASK-008 crash al guardar
+  - Merge pull request #1 from feature/task-007-login: TASK-007 login
+[release] v0.1.0 notas filtradas (sin los PR cuya rama ya estaba en ningun tag):
+  - Merge pull request #2 from fix/task-008-crash-al-guardar: TASK-008 crash al guardar 
+  - Merge pull request #1 from feature/task-007-login: TASK-007 login 
+arbol de v0.1.0 (main): c32fba51c9e27007c24c5ee73e14bb884a50083b
+arbol de develop       : c32fba51c9e27007c24c5ee73e14bb884a50083b
+tipo del tag: tag
+RESULTADO 2b: v0.1.0 anotado sobre el merge develop->main; arbol de main igual al de develop=si (la cache por arbol de P6 se reutiliza)
+
+=== 3a. Mientras tanto develop avanza: TASK-010 (feature) se integra antes del hotfix ===
+[estado] TASK-010 -> en-curso (ana); escrito desde principal en principal/tareas
+[start] TASK-010: rama feature/task-010-informes desde origin/develop; worktree principal/.taskcode/worktrees/TASK-010
+[review] TASK-010: push de feature/task-010-informes; PR feature/task-010-informes -> develop
+[pr #4] feature/task-010-informes -> develop: merge 551359a
+[finish] TASK-010: worktree quitado; rama conservada; develop del principal al dia
+
+=== 3b. hotfix TASK-009 desde el ultimo tag de main, PR a main, tag v0.1.1 y PR automatico contra develop ===
+ultimo tag de main: v0.1.0
+[estado] TASK-009 -> en-curso (beto); escrito desde principal en principal/tareas
+[start] TASK-009: rama hotfix/task-009-corrupcion-al-exportar desde v0.1.0; worktree principal/.taskcode/worktrees/TASK-009
+[review] TASK-009: push de hotfix/task-009-corrupcion-al-exportar; PR hotfix/task-009-corrupcion-al-exportar -> main
+[pr #5] hotfix/task-009-corrupcion-al-exportar -> main: merge 2284057
+[hotfix] tag v0.1.1 sobre 2284057
+[pr #6] hotfix/task-009-corrupcion-al-exportar -> develop: merge 32a04ed
+diferencia v0.1.0..v0.1.1:  1 file changed, 1 insertion(+), 1 deletion(-)
+v0.1.1 contiene trabajo de develop posterior a v0.1.0 (informes.txt): no
+RESULTADO 3b: hotfix desde v0.1.0, tag v0.1.1 solo con la correccion; PR de vuelta a develop sin conflicto=si
+
+=== 3c. release v0.2.0 tras el hotfix ===
+[pr #7] develop -> main: merge 30c4708
+[release] v0.2.0 sobre 30c4708; notas desde v0.1.1 (git log --merges --first-parent):
+  - Merge pull request #6 from hotfix/task-009-corrupcion-al-exportar: TASK-009 hotfix (vuelta a develop)
+  - Merge pull request #4 from feature/task-010-informes: TASK-010 informes
+[release] v0.2.0 notas filtradas (sin los PR cuya rama ya estaba en v0.1.1):
+  (omitido: Merge pull request #6 from hotfix/task-009-corrupcion-al-exportar, su rama ya esta en v0.1.1)
+  - Merge pull request #4 from feature/task-010-informes: TASK-010 informes 
+arbol de v0.2.0 (main): 9ffa95255cd2f3336260a7a2be4b13798efbc9c2
+arbol de develop       : 9ffa95255cd2f3336260a7a2be4b13798efbc9c2
+v0.2.0 contiene la correccion de v0.1.1: 1 ; la de TASK-008: 1 ; v0.1.1 es antecesor de v0.2.0: si
+RESULTADO 3c: release v0.2.0 sin conflicto=si; arbol de main igual al de develop=si; correccion del hotfix en v0.2.0=si
+RESULTADO 3c: notas de v0.2.0 con la regla literal (merges del primer padre desde v0.1.1): 1 PR de hotfix ya publicado en v0.1.1; con el filtro (rama ya contenida en el tag anterior): 0
+
+=== 4. Forma de la historia en origin (main, develop, tags) ===
+*   30c4708 (tag: v0.2.0, origin/main) Merge pull request #7 from develop
+|\  
+| *   32a04ed (origin/develop) Merge pull request #6 from hotfix/task-009-corrupcion-al-exportar
+| |\  
+| * \   551359a Merge pull request #4 from feature/task-010-informes
+| |\ \  
+| | * | 4c3326c feat(TASK-010): informes
+| |/ /  
+* | |   2284057 (tag: v0.1.1) Merge pull request #5 from hotfix/task-009-corrupcion-al-exportar
+|\ \ \  
+| | |/  
+| |/|   
+| * | b9a911c fix(TASK-009): corrupcion al exportar
+|/ /  
+* | 459c64a (tag: v0.1.0) Merge pull request #3 from develop
+|\| 
+| *   ad78394 Merge pull request #2 from fix/task-008-crash-al-guardar
+| |\  
+| | * 9cae59d fix(TASK-008): crash al guardar
+| |/  
+|/|   
+| * 95c68da Merge pull request #1 from feature/task-007-login
+|/| 
+| * cddf762 feat(TASK-007): login
+|/  
+* be06ce0 inicial
+tags: v0.1.0 v0.1.1 v0.2.0 
+primer padre de main: Merge pull request #7 from develop|Merge pull request #5 from hotfix/task-009-corrupcion-al-exportar|Merge pull request #3 from develop|inicial|
+estado final en origin/taskcode/tareas:
+  # Roadmap
+  - TASK-007: terminada ana
+  - TASK-008: terminada beto
+  - TASK-009: terminada beto
+  - TASK-010: terminada ana
+pushes con --force en el guion: 0 ; remoto con receive.denyNonFastForwards=true
+
+=== 5. Resumen ===
+RESULTADO 1b: segunda vez la misma rama -> exit 128; taskcode/tareas en un worktree de tarea -> exit 128 (los dos rechazados por Git: si)
+RESULTADO 1c: estado escrito desde el worktree de tarea en tareas/ del principal y publicado=si; git status limpio en TASK-007, TASK-008, principal y tareas/=si
+RESULTADO 1d: feature/task-007-otro-slug detectada como el mismo ID por ls-remote '*/task-007-*' -> Rechazada (codigo 3), sin rama ni worktree
+RESULTADO 2a: 2 merges sin fast-forward en develop; en el primer padre solo hay merges de PR salvo 1 commit (el inicial); ramas conservadas en local y en origin; worktrees quitados
+RESULTADO 2b: v0.1.0 anotado sobre el merge develop->main; arbol de main igual al de develop=si (la cache por arbol de P6 se reutiliza)
+RESULTADO 3b: hotfix desde v0.1.0, tag v0.1.1 solo con la correccion; PR de vuelta a develop sin conflicto=si
+RESULTADO 3c: release v0.2.0 sin conflicto=si; arbol de main igual al de develop=si; correccion del hotfix en v0.2.0=si
+RESULTADO 3c: notas de v0.2.0 con la regla literal (merges del primer padre desde v0.1.1): 1 PR de hotfix ya publicado en v0.1.1; con el filtro (rama ya contenida en el tag anterior): 0
