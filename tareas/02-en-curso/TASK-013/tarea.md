@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-013-f1-12-adr-actualizacion-de-proyectos-ent
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 |---|---|---|---|---|
 | 2026-11-14T13:24:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T13:30:16Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T13:30:19Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
