@@ -17,7 +17,7 @@ cuanto trabajan dos personas chocan los IDs, el tablero miente y los ficheros
 generados dan conflictos.
 
 **Objetivo:** TaskCode 2, en el repo nuevo **TaskCodeTwo**, que conserva lo que
-funciona y se usa (requisitos con uso medido), cumple los dieciséis requisitos
+funciona y se usa (requisitos con uso medido), cumple los diecinueve requisitos
 rectores y lo hace **construyéndose con TaskCode 0.16**.
 
 ## 2. Requisitos rectores (por encima de todo)
@@ -37,11 +37,14 @@ Detalle en [REQUISITOS-FUNCIONALES.md §0](REQUISITOS-FUNCIONALES.md).
 | RR-09 | Trabajo en grupo | Estado sin conflictos, IDs únicos, toma de tareas visible (P1, P2) |
 | RR-10 | Tareas para el programador, roadmap para todos | Una carpeta fija por tarea, estado como campo, sin carpetas por estado (P1) |
 | RR-11 | Roadmap sin interferir en la verificación | El roadmap vive con las tareas, fuera de las ramas de código (P1) |
-| RR-12 | Equipo sin pisarse | IDs reservados atómicamente; tomar una tarea es visible al instante (P2) |
+| RR-12 | Equipo garantizado: nadie pisa nombres, tareas ni trabajo | IDs y ramas únicos, títulos duplicados avisados, identidad de plataforma, liberar y reasignar, aviso de solape, estado siempre fresco (P2, F2-4b, F2-13, F3-10, F3-11, F3-5b) |
 | RR-13 | Actualizar los proyectos existentes | `taskctl actualizar` con simulación y vuelta atrás (F9) |
 | RR-14 | Hecho con la versión actual de TaskCode | TaskCodeTwo se desarrolla con TaskCode 0.16 (§7) |
 | RR-15 | GitHub y GitLab desde la 2.0 | Adaptador de plataforma con las dos implementaciones y la misma batería E2E (P11) |
-| RR-16 | Instalación fácil en cualquier ordenador | Repo público que es su propio marketplace de Claude Code, como TaskCode; ejecutable e instalador de una línea como complemento (P12) |
+| RR-16 | Instalación fácil en cualquier ordenador | Repo público que es su propio marketplace de Claude Code, como TaskCode; ejecutable e instalador de una línea como complemento (P12); desinstalación limpia (F2-14, F9-10) |
+| RR-17 | Skills, agentes y modelo adecuados a cada tarea | Selección determinista entre lo instalado, anotada en la tarea y medida (F1-15, F3-9, F4-6, F8-6) |
+| RR-18 | Lotes desatendidos con revisión humana al final | `taskctl lote`: rama de lote, sin preguntas, un único PR final (F1-16, F4-7, F4-8, F9-4b) |
+| RR-19 | Progreso en vivo: fases que faltan y tiempo estimado | Estimación por fase, status line y `status --seguir`, métricas finales (F1-17, F3-12, F3-13, F4-9, F8-7) |
 
 ## 3. Qué existe y qué aprendemos
 
@@ -283,6 +286,9 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F1-12 | ADR: actualización de proyectos entre versiones (RR-13) | Qué migra, simulación, vuelta atrás, convivencia 0.16/2.0 | F1-1, F1-9 |
 | F1-14 | ADR: distribución e instalación (RR-16): ejecutable por sistema (empaquetador, tamaño, arranque), firma de código en Windows y macOS, instaladores de una línea, canales (releases, winget, Homebrew, npm, marketplace), compatibilidad entre ejecutable y plugin | Prueba de concepto de un ejecutable en los tres sistemas; decisión sobre firma y canales | F1-0 |
 | F1-13 | ADR: adaptador de plataforma GitHub y GitLab (RR-15): equivalencias (rulesets y ramas protegidas, checks y pipelines, reviews y approvals, cola y tren de merge, Apps y tokens de proyecto) y qué depende del plan de pago | Tabla de equivalencias verificada en las dos; cómo se prueba cada adaptador | F1-4 |
+| F1-15 | ADR: selección de skills, agentes y modelo por tarea y por rol (RR-17): fuentes (catálogo del proyecto, skills y agentes instalados, revisoras del plugin), reglas deterministas por etiquetas, rutas, dominio, complejidad y carril, qué se anota en la tarea y cómo se mide el acierto | Reglas probadas a mano sobre 10 tareas reales de ToolsaWeb y OpenDockTrading; nada lo decide el modelo «a ojo» | F1-9, F1-10 |
+| F1-16 | ADR: lotes desatendidos (RR-18): rama de lote, política de carriles, qué para el lote y qué aparta una tarea, presupuesto, reanudación, informe y su equivalente en GitLab | Diseño probado a mano con un lote real de ToolsaWeb | F1-5, F1-10 |
+| F1-17 | ADR: progreso en vivo y estimación (RR-19): estimación por fase (carril, complejidad, tamaño y tareas parecidas), cuándo se recalcula, dónde se muestra y cómo sin tokens | Estimación probada contra las tareas terminadas de ToolsaWeb y OpenDockTrading, con su error medio | F1-9, F1-10 |
 
 ### Fase 2 — Núcleo
 
@@ -292,6 +298,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F2-2 | Capa de operaciones Git deterministas: rama, worktree, commit de lo escrito, push con reintento, tag (P5) | Tests contra repos reales; salida ≤ 5 líneas en el caso normal | F1-4, F2-1 |
 | F2-3 | Rama de estado: crear, montar como worktree en `tareas/`, leer y escribir de forma atómica (P1, P2) | Dos procesos escriben a la vez sin perder nada; test | F1-1, F1-2, F2-2 |
 | F2-4 | Reserva de IDs por push atómico | Dos clones crean tarea a la vez → IDs distintos; test E2E | F2-3 |
+| F2-4b | Nombres únicos: rama derivada del ID comprobada también contra el remoto; título duplicado o casi igual a otro abierto → aviso con la tarea parecida (RR-12) | Dos altas con el mismo título a la vez: IDs y ramas distintos y aviso de duplicado | F2-4 |
 | F2-5 | Modelo de tarea y parser/serializador de frontmatter YAML válido | Ida y vuelta con un parser estándar; compatible con tareas de la 0.16 | F1-9 |
 | F2-6 | Adaptador GitHub (PR, checks, reviews, identidad) sobre la API, con errores dirigidos a la persona | E2E contra un repo de pruebas en GitHub | F1-13, F2-2 |
 | F2-9 | Adaptador GitLab (MR, pipelines, approvals, identidad) con la misma interfaz y la misma batería E2E (RR-15) | E2E contra un proyecto de pruebas en GitLab | F1-13, F2-2 |
@@ -300,6 +307,8 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F2-10 | Build de ejecutables por sistema en la CI, firmados, con su hash, publicados en cada release (RR-16) | El ejecutable arranca en Windows, macOS y Linux limpios sin Node | F1-14, F2-1 |
 | F2-11 | Instaladores de una línea (PowerShell y shell) que descargan, verifican la firma o el hash y ponen `taskctl` en el PATH | Instalación en una máquina limpia de cada sistema en menos de un minuto | F2-10 |
 | F2-12 | `taskctl actualizar --cli` y aviso de versión nueva; el plugin del marketplace comprueba la versión del ejecutable | Actualización sin reinstalar; incompatibilidad avisada con el comando que la arregla | F2-10 |
+| F2-13 | Identidad de la persona: el «quién» de una tarea es el usuario de GitHub o GitLab autenticado, no un texto libre (RR-12) | Dos personas no pueden figurar con el mismo nombre; el agente figura como agente | F1-6, F2-6, F2-9 |
+| F2-14 | `taskctl desinstalar`: quita TaskCodeTwo de forma limpia (plugin, CLI, status line, hooks, worktree de la rama de estado); en un proyecto, la config solo con confirmación y nunca las tareas ni su historial sin confirmación explícita; con `--simular` (RR-16) | Tras desinstalar no queda nada de TaskCodeTwo en la máquina ni en el proyecto salvo lo que la persona decide conservar | F2-3, F2-10, F2-12 |
 
 ### Fase 3 — Comandos del flujo
 
@@ -310,9 +319,15 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F3-3 | `next`: lo listo para empezar por dependencias y prioridad | Coincide con el orden del ROADMAP actual de ToolsaWeb | F3-2 |
 | F3-4 | `roadmap`: la vista para todos (en curso con quién, en revisión, planificadas por hito, terminadas, descartadas) con dependencias y Mermaid, regenerada en la rama de estado tras cada cambio (RR-10, RR-11) | Sin conflictos con dos escrituras a la vez; no toca ramas de código | F2-3 |
 | F3-5 | `board` y `status`: estado del equipo (quién lleva qué, qué espera revisión) desde la rama de estado y GitHub | Lo mismo para todo el equipo; sin ficheros en ramas de código | F2-3, F2-6 |
+| F3-5b | `status` y `roadmap` siempre frescos: traen la rama de estado antes de mostrar y dicen la hora de la última sincronización (RR-12) | Nadie ve un estado de hace horas sin saberlo | F3-5 |
 | F3-6 | `start`: toma atómica de la tarea, rama y worktree desde `develop` | Dos personas no pueden tomar la misma tarea; test E2E | F2-3, F2-2 |
 | F3-7 | `descartar` y `pausa` (RF-07, RF-08) | Estado «descartada» con motivo, visible en el roadmap; el ID no se reutiliza | F2-3 |
 | F3-8 | `doctor`: entorno, rama de estado, permisos, rulesets y checks reales | Detecta una protección de rama ausente | F3-1 |
+| F3-9 | Inventario de skills y agentes instalados (máquina y proyecto) y `doctor` que avisa de un catálogo que nombra algo no instalado (RF-14) | Lista lo instalado; una recomendación a algo inexistente es error con el arreglo | F2-1, F1-15 |
+| F3-10 | Liberar y reasignar tareas: `taskctl liberar` y `reasignar`, aviso de tareas tomadas sin actividad en N días, con aviso a quien la tenía (RR-12) | Una tarea abandonada vuelve a «lista para empezar» sin perder su trabajo ni su rama | F3-6 |
+| F3-11 | Aviso de solape: al tomar una tarea, `start` dice qué tareas en curso (y de quién) tocan los mismos ficheros o módulos (RR-12) | Dos tareas que tocan el mismo módulo → aviso con nombres y tareas | F3-6, F4-1 |
+| F3-13 | Estimación por tarea al planificar: tiempo por fase a partir de tareas parecidas; se recalcula al terminar cada fase (RR-19) | Cada tarea planificada tiene su estimación por fase; el error se mide | F1-17, F3-2 |
+| F3-12 | Progreso en vivo en el terminal: fase actual, **fases que faltan** y **tiempo estimado restante**, en la status line de Claude Code y en `taskctl status --seguir`, escrito por el CLI (RR-19) | Durante una tarea real se ven las fases que faltan y el tiempo restante, actualizados en cada fase, sin coste de tokens | F3-13, F2-3 |
 
 ### Fase 4 — Diseño y aprobación
 
@@ -321,8 +336,12 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F4-1 | `plan` con brainstorm de roles (arquitectura, riesgos, testing, dominio, rendimiento) y unificador, proporcional al carril (RR-02) | Mismos roles que la 0.16; uno en fix, todos en riesgo alto | F3-2 |
 | F4-2 | `approve` con la identidad de la persona; el agente no puede aprobar (RR-04) | Sin identidad de persona → rechazo; test | F1-6, F4-1 |
 | F4-3 | Aprobación de un hito en lote | Diez planes aprobados de una vez, con nombre y fecha | F4-2 |
-| F4-4 | Orquestador del modo automático: encadena plan → start → implementación → review → correcciones y para en las puertas del carril (RF-21) | Una tarea fix va de planificada a PR listo sin intervención | F3-6, F4-2, F6-2 |
+| F4-4 | Orquestador del modo automático: encadena plan → start → implementación → review → correcciones y para en las puertas del carril (RF-21) | Una tarea fix va de planificada a PR listo sin intervención | F3-6, F4-2, F6-2, F4-6 |
 | F4-5 | Punto de relevo: TaskCodeTwo pasa a desarrollarse con la 2.0 | Las tareas pendientes de TaskCodeTwo, migradas con `actualizar` y trabajadas con la 2.0 | F4-4, F9-2 |
+| F4-6 | `plan` propone skills, agentes y modelo para diseño, implementación y revisión; se anotan en la tarea; el orquestador y la revisión los usan (RF-12, RF-13) | En 10 tareas reales la propuesta coincide con la que haría una persona; el modelo cambia según complejidad y carril | F4-1, F3-9, F6-3 |
+| F4-7 | `taskctl lote TASK-a..TASK-b` (o lista): secuencia sin preguntas, sin trocear, aceptando recomendaciones, integración en la rama del lote y PR final contra `develop` (RF-27, RR-18) | Un lote de 5 tareas termina sin intervención y deja un único PR para la persona | F4-4, F4-6, F1-16 |
+| F4-8 | Fallos, presupuesto, `--reanudar` e informe del lote | Un lote cortado se reanuda sin repetir; una tarea en rojo se aparta con sus dependientes y el resto sigue; informe completo | F4-7, F8-1 |
+| F4-9 | Progreso del lote: tarea actual, tareas que faltan, apartadas y hora estimada de fin (RR-19) | En un lote de 5 tareas se ve cuántas faltan y cuándo acabará | F4-7, F3-12 |
 
 ### Fase 5 — Verificación sin redundancia
 
@@ -341,7 +360,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 |---|---|---|---|
 | F6-1 | Identidades: agente implementador (commits y PR/MR) y revisor (reviews y checks; nunca aprobar ni mergear), como GitHub App y como usuario bot o token de proyecto en GitLab | La persona aprueba un PR/MR del agente en GitHub y en GitLab | F1-6 |
 | F6-2 | `review`: abre el PR contra `develop` con la identidad del agente y lanza el revisor | PR enlazado a la tarea; check `revision-ia` | F6-1, F2-6 |
-| F6-3 | Revisor en CI con las skills de dominio de la 0.16 (angular-vue, rust-wasm, C#, Java, genérica), enrutado por lo que toca el diff (RR-02) | Un diff Rust + Vue lanza las dos de dominio | F6-2, F5-4 |
+| F6-3 | Revisor en CI con las skills de dominio de la 0.16 (angular-vue, rust-wasm, C#, Java, genérica), enrutado por lo que toca el diff y con el modelo que fije F4-6 (RR-02, RR-17) | Un diff Rust + Vue lanza las dos de dominio | F6-2, F5-4 |
 | F6-4 | Búsqueda de errores: reproducción, mutantes y bordes con evidencia en cada hallazgo (RR-03) | Hallazgo sin evidencia = rechazado por el propio workflow | F6-3 |
 | F6-5 | Hallazgos estructurados (JSON + comentarios); un CRÍTICO o IMPORTANTE abierto deja el check en rojo; informe también en la carpeta de la tarea | El check refleja los hallazgos | F6-4 |
 | F6-6 | Rondas incrementales: la siguiente mira lo cambiado y si se cerraron los hallazgos; tope y MENORES sin ronda (RF-33) | Hallazgos nuevos por ronda, medidos | F6-5 |
@@ -365,6 +384,8 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F8-3 | Ciclo de iteración: informe por versión frente a la anterior y auditoría externa por versión mayor (RR-05) | Ningún cambio del método sin dato | F8-1 |
 | F8-4 | Espejo opcional en issues de GitHub o GitLab de la rama de estado | Quien quiera ve el tablero en la plataforma; la fuente siguen siendo las tareas y el roadmap | F3-5 |
 | F8-5 | Guía de una página y referencia generada desde el código | Una persona nueva hace su primera tarea en 15 min | F3-*, F7-* |
+| F8-6 | Medición del acierto: hallazgos por revisora y por rol, coste y resultado por modelo, en `metricas` y en el informe por versión (RF-15) | Informe que dice qué skill, agente o modelo rinde peor para su coste | F8-1, F4-6 |
+| F8-7 | Métricas finales al cerrar cada tarea y cada lote: estimado frente a real por fase, tokens, rondas y hallazgos, en el terminal y guardadas; calibración de las estimaciones en el informe por versión (RR-19) | `finish` termina con su resumen; el informe por versión da el error medio de la estimación | F8-1, F3-13 |
 
 ### Fase 9 — Actualización de proyectos y piloto (RR-13)
 
@@ -373,17 +394,20 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F9-1 | `taskctl actualizar --simular`: informe de lo que cambiaría al pasar un proyecto de la 0.16 a la 2.0 | Sobre copias de ToolsaWeb y OpenDockTrading, sin tocar nada | F1-12, F2-5 |
 | F9-2 | `taskctl actualizar`: lleva `tareas/` a la rama de estado aplanando las carpetas por estado (una carpeta fija por tarea) y conservando historial, migra la config, conserva IDs, dependencias e hitos; vuelta atrás con un comando | Copia de ToolsaWeb migrada: 403 tareas, mismas dependencias, roadmap igual | F9-1, F2-3 |
 | F9-3 | Actualizaciones entre versiones de la 2.x (migraciones encadenadas) | 2.0 → 2.1 de prueba sin intervención | F9-2 |
-| F9-4 | Suite E2E del flujo con dos «personas» a la vez | Sin conflictos; tablero correcto; merge solo con puertas | F7-*, F3-6 |
+| F9-4 | Suite E2E del flujo con **tres** personas a la vez: altas simultáneas, toma de la misma tarea, tareas que tocan los mismos ficheros, una tarea abandonada y reasignada (RR-12) | Ningún ID, rama ni tarea pisada; tablero correcto; todos ven lo mismo; merge solo con puertas | F7-*, F3-6, F2-4b, F2-13, F3-10, F3-11 |
+| F9-4b | Prueba nocturna: lote de 10 tareas reales desatendido en un repo de pruebas (RR-18) | Por la mañana: PR del lote, informe y ninguna integración en rojo | F4-8, F9-4 |
 | F9-5 | Prueba de seguridad (PR malicioso, config hostil, inyección en tareas) | Ninguno ejecuta código ni salta una puerta | F6-7 |
 | F9-6 | Auditoría externa repetida con el mismo encargo | Las tres preguntas responden «sí» | F9-4, F9-5 |
 | F9-7 | Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0 | Métricas frente a la 0.16 | F9-2, F9-6 |
 | F9-8 | ToolsaWeb actualizado y 10 tareas con la 2.0 | Minutos de verificación repetidos ≈ 0 | F9-7 |
+| F9-8b | Piloto final: TaskCodeTwo actualizado a la 2.0 completa con `taskctl actualizar` y 10 tareas suyas trabajadas con ella, incluida al menos una en paralelo por dos personas o agentes | Sin pérdida de tareas ni historial; métricas frente a ToolsaWeb y OpenDockTrading; lo que falle bloquea la 2.0.0 | F9-8, F4-5 |
 | F9-9a | Prueba de instalación en máquinas limpias (Windows, macOS, Linux) por ejecutable, por la línea de internet y por el marketplace | Primera tarea hecha en 15 min desde cero en cada sistema | F2-11, F8-5 |
-| F9-9 | Publicar 2.0.0 (ejecutables, instaladores y plugin en el marketplace) | Changelog, guía de actualización y release | F9-6..8, F9-9a |
+| F9-9 | Publicar 2.0.0 (ejecutables, instaladores y plugin en el marketplace) | Changelog, guía de actualización y release | F9-6..8, F9-8b, F9-9a, F9-10 |
+| F9-10 | Desinstalación limpia de TaskCode 0.16 en la máquina y en los proyectos (plugin, status line, hooks, ficheros de estado bajo `.git`, `logs/`, caché del marketplace), tras actualizar o sin hacerlo, con `--simular` (RR-16) | En una máquina y un proyecto con la 0.16 no queda rastro de ella; las tareas y su historial se conservan | F9-2, F1-12 |
 
 ## 9. Criterios de salida de la 2.0
 
-- Los **dieciséis requisitos rectores** se cumplen, cada uno con su prueba o su
+- Los **diecinueve requisitos rectores** se cumplen, cada uno con su prueba o su
   cifra; todos los requisitos **I** del catálogo, cubiertos.
 - Ningún paso del flujo pide al agente escribir `git` o `gh`, y los tokens por
   tarea bajan frente a la 0.16.
@@ -394,6 +418,9 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 - ToolsaWeb y OpenDockTrading actualizados con `taskctl actualizar`, sin perder
   tareas, dependencias ni historial.
 - Cero verificaciones repetidas sobre el mismo SHA.
+- Un lote nocturno de 10 tareas acaba en un único PR revisable por la mañana.
+- Durante cada tarea se ven en el terminal las fases que faltan y el tiempo estimado.
+- Se desinstalan limpiamente TaskCodeTwo y TaskCode 0.16.
 - Se instala en una máquina limpia de cada sistema desde el marketplace de
   Claude Code, igual que TaskCode, sin `npm install` ni bash; y con el
   ejecutable o la línea por internet para usos fuera de Claude Code.

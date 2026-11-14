@@ -26,10 +26,13 @@ de ellos, gana el requisito rector.
 | RR-09 | **Trabajo en grupo** | Varias personas y agentes a la vez sin conflictos de estado, IDs ni ficheros generados (RN-05, RN-06) |
 | RR-10 | **Las tareas son ficheros para el programador; el roadmap es la vista para todos** | Una carpeta fija por tarea (`tareas/TASK-NNN/`: tarea, plan, informes, resultado) que no se mueve nunca; el estado es un campo. Sin carpetas por estado. Issues de GitHub o GitLab, si se usan, son un espejo opcional |
 | RR-11 | **Un roadmap para ver todo, sin interferir en la verificación** | Vista de todas las tareas por estado (en curso, en revisión, planificadas por hito, terminadas, descartadas) y dependencias, regenerada sin invalidar la verificación (ni la huella ni la caché) y sin conflictos entre ramas |
-| RR-12 | **Equipo sin pisarse el trabajo** | IDs únicos aunque se creen a la vez en dos clones; una tarea la toma una persona o agente y los demás lo ven; ningún fichero compartido se reescribe en cada fase |
+| RR-12 | **Equipo garantizado: nadie pisa nombres, tareas ni trabajo, y todos saben quién lleva qué** | IDs y nombres de rama únicos aunque se creen a la vez; títulos duplicados detectados; una tarea solo la lleva una persona identificada por su usuario de la plataforma; las tareas abandonadas se liberan o reasignan con aviso; `start` avisa si otra tarea en curso toca los mismos ficheros; el roadmap y `status` muestran siempre el estado más reciente, con quién lleva cada tarea |
 | RR-13 | **Actualizar los proyectos existentes a la versión actual** | Comando de actualización (`taskctl actualizar`) que migra la estructura, la config y las tareas de un proyecto de una versión a otra, con simulación previa, idempotente y reversible; primero ToolsaWeb y OpenDockTrading de la 0.16 a la 2.0 |
 | RR-15 | **GitHub y GitLab desde la 2.0** | Las mismas garantías en las dos plataformas: rama protegida, pipeline obligatoria, aprobación de una persona, identidad propia del agente. Donde una plataforma o su plan de pago no ofrezca algo, la diferencia se documenta y `doctor` la dice |
-| RR-16 | **Instalación fácil en cualquier ordenador, igual que TaskCode** (repo público como marketplace de Claude Code) | Canal principal: `/plugin marketplace add charliebk/TaskCodeTwo` e instalar el plugin, como hoy TaskCode, sin `npm install` ni build. Como complemento: un ejecutable por sistema (Windows, macOS, Linux) que no necesita Node ni bash, descargable de las releases; instalación con una línea por internet (PowerShell en Windows, shell en macOS/Linux) y por el marketplace de Claude Code para las skills; como única dependencia externa, `git`. Comprobación de versión nueva y actualización con un comando |
+| RR-16 | **Instalación fácil en cualquier ordenador, igual que TaskCode** (repo público como marketplace de Claude Code) | Canal principal: `/plugin marketplace add charliebk/TaskCodeTwo` e instalar el plugin, como hoy TaskCode, sin `npm install` ni build. Como complemento: un ejecutable por sistema (Windows, macOS, Linux) que no necesita Node ni bash, descargable de las releases; instalación con una línea por internet (PowerShell en Windows, shell en macOS/Linux) y por el marketplace de Claude Code para las skills; como única dependencia externa, `git`. Comprobación de versión nueva y actualización con un comando. **Desinstalación limpia** con un comando, de TaskCodeTwo y de TaskCode 0.16 |
+| RR-17 | **Skills, agentes y modelo adecuados a cada tarea** | Para cada tarea y cada rol (diseño, implementación, revisión) se eligen las skills, los agentes y el modelo que corresponden según su dominio, complejidad y carril, **solo entre los que están instalados** en la máquina y el proyecto; la elección queda anotada en la tarea y se mide si acierta |
+| RR-18 | **Lotes desatendidos con revisión humana solo al final** | Un comando lanza una secuencia de tareas (rango o lista) que se ejecutan una tras otra sin preguntar: sin trocear, aceptando las recomendaciones, con revisión IA y verificación en cada tarea, y **una sola revisión humana al final del lote** (rama de lote y un único PR contra `develop`). Respeta dependencias, tiene presupuesto, se puede reanudar y deja un informe |
+| RR-19 | **Progreso en vivo en el terminal: fases que faltan y tiempo estimado** | En todo momento, para la tarea en curso: fase actual, fases que faltan y tiempo estimado restante (por fase y total), recalculado con lo real; en un lote, además, tareas que faltan y hora estimada de fin. Se ve en la status line de Claude Code y en `taskctl status --seguir`, lo escribe el CLI (sin tokens del agente). Al cerrar, resumen final: estimado frente a real por fase, tokens y rondas |
 | RR-14 | **Se construye con la versión actual de TaskCode** | El plan entero se ejecuta como tareas de TaskCode 0.16 en este repo (`taskctl import`, plan, revisión, finish). La 2.0 sustituye a la 0.16 en TaskCode solo cuando puede llevar su propio desarrollo |
 
 ## 1. Uso medido
@@ -126,7 +129,10 @@ Prioridad: **I** imprescindible (uso medido alto o sin él no hay producto),
 |---|---|---|---|---|
 | RF-10 | Diseño con brainstorm de roles (arquitectura, riesgos, testing, dominio, rendimiento) y unificador que deja un plan final | 161 / 41 / 105 tareas | I | skill `spec` con roles; resultado en el PR de especificación |
 | RF-11 | Aprobación del plan antes de implementar, también en modo automático | todas; 88–97 % automáticas | I | aprobación de una persona en el PR de spec o política de carril que la delega, registrada |
-| RF-12 | Recomendar skills y modelo por tarea | 21 / 0 / 2 | E | etiqueta del issue |
+| RF-12 | Recomendar skills, agentes y modelo por tarea y por rol (RR-17) | 21 / 0 / 2 (el catálogo apenas se configuró; la elección la hace hoy el agente sin criterio registrado) | I | `plan` propone y anota en la tarea; el orquestador y la revisión los usan |
+| RF-13 | Elegir el modelo por tarea y por rol según complejidad y carril (RR-17) | `modelo_sugerido` en todas las tareas de la 0.16 | I | reglas deterministas en `plan` |
+| RF-14 | Inventario de skills y agentes instalados (máquina y proyecto); nunca se recomienda uno que no existe (RR-17) | — | I | inventario + aviso en `doctor` |
+| RF-15 | Medir si la elección de skills, agentes y modelo acierta (RR-17, RR-05) | — | I | `metricas` e informe por versión |
 
 ### Implementación y flujo
 
@@ -139,6 +145,7 @@ Prioridad: **I** imprescindible (uso medido alto o sin él no hay producto),
 | RF-24 | Recuperación de estados de Git (diagnose, recover, abort-merge, pause/resume) | sin dato de uso | C | con el merge por PR sobran los de merge local; quedan `tc doctor` y una recuperación determinista de la rama de la tarea |
 | RF-25 | Operaciones de Git deterministas ejecutadas por el CLI, no por el agente (RR-01) | los 5 scripts de Git-Flow y todos los comandos de fase | I | capa única de operaciones Git/GitHub en el CLI, con salida para el agente sin ruido |
 | RF-26 | Integración en `develop` y `main` solo para releases (RR-06) | todas las tareas se integran en `develop` | I | PR contra `develop`; `tc release` de `develop` a `main` |
+| RF-27 | Ejecutar un lote de tareas desatendido con revisión humana al final (RR-18) | varias noches y salidas en los tres repos, hoy a mano por instrucción («arrancar TASK-a a TASK-b seguidas, sin trocear, aceptando recomendaciones») | I | `taskctl lote` con rama de lote y un único PR final |
 
 ### Revisión
 
@@ -176,7 +183,7 @@ Prioridad: **I** imprescindible (uso medido alto o sin él no hay producto),
 | ID | Requisito | Uso medido | Prio. | En la 2.0 |
 |---|---|---|---|---|
 | RF-60 | Tablero por estado, sprint y persona | `BOARD.md` en los tres | I | GitHub Projects + `tc status` |
-| RF-61 | Estado en vivo de la fase y progreso x/N (status line) | instalado en la máquina de Carlos | C | `tc status --watch`; progreso de la CI |
+| RF-61 | Estado en vivo de la tarea: fase actual, fases que faltan y tiempo estimado restante, en el terminal (RR-19) | instalado en la máquina de Carlos (status line de la 0.16) | I | status line y `taskctl status --seguir`, escritos por el CLI |
 | RF-62 | Coste en tokens por fase y por revisor | 91 / 41 / 70 tareas con `## Coste` | C | registro de coste por PR; `tc metrics` |
 | RF-63 | Métricas por tarea, fase, versión, grupo y varios repos (duración, rondas, hallazgos, verificaciones) | usadas en las auditorías de 2026-11-10/12/13 | I | `tc metrics` desde la API, con minutos de CI repetidos |
 | RF-64 | Doctor de entorno con el arreglo de cada fallo | los tres | I | `tc doctor`, también de rulesets y checks |
