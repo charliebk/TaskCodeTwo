@@ -328,7 +328,7 @@ RESULTADO D aceptadas=5/5 ; rechazadas=17/17
    release o hotfix en cualquier PR y podía quitar el plan firmado y la
    segunda aprobación; ahora solo vale con la base real `main` (y la rama
    `hotfix/*` en hotfix), y el mínimo por ficheros también se aplica a
-   release y hotfix (decisiones 1 y 4; PoC C, 8/8). **MEN-1**, `paradas_extra`
+   release y hotfix (decisiones 1 y 4; PoC C: 8/8 en la revisión 1, 14/14 en la versión vigente tras la revisión 3). **MEN-1**, `paradas_extra`
    con un valor que no es texto se rechaza con mensaje (PoC D). **MEN-2**, el
    suelo compara el primer componente de la ruta (`.github` y `.taskcode`
    exactos también). **MEN-3**, la PoC imprime los recuentos de `finish` y
