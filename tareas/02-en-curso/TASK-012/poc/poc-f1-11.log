@@ -1,0 +1,140 @@
+python 3.12.10 (-I: True, -B: True) ; git version 2.56.0.windows.4 ; PyYAML 6.0.3
+ADR: F1-11-extensiones-declaradas.md ; trabajo: .../taskcodetwo/task-012/poc ; plugin: taskcode-plugin/0.16.1
+repo ToolsaWeb: commit cb46c0f1b (2026-11-14)
+repo OpenDockTrading: commit f8a9b5f27 (2026-11-14)
+
+=== A: cobertura de las practicas del inventario (citas comprobadas en los commits fijos) ===
+claves en la tabla esquema del ADR: 17 ; en el validador: 17 ; iguales: True
+   1 Estado propio `05-archivadas`: carpeta, etiqueta `descarta citas=4 0.16=a mano  2.0=nativo  OK
+   2 Regenerar el Mermaid de `hitos.md` y `ROADMAP.md` en cada  citas=3 0.16=clave   2.0=clave   OK
+   3 Comprobaciones que cruzan código y estado, dentro de la ve citas=5 0.16=a mano  2.0=clave   OK
+   4 Lector propio de frontmatter que recorre `tareas/0?-*/TASK citas=2 0.16=a mano  2.0=nativo  OK
+   5 Cuatro perfiles con seis claves de comando y tiempo        citas=5 0.16=clave   2.0=clave   OK
+   6 Tiempo máximo por perfil y presupuesto del freno           citas=4 0.16=clave   2.0=clave   OK
+   7 Caché propia por paso y «completa del mismo árbol»         citas=3 0.16=a mano  2.0=clave   OK
+   8 Canales de texto: el x/N de `TASKCTL_PROGRESO` y la línea  citas=3 0.16=plugin  2.0=nativo  OK
+   9 `RAMA_BASE` como entrada del comando                       citas=2 0.16=plugin  2.0=nativo  OK
+  10 Pasos que dependen de la red                               citas=2 0.16=a mano  2.0=clave   OK
+  11 Cerrojo propio con códigos 3 y 4                           citas=3 0.16=a mano  2.0=clave   OK
+  12 Ruta de Windows en YAML (`"\v"`)                           citas=2 0.16=a mano  2.0=clave   OK
+  13 Revisoras propias: ningún proyecto las declara; el catálog citas=2 0.16=plugin  2.0=skill   OK
+  14 Guardas del arnés en `.claude/settings.json` (`deny git ch citas=3 0.16=a mano  2.0=fuera   OK
+citas comprobadas: 43/43
+en la 0.16: por clave=3 ; del plugin=3 ; a mano=8 (de 14)
+en la 2.0: clave=8 ; nativo=4 ; skill=1 ; fuera de alcance=1 ; sin destino=0
+-- estados propios (practica 1): 05-archivadas
+  ToolsaWeb: 9 en 05-archivadas ; con etiqueta descartada: 9 ; estado del frontmatter: en-diseno=1 (TASK-097) ; planificada=8 (TASK-006 TASK-010 TASK-030 TASK-031 TASK-054 TASK-055 TASK-056 TASK-171)
+  OpenDockTrading: 2 en 05-archivadas ; con etiqueta descartada: 2 ; estado del frontmatter: planificada=2 (TASK-015 TASK-068)
+  casos que cubre el estado nativo `descartada`: 11/11
+-- revisoras propias (practica 13): skills con `rol: revisor` en los pilotos
+  ToolsaWeb: 0
+  OpenDockTrading: 0
+RESULTADO A practicas=14 ; con destino=13 ; citas=43/43
+
+=== B: esquema de las tres claves, hostiles, presupuesto y ventaja en claves ===
+  ToolsaWeb traducida -> valida ; claves de primer nivel: ['confianza_incluye', 'derivados', 'verificacion']
+  OpenDockTrading traducida -> valida ; claves de primer nivel: ['confianza_incluye', 'derivados', 'verificacion']
+-- lo que la traduccion nombra existe en el commit fijo
+  TW glob 'Cargo.lock': 1 fichero(s)
+  TW glob 'web/package-lock.json': 1 fichero(s)
+  TW glob 'scripts/cache-verificacion.py': 1 fichero(s)
+  TW glob 'scripts/memo_ficheros.py': 1 fichero(s)
+  TW verificacion.comando: scripts/verificar.bat existe
+  TW verificacion.huella_local: scripts/huella-local.py NO EXISTE en el commit fijo (a crear)
+  TW derivados[0].comando: scripts/grafo-tareas.py existe
+  ODT glob 'Cargo.lock': 1 fichero(s)
+  ODT glob 'web/package-lock.json': 1 fichero(s)
+  ODT glob 'scripts/lector-tareas.py': 1 fichero(s)
+  ODT verificacion.comando: scripts/verificar.bat existe
+  ODT derivados[0].comando: scripts/comprobar-modulos.py existe
+-- contrato --perfil frente al verificar.bat de ToolsaWeb (lectura, no se ejecuta)
+  verificar.bat:68-79 acepta ['--selectiva', '--pesada', '--rapida'] ; otro argumento -> exit /b 2: True ; «--perfil completa» lo acepta: False
+-- hostiles (falla cerrado)
+  clave desconocida (la 0.16 en plano)                               -> rechazada: clave desconocida comando_verificacion_freno
+  clave desconocida dentro de verificacion                           -> rechazada: verificacion.presupuesto_freno_s: clave desconocida
+  ruta de Windows con \v entre comillas dobles (linea 9 de ToolsaWeb) -> rechazada: verificacion.comando: caracter de control '\x0b' en la orden (¿\v, \t o \n dentro de comillas dobles?): escrib
+  derivado que escribe fuera de tareas/ (hitos.md de ToolsaWeb)      -> rechazada: derivados[0].escribe: 'docs/planificacion/hitos.md' fuera de tareas/ (D2a: solo la rama de estado)
+  derivado que escribe el ROADMAP nativo                             -> rechazada: derivados[0].escribe: 'tareas/ROADMAP.md' lo escribe taskctl (roadmap o carpeta de tarea)
+  derivado que escribe una carpeta de tarea                          -> rechazada: derivados[0].escribe: 'tareas/TASK-001/tarea.md' lo escribe taskctl (roadmap o carpeta de tarea)
+  derivado comprueba que escribe                                     -> rechazada: derivados[0].escribe: un derivado comprueba no escribe nada
+  derivado con fase inventada                                        -> rechazada: derivados[0].fases: subconjunto no vacio de ['new', 'import', 'plan', 'approve', 'start', 'review', 'finish', 
+  estado propio declarado (D1a: sin clave)                           -> rechazada: clave desconocida estados
+  perfil fuera de F1-7                                               -> rechazada: verificacion.perfiles.selectiva: perfil desconocido (los de F1-7: ['rapida', 'impacto', 'completa', 'pesada'])
+  rapida con runner (corre en local)                                 -> rechazada: verificacion.perfiles.rapida.runner: rapida corre en local (F1-7 dec. 4); sin runner
+  confianza_incluye que hashea todo el arbol                         -> rechazada: confianza_incluye: globs sin negacion, sin rutas absolutas ni .., y no todo el arbol
+  timeout como texto                                                 -> rechazada: verificacion.perfiles.completa.timeout: entero de 1 a 21600 segundos
+  lector YAML estandar sobre la config real de ToolsaWeb: comando_verificacion = 'scripts\x0berificar.bat'
+  y sobre la de OpenDockTrading (sin comillas): comando_verificacion = 'scripts\\verificar.bat'
+-- confianza (F1-8 dec. 5): una orden sin confianza no se ejecuta
+  sin entrada: nunca ; tras confiar: confiado ; script cambiado: cambiado ; vuelta al contenido: confiado ; fichero de confianza_incluye cambiado: cambiado ; orden cambiada: cambiado ; cierre=['scripts/ayuda.py', 'scripts/grafo.py']
+-- presupuesto de claves y ventaja frente a la 0.16
+  claves del catalogo de la 0.16 (src/core/config.ts, tabla de cabecera): 32
+  de ellas, de verificacion y sincronizacion (las sustituyen verificacion y derivados): 12
+  ToolsaWeb: claves en su config 0.16 = 12 ; de verificacion y sincronizacion = 10 (comando_sincronizacion, comando_verificacion, comando_verificacion_freno, comando_verificacion_pesada, comando_verificacion_selectiva, presupuesto_freno_s, rutas_sincronizacion, timeout_verificacion, timeout_verificacion_selectiva, verificacion_pesada_en) ; en el esquema nuevo = 2 (derivados, verificacion) ; resto, de F2-7: ['modo_flujo', 'tope_rondas']
+  OpenDockTrading: claves en su config 0.16 = 3 ; de verificacion y sincronizacion = 2 (comando_verificacion, timeout_verificacion) ; en el esquema nuevo = 2 (derivados, verificacion) ; resto, de F2-7: ['modo_flujo']
+  presupuesto: F1-11 3 + F1-10 2 = 5 de 12 (F1-8 no anade clave propia: sus globs son confianza_incluye)
+RESULTADO B traducidas validas=2/2 ; hostiles rechazadas=13/13 ; claves=5/12
+
+=== C: derivados ejecutados por taskctl en la transicion, en la rama de estado ===
+merge-base develop taskcode/tareas: NINGUNA (huerfana)
+-- transiciones
+  T1 plan TASK-001                               commit=['TASK-001/tarea.md', 'grafo-hitos.md'] ; grafo regenerado=True
+  T2 approve TASK-001                            commit=['TASK-001/tarea.md', 'grafo-hitos.md'] ; grafo regenerado=True
+  T3 plan TASK-003 con dependencia rota          commit=['TASK-003/tarea.md'] ; grafo regenerado=False
+      aviso: derivados[0] fallo (codigo 1: dependencia inexistente: TASK-003 -> TASK-099); la transicion sigue; arreglalo y ejecuta `taskctl derivados`
+  T4 review TASK-001 con el generador cambiado   commit=['TASK-001/tarea.md'] ; grafo regenerado=False
+      aviso: derivados[0] cambiado: no se ejecuta; revisa la orden y `taskctl confiar derivados[0]`
+  T5 finish TASK-001 (generador restaurado)      commit=['TASK-001/tarea.md', 'TASK-003/tarea.md', 'grafo-hitos.md'] ; grafo regenerado=True
+-- hostiles en ejecucion
+  T6 finish TASK-002, codigo cita TASK-404       commit=['TASK-002/tarea.md', 'grafo-hitos.md'] ; grafo regenerado=True
+      aviso: derivados[1] fallo (codigo 1: citadas en el codigo y sin tarea: TASK-404); la transicion sigue; arreglalo y ejecuta `taskctl derivados`
+  T7 pausa TASK-003, derivado que escribe en codigo commit=['TASK-003/tarea.md'] ; grafo regenerado=False
+      aviso: derivados[0] escribio fuera de `escribe` (['src/intruso.txt']): descartado; la transicion sigue
+arbol de develop antes=f7b7e77bd30e despues=f7b7e77bd30e identico=True ; commits en develop 1->1 ; status limpio=True
+commits en taskcode/tareas: 8 (alta + 7 transiciones, uno por transicion)
+grafo-hitos.md final: TASK-001 fuera (terminada)=True ; TASK-003 en H2=True
+RESULTADO C transiciones=7 ; como se espera=7/7 ; develop identico=True
+
+=== D: lectura del estado (lectores propios copiados frente a `tareas --json` simulado) ===
+  OpenDockTrading (scripts/lector-tareas.py): tareas.md=96 ; vivas hoy (0.16)=94 ; mismo glob en carpeta fija=0 ; desde tareas --json=94 ; mismo conjunto que hoy=True
+  ToolsaWeb (scripts/grafo-tareas.py): tareas.md=404 ; vivas hoy (0.16)=395 ; mismo glob en carpeta fija=0 ; desde tareas --json=395 ; mismo conjunto que hoy=True
+  lineas que deja de necesitar un lector propio: OpenDockTrading lector-tareas.py entero = 44 ; ToolsaWeb grafo-tareas.py {'quitar_comentario': 7, 'leer_tarea': 24, 'cargar': 7} = 38 ; el consumidor de tareas --json = 3
+  ToolsaWeb grafo-tareas.py que solapa con el roadmap nativo (F1-1 dec. 3, F3-4) {'mermaid': 25, 'orden_de_trabajo': 17, 'roadmap': 48} = 90 (no se cuenta como ahorro: falta ver que F3-4 cubra su orden)
+  paso de OpenDockTrading que desaparece con el roadmap fuera del arbol (F1-7): verificar.bat:[59]
+RESULTADO D ok
+
+=== E: plan --completa del clasificador de ToolsaWeb (copia) con varios RAMA_BASE ===
+copia: 958 ficheros (sin docs/, tareas/ ni evidencias/)
+  RAMA_BASE sin definir      : codigo 0 ; modo=selectiva es_completa=True ; grupos=7 ; cacheados=0 ; aviso_pesada=['tw-superficie'] ; rango='develop...HEAD + cambios sin commit'
+  RAMA_BASE develop          : codigo 0 ; modo=selectiva es_completa=True ; grupos=7 ; cacheados=0 ; aviso_pesada=['tw-superficie'] ; rango='develop...HEAD + cambios sin commit'
+  RAMA_BASE vacia            : codigo 0 ; modo=selectiva es_completa=True ; grupos=7 ; cacheados=0 ; aviso_pesada=[] ; rango=''
+  RAMA_BASE main (no existe) : codigo 0 ; modo=selectiva es_completa=True ; grupos=7 ; cacheados=0 ; aviso_pesada=[] ; rango=''
+grupos de la completa iguales en las 4 variantes: True ; campos que cambian: ['aviso_pesada', 'ficheros', 'muestra', 'rango'] ; .cmd igual salvo el aviso: True
+RESULTADO E grupos iguales=True ; cambia solo=['aviso_pesada', 'ficheros', 'muestra', 'rango']
+
+=== Tabla `ventaja` del ADR frente a lo medido ===
+  practicas                                                              ADR='14'                   medido='14' OK
+  practicas a mano en la 0.16                                            ADR='8'                    medido='8' OK
+  practicas con destino declarado en la 2.0                              ADR='13'                   medido='13' OK
+  citas comprobadas                                                      ADR='43/43'                medido='43/43' OK
+  casos de 05-archivadas cubiertos por descartada                        ADR='11/11'                medido='11/11' OK
+  ToolsaWeb: archivadas con estado distinto de descartada                ADR='9/9'                  medido='9/9' OK
+  OpenDockTrading: archivadas con estado distinto de descartada          ADR='2/2'                  medido='2/2' OK
+  claves de la 0.16 en el catalogo                                       ADR='32'                   medido='32' OK
+  claves de la 0.16 de verificacion y sincronizacion                     ADR='12'                   medido='12' OK
+  ToolsaWeb: claves de verificacion y sincronizacion 0.16 -> 2.0         ADR='10 -> 2'              medido='10 -> 2' OK
+  OpenDockTrading: claves de verificacion y sincronizacion 0.16 -> 2.0   ADR='2 -> 2'               medido='2 -> 2' OK
+  claves de primer nivel de F1-10 y F1-11 frente al tope de 12           ADR='5 de 12'              medido='5 de 12' OK
+  configuraciones hostiles rechazadas                                    ADR='13/13'                medido='13/13' OK
+  ordenes de la traduccion que no existen hoy                            ADR='1'                    medido='1' OK
+  argumentos de perfil que ToolsaWeb acepta hoy                          ADR='--selectiva, --pesada, --rapida' medido='--selectiva, --pesada, --rapida' OK
+  transiciones con derivados en la rama de estado                        ADR='7'                    medido='7' OK
+  arbol de develop tras las transiciones                                 ADR='identico'             medido='identico' OK
+  ToolsaWeb: tareas que encuentra su lector en la carpeta fija           ADR='0'                    medido='0' OK
+  OpenDockTrading: tareas que encuentra su lector en la carpeta fija     ADR='0'                    medido='0' OK
+  lineas de lectores propios que sustituye tareas --json                 ADR='82 -> 3'              medido='82 -> 3' OK
+  pasos de verificacion que desaparecen (OpenDockTrading)                ADR='1'                    medido='1' OK
+  grupos de la completa de ToolsaWeb segun RAMA_BASE                     ADR='iguales'              medido='iguales' OK
+
+=== RESUMEN ===
+todo como se espera: A, B, C, D, E y la tabla de ventaja
