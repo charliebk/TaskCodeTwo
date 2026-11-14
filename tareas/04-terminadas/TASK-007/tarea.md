@@ -69,7 +69,7 @@ Tarea F1-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - **Decisiones de la persona** (consigna: opcion recomendada): D1a, D2a dos Apps, D3a, D4a FIDO (o (b) sin llave), D5a revisor en Actions, D6a.
 - **Divergencias** (en el ADR): `abrir-pr` en vez de `crear-pr`/`actualizar-pr`; permisos por endpoint en `github/docs`, no en OpenAPI; `web-flow` es `User` y se excluye; el revisor no comenta en el PR (F6-1 debe actualizarse); y las de la ronda 1.
 - **No verificado**: permisos efectivos de Apps reales, si GitHub cuenta la aprobacion de una App, merge real con `contents:write`, push de workflows sin permiso, la marca «Verified», llave FIDO real, GitLab, interfaz.
-- **Revision**: ronda 1 cambios (IMP-1 `estado-puertas` sin `checks:read`, IMP-2 `can_approve` exige `administration:read`, IMP-3 el guion no leia el ADR; MEN-1..6), todo corregido; ronda 2 aprobada con correcciones: MEN-7 (todas las operaciones de cada fila), MEN-8 (codigo de salida), MEN-9 (`doctor` sin token de persona) corregidos.
+- **Revision**: ronda 1 cambios (IMP-1 `estado-puertas` sin `checks:read`, IMP-2 `can_approve` exige `administration:read`, IMP-3 el guion no leia el ADR; MEN-1..6), todo corregido; ronda 2 aprobada con correcciones: MEN-7 (todas las operaciones de cada fila), MEN-8 (codigo de salida), MEN-9 (`doctor` sin token de persona) corregidos en `1797712` (`verificar-menores` dejo MEN-7 y MEN-8 en `menores-pendientes.md` porque no reconoce los ficheros de la carpeta de la tarea; anotado alli).
 - Implementacion por un agente implementador; revision por dos agentes independientes. `taskctl doctor` con 0 errores. Temporales borrados.
 
 ## Duracion
