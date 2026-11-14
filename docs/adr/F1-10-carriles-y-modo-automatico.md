@@ -224,8 +224,13 @@ paradas nuevas por tipo: approve=9, merge-pr=9, tope=2
   union: release funcionalidad desde develop efectivo=funcionalidad -> release+funcionalidad, True, 2, [approve, merge-pr, tag] ok
 -- barrido: approve, merge-pr y tag en todo carril, tipo, base, modo y configuracion valida de D
   combinaciones=1260 ; continuar=0 ; tipo y base que fallan cerrado (sin fila)=160
-  filas de main por debajo del carril efectivo: 0/8
-RESULTADO C ... ; tipo y base 11/11 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
+  filas de main por debajo del carril efectivo configurado (5 configuraciones aceptadas de D): 0/40
+-- union con la politica configurada (revision 3, IMP-2)
+   (cada resultado: fila, plan, aprobaciones, roles minimos, paradas; revisoras = por dominio del diff en los tres)
+  X1 hotfix/* -> main, fix + plan_aprobado                   -> hotfix+fix, True, 2, 1, [approve, merge-pr, tag] ok
+  X2 release develop -> main, funcionalidad + review, roles 3 -> release+funcionalidad, True, 2, 3, [approve, merge-pr, review, tag] ok
+  X3 hotfix/* -> main, funcionalidad + review, roles 3       -> hotfix+funcionalidad, True, 2, 3, [approve, merge-pr, review, tag] ok
+RESULTADO C ... ; tipo y base 14/14 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
 ```
 
 Lectura:
@@ -239,9 +244,12 @@ Lectura:
   `hotfix/*` → `main`; cualquier otro PR contra `main` falla cerrado (M1) y
   contra `develop` manda el carril efectivo. Además, una fila de `main`
   nunca baja de su carril efectivo: sus puertas son la unión de las de la
-  fila y las del carril (M3: un hotfix declarado funcionalidad lleva plan,
-  `approve` y dos aprobaciones; 0 de 8 filas de `main` por debajo de su
-  carril; 11/11 casos).
+  fila y la política del carril **ya endurecida por la configuración** (M3:
+  un hotfix declarado funcionalidad lleva plan, `approve` y dos
+  aprobaciones; X1–X3: un `plan_aprobado`, una `paradas_extra` o unos
+  `roles_diseno` del carril también valen contra `main`; 0 de 40 filas de
+  `main` por debajo de su carril configurado con las 5 configuraciones
+  aceptadas de D; 14/14 casos).
 - **Las paradas por tarea suben** (0,85 → 2,52 en ToolsaWeb). No las añade
   este ADR: son las dos puertas de F1-5 y F1-6 que la 0.16 no tiene. Hoy, en
   automático, el agente mergea en local (`finish=156` en ToolsaWeb, sin
@@ -333,6 +341,16 @@ RESULTADO D aceptadas=5/5 ; rechazadas=17/17
    una fila de `main` nunca baja del carril efectivo (unión de puertas;
    decisión 1; PoC C, M1, M3 y la unión, 11/11). Nota menor: las rutas se
    normalizan (`./.github/x` sale riesgo alto; antes, fix).
+10. **Revisión 3** (Carlos, con la consigna «la opción recomendada»):
+    **IMP-2**, la unión de una fila de `main` tomaba la fila de la tabla del
+    carril, sin `politica_carriles`: con `fix.plan_aprobado: true` un hotfix
+    a `main` salía sin plan (X1), y con `funcionalidad` endurecida
+    (`paradas_extra: [review]`, `roles_diseno: 3`) una release o un hotfix
+    perdían la parada y los roles (X2, X3). Ahora la unión toma
+    `politica(carril efectivo, config)` en todas sus columnas, también
+    «Revisoras» y `revisoras_extra` (nota menor), y la comprobación de
+    filas por debajo del carril usa las 5 configuraciones aceptadas de D
+    (0/40; PoC C, 14/14).
 
 ### No verificado
 
@@ -389,10 +407,14 @@ existe aún):
    fila es la del carril efectivo; cualquier otro PR contra `main` (un
    `release` desde `feature/*`, un `hotfix` desde otra rama, otro tipo) no
    tiene fila y `carril` falla cerrado. **Una fila de `main` nunca baja de
-   lo que exige el carril efectivo**: sus puertas son la unión de las de la
-   fila y las de la fila del carril (plan y `approve` si el carril los
-   exige, el mayor número de aprobaciones y de roles, la unión de checks y
-   de paradas, y fuera del lote si cualquiera de las dos lo está). Una
+   lo que exige el carril efectivo**: sus puertas son la unión, columna a
+   columna, de las de la fila y de `politica(carril efectivo, config)`, es
+   decir, la política del carril **ya endurecida por `politica_carriles`**
+   (plan y `approve` si el carril configurado los exige, el mayor número de
+   aprobaciones y de roles, la unión de checks y de paradas —también las
+   `paradas_extra`—, el perfil mayor, las revisoras de las dos —«ninguna»
+   de la release no anula las «por dominio del diff» del carril— más sus
+   `revisoras_extra`, y fuera del lote si cualquiera de las dos lo está). Una
    release cuyo diff toca `.taskcode/` lleva así lo de riesgo alto (decisión
    4), y un hotfix declarado funcionalidad, su plan firmado. `Fase` = `plan | approve | start | review | merge-pr | tag`;
    `politica` recibe la política del carril **efectivo**. La usan
@@ -587,7 +609,7 @@ Los ADR aceptados no se modifican; lo que cambia queda aquí y en
 | RF-33 tope de rondas | parada `preguntar` con las salidas de la 0.16 | PoC C (tope=69 / 40 / 2) |
 | RF-51 `## Resultado` | sin cambio: lo exige `carril` (F1-5) | — |
 | RN-06 una persona con agentes | D4a de F1-5 y D7a | D7a no verificado (F2-6) |
-| RR-08 / F1-8 `A10` lo escrito en `tarea.md` no baja una puerta (revisiones 1 y 2, IMP-1) | `tipo` solo elige fila con base real `main` y su rama de origen (`develop` en release, `hotfix/*` en hotfix); contra `develop`, el carril efectivo; las puertas de una fila de `main` son la unión con las del carril efectivo | PoC C (11/11: `tipo: hotfix` con diff en `.github/` sale riesgo alto contra `develop` y hotfix + riesgo alto contra `main`; M1, `release` desde `feature/*` → falla cerrado; M3, hotfix funcionalidad → plan y `approve`; release funcionalidad desde `develop` → unión; 0 de 8 filas de `main` por debajo de su carril) |
+| RR-08 / F1-8 `A10` lo escrito en `tarea.md` no baja una puerta (revisiones 1, 2 y 3, IMP-1 e IMP-2) | `tipo` solo elige fila con base real `main` y su rama de origen (`develop` en release, `hotfix/*` en hotfix); contra `develop`, el carril efectivo; las puertas de una fila de `main` son la unión con la política configurada del carril efectivo | PoC C (14/14: `tipo: hotfix` con diff en `.github/` sale riesgo alto contra `develop` y hotfix + riesgo alto contra `main`; M1, `release` desde `feature/*` → falla cerrado; M3, hotfix funcionalidad → plan y `approve`; release funcionalidad desde `develop` → unión; X1–X3, la configuración del carril también vale contra `main`; 0 de 40 filas de `main` por debajo de su carril configurado) |
 | Derivación con renombrados (F1-5) | los dos nombres; nunca funcionalidad | PoC A (203 tareas: 0 funcionalidad; 23/23 casos, `.github/` → `docs/` = riesgo alto) |
 | Preguntas abiertas de F1-3, F1-4, F1-5, F1-6, F1-8 y F1-9 | tabla «Preguntas heredadas» (15 filas, ninguna sin destino) | este ADR |
 

@@ -232,28 +232,14 @@ def fila_politica(carril, tipo, base, rama):
     return carril
 
 
-def politica(carril, tipo, cfg, tabla, base="develop", rama=None):
-    """Fila de la tabla endurecida con la configuracion ya validada. En una fila
-    de main (release, hotfix), si el carril efectivo es riesgo-alto (minimo por
-    ficheros), se exige ademas lo de riesgo-alto: plan firmado, 2 aprobaciones."""
-    fila = fila_politica(carril, tipo, base, rama)
-    fb = tabla[fila]
+def politica_carril(carril, cfg, tabla):
+    """Fila de un carril endurecida con `politica_carriles.<carril>` (ya validada)."""
+    fb = tabla[carril]
     pol = dict(fb)
     pol["paradas"] = set(fb["paradas"])
     pol["checks"] = set(fb["checks"])
-    pol["fila"] = fila
-    if fila in TIPOS_MAIN:
-        # una fila de main nunca baja de lo que exige el carril efectivo:
-        # sus puertas son la union de las de la fila y las del carril
-        ca = tabla[carril]
-        pol["fila"] = f"{fila}+{carril}"
-        pol["plan"] = pol["plan"] or ca["plan"]
-        pol["roles_min"] = max(pol["roles_min"], ca["roles_min"])
-        pol["aprobaciones"] = max(pol["aprobaciones"], ca["aprobaciones"])
-        pol["checks"] |= ca["checks"]
-        pol["paradas"] |= ca["paradas"]
-        pol["lote"] = pol["lote"] and ca["lote"]
-    extra = cfg.get("politica_carriles", {}).get(carril, {}) if fila in ORDEN else {}
+    pol["fila"] = carril
+    extra = cfg.get("politica_carriles", {}).get(carril, {})
     if "roles_diseno" in extra:
         pol["roles_min"] = max(pol["roles_min"], extra["roles_diseno"])
     if extra.get("plan_aprobado"):
@@ -266,6 +252,31 @@ def politica(carril, tipo, cfg, tabla, base="develop", rama=None):
     if "perfil" in extra:
         pol["perfil"] = extra["perfil"]
     pol["revisoras_extra"] = list(extra.get("revisoras_extra", []))
+    return pol
+
+
+def politica(carril, tipo, cfg, tabla, base="develop", rama=None):
+    """Politica del PR. Contra develop, la del carril efectivo con la
+    configuracion. En una fila de main (release, hotfix), la union de la fila
+    y de la politica YA CONFIGURADA del carril efectivo, columna a columna
+    (revision 3, IMP-2): nunca baja de lo que el carril exige en develop."""
+    fila = fila_politica(carril, tipo, base, rama)
+    ca = politica_carril(carril, cfg, tabla)
+    if fila in ORDEN:
+        return ca
+    fb = tabla[fila]
+    pol = dict(fb)
+    pol["fila"] = f"{fila}+{carril}"
+    pol["plan"] = fb["plan"] or ca["plan"]
+    pol["roles_min"] = max(fb["roles_min"], ca["roles_min"])
+    pol["aprobaciones"] = max(fb["aprobaciones"], ca["aprobaciones"])
+    pol["checks"] = set(fb["checks"]) | ca["checks"]
+    pol["paradas"] = set(fb["paradas"]) | ca["paradas"]
+    pol["lote"] = fb["lote"] and ca["lote"]
+    pol["perfil"] = max(fb["perfil"], ca["perfil"], key=PERFILES.index)
+    rev = [r for r in (fb["revisoras"], ca["revisoras"]) if r.lower() != "ninguna"]
+    pol["revisoras"] = " + ".join(dict.fromkeys(rev)) or "ninguna"
+    pol["revisoras_extra"] = list(ca["revisoras_extra"])
     return pol
 
 
@@ -821,15 +832,44 @@ def seccion_c(personal, tabla, minimos, trabajo):
                                           pol, modo, cfg, tabla)
                             cont += a == "continuar"
     print(f"  combinaciones={barr} ; continuar={cont} ; tipo y base que fallan cerrado (sin fila)={rech}")
-    baja = 0
-    for carril in ORDEN:
-        for tipo, base, rama in (("release", "main", "develop"), ("hotfix", "main", "hotfix/task-1-x")):
-            p, c = politica(carril, tipo, {}, tabla, base, rama), tabla[carril]
-            if (c["plan"] and not p["plan"]) or p["aprobaciones"] < c["aprobaciones"] or p["roles_min"] < c["roles_min"] \
-                    or not (p["checks"] >= c["checks"]) or not (p["paradas"] >= c["paradas"]):
-                baja += 1
-                falla("C", f"fila {tipo} baja de {carril}")
-    print(f"  filas de main por debajo del carril efectivo: {baja}/8")
+    baja = nfil = 0
+    for cfg in CONFIGS_VALIDAS:
+        for carril in ORDEN:
+            for tipo, base, rama in (("release", "main", "develop"), ("hotfix", "main", "hotfix/task-1-x")):
+                nfil += 1
+                p, c = politica(carril, tipo, cfg, tabla, base, rama), politica(carril, None, cfg, tabla)
+                if (c["plan"] and not p["plan"]) or p["aprobaciones"] < c["aprobaciones"] \
+                        or p["roles_min"] < c["roles_min"] or not (p["checks"] >= c["checks"]) \
+                        or not (p["paradas"] >= c["paradas"]) or (p["lote"] and not c["lote"]) \
+                        or PERFILES.index(p["perfil"]) < PERFILES.index(c["perfil"]) \
+                        or not set(c["revisoras_extra"]) <= set(p["revisoras_extra"]) \
+                        or (c["revisoras"].lower() != "ninguna" and c["revisoras"] not in p["revisoras"]):
+                    baja += 1
+                    falla("C", f"fila {tipo} baja de {carril} con {cfg}")
+    print(f"  filas de main por debajo del carril efectivo configurado (5 configuraciones aceptadas de D): {baja}/{nfil}")
+    print("-- union con la politica configurada (revision 3, IMP-2)")
+    cfx = {"politica_carriles": {"fix": {"plan_aprobado": True}}}
+    cfn = {"politica_carriles": {"funcionalidad": {"paradas_extra": ["review"], "roles_diseno": 3}}}
+    xs = [
+        ("X1 hotfix/* -> main, fix + plan_aprobado", "fix", "hotfix", "main", "hotfix/task-906-x", cfx,
+         ("hotfix+fix", True, 2, 1, ["approve", "merge-pr", "tag"])),
+        ("X2 release develop -> main, funcionalidad + review, roles 3", "funcionalidad", "release", "main", "develop",
+         cfn, ("release+funcionalidad", True, 2, 3, ["approve", "merge-pr", "review", "tag"])),
+        ("X3 hotfix/* -> main, funcionalidad + review, roles 3", "funcionalidad", "hotfix", "main", "hotfix/task-907-x",
+         cfn, ("hotfix+funcionalidad", True, 2, 3, ["approve", "merge-pr", "review", "tag"])),
+    ]
+    okx = 0
+    for nombre, carril, tipo, base, rama, cfg, esp in xs:
+        cargar_config(cfg, tabla)
+        p = politica(carril, tipo, cfg, tabla, base, rama)
+        obt = (p["fila"], p["plan"], p["aprobaciones"], p["roles_min"], sorted(p["paradas"]))
+        bien = obt == esp
+        okx += bien
+        print(f"  {nombre:58} -> {obt} revisoras={p['revisoras']!r} {'ok' if bien else 'FALLO (se esperaba ' + str(esp) + ')'}")
+        if not bien:
+            falla("C", f"union configurada: {nombre}")
+    okt += okx
+    casos = casos + xs
     if cont:
         falla("C", f"{cont} continuar sobre una parada fija")
     total_malas += cont

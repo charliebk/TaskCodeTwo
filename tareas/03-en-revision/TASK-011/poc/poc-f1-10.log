@@ -1,5 +1,5 @@
 python 3.12.10 (-I: True) ; git version 2.56.0.windows.4
-ADR: F1-10-carriles-y-modo-automatico.md ; trabajo: .../pruebas-claude/taskcodetwo/task-011-c2
+ADR: F1-10-carriles-y-modo-automatico.md ; trabajo: .../pruebas-claude/taskcodetwo/task-011-c3
 repo ToolsaWeb: commit 93c9618ac (2026-11-14)
 repo OpenDockTrading: commit fab8d7e05 (2026-11-14)
 repo TaskCodeTwo: commit afc3791b5 (2026-11-14)
@@ -114,8 +114,12 @@ reparto (hoy -> nuevo: tareas): 1->2: 7, 2->3: 2
   union: release funcionalidad desde develop efectivo=funcionalidad -> ('release+funcionalidad', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
 -- barrido: approve, merge-pr y tag en todo carril, tipo, base, modo y configuracion valida de D
   combinaciones=1260 ; continuar=0 ; tipo y base que fallan cerrado (sin fila)=160
-  filas de main por debajo del carril efectivo: 0/8
-RESULTADO C ToolsaWeb: tareas=160 hoy=0.85 nuevo=2.52 cota=1.52 ; OpenDockTrading: tareas=43 hoy=2.12 nuevo=3.19 cota=2.16 ; TaskCodeTwo: tareas=9 hoy=1.22 nuevo=2.22 cota=1.22 ; tipo y base 11/11 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
+  filas de main por debajo del carril efectivo configurado (5 configuraciones aceptadas de D): 0/40
+-- union con la politica configurada (revision 3, IMP-2)
+  X1 hotfix/* -> main, fix + plan_aprobado                   -> ('hotfix+fix', True, 2, 1, ['approve', 'merge-pr', 'tag']) revisoras='por dominio del diff' ok
+  X2 release develop -> main, funcionalidad + review, roles 3 -> ('release+funcionalidad', True, 2, 3, ['approve', 'merge-pr', 'review', 'tag']) revisoras='por dominio del diff' ok
+  X3 hotfix/* -> main, funcionalidad + review, roles 3       -> ('hotfix+funcionalidad', True, 2, 3, ['approve', 'merge-pr', 'review', 'tag']) revisoras='por dominio del diff' ok
+RESULTADO C ToolsaWeb: tareas=160 hoy=0.85 nuevo=2.52 cota=1.52 ; OpenDockTrading: tareas=43 hoy=2.12 nuevo=3.19 cota=2.16 ; TaskCodeTwo: tareas=9 hoy=1.22 nuevo=2.22 cota=1.22 ; tipo y base 14/14 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
 
 === D: configuracion que solo endurece ===
 -- aceptadas (endurecen o no cambian nada)
