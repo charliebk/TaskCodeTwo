@@ -1,0 +1,119 @@
+PoC F1-14 ; ToolsaWeb 8bebfd049 ; OpenDockTrading 8141a08a7 ; Python 3.12.10 ; PyYAML 6.0.3
+
+=== I: inventario de herramientas (where y --version) ===
+node     encontrado     v22.23.4
+npm      encontrado     10.9.9
+cargo    encontrado     cargo 1.100.0 (3acc79c0c 2026-11-05)
+rustc    encontrado     rustc 1.100.0 (0ef1bc386 2026-11-09)
+rustup   encontrado     rustup 1.29.1 (d95a37b6a 2026-08-13)
+git      encontrado     git version 2.56.0.windows.4
+openssl  encontrado     OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+docker   encontrado     Docker version 29.9.2, build a82e528
+wsl      encontrado     2.7.3.0
+bun      NO encontrado  no encontrado
+zig      NO encontrado  no encontrado
+deno     NO encontrado  no encontrado
+signtool encontrado     C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe (no esta en el PATH)
+python   encontrado     3.12.10 ; PyYAML 6.0.3
+rustup targets instalados: wasm32-unknown-unknown, x86_64-pc-windows-msvc
+docker daemon: no responde
+wsl distribuciones: docker-desktop
+
+=== B: build en limpio de los dos, dos veces (fuera del repo) ===
+Rust: dos builds en limpio: sha256 distinto ; tamano 2720768 bytes
+TypeScript: dos builds en limpio: sha256 igual ; tamano 87430656 bytes
+Rust con -C link-arg=/Brepro: dos builds en limpio: sha256 igual ; tamano 2720768 bytes (es el .exe de Rust que se mide desde aqui)
+artefactos de build dentro del repo: 0
+
+=== C: copias de ToolsaWeb y OpenDockTrading en commit fijo (los originales solo se leen) ===
+ToolsaWeb: commit 8bebfd049 ; ficheros (con .git) 4579
+OpenDockTrading: commit 8141a08a7 ; ficheros (con .git) 5326
+
+=== S: salidas sobre las copias, contraste con PyYAML, clave duplicada y sin node en el PATH ===
+ToolsaWeb: codigos 0 / 0 ; stdout identico byte a byte: si ; tareas 404 ; errores 0 ; estados en-diseno 1, planificada 241, terminada 162
+   PyYAML (cargador estricto): validas 404 ; errores 0 ; coincide con los binarios: si
+OpenDockTrading: codigos 0 / 0 ; stdout identico byte a byte: si ; tareas 96 ; errores 0 ; estados planificada 52, terminada 44
+   PyYAML (cargador estricto): validas 96 ; errores 0 ; coincide con los binarios: si
+repo vacio: codigos 0 / 0 ; stdout identico byte a byte: si ; tareas 0 ; errores 0 ; estados -
+clave duplicada (estado repetido en tareas/00-planificadas/TASK-021/tarea.md de OpenDockTrading): Rust la rechaza si ; TypeScript la rechaza si ; PyYAML safe_load la acepta en silencio: si
+sin node en el PATH (where node vacio: si) ni NODE_*: Rust igual si ; TypeScript igual si
+
+=== F: firma Authenticode con certificado autofirmado desechable (copias de los .exe) ===
+Rust: sin firma antes: verify falla ; sign codigo 0 ; ejecucion tras firmar igual: si ; verify /pa: rechazada: raiz no de confianza ; firmante visto: si
+TypeScript: sin firma antes: verify falla ; sign codigo 0 ; ejecucion tras firmar igual: si ; verify /pa: rechazada: raiz no de confianza ; firmante visto: si
+almacen de certificados del usuario (My, Root, CA, TrustedPublisher) sin cambios: si
+
+=== X: compilacion cruzada y ejecucion fuera de Windows, solo con lo instalado ===
+Rust --target x86_64-unknown-linux-gnu: no compila: target no instalado (sin la std de destino)
+Rust --target aarch64-apple-darwin: no compila: target no instalado (sin la std de destino)
+Rust --target aarch64-pc-windows-msvc: no compila: target no instalado (sin la std de destino)
+TypeScript (Node SEA) para Linux o macOS: hace falta el node de ese sistema como base; no hay ninguno instalado y no se descarga
+bun build --compile --target: bun no encontrado
+ejecucion en Linux: no verificado: daemon de Docker sin respuesta y WSL sin distribucion de usuario
+ejecucion en macOS: no verificado (no hay macOS)
+
+=== M: tamanos y peso de meter binarios en el repo del marketplace ===
+Rust: .exe win-x64 2720768 bytes (2,6 MiB) ; gzip -9 1344575 bytes (1,3 MiB)
+   por version (6 targets, estimado con win-x64): 15,6 MiB ; 10 versiones: 155,7 MiB ; frente a 50 / 100 MiB de GitHub: por debajo / por debajo
+TypeScript: .exe win-x64 87430656 bytes (83,4 MiB) ; gzip -9 33103429 bytes (31,6 MiB)
+   por version (6 targets, estimado con win-x64): 500,3 MiB ; 10 versiones: 5002,8 MiB ; frente a 50 / 100 MiB de GitHub: por encima / por debajo
+TypeScript / Rust en tamano: 32.1 veces
+
+=== D: dependencias y lineas de codigo (de las fuentes del repo) ===
+Rust: dependencias directas 3 (serde, serde-saphyr, ureq) ; paquetes en Cargo.lock 90
+TypeScript: dependencias de runtime 1 (yaml) ; paquetes en package-lock.json 53 ; postject 1.0.0-alpha.6
+lineas de main.rs 175 (147 sin blancos ni comentarios de linea) ; main.ts 243 (215) ; build.mjs 105 (89)
+
+=== C': hash del arbol de las copias despues de todas las ejecuciones ===
+ToolsaWeb: hash del arbol (con .git) antes y despues: igual
+OpenDockTrading: hash del arbol (con .git) antes y despues: igual
+
+=== D1: regla declarada antes de medir (plan, D1a) ===
+criterio 1 arranque en caliente: Rust
+criterio 2 tamano: Rust
+criterio 3 compilacion cruzada reproducible: ninguno
+criterio 4 librerias mantenidas que cumplan F1-9: Rust
+criterio 5 coste del agente: ninguno
+   motivo del 4: las dos librerias YAML estan mantenidas y rechazan duplicadas (F1-9), pero la cadena de empaquetado de TypeScript depende de postject 1.0.0-alpha.6 (sin publicar desde 2023-05-19)
+   motivo del 5: minutos parecidos (~8 frente a ~9) y tokens no anotados por implementacion
+gana: Rust (el 1.o y al menos dos mas)
+
+=== G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control ===
+cifras en la tabla del ADR: 70 ; medidas: 70
+errores del ADR: 0
+  mutacion cifra-cambiada: falla como se espera (M: Rust: tamano del .exe win-x64 (bytes): el ADR dice '27207680' y lo medido es '2720768')
+  mutacion fila-borrada: falla como se espera (cifra medida que falta en la tabla: M: Rust: tamano del .exe win-x64 (bytes) = 2720768)
+  mutacion fila-sin-medida: falla como se espera (fila de la tabla sin medida: cifra inventada)
+  mutacion tiempo-de-reloj-en-la-tabla: falla como se espera (fila de la tabla sin medida: T: Rust caliente en ms)
+  mutacion fuente-cambiada: falla como se espera (M: Rust: tamano del .exe win-x64 (bytes): fuente 'D' y es 'M')
+  mutacion resumen-inventado: falla como se espera (el resumen cita '9999', que no es un valor de la tabla)
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion enlace-a-tareas: falla como se espera (enlaces prohibidos ['../../tareas/x.md'])
+  mutacion enlace-roto: falla como se espera (enlace que no resuelve: F1-99-no-existe.md)
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## No verificado'])
+  mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
+  mutacion engram-obligatorio: falla como se espera (falta la regla: engram no es obligatorio)
+  mutacion ganador-cambiado: falla como se espera (D1: ganador (el 1.o y al menos dos mas): el ADR dice 'TypeScript' y lo medido es 'Rust')
+  mutacion sin-macos-en-no-verificado: falla como se espera («No verificado» no nombra Linux y macOS)
+
+=== T: tiempos de reloj (NO deterministas; fuera de la tabla comprobada del ADR) ===
+build en limpio Rust (1.a): 39.8 s
+build en limpio Rust (2.a): 39.7 s
+build en limpio TypeScript (1.a): 17.2 s
+build en limpio TypeScript (2.a): 17.9 s
+build en limpio Rust con /Brepro (1.a): 39.3 s
+build en limpio Rust con /Brepro (2.a): 39.8 s
+firma Rust: el .exe crece 1832 bytes
+firma TypeScript: el .exe crece 1832 bytes
+Rust sobre repo vacio: frio (1.a ejecucion de copia nueva) 86 ms ; caliente mediana de 20 49 ms (min 46, max 58)
+Rust sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 403 ms ; caliente mediana de 20 385 ms (min 349, max 500)
+Rust sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 158 ms ; caliente mediana de 20 133 ms (min 123, max 139)
+TypeScript sobre repo vacio: frio (1.a ejecucion de copia nueva) 1213 ms ; caliente mediana de 20 136 ms (min 130, max 149)
+TypeScript sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 1787 ms ; caliente mediana de 20 691 ms (min 666, max 778)
+TypeScript sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 1508 ms ; caliente mediana de 20 327 ms (min 299, max 397)
+Rust con red y sin variables NODE_* (almacen del sistema): red: si
+TypeScript con red y sin variables NODE_* (almacen del sistema): red: si
+
+carpeta de trabajo borrada al terminar: si
+
+RESULTADO: todo como se espera
