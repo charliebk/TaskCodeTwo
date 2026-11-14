@@ -55,3 +55,7 @@ Tarea F1-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 
 - code-quality-reviewer — b94e6fe
 - code-quality-reviewer — ca2d75f
+
+## Verificacion ligera
+
+- 2026-11-14T20:37:49Z: ronda 2; commit revisado dd39c4108a460d33676e2d283ea2012b370bd381; commit verificado b6e01816f2517ca8520394f404cdc1b8056da087; ficheros: docs/adr/F1-13-adaptador-de-plataforma.md, docs/adr/README.md; corregidos: MEN-7, MEN-8; pendientes: MEN-6
