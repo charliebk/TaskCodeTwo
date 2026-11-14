@@ -42,7 +42,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 - **En marcha:** ninguna
 - **Listas para empezar:** TASK-001
 
-## H1 — H1
+## H1 — Arranque y decisiones de arquitectura (ADR)
 
 0 de 15 terminadas.
 
@@ -64,7 +64,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 14 | TASK-014 | F1-14 ADR distribucion e instalacion | — | TASK-001 | espera a TASK-001 |
 | 15 | TASK-015 | F1-13 ADR adaptador de plataforma GitHub y GitLab | — | TASK-005 | espera a TASK-005 |
 
-## H2 — H2
+## H2 — Núcleo
 
 0 de 12 terminadas.
 
@@ -83,7 +83,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 26 | TASK-026 | F2-11 Instaladores de una linea | — | TASK-025 | espera a TASK-025 |
 | 27 | TASK-027 | F2-12 taskctl actualizar --cli y aviso de version nueva | — | TASK-025 | espera a TASK-025 |
 
-## H3 — H3
+## H3 — Comandos del flujo
 
 0 de 8 terminadas.
 
@@ -98,7 +98,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 34 | TASK-034 | F3-7 descartar y pausa | — | TASK-018 | espera a TASK-018 |
 | 35 | TASK-035 | F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks | — | TASK-028 | espera a TASK-028 |
 
-## H4 — H4
+## H4 — Diseño, aprobación y relevo
 
 0 de 5 terminadas.
 
@@ -110,7 +110,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 47 | TASK-039 | F4-4 Orquestador del modo automatico | — | TASK-033, TASK-037, TASK-048 | espera a TASK-033, TASK-037, TASK-048 |
 | 64 | TASK-040 | F4-5 Punto de relevo | — | TASK-039, TASK-064 | espera a TASK-039, TASK-064 |
 
-## H5 — H5
+## H5 — Verificación sin redundancia
 
 0 de 6 terminadas.
 
@@ -123,7 +123,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 43 | TASK-045 | F5-5 Runner self-hosted Windows por perfil | — | TASK-009, TASK-041 | espera a TASK-009, TASK-041 |
 | 44 | TASK-046 | F5-6 Hook local rapido, opcional y con confianza | — | TASK-009 | espera a TASK-009 |
 
-## H6 — H6
+## H6 — Revisión con identidad y búsqueda de errores
 
 0 de 7 terminadas.
 
@@ -137,7 +137,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 51 | TASK-052 | F6-6 Rondas incrementales | — | TASK-051 | espera a TASK-051 |
 | 52 | TASK-053 | F6-7 Defensa contra prompt injection en PR y tareas | — | TASK-009, TASK-049 | espera a TASK-009, TASK-049 |
 
-## H7 — H7
+## H7 — Integración y publicación
 
 0 de 4 terminadas.
 
@@ -148,7 +148,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 55 | TASK-056 | F7-3 release y hotfix con tag y notas desde los PR | — | TASK-017 | espera a TASK-017 |
 | 56 | TASK-057 | F7-4 CHANGELOG generado al publicar, no en cada cierre | — | TASK-056 | espera a TASK-056 |
 
-## H8 — H8
+## H8 — Equipo, métricas e iteración del método
 
 0 de 5 terminadas.
 
@@ -160,7 +160,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 60 | TASK-061 | F8-4 Espejo opcional en issues de GitHub o GitLab | — | TASK-032 | espera a TASK-032 |
 | 61 | TASK-062 | F8-5 Guia de una pagina y referencia generada desde el codigo | — | TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033, TASK-034, TASK-035, TASK-054, TASK-055, TASK-056, TASK-057 | espera a TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033, TASK-034, TASK-035, TASK-054, TASK-055, TASK-056, TASK-057 |
 
-## H9 — H9
+## H9 — Actualización de proyectos, piloto y 2.0.0
 
 0 de 10 terminadas.
 
