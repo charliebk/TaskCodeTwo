@@ -57,3 +57,7 @@ Tarea F1-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 
 - code-quality-reviewer — 10027fd
 - code-quality-reviewer — 4456a70
+
+## Verificacion ligera
+
+- 2026-11-14T19:36:02Z: ronda 2; commit revisado ef826d85f6c32ba273cb3ffd54e9f1da27506f09; commit verificado 463f9fc8a2a66f20d0cfa0a9ff0f5d972e6477de; ficheros: docs/adr/F1-14-distribucion-e-instalacion.md; corregidos: MEN-6, MEN-8, MEN-9, MEN-10; pendientes: MEN-7
