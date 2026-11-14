@@ -1,0 +1,28 @@
+# CI minima de TaskCodeTwo (TASK-001, F1-0): valida tareas/ y los enlaces de
+# la documentacion. La CI de codigo llega con F2-1 y la de verdad con F5-1.
+name: ci
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repo:
+    name: comprobar-repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Estructura de tareas/ y enlaces de la documentacion
+        run: bash .github/scripts/comprobar-repo.sh
