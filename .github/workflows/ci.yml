@@ -3,8 +3,9 @@
 name: ci
 
 on:
+  # Cualquier rama: con la 0.16 las tareas se cierran con merge local (sin PR),
+  # asi que la rama de la tarea se verifica en su push.
   push:
-    branches: [develop, main]
   pull_request:
     branches: [develop, main]
 
