@@ -45,10 +45,10 @@ Convenciones del tier:
 | L06 | https://docs.gitlab.com/user/project/merge_requests/methods/ | 2026-11-14 | Free | «Squashing is never performed, and the user cannot change the behavior.» |
 | L07 | https://docs.gitlab.com/ci/pipelines/merge_trains/ | 2026-11-14 | Premium | «Use merge trains to put merge requests in a queue.» |
 | L08 | https://docs.gitlab.com/user/project/merge_requests/auto_merge/ | 2026-11-14 | Free | «This setting also prevents merge requests from merging if there is no pipeline» |
-| L09 | https://docs.gitlab.com/user/project/merge_requests/status_checks/ | 2026-11-14 | Ultimate | «External status checks Tier : Ultimate» |
+| L09 | https://docs.gitlab.com/user/project/merge_requests/status_checks/ | 2026-11-14 | Ultimate | «merge requests in projects can be merged even if external status checks fail» |
 | L10 | https://docs.gitlab.com/user/project/protected_tags/ | 2026-11-14 | Free | «Prevent accidental update or deletion once created.» |
 | L11 | https://docs.gitlab.com/user/project/settings/project_access_tokens/ | 2026-11-14 | Premium | «On GitLab.com, project access tokens require a Premium or Ultimate subscription.» |
-| L12 | https://docs.gitlab.com/user/profile/service_accounts/ | 2026-11-14 | Free | «Service accounts on Free tier: Introduced in GitLab 18.10» |
+| L12 | https://docs.gitlab.com/user/profile/service_accounts/ | 2026-11-14 | Free | «They do not use a seat.» |
 | L13 | https://docs.gitlab.com/api/commits/ | 2026-11-14 | Free | «Must be 255 characters or fewer.» |
 | L14 | https://docs.gitlab.com/user/project/repository/signed_commits/ | 2026-11-14 | Free | «the commit is marked Verified in the GitLab UI» |
 | L15 | https://docs.gitlab.com/api/merge_request_approvals/ | 2026-11-14 | Free | «Merge request approvals API Tier : Free, Premium, Ultimate» |
@@ -65,6 +65,7 @@ Convenciones del tier:
 | L26 | https://about.gitlab.com/pricing/ | 2026-11-14 | precios | «5 users per top-level group» |
 | L27 | https://docs.gitlab.com/user/project/repository/push_rules/ | 2026-11-14 | Premium | «Push rules Tier : Premium, Ultimate» |
 | L28 | https://docs.gitlab.com/ci/pipelines/settings/ | 2026-11-14 | Free | «Is in a different project, include the group and project name.» |
+| L29 | https://docs.gitlab.com/api/status_checks/ | 2026-11-14 | Ultimate | «any user with rights to approve the merge request itself» |
 <!-- fuentes:fin -->
 
 Notas de lectura (paráfrasis, no citas):
@@ -85,7 +86,13 @@ Notas de lectura (paráfrasis, no citas):
   configura **por proyecto**, en Settings > Merge requests.
 - L11: en self-managed, los tokens de proyecto están disponibles con
   cualquier licencia; crean un usuario bot.
-- L12: las cuentas de servicio en Free, disponibles en general desde 18.11.
+- L12: las cuentas de servicio en Free, disponibles en general desde 18.11;
+  no ocupan asiento ni son usuarios facturables; en GitLab.com Free, hasta
+  100 por grupo de nivel superior (en Premium y Ultimate, sin límite).
+- L09 y L29: el check de estado externo es Ultimate; por defecto el MR se
+  mergea aunque falle, salvo «Status checks must succeed»; lo responde
+  cualquier usuario con rol Developer o superior que pueda aprobar el MR
+  (no solo el servicio configurado).
 - L15: la cabecera de la API es Free; «Retrieve approval details» y las
   reglas de aprobación del MR son Premium.
 - L17: el job token solo llega a una lista cerrada de endpoints; en

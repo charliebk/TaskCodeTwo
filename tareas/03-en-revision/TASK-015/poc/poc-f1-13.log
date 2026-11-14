@@ -7,12 +7,19 @@ python: 3.12.10
 gh auth status: sesion=si ; ambitos incluyen escritura (repo)=si (la lectura la garantiza el envoltorio, no el token)
 glab: no se usa (GET anonimos con urllib por el envoltorio)
 
-=== N: el envoltorio rechaza todo lo que no es GET antes de la red ===
+=== N: el envoltorio rechaza, antes de la red, lo que no es GET o no va a un destino de la lista blanca ===
 NEG-01 POST: rechazado por el envoltorio
 NEG-02 DELETE: rechazado por el envoltorio
 NEG-03 PUT: rechazado por el envoltorio
 NEG-04 get: rechazado por el envoltorio
-peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 4
+NEG-05 GET a otro host: rechazado por el envoltorio
+NEG-06 GET a otro proyecto de GitLab: rechazado por el envoltorio
+NEG-07 GET con prefijo enganoso: rechazado por el envoltorio
+NEG-08 gh GET a un repo ajeno: rechazado por el envoltorio
+NEG-09 gh GET con una ruta que es una opcion: rechazado por el envoltorio
+NEG-10 GET a otro puerto local: rechazado por el envoltorio
+NEG-11 gh GET fuera de repos/: rechazado por el envoltorio
+peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 11
 
 === R: GET reales (solo lo estable: estado HTTP y campos; el cuerpo en la carpeta de trabajo) ===
 GH-01 GET https://api.github.com/repos/charliebk/TaskCodeTwo -> 200 ; repo: visibilidad y tipo de cuenta
@@ -169,17 +176,21 @@ contraste de campos (fixture subconjunto de lo observado):
    doctor puertas plataforma=gitlab plan=premium impuestas=17 sustituidas=3 no-disponibles=0
    G01 sustituida motivo=plataforma por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma
    G08 sustituida motivo=plataforma por=al-dia-por-cli arreglo=ninguno-limite-de-la-plataforma
-   G09 sustituida motivo=plan por=autor-del-estado arreglo=gitlab-ultimate
+   G09 sustituida motivo=plataforma por=autor-del-estado arreglo=ninguno-limite-de-la-plataforma
    lista completa: G01=sustituida(maintainer-solo-persona) G08=sustituida(al-dia-por-cli) G09=sustituida(autor-del-estado)
 -- gitlab ultimate
-   doctor puertas plataforma=gitlab plan=ultimate impuestas=18 sustituidas=2 no-disponibles=0
+   doctor puertas plataforma=gitlab plan=ultimate impuestas=17 sustituidas=3 no-disponibles=0
    G01 sustituida motivo=plataforma por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma
    G08 sustituida motivo=plataforma por=al-dia-por-cli arreglo=ninguno-limite-de-la-plataforma
-   lista completa: G01=sustituida(maintainer-solo-persona) G08=sustituida(al-dia-por-cli)
+   G09 sustituida motivo=plataforma por=autor-del-estado arreglo=ninguno-limite-de-la-plataforma
+   lista completa: G01=sustituida(maintainer-solo-persona) G08=sustituida(al-dia-por-cli) G09=sustituida(autor-del-estado)
+-- G09 en GitLab free: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
+-- G09 en GitLab premium: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
+-- G09 en GitLab ultimate: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
 -- puertas leidas sin CODEOWNERS en GitLab Premium: G06 no_disponible motivo=config arreglo=tc2-init
 
 === G: el ADR (tabla, fuentes, capacidades, IDs, enlaces, prosa) y sus mutaciones de control ===
-cifras de la tabla: total=20 ; gh_rs=10 ; gh_todos=9 ; gh_cola=1 ; gl_free=11 ; gl_premium=6 ; gl_ultimate=1 ; gl_ninguno=2 ; empiricas=17
+cifras de la tabla: total=20 ; gh_rs=10 ; gh_todos=9 ; gh_cola=1 ; gl_free=11 ; gl_premium=6 ; gl_ultimate=0 ; gl_ninguno=3 ; empiricas=13
 linea de F1-7: 274 caracteres con hashes completos, 114 con 12 (limite de description en GitLab: 255, L13)
 errores del ADR: 0
   mutacion fila-borrada: falla como se espera (falta la garantia G07)
@@ -204,24 +215,26 @@ errores del ADR: 0
   mutacion sin-self-managed: falla como se espera («No verificado» no nombra «self-managed»)
   mutacion divergencia-sin-f1-8: falla como se espera («Divergencias con el plan» no trata F1-8)
   mutacion sin-motivo-plataforma: falla como se espera (falta la regla: motivo=plataforma)
-  mutacion g09-tier-free: falla como se espera (G09: tier GitLab 'Free' y la documentacion dice 'Ultimate')
+  mutacion g09-tier-ultimate: falla como se espera (G09: tier GitLab 'Ultimate' y la documentacion dice 'ninguno')
+  mutacion ids-de-g15-cambiados: falla como se espera (G15: GL-01 no prueba nada de esta garantia (200: sin valor de prueba))
+  mutacion empirica-con-401: falla como se espera (G20: GL-21 no prueba nada de esta garantia (401: sin valor de prueba))
 
 === V: lo variable (hash y tamano de cada cuerpo, limites de peticiones); NO se comprueba ===
-GH-01 sha256=f89217de0b873456 bytes=6139 x-ratelimit-remaining=4813
-GH-02 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4812
-GH-03 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4811
-GH-04 sha256=d6020ee3b0852c3d bytes=149 x-ratelimit-remaining=4810
-GH-05 sha256=60ba8acbf9e08a10 bytes=3101 x-ratelimit-remaining=4809
-GH-06 sha256=c6adf21b0e0ac309 bytes=4686 x-ratelimit-remaining=4808
-GH-07 sha256=57a09f45cbdb00e9 bytes=70460 x-ratelimit-remaining=4807
-GH-08 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4806
-GH-09 sha256=f6e178fc1e56cf43 bytes=80 x-ratelimit-remaining=4986
-GH-10 sha256=b44eb514d435b509 bytes=2244 x-ratelimit-remaining=4985
-GH-11 sha256=a9a4a40fdeaa4d16 bytes=54586 x-ratelimit-remaining=4805
-GH-12 sha256=7d0f2593fefaebc9 bytes=196 x-ratelimit-remaining=4804
-GH-13 sha256=679d5e86a2d0420e bytes=205 x-ratelimit-remaining=4802
-GH-14 sha256=62af8411c3c89abb bytes=124 x-ratelimit-remaining=4984
-GH-15 sha256=40911239223ffac2 bytes=135 x-ratelimit-remaining=4801
+GH-01 sha256=f89217de0b873456 bytes=6139 x-ratelimit-remaining=4993
+GH-02 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4992
+GH-03 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4991
+GH-04 sha256=d6020ee3b0852c3d bytes=149 x-ratelimit-remaining=4990
+GH-05 sha256=60ba8acbf9e08a10 bytes=3101 x-ratelimit-remaining=4989
+GH-06 sha256=c6adf21b0e0ac309 bytes=4686 x-ratelimit-remaining=4988
+GH-07 sha256=57a09f45cbdb00e9 bytes=70460 x-ratelimit-remaining=4987
+GH-08 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4986
+GH-09 sha256=f6e178fc1e56cf43 bytes=80 x-ratelimit-remaining=4977
+GH-10 sha256=b44eb514d435b509 bytes=2244 x-ratelimit-remaining=4976
+GH-11 sha256=a9a4a40fdeaa4d16 bytes=54586 x-ratelimit-remaining=4984
+GH-12 sha256=7d0f2593fefaebc9 bytes=196 x-ratelimit-remaining=4983
+GH-13 sha256=679d5e86a2d0420e bytes=205 x-ratelimit-remaining=4982
+GH-14 sha256=62af8411c3c89abb bytes=124 x-ratelimit-remaining=4975
+GH-15 sha256=40911239223ffac2 bytes=135 x-ratelimit-remaining=4981
 GL-01 sha256=1e5e67f39a034b91 bytes=1246 ratelimit-remaining=499
 GL-02 sha256=ccac00f2edb65c02 bytes=12600 ratelimit-remaining=498
 GL-03 sha256=fd7fd9884eacca34 bytes=1190 ratelimit-remaining=497
@@ -230,15 +243,15 @@ GL-05 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=495
 GL-06 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=494
 GL-07 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=493
 GL-08 sha256=f08f221cece6508b bytes=5822 ratelimit-remaining=492
-GL-09 sha256=c49090f1684ff6cf bytes=6557 ratelimit-remaining=491
-GL-10 sha256=e1f8affec1a21764 bytes=8533 ratelimit-remaining=490
-GL-11 sha256=1e2956b0c8b347f2 bytes=90546 ratelimit-remaining=489
+GL-09 sha256=1604623292527e8d bytes=6557 ratelimit-remaining=491
+GL-10 sha256=a4668f251cea6a7f bytes=8533 ratelimit-remaining=490
+GL-11 sha256=71ff637b0085555a bytes=90546 ratelimit-remaining=489
 GL-12 sha256=dd6f46d4243602d1 bytes=689 ratelimit-remaining=488
 GL-13 sha256=f1e3de4948cbf21b bytes=344 ratelimit-remaining=487
 GL-14 sha256=ce180377f7e4a996 bytes=175736 ratelimit-remaining=486
 GL-15 sha256=67e285c9b220b332 bytes=376 ratelimit-remaining=485
 GL-16 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=484
-GL-17 sha256=3906bb9f641c155d bytes=67027 ratelimit-remaining=483
+GL-17 sha256=5cb33cd01106826f bytes=67027 ratelimit-remaining=483
 GL-18 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=482
 GL-19 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=481
 GL-20 sha256=c0f015c0a59967b3 bytes=45 ratelimit-remaining=480

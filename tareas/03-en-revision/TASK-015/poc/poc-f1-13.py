@@ -99,7 +99,7 @@ ESPERADO_TABLA = {
     "G06": (T_RS, None, "Premium", "carril-propietarios"),
     "G07": (T_RS, None, "Free", None),
     "G08": (T_RS, None, "ninguno", "al-dia-por-cli"),
-    "G09": (T_RS, None, "Ultimate", "autor-del-estado"),
+    "G09": (T_RS, None, "ninguno", "autor-del-estado"),
     "G10": (T_COLA, "al-dia-por-cli", "Premium", "al-dia-por-cli"),
     "G11": (T_RS, None, "Free", None),
     "G12": (T_TODOS, None, "Premium", "cuenta-de-servicio"),
@@ -112,6 +112,41 @@ ESPERADO_TABLA = {
     "G19": (T_TODOS, None, "Free", None),
     "G20": (T_TODOS, None, "Free", None),
 }
+# Que prueba cada llamada y para que filas vale como evidencia empirica (IMP-2 de la revision 1). Una fila
+# «empirica» solo puede citar ids de aqui, para una fila de su lista, y el hecho tiene que estar en lo observado
+# (un 2xx con el campo, o el 403 con aviso de plan). Un 401/403 anonimo solo prueba que hace falta sesion.
+PRUEBA = {
+    "GH-03": ({"G01", "G02"}, "200 [] en el publico gratuito: la API de reglas esta y lee", lambda o: o["estado"] == 200),
+    "GH-12": ({"G01", "G03"}, "403 con aviso de plan en el privado gratuito: sin rulesets",
+              lambda o: o["estado"] == 403 and o["hechos"].get("aviso_de_plan") is True),
+    "GH-05": ({"G09", "G17"}, "check-run con app.id (origen) leido por sha",
+              lambda o: o["estado"] == 200 and "app" in (o["hechos"].get("claves_check_run") or [])),
+    "GH-10": ({"G09"}, "integration_id de Actions", lambda o: o["estado"] == 200 and o["hechos"].get("id") == 15368),
+    "GH-07": ({"G14"}, "commit.verification con verified y reason",
+              lambda o: o["estado"] == 200 and "verification.verified" in o["hechos"]),
+    "GH-09": ({"G16"}, "can_approve_pull_request_reviews leido",
+              lambda o: o["estado"] == 200 and o["hechos"].get("can_approve_pull_request_reviews") is False),
+    "GH-11": ({"G18"}, "previous_filename en cada renombrado",
+              lambda o: o["estado"] == 200 and o["hechos"].get("con_previous_filename", 0) > 0),
+    "GL-02": ({"G02"}, "ramas protegidas con push_access_levels",
+              lambda o: o["estado"] == 200 and "push_access_levels" in (o["hechos"].get("claves_rama") or [])),
+    "GL-03": ({"G01", "G06"}, "rama protegida con allow_force_push y code_owner_approval_required",
+              lambda o: o["estado"] == 200 and {"allow_force_push", "code_owner_approval_required"}
+              <= set(o["hechos"].get("claves_rama") or [])),
+    "GL-08": ({"G08"}, "diverged_commits_count en el MR",
+              lambda o: o["estado"] == 200 and "diverged_commits_count" in (o["hechos"].get("claves_mr") or [])),
+    "GL-09": ({"G03", "G12", "G15"}, "approved_by con un usuario bot de proyecto y sin campo bot",
+              lambda o: o["estado"] == 200 and o["hechos"].get("aprobador_bot_de_proyecto") is True),
+    "GL-12": ({"G10"}, "pipeline del MR sobre la ref del tren",
+              lambda o: o["estado"] == 200 and o["hechos"].get("ref_de_tren") is True),
+    "GL-17": ({"G10"}, "endpoint de trenes en un proyecto de pago", lambda o: o["estado"] == 200),
+    "GL-13": ({"G17"}, "pipelines por sha", lambda o: o["estado"] == 200 and o["hechos"].get("es_lista") is True),
+    "GL-14": ({"G18"}, "renamed_file, old_path y new_path en los diffs",
+              lambda o: o["estado"] == 200 and "renamed_file" in (o["hechos"].get("claves_diff") or [])),
+    "GL-15": ({"G14"}, "verification_status y key de la firma",
+              lambda o: o["estado"] == 200 and "verification_status" in o["hechos"]),
+}
+
 PLANES_GH = [("free", "publico", "usuario"), ("free", "privado", "usuario"), ("pro", "privado", "usuario"),
              ("free", "publico", "org"), ("team", "privado", "org"), ("enterprise", "privado", "org")]
 PLANES_GL = ["free", "premium", "ultimate"]
@@ -163,20 +198,46 @@ class SoloLectura(Exception):
     pass
 
 
+class _SinRedireccion(urllib.request.HTTPRedirectHandler):
+    """Una redireccion podria llevar a un host fuera de la lista blanca: no se sigue (queda como 3xx)."""
+
+    def redirect_request(self, *a, **k):
+        return None
+
+
+SIN_REDIRECCIONES = urllib.request.build_opener(_SinRedireccion)
+RUTA_GH = re.compile(r"^(?:repos/charliebk/[A-Za-z0-9._-]+(?:[/?][A-Za-z0-9._/?=&-]*)?|apps/github-actions)$")
+
+
+def destino_permitido(destino, via, mock_url):
+    """Lista blanca: gh solo con rutas de repos de charliebk (y la App de Actions), nunca una ruta que empiece por
+    '-' (seria una opcion de gh); HTTP solo a la API v4 de GitLab.com para el proyecto publico 278964 y el usuario
+    aprobador fijo, y al mock de 127.0.0.1 de esta ejecucion."""
+    if via == "gh":
+        return not destino.startswith("-") and bool(RUTA_GH.match(destino))
+    permitidos = [f"{GL}/projects/{GL_P}", f"{GL}/users/{GL_USR}"] + ([mock_url] if mock_url else [])
+    return any(destino == p or destino.startswith(p + "/") or destino.startswith(p + "?") for p in permitidos)
+
+
 class Lector:
     """Unico punto de salida a GitHub, GitLab y el mock. Solo GET; el metodo se comprueba antes de todo."""
 
-    def __init__(self, trabajo=None):
+    def __init__(self, trabajo=None, mock_url=None):
         self.trabajo = trabajo
+        self.mock_url = mock_url    # unico origen local admitido (el del mock de esta ejecucion)
         self.registro = []          # (id, metodo, url, estado, sha256, bytes)
         self.transporte = 0         # peticiones HTTP que salieron
         self.procesos_gh = 0        # procesos gh lanzados
         self.rechazos = 0
 
-    def _guardia(self, metodo, destino):
+    def _guardia(self, metodo, destino, via):
+        """Metodo GET exacto y destino en la lista blanca, comprobados antes de abrir red o lanzar gh."""
         if metodo != "GET":
             self.rechazos += 1
             raise SoloLectura(f"metodo {metodo} rechazado antes de la red: {destino}")
+        if not destino_permitido(destino, via, self.mock_url):
+            self.rechazos += 1
+            raise SoloLectura(f"destino fuera de la lista blanca ({via}): {destino}")
 
     def _anotar(self, ident, url, estado, cuerpo):
         h = hashlib.sha256(cuerpo).hexdigest()
@@ -186,13 +247,13 @@ class Lector:
                 f.write(cuerpo)
 
     def http(self, ident, metodo, url):
-        self._guardia(metodo, url)
+        self._guardia(metodo, url, "http")
         req = urllib.request.Request(url, method="GET", headers={"User-Agent": "taskcodetwo-poc-f1-13",
                                                                   "Accept": "application/json"})
         self.transporte += 1
         cab = {}
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with SIN_REDIRECCIONES.open(req, timeout=60) as r:
                 estado, cuerpo, cab = r.status, r.read(), dict(r.headers)
         except urllib.error.HTTPError as e:
             estado, cuerpo, cab = e.code, e.read(), dict(e.headers)
@@ -200,7 +261,7 @@ class Lector:
         return estado, cuerpo, cab
 
     def gh(self, ident, metodo, ruta):
-        self._guardia(metodo, ruta)
+        self._guardia(metodo, ruta, "gh")
         self.procesos_gh += 1
         r = subprocess.run([GH, "api", "--method", "GET", "--include", ruta], capture_output=True, timeout=120)
         salida = r.stdout.replace(b"\r\n", b"\n")
@@ -239,13 +300,20 @@ def seccion_i():
 # --------------------------------------------------------------------------- N
 
 def seccion_n(mock):
-    sep("N: el envoltorio rechaza todo lo que no es GET antes de la red")
-    lector = Lector()
+    sep("N: el envoltorio rechaza, antes de la red, lo que no es GET o no va a un destino de la lista blanca")
+    lector = Lector(mock_url=mock.url)
     antes = (lector.transporte, lector.procesos_gh, mock.contador["total"])
     pruebas = [("NEG-01", "POST", lambda: lector.http("NEG-01", "POST", mock.url + "/gh/verde/repos/o/r/pulls")),
                ("NEG-02", "DELETE", lambda: lector.gh("NEG-02", "DELETE", f"repos/{GH_REPO}/git/refs/heads/x")),
                ("NEG-03", "PUT", lambda: lector.http("NEG-03", "PUT", f"{GL}/projects/{GL_P}/merge_requests/1/merge")),
-               ("NEG-04", "get", lambda: lector.http("NEG-04", "get", mock.url + "/gh/verde/repos/o/r/pulls/12"))]
+               ("NEG-04", "get", lambda: lector.http("NEG-04", "get", mock.url + "/gh/verde/repos/o/r/pulls/12")),
+               ("NEG-05", "GET a otro host", lambda: lector.http("NEG-05", "GET", "https://example.com/api/v4/projects/278964")),
+               ("NEG-06", "GET a otro proyecto de GitLab", lambda: lector.http("NEG-06", "GET", f"{GL}/projects/1")),
+               ("NEG-07", "GET con prefijo enganoso", lambda: lector.http("NEG-07", "GET", f"{GL}/projects/{GL_P}9")),
+               ("NEG-08", "gh GET a un repo ajeno", lambda: lector.gh("NEG-08", "GET", "repos/otra-cuenta/repo")),
+               ("NEG-09", "gh GET con una ruta que es una opcion", lambda: lector.gh("NEG-09", "GET", "--method=POST")),
+               ("NEG-10", "GET a otro puerto local", lambda: lector.http("NEG-10", "GET", "http://127.0.0.1:1/gh/verde/x")),
+               ("NEG-11", "gh GET fuera de repos/", lambda: lector.gh("NEG-11", "GET", "user/repos"))]
     for ident, metodo, f in pruebas:
         try:
             f()
@@ -388,7 +456,7 @@ def llamadas_reales():
 
 def seccion_r(trabajo, grabar):
     sep("R: GET reales (solo lo estable: estado HTTP y campos; el cuerpo en la carpeta de trabajo)")
-    lector = Lector(trabajo)
+    lector = Lector(trabajo)    # sin mock: solo GitHub (charliebk/*) y GitLab.com (proyecto 278964)
     os.makedirs(os.path.join(trabajo, "cuerpos"))
     observado, variable = {}, []
     for ident, via, destino, que in llamadas_reales():
@@ -568,7 +636,7 @@ def contrastar_fixtures(mock, observado):
 
 def seccion_m(mock, observado):
     sep("M: misma bateria contra el mock (127.0.0.1) con los dos adaptadores")
-    lector = Lector()
+    lector = Lector(mock_url=mock.url)
     llamadas = {}
     for caso in CASOS:
         res = {}
@@ -662,6 +730,11 @@ def seccion_c(tabla):
             sus = sum(g["estado"].startswith("sustituida") for g in gars)
             cifras[f"{plataforma} {plan_txt}"] = f"{imp} / {sus} / {20 - imp - sus}"
             print(f"   lista completa: " + " ".join(f"{g['id']}={g['estado']}" for g in gars if g["estado"] != "impuesta"))
+    for plan in PLANES_GL:      # IMP-1 de la revision 1: ningun plan de GitLab da el origen de un check
+        g9 = next(g for g in capacidades("gitlab", plan, {}, tabla) if g["id"] == "G09")
+        print(f"-- G09 en GitLab {plan}: {g9['estado']} motivo={g9['motivo']} arreglo={g9['arreglo']}")
+        if g9["estado"] == "impuesta" or g9["arreglo"] != "ninguno-limite-de-la-plataforma":
+            falla("C", f"G09 en GitLab {plan} sale impuesta o con un arreglo de pago ({g9})")
     gars = capacidades("gitlab", "premium", {"G06": False}, tabla)
     g6 = next(g for g in gars if g["id"] == "G06")
     print(f"-- puertas leidas sin CODEOWNERS en GitLab Premium: G06 {g6['estado']} motivo={g6['motivo']} arreglo={g6['arreglo']}")
@@ -800,6 +873,11 @@ def errores_tabla(tabla, fuentes, observado):
             for c in llamadas:
                 if c not in observado:
                     err.append(f"{g}: id de llamada que no esta en el log: {c}")
+                elif c not in PRUEBA or g not in PRUEBA[c][0]:
+                    err.append(f"{g}: {c} no prueba nada de esta garantia "
+                               f"({observado[c]['estado']}: {PRUEBA[c][1] if c in PRUEBA else 'sin valor de prueba'})")
+                elif not PRUEBA[c][2](observado[c]):
+                    err.append(f"{g}: {c} no tiene en lo observado el hecho que lo hace prueba ({PRUEBA[c][1]})")
         elif ev == "documental":
             pass
         else:
@@ -835,7 +913,7 @@ def errores_prosa(adr, ct, llamadas):
         f"{ct['gh_todos']} garantías no dependen del plan en GitHub",
         f"en GitLab Free se imponen {ct['gl_free']} garantías",
         f"{ct['gl_premium']} garantías exigen Premium",
-        f"{ct['gl_ultimate']} garantía exige Ultimate",
+        (f"{ct['gl_ultimate']} garantías exigen Ultimate" if ct["gl_ultimate"] else "ninguna garantía exige Ultimate"),
         f"{ct['gl_ninguno']} garantías no las impone GitLab en ningún tier",
         f"{ct['empiricas']} garantías tienen además evidencia empírica",
         f"`estado-puertas` hace {llamadas['estado-puertas GitHub (verde)']} llamadas en GitHub y "
@@ -946,7 +1024,7 @@ def _fila(adr, gid):
 
 
 def mutaciones(adr, fuentes_txt):
-    f07, f03, f14, f09, f12 = (_fila(adr, g) for g in ("G07", "G03", "G14", "G09", "G12"))
+    f07, f03, f14, f09, f12, f15, f20 = (_fila(adr, g) for g in ("G07", "G03", "G14", "G09", "G12", "G15", "G20"))
     url = re.search(r"\]\((https://docs\.github\.com[^)]+)\), (\d{4}-\d{2}-\d{2})", f07)
     gl_url = re.search(r"\]\((https://docs\.gitlab\.com[^)]+)\)", f12)
     return [
@@ -997,8 +1075,13 @@ def mutaciones(adr, fuentes_txt):
                                         flags=re.S | re.M), fuentes_txt, "«Divergencias con el plan» no trata F1-8"),
         ("sin-motivo-plataforma", adr.replace("motivo=plataforma", "motivo=otro"), fuentes_txt,
          "falta la regla: motivo=plataforma"),
-        ("g09-tier-free", adr.replace(f09, f09.replace("| Ultimate |", "| Free |", 1)), fuentes_txt,
-         "G09: tier GitLab 'Free' y la documentacion dice 'Ultimate'"),
+        ("g09-tier-ultimate", adr.replace(f09, f09.replace("| ninguno |", "| Ultimate |", 1)), fuentes_txt,
+         "G09: tier GitLab 'Ultimate' y la documentacion dice 'ninguno'"),
+        ("ids-de-g15-cambiados", adr.replace(f15, re.sub(r"\| empírica: [^|]+\|$", "| empírica: GL-01, GL-04 |",
+                                                         f15.rstrip())), fuentes_txt,
+         "G15: GL-01 no prueba nada de esta garantia"),
+        ("empirica-con-401", adr.replace(f20, re.sub(r"\| documental \|$", "| empírica: GL-21 |", f20.rstrip())),
+         fuentes_txt, "G20: GL-21 no prueba nada de esta garantia (401"),
     ]
 
 
