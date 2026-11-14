@@ -53,3 +53,7 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 
 - code-quality-reviewer — 85195c9
 - code-quality-reviewer — 283d19c
+
+## Verificacion ligera
+
+- 2026-11-14T17:39:14Z: ronda 2; commit revisado bdc5b032d60f7aa0697c778e8398d62e2c9401a6; commit verificado 639103b65760934d484ccd4694c227650fab9502; ficheros: docs/adr/F1-18-hito-de-decisiones.md; corregidos: MEN-5, MEN-6, MEN-7; pendientes: ninguno
