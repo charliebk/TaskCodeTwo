@@ -61,7 +61,7 @@ gh_get() {     # unica puerta a la API: siempre GET (se registra)
   echo "\$ gh api --method GET $*" >> "$base/llamadas.txt"
   gh api --method GET "$@"
 }
-echo "fecha: $(date -u +%Y-%m-%dT%H:%M:%SZ) ; $(git --version) ; $(gh --version | head -1) ; $("$PY" --version) ; PyYAML $("$PY" -I -c 'import yaml; print(yaml.__version__)')"
+echo "fecha: $(date -u +%Y-%m-%d) ; $(git --version) ; $(gh --version | head -1) ; $("$PY" --version) ; PyYAML $("$PY" -I -c 'import yaml; print(yaml.__version__)')"
 echo "ADR: $(basename "$ADR") ; plugin: $(basename "$(dirname "$(dirname "$(dirname "$TASKTS")")")")"
 # Commits fijos (leidos el 2026-11-14) para que la medida se pueda reproducir
 # aunque los repos sigan avanzando: se extrae tareas/ con git archive (lectura)
@@ -73,7 +73,7 @@ mkdir -p "$base/repos"
 for r in ToolsaWeb OpenDockTrading TaskCodeTwo; do
   mkdir -p "$base/repos/$r"
   git -C "$PERSONAL/$r" archive "${FIJO[$r]}" tareas | tar -x -C "$base/repos/$r" || { echo "ERROR: git archive de $r"; exit 2; }
-  echo "repo $r: commit ${FIJO[$r]:0:9} ($(git -C "$PERSONAL/$r" log -1 --format=%cs "${FIJO[$r]}")); HEAD actual $(git -C "$PERSONAL/$r" rev-parse --short HEAD)"
+  echo "repo $r: commit ${FIJO[$r]:0:9} ($(git -C "$PERSONAL/$r" log -1 --format=%cs "${FIJO[$r]}"))"
 done
 
 cat > "$base/py/poc.py" <<'EOF'
@@ -193,7 +193,7 @@ def medir(personal, task_ts, salida):
     print()
     print('secciones ## (tareas que la tienen):')
     nombres = sorted(set().union(*[res['repos'][r]['secciones'] for r in REPOS]),
-                     key=lambda n: -sum(res['repos'][r]['secciones'].get(n, 0) for r in REPOS))
+                     key=lambda n: (-sum(res["repos"][r]["secciones"].get(n, 0) for r in REPOS), n))
     for n in nombres:
         cifras = tuple(res['repos'][r]['secciones'].get(n, 0) for r in REPOS)
         if sum(cifras) >= 2:
@@ -377,6 +377,33 @@ def tabla(adr, medidas):
             if cel[3].lower().lstrip('*').startswith(v):
                 cuenta[v] = cuenta.get(v, 0) + 1
     print('veredictos: %s' % cuenta)
+    # la frase "Recuento: N se conservan, N cambian de sentido, N se retiran y N se añaden"
+    rec = re.search(r'Recuento: (\d+) se conservan,\s+(\d+) cambian de sentido, (\d+) se retiran y (\d+) se añaden', txt)
+    esperado = tuple(cuenta.get(v, 0) for v in VEREDICTOS)
+    if not rec:
+        fallos.append('no esta la frase "Recuento: ..."')
+    elif tuple(int(x) for x in rec.groups()) != esperado:
+        fallos.append('Recuento del ADR %s distinto del de la tabla %s' % (rec.groups(), esperado))
+    # tabla de secciones del punto 4: cada fila `## X` cita lo medido en A
+    filas_s = [l.strip() for l in entre(txt, 'secciones-tarea').split('\n') if l.strip().startswith('| `## ')]
+    for f in filas_s:
+        cel = [c.strip() for c in f.strip().strip('|').split('|')]
+        nombre = re.match(r'`## ([^`]+)`', cel[0]).group(1)
+        if nombre.endswith('…'):
+            nombre = nombre[:-1] + '*'
+        med = tuple(m['repos'][r]['secciones'].get(nombre, 0) for r in REPOS)
+        cif = re.match(r'^(\d+) / (\d+) / (\d+)$', cel[1])
+        if not cif:
+            fallos.append('seccion %s: sin cifra "N / N / N" (medido %s)' % (nombre, med))
+        elif tuple(int(x) for x in cif.groups()) != med:
+            fallos.append('seccion %s: cifra del ADR %s distinta de la medida %s' % (nombre, cif.groups(), med))
+    # "PoC A: 0 de 593" (frontmatter que rompen PyYAML, de cuantas tareas)
+    tot = re.search(r'PoC A: (\d+) de (\d+)\)', txt)
+    med_tot = (sum(m['repos'][r]['malos'] for r in REPOS), sum(m['repos'][r]['total'] for r in REPOS))
+    if not tot or tuple(int(x) for x in tot.groups()) != med_tot:
+        fallos.append('"PoC A: N de M" del ADR %s distinto de lo medido %s' % (tot and tot.groups(), med_tot))
+    print('secciones con fila: %d ; recuento del ADR: %s ; PoC A N de M: %s'
+          % (len(filas_s), rec and rec.groups(), tot and tot.groups()))
     for x in fallos:
         print('  ERROR: ' + x)
     return 1 if fallos else 0
@@ -483,6 +510,9 @@ mut cifra-cambiada "distinta de la medida" '/campos-tarea:inicio/,/campos-tarea:
 mut fila-borrada "revision_codex: 0 filas" '/campos-tarea:inicio/,/campos-tarea:fin/{/^ *| `revision_codex`/d}'
 mut ruta-inexistente "no esta en la plantilla" '/campos-tarea:inicio/,/campos-tarea:fin/{/^ *| `titulo`/s/`titulo`/`titulo_inventado`/2}'
 mut sin-cifra "sin cifra" '/campos-tarea:inicio/,/campos-tarea:fin/{/^ *| `tipo`/s/| \([0-9]*\) \/ \([0-9]*\) \/ \([0-9]*\) |/| muchos |/}'
+mut seccion-resultado "seccion Resultado: cifra del ADR" '/secciones-tarea:inicio/,/secciones-tarea:fin/{/^ *| `## Resultado`/s/| 159 \/ /| 999 \/ /}'
+mut seccion-descartada "seccion Descartada\*: cifra del ADR" '/secciones-tarea:inicio/,/secciones-tarea:fin/{/^ *| `## Descartada/s/| 6 \/ 2 \/ 0 |/| 7 \/ 2 \/ 0 |/}'
+mut recuento "Recuento del ADR" 's/Recuento: 13 se conservan,/Recuento: 14 se conservan,/'
 
 ######################################################################
 sep "F. Spec Kit (github/spec-kit, solo GET)"

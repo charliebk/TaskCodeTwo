@@ -1,8 +1,8 @@
-fecha: 2026-11-14T08:55:27Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
+fecha: 2026-11-14 ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
 ADR: F1-9-formato-de-tarea-plan-y-especificacion.md ; plugin: 0.16.1
-repo ToolsaWeb: commit 93c9618ac (2026-11-14); HEAD actual 93c9618a
-repo OpenDockTrading: commit fab8d7e05 (2026-11-14); HEAD actual fab8d7e
-repo TaskCodeTwo: commit afc3791b5 (2026-11-14); HEAD actual bb7ecb3
+repo ToolsaWeb: commit 93c9618ac (2026-11-14)
+repo OpenDockTrading: commit fab8d7e05 (2026-11-14)
+repo TaskCodeTwo: commit afc3791b5 (2026-11-14)
 
 === A. Uso real de los campos de la 0.16 en los tres repos ===
 campos de TASK_FIELD_ORDER: 22
@@ -42,16 +42,16 @@ dependencias                  364       89       92
 (total tarea.md)              404       96       93
 
 secciones ## (tareas que la tienen):
-Objetivo                                      404       96       93
 Criterios de aceptacion                       404       96       93
+Objetivo                                      404       96       93
 Transiciones                                  162       44       10
 Resultado                                     159       43        9
 Coste                                          92       44       10
 Autorrevision                                  33       43        9
 Duracion                                       23       33        9
+Descartada*                                     6        2        0
 Nota de*                                        7        1        0
 Verificacion ligera                             0        3        5
-Descartada*                                     6        2        0
 Rondas extra                                    0        2        2
 Decisiones de implementación                    3        0        0
 Verificacion omitida                            2        0        0
@@ -92,11 +92,15 @@ titulos ## de TASK-009 (2 roles)   : ['Enfoque propuesto', 'Desacuerdos entre ro
 === E. Tabla de campos del ADR: cada veredicto cita la cifra medida ===
 filas leidas: 26 ; campos de la 0.16 con fila: 22 de 22
 veredictos: {'se conserva': 13, 'cambia de sentido': 7, 'se retira': 2, 'se añade': 4}
+secciones con fila: 9 ; recuento del ADR: ('13', '7', '2', '4') ; PoC A N de M: ('0', '593')
 --- controles negativos (copias mutadas del ADR; cada una tiene que fallar)
   cifra-cambiada: falla como se espera (ERROR: sprint: cifra del ADR ('9999', '68', '93') distinta de la medida (355, 68, 93))
   fila-borrada: falla como se espera (ERROR: revision_codex: 0 filas (se espera 1))
   ruta-inexistente: falla como se espera (ERROR: titulo: la ruta titulo_inventado no esta en la plantilla)
   sin-cifra: falla como se espera (ERROR: tipo: sin cifra "N / N / N" (medido (6, 0, 0)))
+  seccion-resultado: falla como se espera (ERROR: seccion Resultado: cifra del ADR ('999', '43', '9') distinta de la medida (159, 43, 9))
+  seccion-descartada: falla como se espera (ERROR: seccion Descartada*: cifra del ADR ('7', '2', '0') distinta de la medida (6, 2, 0))
+  recuento: falla como se espera (ERROR: Recuento del ADR ('14', '7', '2', '4') distinto del de la tabla (13, 7, 2, 4))
 
 === F. Spec Kit (github/spec-kit, solo GET) ===
 plantillas en templates/ (2ee2b1e8005905db05f5717300a469b3068b908f): checklist-template.md commands constitution-template.md plan-template.md spec-template.md tasks-template.md vscode-settings.json 

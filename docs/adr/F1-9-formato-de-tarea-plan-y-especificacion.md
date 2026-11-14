@@ -140,15 +140,23 @@ linea "Duracion estimada": en la plantilla True, en TASK-009 True
 La PoC lee la tabla de campos de este ADR entre los marcadores
 `campos-tarea` y exige: una fila por cada uno de los 22 campos con la cifra
 medida en A; las rutas del formato 2 presentes en la plantilla; los
-retirados ausentes; ninguna clave de la plantilla sin fila.
+retirados ausentes; ninguna clave de la plantilla sin fila. Exige también
+que la frase «Recuento» del punto 3 coincida con los veredictos de la
+tabla, que cada fila `## …` de la tabla de secciones (marcadores
+`secciones-tarea`) cite lo medido en A y que «PoC A: 0 de 593» sea lo
+medido.
 
 ```text
 filas leidas: 26 ; campos de la 0.16 con fila: 22 de 22
 veredictos: {'se conserva': 13, 'cambia de sentido': 7, 'se retira': 2, 'se añade': 4}
+secciones con fila: 9 ; recuento del ADR: ('13', '7', '2', '4') ; PoC A N de M: ('0', '593')
   cifra-cambiada: falla como se espera (ERROR: sprint: cifra del ADR ('9999', '68', '93') distinta de la medida (355, 68, 93))
   fila-borrada: falla como se espera (ERROR: revision_codex: 0 filas (se espera 1))
   ruta-inexistente: falla como se espera (ERROR: titulo: la ruta titulo_inventado no esta en la plantilla)
   sin-cifra: falla como se espera (ERROR: tipo: sin cifra "N / N / N" (medido (6, 0, 0)))
+  seccion-resultado: falla como se espera (ERROR: seccion Resultado: cifra del ADR ('999', '43', '9') distinta de la medida (159, 43, 9))
+  seccion-descartada: falla como se espera (ERROR: seccion Descartada*: cifra del ADR ('7', '2', '0') distinta de la medida (6, 2, 0))
+  recuento: falla como se espera (ERROR: Recuento del ADR ('14', '7', '2', '4') distinto del de la tabla (13, 7, 2, 4))
 ```
 
 ### F — Spec Kit
@@ -254,6 +262,7 @@ Pasa como criterio a F2-5 (verlo en el repo de pruebas de F2-6).
    la 0.16, para que las tareas migradas no cambien. Tareas que tienen cada
    sección hoy (PoC A, 404 / 96 / 93 tareas):
 
+   <!-- secciones-tarea:inicio -->
    | Sección | TW / ODT / TC2 | Formato 2 |
    |---|---|---|
    | `## Objetivo` | 404 / 96 / 93 | obligatoria |
@@ -266,6 +275,7 @@ Pasa como criterio a F2-5 (verlo en el repo de pruebas de F2-6).
    | `## Duracion` | 23 / 33 / 9 | opcional, la escribe el CLI al cerrar (estimada y real, RR-19) |
    | `## Descartada…` | 6 / 2 / 0 | se sustituye por `estado: descartada` y `motivo` |
    | otras (`Rondas extra`, `Verificacion ligera`, notas de la persona…) | 26 títulos con un solo uso, y unos pocos repetidos | texto libre: se conserva tal cual, sin significado para el CLI |
+   <!-- secciones-tarea:fin -->
 
 5. **Contrato del texto.**
    - El frontmatter es **YAML válido para un parser estándar** (H11). Las
@@ -337,7 +347,12 @@ Pasa como criterio a F2-5 (verlo en el repo de pruebas de F2-6).
    <!-- plantilla-tarea:fin -->
 
 7. **Plantilla de `plan-final.md`.** Es el esqueleto que hoy genera la 0.16
-   (`planTemplate` de `src/commands/plan.ts`), sin cambios, más la sección
+   (`planTemplate` de `src/commands/plan.ts`) con los mismos títulos y en el
+   mismo orden; la línea de duración se simplifica a `Duracion estimada: N min`
+   (la 0.16 escribe una línea más larga) y la cabecera de origen se resume en
+   una (la 0.16 tiene tres frases según el número de roles). Si el detector
+   de «esqueleto sin rellenar», que compara por líneas, sigue reconociéndola
+   es cosa de F2-5. Se añade la sección
    `## Troceo` opcional que ya consume `trocear`. Según el número de roles
    lleva «Desacuerdos entre roles» (dos o más) o «Lo que el rol no cubrio»
    (uno), nunca las dos. La línea `Duracion estimada: N min` la exige
@@ -414,7 +429,7 @@ Pasa como criterio a F2-5 (verlo en el repo de pruebas de F2-6).
 | Requisito | Decisión | Evidencia |
 |---|---|---|
 | Criterio de F1-9: plantillas | puntos 6 y 7 | PoC C (la plantilla de `tarea.md` carga con PyYAML y da el mismo título con `C:\ruta\` y con `"`; el escape de la 0.16 no), PoC D (la del plan tiene los títulos de `planTemplate` y los de TASK-009) |
-| Criterio de F1-9: qué campos se conservan | punto 3 | PoC A (cifra por campo y repo) y PoC E (cada fila cita su cifra; cuatro copias mutadas fallan) |
+| Criterio de F1-9: qué campos se conservan | punto 3 | PoC A (cifra por campo, por sección y por repo) y PoC E (cada fila de las tablas de campos y de secciones y el recuento citan su cifra; siete copias mutadas fallan) |
 | Criterio de F1-9: compatible con la 0.16 y con Spec Kit | puntos 2, 3 (`formato` ausente = 1) y 8 | PoC D y PoC F; ida y vuelta real: no verificada (F2-5) |
 | RR-10 carpeta fija, estado como campo | `estado` sin carpeta, `descartada` | PoC A: 9 / 2 / 0 tareas cuyo estado no casa con `05-archivadas` |
 | RR-13 actualizar proyectos | `formato: 2`; sin `formato` = 0.16; destino de cada campo | tabla de campos; la migración es de F1-12 |
