@@ -85,6 +85,15 @@ $ taskctl actualizar-principal    [en principal]
 $ taskctl tag-anotado v0.1.0 origin/main   [en principal]
   1a: tag-anotado ok tag=v0.1.0 commit=47ea7e825b84   (codigo 0, 46 bytes)
   2a: tag-anotado sin-cambios tag=v0.1.0 commit=47ea7e825b84   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- el tag ya publicado, visto desde un clon que no lo tiene en local, pedido sobre otro commit
+$ taskctl tag-anotado v0.1.0 origin/develop   [en principal]
+  1a: tag-anotado rechazada tag=v0.1.0 motivo=existe-en-otro-commit donde=remoto   (codigo 3, 75 bytes)
+  2a: tag-anotado rechazada tag=v0.1.0 motivo=existe-en-otro-commit donde=remoto   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- tag local sin publicar en otro commit (p. ej. una release abortada sin red)
+$ taskctl tag-anotado v0.0.9 origin/main   [en principal]
+  1a: tag-anotado rechazada tag=v0.0.9 motivo=existe-en-otro-commit donde=local   (codigo 3, 74 bytes)
+  2a: tag-anotado rechazada tag=v0.0.9 motivo=existe-en-otro-commit donde=local   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+v0.0.9 en origin tras la operacion: '' (vacio = no se publico)
 $ taskctl notas-release v0.1.0   [en principal]
   1a: notas-release ok tag=v0.1.0 prs=1 fichero=.git/taskcode/notas/v0.1.0.md   (codigo 0, 72 bytes)
   2a: notas-release ok tag=v0.1.0 prs=1 fichero=.git/taskcode/notas/v0.1.0.md   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
@@ -105,13 +114,13 @@ $ taskctl comprobar-id TASK-009   [en principal]
 
 === B1. La misma secuencia con LC_ALL=es_ES.UTF-8 (fixture ES) ===
 (salida completa igual a la de la fixture C salvo el LC_ALL; comparacion abajo)
-operaciones ejecutadas por fixture: 22 (cada una dos veces)
+operaciones ejecutadas por fixture: 24 (cada una dos veces)
 lineas de salida distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0
-RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 22 ok / 0 mal ; es_ES 22 ok / 0 mal
-RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 22
+RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 24 ok / 0 mal ; es_ES 24 ok / 0 mal
+RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 24
 RESULTADO B1: salidas que incumplen el contrato (<=5 lineas, sin ANSI, 'op resultado clave=valor'): 0
-RESULTADO B1: bytes de las lineas de contrato de las 22 operaciones del ciclo (1a ejecucion): 1147
-RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:1 4:2 
+RESULTADO B1: bytes de las lineas de contrato de las 24 operaciones del ciclo (1a ejecucion): 1296
+RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:3 4:2 
 
 === B2. Ciclo con conflicto provocado (fixture K, caller LC_ALL=es_ES.UTF-8) ===
 $ taskctl fetch    [en principal]
@@ -164,34 +173,107 @@ $ taskctl actualizar-principal    [en principal]
 f.txt en develop: linea 1 de TASK-008 y de otro PR
 RESULTADO B2: actualizar-rama con conflicto -> codigo 6 (esperado 6); guardar de otra ruta con el conflicto abierto -> 3 (3); guardar con marcas -> 3 (3)
 RESULTADO B2: pasos idempotentes 14 ok / 0 mal ; salidas fuera de contrato: 0
--- registro de comandos de las operaciones (todas las fixtures): 283 llamadas a git
-control del patron de prohibidos: casa 7 de 7 lineas prohibidas y 0 de 3 permitidas (esperado 7)
-subcomandos usados por las operaciones: add=6 branch=10 commit=6 describe=4 diff=11 fetch=26 for-each-ref=46 log=8 ls-remote=16 merge=7 merge-base=11 pull=6 push=10 rev-parse=82 show-ref=8 status=10 tag=2 worktree=14 
-RESULTADO B2: comandos prohibidos en el registro (rebase, stash, clean, reset, push --force/--delete, branch -d/-D): 0 ; merge con el principal en develop/main: 0 ; reset de commit-estado ejecutado: 0
+
+=== B1b. Caminos de rechazo, uso, reintento y dos escritores en commit-estado (fixture N, caller LC_ALL=C) ===
+$ taskctl crear-rama-y-worktree TASK-007 feature login origin/develop   [en principal]
+  1a: crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 base=33956fe8dd2e   (codigo 0, 109 bytes)
+  2a: crear-rama-y-worktree sin-cambios rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl validar-base no-existe   [en principal]
+  1a: validar-base rechazada base=no-existe motivo=no-existe   (codigo 3, 55 bytes)
+  2a: validar-base rechazada base=no-existe motivo=no-existe   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl guardar sin rutas   [en principal/.taskcode/worktrees/TASK-007]
+  1a: guardar uso motivo=sin-rutas   (codigo 2, 29 bytes)
+      stderr: uso: guardar "<mensaje>" <rutas...>
+  2a: guardar uso motivo=sin-rutas   (codigo 2) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl quitar-worktree TASK-007   [en principal]
+  1a: quitar-worktree rechazada id=TASK-007 motivo=cambios-sin-guardar   (codigo 3, 65 bytes)
+  2a: quitar-worktree rechazada id=TASK-007 motivo=cambios-sin-guardar   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl guardar feat(TASK-007): login g.txt   [en principal/.taskcode/worktrees/TASK-007]
+  1a: guardar ok commit=48d72d1e513b ficheros=1 sin-guardar=0   (codigo 0, 56 bytes)
+  2a: guardar sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl quitar-worktree TASK-007   [en principal]
+  1a: quitar-worktree rechazada id=TASK-007 motivo=sin-publicar   (codigo 3, 58 bytes)
+  2a: quitar-worktree rechazada id=TASK-007 motivo=sin-publicar   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- el remoto falla una vez (hook pre-receive que rechaza el primer push: fallo transitorio)
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-007]
+  1a: push ok rama=feature/task-007-login commit=48d72d1e513b intentos=2   (codigo 0, 67 bytes)
+  2a: push sin-cambios rama=feature/task-007-login   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- otra persona publica en la misma rama de tarea; el agente guarda y publica encima
+$ taskctl guardar feat(TASK-007): mas g2.txt   [en principal/.taskcode/worktrees/TASK-007]
+  1a: guardar ok commit=c1da21140d07 ficheros=1 sin-guardar=0   (codigo 0, 56 bytes)
+  2a: guardar sin-cambios   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+$ taskctl push    [en principal/.taskcode/worktrees/TASK-007]
+  1a: push rechazada rama=feature/task-007-login motivo=no-fast-forward   (codigo 3, 66 bytes)
+      stderr: lanza actualizar-rama
+  2a: push rechazada rama=feature/task-007-login motivo=no-fast-forward   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- worktree perdido con la rama local presente: crear-rama-y-worktree no la pisa
+$ taskctl crear-rama-y-worktree TASK-007 feature login origin/develop   [en principal]
+  1a: crear-rama-y-worktree rechazada rama=feature/task-007-login motivo=rama-existe   (codigo 3, 79 bytes)
+  2a: crear-rama-y-worktree rechazada rama=feature/task-007-login motivo=rama-existe   (codigo 3) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+-- dos escritores en commit-estado: otro clon publica TASK-007 en-revision entre la construccion y el push
+$ taskctl commit-estado TASK-008 terminada   [en principal]
+  1a: commit-estado ok id=TASK-008 estado=terminada intentos=2   (codigo 0, 57 bytes)
+  2a: commit-estado sin-cambios id=TASK-008 estado=terminada   (codigo 0) ; estado igual tras la 2a: si ; 2a sin-cambios o igual: si
+en origin: TASK-007=en-revision (del otro escritor) ; TASK-008=terminada ; tareas/ igual a origin: si ; status de tareas/: ''
+commits en origin/taskcode/tareas: 3 (altas + otro + este) ; merges: 0
+RESULTADO B1b: validar-base inexistente -> 3 (3); guardar sin rutas -> 2 (2); quitar-worktree con cambios -> 3 (3) y sin publicar -> 3 (3); push tras fallo transitorio -> 0 (0, intentos=2); push non-fast-forward -> 3 (3); crear-rama-y-worktree con la rama existente -> 3 (3)
+RESULTADO B1b: commit-estado con un segundo escritor -> codigo 0 ; TASK-007=en-revision TASK-008=terminada en origin ; tareas/ al dia: si ; resets en el registro de N: 0
+RESULTADO B1b: pasos idempotentes 11 ok / 0 mal ; salidas fuera de contrato: 0
+
+=== B2b. Registro de comandos: lista permitida de subcomandos y argumentos (fixtures C, ES, K, N) ===
+control del detector: marca 22 de 22 lineas prohibidas y 0 de 13 permitidas
+   branch -D x1
+   branch -f x1
+   branch -m x1
+   merge con el principal en develop x1
+   pull sin --ff-only x1
+   push +f x1
+   push +refs/heads/f:refs/heads/develop x1
+   push --delete x1
+   push --force x1
+   push --force-with-lease x1
+   push --mirror x1
+   push -f x1
+   push :f x1
+   subcomando checkout x1
+   subcomando cherry-pick x1
+   subcomando clean x1
+   subcomando rebase x1
+   subcomando reset x1
+   subcomando stash x1
+   subcomando update-ref x1
+   tag -d x1
+   worktree --force x1
+-- registro de comandos de las operaciones (fixtures C, ES, K, N): 396 llamadas a git
+subcomandos usados por las operaciones: add=6 branch=10 commit=6 commit-tree=4 describe=4 diff=11 fetch=32 for-each-ref=46 hash-object=4 log=8 ls-remote=24 merge=9 merge-base=11 pull=6 push=16 read-tree=4 rev-parse=135 show=7 show-ref=12 status=16 tag=2 update-index=4 worktree=15 write-tree=4 
+RESULTADO B2b: detector por lista permitida: controles 22/22 prohibidas marcadas, 0/13 permitidas marcadas ; lineas del registro fuera de la lista: 0 de 396 ; resets: 0
 
 === B3. Bytes: salida cruda de git frente a la linea de contrato (fixture R, sin -q y con el entorno por defecto) ===
 worktree add           crudo  154 bytes /  3 lineas ; contrato 109 bytes / 1 linea ; crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 base=33956fe8dd2e
-push                   crudo  289 bytes /  3 lineas ; contrato  67 bytes / 1 linea ; push ok rama=feature/task-007-login commit=48d72d1e513b intentos=1
-fetch                  crudo  186 bytes /  2 lineas ; contrato  16 bytes / 1 linea ; fetch ok refs=2
+push                   crudo  288 bytes /  3 lineas ; contrato  67 bytes / 1 linea ; push ok rama=feature/task-007-login commit=48d72d1e513b intentos=1
+fetch                  crudo  185 bytes /  2 lineas ; contrato  16 bytes / 1 linea ; fetch ok refs=2
 merge (actualizar)     crudo  105 bytes /  4 lineas ; contrato  59 bytes / 1 linea ; actualizar-rama ok base=origin/develop commit=201568008941
 status / diff-tarea    crudo  191 bytes /  5 lineas ; contrato  56 bytes / 1 linea ; diff-tarea ok base=7247588979ba ficheros=1 lineas=+1,-0
 salida cruda de push (rutas acortadas):
   | To <poc>/R/origin.git
   |  * [new branch]      feature/task-007-login -> feature/task-007-login
   | branch 'feature/task-007-login' set up to track 'origin/feature/task-007-login'.
-RESULTADO B3: 5 operaciones: crudo 925 bytes, contrato 307 bytes (67% menos)
+RESULTADO B3: 5 operaciones: crudo 923 bytes, contrato 307 bytes (67% menos)
 
 === Resumen ===
 RESULTADO A: TASK-002 llamadas git/gh=17 escritura/red=12 bytes=21715 bytes*turnos=252630
 RESULTADO A: TASK-003 llamadas git/gh=14 escritura/red=4 bytes=24877 bytes*turnos=588919
 RESULTADO A: TASK-004 llamadas git/gh=26 escritura/red=6 bytes=53542 bytes*turnos=1579526
 RESULTADO A: total 3 tareas llamadas git/gh=57 escritura/red=22 bytes=100134 bytes*turnos=2421075 taskctl=14 (bytes 16716)
-RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 22 ok / 0 mal ; es_ES 22 ok / 0 mal
-RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 22
+RESULTADO B1: operaciones idempotentes (2a ejecucion sin cambios y sin-cambios o igual): C 24 ok / 0 mal ; es_ES 24 ok / 0 mal
+RESULTADO B1: salidas distintas entre LC_ALL=C y LC_ALL=es_ES.UTF-8: 0 de 24
 RESULTADO B1: salidas que incumplen el contrato (<=5 lineas, sin ANSI, 'op resultado clave=valor'): 0
-RESULTADO B1: bytes de las lineas de contrato de las 22 operaciones del ciclo (1a ejecucion): 1147
-RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:1 4:2 
+RESULTADO B1: bytes de las lineas de contrato de las 24 operaciones del ciclo (1a ejecucion): 1296
+RESULTADO B1: codigos de salida observados (codigo:veces): 0:19 3:3 4:2 
 RESULTADO B2: actualizar-rama con conflicto -> codigo 6 (esperado 6); guardar de otra ruta con el conflicto abierto -> 3 (3); guardar con marcas -> 3 (3)
 RESULTADO B2: pasos idempotentes 14 ok / 0 mal ; salidas fuera de contrato: 0
-RESULTADO B2: comandos prohibidos en el registro (rebase, stash, clean, reset, push --force/--delete, branch -d/-D): 0 ; merge con el principal en develop/main: 0 ; reset de commit-estado ejecutado: 0
-RESULTADO B3: 5 operaciones: crudo 925 bytes, contrato 307 bytes (67% menos)
+RESULTADO B1b: validar-base inexistente -> 3 (3); guardar sin rutas -> 2 (2); quitar-worktree con cambios -> 3 (3) y sin publicar -> 3 (3); push tras fallo transitorio -> 0 (0, intentos=2); push non-fast-forward -> 3 (3); crear-rama-y-worktree con la rama existente -> 3 (3)
+RESULTADO B1b: commit-estado con un segundo escritor -> codigo 0 ; TASK-007=en-revision TASK-008=terminada en origin ; tareas/ al dia: si ; resets en el registro de N: 0
+RESULTADO B1b: pasos idempotentes 11 ok / 0 mal ; salidas fuera de contrato: 0
+RESULTADO B2b: detector por lista permitida: controles 22/22 prohibidas marcadas, 0/13 permitidas marcadas ; lineas del registro fuera de la lista: 0 de 396 ; resets: 0
+RESULTADO B3: 5 operaciones: crudo 923 bytes, contrato 307 bytes (67% menos)

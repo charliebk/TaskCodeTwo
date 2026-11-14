@@ -314,19 +314,26 @@ op_actualizar_principal() { OP=actualizar-principal   # pull --ff-only de develo
     linea "actualizar-principal ok commit=$(gop rev-parse HEAD | corto)"; fi
 }
 op_tag_anotado() { OP=tag-anotado   # tag-anotado <vX.Y.Z> <ref>
-  local t=$1 c remoto
+  local t=$1 c remoto local_c=""
   c=$(gop rev-parse "$2^{commit}")
-  remoto=$(gop ls-remote --tags origin "refs/tags/$t^{}" | awk '{print $1}')
+  # tag remoto: la linea ^{} (anotado) o, si no la hay, la del tag (ligero)
+  remoto=$(gop ls-remote --tags origin "refs/tags/$t" "refs/tags/$t^{}" 2>/dev/null) || { linea "tag-anotado sinred tag=$t"; return 4; }
+  remoto=$(echo "$remoto" | awk -v t="refs/tags/$t" '$2==t"^{}" {p=$1} $2==t && p=="" {l=$1} END {print (p!="" ? p : l)}')
+  if gop rev-parse -q --verify "refs/tags/$t" >/dev/null; then   # tag local (quiza sin publicar)
+    local_c=$(gop rev-parse "refs/tags/$t^{commit}")
+    if [ "$local_c" != "$c" ]; then linea "tag-anotado rechazada tag=$t motivo=existe-en-otro-commit donde=local"; return 3; fi
+  fi
   if [ -n "$remoto" ]; then
     if [ "$remoto" = "$c" ]; then linea "tag-anotado sin-cambios tag=$t commit=$(echo "$c" | corto)"; return 0; fi
-    linea "tag-anotado rechazada tag=$t motivo=existe-en-otro-commit"; return 3
+    linea "tag-anotado rechazada tag=$t motivo=existe-en-otro-commit donde=remoto"; return 3
   fi
-  gop rev-parse -q --verify "refs/tags/$t" >/dev/null || gop tag -a "$t" -m "Release $t" "$c"
+  [ -n "$local_c" ] || gop tag -a "$t" -m "Release $t" "$c"
   gop push -q origin "refs/tags/$t" 2>/dev/null || { linea "tag-anotado sinred tag=$t"; return 4; }
   linea "tag-anotado ok tag=$t commit=$(echo "$c" | corto)"
 }
 op_notas_release() { OP=notas-release   # notas-release <tag> [<tag-anterior>]: notas a un fichero
   local t=$1 prev=${2:-} rango f n=0 h p1 p2 resto
+  gop rev-parse -q --verify "refs/tags/$t^{commit}" >/dev/null || { linea "notas-release rechazada tag=$t motivo=no-existe"; return 3; }
   rango="$t^2"; [ -n "$prev" ] && rango="$prev..$t^2"
   f="$(git rev-parse --git-common-dir)/taskcode/notas/$t.md"; mkdir -p "$(dirname "$f")"
   : > "$f"
@@ -337,22 +344,37 @@ op_notas_release() { OP=notas-release   # notas-release <tag> [<tag-anterior>]: 
   done < <(gop log --merges --first-parent --format='%H %P' "$rango")
   linea "notas-release ok tag=$t prs=$n fichero=.git/taskcode/notas/$t.md"
 }
-op_commit_estado() { OP=commit-estado   # commit-estado <id> <estado>: el punto unico de F1-2, simplificado
+op_commit_estado() { OP=commit-estado   # commit-estado <id> <estado>: el punto unico de F1-2, sin commit local
+  # El commit se construye con commit-tree sobre origin/taskcode/tareas (arbol en un indice
+  # temporal) y se publica con push <sha>:refs/heads/taskcode/tareas, sin force. Si el push se
+  # rechaza no hay commit local que descartar: se re-ejecuta (F1-2 D1a). Nunca reset.
   local id=$1 est=$2 t i
   t="$(principal)/tareas"
   for i in 1 2 3 4 5; do
     ( cd "$t" || exit 1
       gop fetch -q origin taskcode/tareas 2>/dev/null || exit 4
-      gop merge -q --ff-only origin/taskcode/tareas >/dev/null || exit 1
-      if grep -qx "estado: $est" "$id/tarea.md" 2>/dev/null; then exit 10; fi
-      sed -i "s/^estado: .*/estado: $est/" "$id/tarea.md"
-      gop add -- "$id/tarea.md" && gop commit -q -m "estado: $id $est" || exit 1
-      gop push -q origin taskcode/tareas 2>/dev/null && exit 0
-      gop reset -q --hard origin/taskcode/tareas   # F1-2: descartar el commit propio y re-ejecutar
+      base=$(gop rev-parse origin/taskcode/tareas) || exit 1
+      actual=$(gop show "$base:$id/tarea.md" 2>/dev/null) || exit 3
+      if printf '%s\n' "$actual" | grep -qx "estado: $est"; then
+        gop merge -q --ff-only origin/taskcode/tareas >/dev/null 2>&1; exit 10; fi
+      blob=$(printf '%s\n' "$actual" | sed "s/^estado: .*/estado: $est/" | gop hash-object -w --stdin) || exit 1
+      idx="$(git rev-parse --absolute-git-dir)/taskcode-indice-$$"
+      GIT_INDEX_FILE=$idx gop read-tree "$base" &&
+        GIT_INDEX_FILE=$idx gop update-index --cacheinfo "100644,$blob,$id/tarea.md" &&
+        arbol=$(GIT_INDEX_FILE=$idx gop write-tree) || { rm -f "$idx"; exit 1; }
+      rm -f "$idx"
+      c=$(gop commit-tree "$arbol" -p "$base" -m "estado: $id $est") || exit 1
+      if [ "$i" = 1 ] && [ -n "${POC_COLAR:-}" ] && [ ! -f "$FIX/colado" ]; then : > "$FIX/colado"; eval "$POC_COLAR"; fi
+      if gop push -q origin "$c:refs/heads/taskcode/tareas" 2>/dev/null; then
+        gop fetch -q origin taskcode/tareas 2>/dev/null
+        gop merge -q --ff-only origin/taskcode/tareas >/dev/null 2>&1   # tareas/ al dia; si tiene cambios propios, se queda atras
+        exit 0
+      fi
       exit 5 )
     case $? in
       0) linea "commit-estado ok id=$id estado=$est intentos=$i"; return 0 ;;
       10) linea "commit-estado sin-cambios id=$id estado=$est"; return 0 ;;
+      3) linea "commit-estado rechazada id=$id motivo=no-existe"; return 3 ;;
       4) linea "commit-estado sinred id=$id pendiente=no"; return 4 ;;
       5) continue ;;
       *) linea "commit-estado error"; return 1 ;;
@@ -446,6 +468,15 @@ escenario_b1() { # la misma secuencia en cada fixture; LOC es el LC_ALL de quien
   paso principal quitar_worktree TASK-007
   paso principal actualizar_principal
   paso principal tag_anotado v0.1.0 origin/main
+  echo "-- el tag ya publicado, visto desde un clon que no lo tiene en local, pedido sobre otro commit"
+  g -C "$FIX/principal" tag -d v0.1.0 >/dev/null
+  paso principal tag_anotado v0.1.0 origin/develop
+  g -C "$FIX/principal" fetch -q --tags origin
+  echo "-- tag local sin publicar en otro commit (p. ej. una release abortada sin red)"
+  g -C "$FIX/principal" tag -a v0.0.9 -m local "$(g -C "$FIX/principal" rev-list --max-parents=0 origin/develop)"
+  paso principal tag_anotado v0.0.9 origin/main
+  echo "v0.0.9 en origin tras la operacion: '$(g -C "$FIX/principal" ls-remote --tags origin v0.0.9)' (vacio = no se publico)"
+  g -C "$FIX/principal" tag -d v0.0.9 >/dev/null
   paso principal notas_release v0.1.0
   paso principal commit_estado TASK-007 terminada
   paso principal validar_base hotfix
@@ -513,18 +544,88 @@ paso principal actualizar_principal
 echo "f.txt en develop: $(g -C "$FIX/principal" show HEAD:f.txt | head -1)"
 resultado "B2: actualizar-rama con conflicto -> codigo $cconf (esperado 6); guardar de otra ruta con el conflicto abierto -> $cotra (3); guardar con marcas -> $cmarcas (3)"
 resultado "B2: pasos idempotentes $NOK ok / $NMAL mal ; salidas fuera de contrato: $NCONTRATO"
-echo "-- registro de comandos de las operaciones (todas las fixtures): $(cat "$RAIZ"/{C,ES,K}/comandos-ops.log | wc -l) llamadas a git"
-PROHIB=' git (rebase|stash|clean)|git push .*(--force|-f( |$)|--delete| :)|git reset|git branch .*(-d|-D|--delete)( |$)'
-# control del patron: debe casar las 7 primeras lineas y ninguna de las 3 ultimas
-control=$(printf '%s\n' 'x [w] rama=f git rebase origin/develop' 'x [w] rama=f git push --force origin f' 'x [w] rama=f git push -f origin f' \
-  'x [w] rama=f git stash' 'x [w] rama=f git reset --hard HEAD' 'x [w] rama=f git branch -D f' 'x [w] rama=f git push origin --delete f' \
-  'x [w] rama=f git push -q origin f' 'x [w] rama=f git merge -q --no-ff --no-edit origin/develop' 'x [w] rama=f git branch -q --no-track f origin/f' | grep -cE "$PROHIB")
-echo "control del patron de prohibidos: casa $control de 7 lineas prohibidas y 0 de 3 permitidas (esperado 7)"
-prohib=$(cat "$RAIZ"/{C,ES,K}/comandos-ops.log | grep -cE "$PROHIB")
-mergeprinc=$(cat "$RAIZ"/{C,ES,K}/comandos-ops.log | grep -cE 'rama=(develop|main) git merge')
-excep=$(cat "$RAIZ"/{C,ES,K}/comandos-ops.log | grep -cE '^commit-estado .*git reset')
-echo "subcomandos usados por las operaciones: $(cat "$RAIZ"/{C,ES,K}/comandos-ops.log | sed -E 's/.* git ([a-z-]+).*/\1/' | sort | uniq -c | awk '{printf "%s=%s ", $2, $1}')"
-resultado "B2: comandos prohibidos en el registro (rebase, stash, clean, reset, push --force/--delete, branch -d/-D): $prohib ; merge con el principal en develop/main: $mergeprinc ; reset de commit-estado ejecutado: $excep"
+sep "B1b. Caminos de rechazo, uso, reintento y dos escritores en commit-estado (fixture N, caller LC_ALL=C)"
+FIX="$RAIZ/N"; LOC=C; NOK=0; NMAL=0; NCONTRATO=0; semilla "$FIX"
+W7N=principal/.taskcode/worktrees/TASK-007
+paso principal crear_rama_y_worktree TASK-007 feature login origin/develop
+paso principal validar_base no-existe; cvb=$?
+paso "$W7N" guardar "sin rutas"; cuso=$?
+printf 'login\n' > "$FIX/$W7N/g.txt"
+paso principal quitar_worktree TASK-007; cqs=$?
+paso "$W7N" guardar "feat(TASK-007): login" g.txt
+paso principal quitar_worktree TASK-007; cqp=$?
+echo "-- el remoto falla una vez (hook pre-receive que rechaza el primer push: fallo transitorio)"
+printf '#!/bin/sh\nif [ -f fallo-una-vez ]; then rm -f fallo-una-vez; echo "error transitorio simulado" >&2; exit 1; fi\nexit 0\n' > "$FIX/origin.git/hooks/pre-receive"
+chmod +x "$FIX/origin.git/hooks/pre-receive"; : > "$FIX/origin.git/fallo-una-vez"
+paso "$W7N" push; cre=$?
+rm -f "$FIX/origin.git/hooks/pre-receive"
+echo "-- otra persona publica en la misma rama de tarea; el agente guarda y publica encima"
+plat fetch -q origin; plat checkout -q -B feature/task-007-login origin/feature/task-007-login
+printf 'de otro\n' > "$FIX/plataforma/otro.txt"; plat add otro.txt; plat commit -q -m "otro"; plat push -q origin feature/task-007-login 2>/dev/null
+printf 'mas\n' > "$FIX/$W7N/g2.txt"
+paso "$W7N" guardar "feat(TASK-007): mas" g2.txt
+paso "$W7N" push; cnff=$?
+echo "-- worktree perdido con la rama local presente: crear-rama-y-worktree no la pisa"
+rm -rf "${FIX:?}/$W7N"; g -C "$FIX/principal" worktree prune
+paso principal crear_rama_y_worktree TASK-007 feature login origin/develop; cre2=$?
+echo "-- dos escritores en commit-estado: otro clon publica TASK-007 en-revision entre la construccion y el push"
+g clone -q "$FIX/origin.git" "$FIX/otro" 2>/dev/null
+colar() {
+  g -C "$FIX/otro" fetch -q origin; g -C "$FIX/otro" checkout -q -B taskcode/tareas origin/taskcode/tareas
+  sed -i 's/^estado: .*/estado: en-revision/' "$FIX/otro/TASK-007/tarea.md"
+  g -C "$FIX/otro" commit -q -am "estado: TASK-007 en-revision (otro)"; g -C "$FIX/otro" push -q origin taskcode/tareas 2>/dev/null
+}
+POC_COLAR=colar paso principal commit_estado TASK-008 terminada; cce=$?
+g -C "$FIX/principal" fetch -q origin
+e7=$(g -C "$FIX/principal" show origin/taskcode/tareas:TASK-007/tarea.md | sed -n 's/^estado: //p')
+e8=$(g -C "$FIX/principal" show origin/taskcode/tareas:TASK-008/tarea.md | sed -n 's/^estado: //p')
+igual=$(sino test "$(g -C "$FIX/principal/tareas" rev-parse HEAD)" = "$(g -C "$FIX/principal" rev-parse origin/taskcode/tareas)")
+echo "en origin: TASK-007=$e7 (del otro escritor) ; TASK-008=$e8 ; tareas/ igual a origin: $igual ; status de tareas/: '$(g -C "$FIX/principal/tareas" status --porcelain)'"
+echo "commits en origin/taskcode/tareas: $(g -C "$FIX/principal" rev-list --count origin/taskcode/tareas) (altas + otro + este) ; merges: $(g -C "$FIX/principal" rev-list --merges --count origin/taskcode/tareas)"
+resultado "B1b: validar-base inexistente -> $cvb (3); guardar sin rutas -> $cuso (2); quitar-worktree con cambios -> $cqs (3) y sin publicar -> $cqp (3); push tras fallo transitorio -> $cre (0, intentos=2); push non-fast-forward -> $cnff (3); crear-rama-y-worktree con la rama existente -> $cre2 (3)"
+resultado "B1b: commit-estado con un segundo escritor -> codigo $cce ; TASK-007=$e7 TASK-008=$e8 en origin ; tareas/ al dia: $igual ; resets en el registro de N: $(grep -c ' git reset' "$FIX/comandos-ops.log")"
+resultado "B1b: pasos idempotentes $NOK ok / $NMAL mal ; salidas fuera de contrato: $NCONTRATO"
+
+sep "B2b. Registro de comandos: lista permitida de subcomandos y argumentos (fixtures C, ES, K, N)"
+# Detector por lista permitida: subcomando fuera de la lista, o argumento prohibido dentro de uno permitido.
+detector() {
+  awk 'BEGIN { n = split("add branch commit commit-tree describe diff fetch for-each-ref hash-object log ls-remote merge merge-base pull push read-tree rev-parse show show-ref status tag update-index worktree write-tree", l, " ")
+               for (k = 1; k <= n; k++) ok[l[k]] = 1 }
+  { i = index($0, " git "); if (!i) { print "sin-git <- " $0; next }
+    rama = $0; sub(/.* rama=/, "", rama); sub(/ .*/, "", rama)
+    m = split(substr($0, i + 5), a, " "); s = a[1]; mal = ""
+    if (!(s in ok)) mal = "subcomando " s
+    for (j = 2; j <= m && mal == ""; j++) { x = a[j]
+      if (s == "push" && (x ~ /^\+/ || x ~ /^:/ || x ~ /^(-f|--force.*|--mirror|--delete|-d|--prune|--all)$/)) mal = "push " x
+      if (s == "branch" && x ~ /^(-f|--force|-d|-D|--delete|-m|-M|--move|-c|-C|--copy)$/) mal = "branch " x
+      if (s == "worktree" && x ~ /^(-f|--force)$/) mal = "worktree " x
+      if (s == "tag" && x ~ /^(-d|--delete|-f|--force)$/) mal = "tag " x
+      if (s == "merge" && x ~ /^(--abort|--quit)$/) mal = "merge " x }
+    if (mal == "" && s == "pull" && $0 !~ / --ff-only( |$)/) mal = "pull sin --ff-only"
+    if (mal == "" && s == "merge" && rama ~ /^(develop|main)$/) mal = "merge con el principal en " rama
+    if (mal != "") print mal " <- " $0 }'
+}
+prohibidas=( 'x [w] rama=f git rebase origin/develop' 'x [w] rama=f git push --force origin f' 'x [w] rama=f git push -f origin f'
+  'x [w] rama=f git push --force-with-lease origin f' 'x [w] rama=f git push origin +f' 'x [w] rama=f git push origin +refs/heads/f:refs/heads/develop'
+  'x [w] rama=f git push --mirror origin' 'x [w] rama=f git push origin --delete f' 'x [w] rama=f git push origin :f'
+  'x [w] rama=f git update-ref -d refs/heads/f' 'x [w] rama=f git branch -f f origin/f' 'x [w] rama=f git checkout -B f origin/f'
+  'x [w] rama=f git branch -m a b' 'x [w] rama=f git branch -D f' 'x [w] rama=f git worktree remove --force w'
+  'x [w] rama=f git stash' 'x [w] rama=f git reset --hard HEAD' 'x [w] rama=f git clean -fd' 'x [w] rama=f git pull --rebase origin develop'
+  'x [w] rama=develop git merge -q --no-ff origin/f' 'x [w] rama=f git tag -d v1' 'x [w] rama=f git cherry-pick abc' )
+permitidas=( 'x [w] rama=f git push -q origin f' 'x [w] rama=- git push -q origin 0123abc:refs/heads/taskcode/tareas' 'x [w] rama=f git push -q origin refs/tags/v1'
+  'x [w] rama=f git merge -q --no-ff --no-edit origin/develop' 'x [w] rama=taskcode/tareas git merge -q --ff-only origin/taskcode/tareas'
+  'x [w] rama=develop git pull -q --ff-only origin develop' 'x [w] rama=f git branch -q --no-track f origin/f' 'x [w] rama=f git branch --list */task-007-* --format=%(refname:short)'
+  'x [w] rama=develop git worktree add -q --no-track -b f w origin/develop' 'x [w] rama=develop git worktree remove w' 'x [w] rama=develop git fetch -q --prune --tags origin'
+  'x [w] rama=develop git tag -a v1 -m Release v1 abc' 'x [w] rama=- git commit-tree abc -p def -m estado' )
+cp=$(printf '%s\n' "${prohibidas[@]}" | detector | wc -l); cpm=$(printf '%s\n' "${permitidas[@]}" | detector | wc -l)
+echo "control del detector: marca $cp de ${#prohibidas[@]} lineas prohibidas y $cpm de ${#permitidas[@]} permitidas"
+printf '%s\n' "${prohibidas[@]}" | detector | sed 's/ <- .*//' | sort | uniq -c | awk '{c=$1; $1=""; printf "  %s x%s\n", $0, c}'
+total=$(cat "$RAIZ"/{C,ES,K,N}/comandos-ops.log | wc -l)
+echo "-- registro de comandos de las operaciones (fixtures C, ES, K, N): $total llamadas a git"
+echo "subcomandos usados por las operaciones: $(cat "$RAIZ"/{C,ES,K,N}/comandos-ops.log | sed -E 's/.* git ([a-z-]+).*/\1/' | sort | uniq -c | awk '{printf "%s=%s ", $2, $1}')"
+fuera=$(cat "$RAIZ"/{C,ES,K,N}/comandos-ops.log | detector)
+[ -n "$fuera" ] && echo "$fuera" | head -5
+resultado "B2b: detector por lista permitida: controles $cp/${#prohibidas[@]} prohibidas marcadas, $cpm/${#permitidas[@]} permitidas marcadas ; lineas del registro fuera de la lista: $(printf '%s' "$fuera" | grep -c .) de $total ; resets: $(cat "$RAIZ"/{C,ES,K,N}/comandos-ops.log | grep -c ' git reset')"
 
 sep "B3. Bytes: salida cruda de git frente a la linea de contrato (fixture R, sin -q y con el entorno por defecto)"
 FIX="$RAIZ/R"
