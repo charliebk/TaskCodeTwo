@@ -1,0 +1,15 @@
+# Dependencias y builds
+node_modules/
+dist/
+
+# Logs de los scripts Git-Flow de TaskCode 0.16
+/logs/
+
+# Configuracion local y worktrees de agentes de Claude Code
+.claude/
+
+# IDE y sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
