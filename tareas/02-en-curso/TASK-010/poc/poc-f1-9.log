@@ -1,0 +1,132 @@
+fecha: 2026-11-14T08:55:27Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
+ADR: F1-9-formato-de-tarea-plan-y-especificacion.md ; plugin: 0.16.1
+repo ToolsaWeb: commit 93c9618ac (2026-11-14); HEAD actual 93c9618a
+repo OpenDockTrading: commit fab8d7e05 (2026-11-14); HEAD actual fab8d7e
+repo TaskCodeTwo: commit afc3791b5 (2026-11-14); HEAD actual bb7ecb3
+
+=== A. Uso real de los campos de la 0.16 en los tres repos ===
+campos de TASK_FIELD_ORDER: 22
+ToolsaWeb: 404 tarea.md ; frontmatter no YAML para PyYAML: 0 ; claves fuera de la lista: ninguna ; orden distinto: 0 ; creado leido como fecha (sin comillas): 404 ; titulos con \ o ": 0
+   estado distinto de su carpeta: 9 ['TASK-006:05-archivadas/planificada', 'TASK-010:05-archivadas/planificada', 'TASK-030:05-archivadas/planificada', 'TASK-031:05-archivadas/planificada', 'TASK-054:05-archivadas/planificada', 'TASK-055:05-archivadas/planificada', 'TASK-056:05-archivadas/planificada', 'TASK-097:05-archivadas/en-diseno', 'TASK-171:05-archivadas/planificada']
+   ## Resultado despues de ## Transiciones: 28
+OpenDockTrading: 96 tarea.md ; frontmatter no YAML para PyYAML: 0 ; claves fuera de la lista: ninguna ; orden distinto: 0 ; creado leido como fecha (sin comillas): 96 ; titulos con \ o ": 0
+   estado distinto de su carpeta: 2 ['TASK-015:05-archivadas/planificada', 'TASK-068:05-archivadas/planificada']
+   ## Resultado despues de ## Transiciones: 14
+TaskCodeTwo: 93 tarea.md ; frontmatter no YAML para PyYAML: 0 ; claves fuera de la lista: ninguna ; orden distinto: 0 ; creado leido como fecha (sin comillas): 93 ; titulos con \ o ": 0
+   estado distinto de su carpeta: 0 []
+   ## Resultado despues de ## Transiciones: 8
+
+campo                          TW      ODT      TC2   (tareas con valor distinto del valor por defecto de la 0.16)
+id                            404       96       93
+titulo                        404       96       93
+tipo                            6        0        0
+sprint                        355       68       93
+etiquetas                     366       96        0
+complejidad                   404        0        0
+modelo_sugerido                 8        0        0
+estado                        162       44       10
+plan_aprobado                 162       44       10
+rama                           68        3        0
+asignado_a                    162       44       10
+agente_revisor                  0        0        0
+skills_recomendados            21        0        0
+regla_seleccion_skill          21        0        0
+ultimo_commit_revisado          0        0        0
+revision_codex                  0        0        0
+tokens_diseno                 162       44        9
+tokens_implementacion          54       41        9
+tokens_revision               160       43        9
+creado                        404       96       93
+actualizado                   151       36        0
+dependencias                  364       89       92
+(total tarea.md)              404       96       93
+
+secciones ## (tareas que la tienen):
+Objetivo                                      404       96       93
+Criterios de aceptacion                       404       96       93
+Transiciones                                  162       44       10
+Resultado                                     159       43        9
+Coste                                          92       44       10
+Autorrevision                                  33       43        9
+Duracion                                       23       33        9
+Nota de*                                        7        1        0
+Verificacion ligera                             0        3        5
+Descartada*                                     6        2        0
+Rondas extra                                    0        2        2
+Decisiones de implementación                    3        0        0
+Verificacion omitida                            2        0        0
+(secciones con un solo uso en total: 26)
+
+=== B. Secciones ## (en la salida de A) frente a REQUISITOS Â§1 ===
+52:| Tareas con `## Resultado` / `## Coste` / `## Autorrevision` | 159 / 91 / 33 | 40 / 41 / 40 | 126 / 70 / 23 |
+medido hoy Resultado      159 / 43 / 9
+medido hoy Coste          92 / 44 / 10
+medido hoy Autorrevision  33 / 43 / 9
+(REQUISITOS mide el repo TaskCode, no TaskCodeTwo: la tercera columna no es comparable)
+
+=== C. Plantilla de tarea.md del ADR con un parser YAML estandar (PyYAML) ===
+plantilla: 21 claves de primer nivel: formato, id, titulo, tipo, sprint, etiquetas, complejidad, carril, estado, motivo, plan_aprobado, rama, asignado_a, roles, estimacion, tokens_diseno, tokens_implementacion, tokens_revision, creado, actualizado, dependencias
+  titulo 'C:\\ruta\\'                       -> 'C:\\ruta\\'                         IGUAL
+  titulo 'dice "hola"'                      -> 'dice "hola"'                        IGUAL
+  titulo 'C:\\ruta\\ "con comillas" \\'     -> 'C:\\ruta\\ "con comillas" \\'       IGUAL
+  titulo 'dos puntos: y # almohadilla'      -> 'dos puntos: y # almohadilla'        IGUAL
+  titulo 'tilde: canción, eñe'              -> 'tilde: canción, eñe'                IGUAL
+  control negativo, escape de la 0.16, 'C:\\ruta\\' -> ERROR ParserError (esperado: no da el titulo)
+  control negativo, escape de la 0.16, 'C:\\ruta'   -> carga, pero da 'C:\ruta' (esperado: no da el titulo)
+  escalares de texto en la plantilla: 7 ; no texto: ninguno
+  lineas con texto sin comillas: ninguna
+  observacion: PyYAML safe_load acepta claves duplicadas sin error y se queda con la ultima: {'a': 2}
+  secciones de la plantilla: ['Objetivo', 'Criterios de aceptacion', 'Escenarios', 'Resultado', 'Transiciones']
+
+=== D. Plantilla de plan-final.md frente a la 0.16 y a TASK-009 ===
+titulos ## de la plantilla del ADR : ['Enfoque propuesto', 'Desacuerdos entre roles, y como se resuelven', 'Lo que el rol no cubrio', 'Riesgos aceptados y que los contiene', 'Plan de pruebas', 'Lo que necesita decision de una persona', 'Troceo']
+titulos ## de planTemplate (0.16)  : ['Lo que el rol no cubrio', 'Desacuerdos entre roles, y como se resuelven', 'Enfoque propuesto', 'Riesgos aceptados y que los contiene', 'Plan de pruebas', 'Lo que necesita decision de una persona']
+titulos ## de TASK-009 (2 roles)   : ['Enfoque propuesto', 'Desacuerdos entre roles, y como se resuelven', 'Riesgos aceptados y que los contiene', 'Plan de pruebas', 'Lo que no cubrieron los roles', 'Suposiciones no verificadas', 'Lo que necesita decision de una persona']
+  de la 0.16 que faltan en la plantilla: ninguno ; de la plantilla que la 0.16 no tiene (salvo opcionales ['Troceo']): ninguno
+  de la plantilla (2 roles) que faltan en TASK-009: ninguno
+  de TASK-009 que la plantilla no nombra (texto libre del unificador): ['Lo que no cubrieron los roles', 'Suposiciones no verificadas']
+  linea "Duracion estimada": en la plantilla True, en TASK-009 True
+  linea "presupuesto de tests": en la plantilla True, en TASK-009 True
+  primera linea "# Plan — TASK-NNN: <titulo>": si
+
+=== E. Tabla de campos del ADR: cada veredicto cita la cifra medida ===
+filas leidas: 26 ; campos de la 0.16 con fila: 22 de 22
+veredictos: {'se conserva': 13, 'cambia de sentido': 7, 'se retira': 2, 'se añade': 4}
+--- controles negativos (copias mutadas del ADR; cada una tiene que fallar)
+  cifra-cambiada: falla como se espera (ERROR: sprint: cifra del ADR ('9999', '68', '93') distinta de la medida (355, 68, 93))
+  fila-borrada: falla como se espera (ERROR: revision_codex: 0 filas (se espera 1))
+  ruta-inexistente: falla como se espera (ERROR: titulo: la ruta titulo_inventado no esta en la plantilla)
+  sin-cifra: falla como se espera (ERROR: tipo: sin cifra "N / N / N" (medido (6, 0, 0)))
+
+=== F. Spec Kit (github/spec-kit, solo GET) ===
+plantillas en templates/ (2ee2b1e8005905db05f5717300a469b3068b908f): checklist-template.md commands constitution-template.md plan-template.md spec-template.md tasks-template.md vscode-settings.json 
+  spec-template.md: 4556 bytes, sha256 3945437fc35cd30a
+  plan-template.md: 3770 bytes, sha256 dfba43da2b2a207f
+  tasks-template.md: 9182 bytes, sha256 1e448e9153462e8c
+  spec.md   «Feature Specification»: existe
+  spec.md   «Requirements»: existe
+  spec.md   «Success Criteria»: existe
+  spec.md   «User Scenarios & Testing»: existe
+  spec.md   «Edge Cases»: existe
+  spec.md   «Assumptions»: existe
+  spec.md   «Key Entities»: existe
+  plan.md   «Summary»: existe
+  plan.md   «Technical Context»: existe
+  plan.md   «Complexity Tracking»: existe
+  tasks.md  «Tests for User Story 1»: existe
+  tasks.md  «Dependencies & Execution Order»: existe
+  tasks.md  «Phase 1: Setup»: existe
+citas leidas: 13
+  control negativo (seccion inventada): falla como se espera (spec.md   «User Stories Inventadas»: NO EXISTE)
+
+=== G. El ADR: IDs, secciones, enlaces e indice ===
+IDs de requisitos citados: 12 ; de la auditoria: 1 ; tareas del plan: 21
+
+=== Llamadas a GitHub ===
+$ gh api --method GET repos/github/spec-kit/contents/templates?ref=2ee2b1e8005905db05f5717300a469b3068b908f --jq .[] | .name
+$ gh api --method GET repos/github/spec-kit/contents/templates/spec-template.md?ref=2ee2b1e8005905db05f5717300a469b3068b908f -H Accept: application/vnd.github.raw
+$ gh api --method GET repos/github/spec-kit/contents/templates/plan-template.md?ref=2ee2b1e8005905db05f5717300a469b3068b908f -H Accept: application/vnd.github.raw
+$ gh api --method GET repos/github/spec-kit/contents/templates/tasks-template.md?ref=2ee2b1e8005905db05f5717300a469b3068b908f -H Accept: application/vnd.github.raw
+
+=== RESULTADO ===
+OK: A..G como se espera, mutaciones detectadas, solo GET
