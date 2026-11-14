@@ -108,6 +108,10 @@ def clase_ruta(ruta, reglas):
     (clave `rutas_carril`) solo puede subir."""
     if ruta.startswith("/") or ".." in ruta.split("/") or not ruta:
         raise ErrorCarril(f"ruta no valida: {ruta!r}")
+    # normaliza `./` y componentes vacios (`docs//x`): `./.github/x` es `.github/x`
+    ruta = "/".join(c for c in ruta.split("/") if c not in ("", "."))
+    if not ruta:
+        raise ErrorCarril("ruta vacia tras normalizar")
     baja = ruta.lower()
     if baja.split("/", 1)[0] in SUELO_RIESGO or baja.rsplit("/", 1)[-1] == "codeowners":
         return "riesgo-alto"
@@ -218,7 +222,7 @@ def fila_politica(carril, tipo, base, rama):
     fila con la base REAL del PR: release con base main; hotfix con base main
     y rama hotfix/*. Contra develop el tipo se ignora y manda el carril."""
     if base == "main":
-        if tipo == "release":
+        if tipo == "release" and rama == "develop":
             return "release"
         if tipo == "hotfix" and (rama or "").startswith("hotfix/"):
             return "hotfix"
@@ -238,15 +242,17 @@ def politica(carril, tipo, cfg, tabla, base="develop", rama=None):
     pol["paradas"] = set(fb["paradas"])
     pol["checks"] = set(fb["checks"])
     pol["fila"] = fila
-    if fila in TIPOS_MAIN and carril == "riesgo-alto":
-        ra = tabla["riesgo-alto"]
-        pol["fila"] = f"{fila}+riesgo-alto"
-        pol["plan"] = True
-        pol["roles_min"] = max(pol["roles_min"], ra["roles_min"])
-        pol["aprobaciones"] = max(pol["aprobaciones"], ra["aprobaciones"])
-        pol["checks"] |= ra["checks"]
-        pol["paradas"] |= ra["paradas"]
-        pol["lote"] = False
+    if fila in TIPOS_MAIN:
+        # una fila de main nunca baja de lo que exige el carril efectivo:
+        # sus puertas son la union de las de la fila y las del carril
+        ca = tabla[carril]
+        pol["fila"] = f"{fila}+{carril}"
+        pol["plan"] = pol["plan"] or ca["plan"]
+        pol["roles_min"] = max(pol["roles_min"], ca["roles_min"])
+        pol["aprobaciones"] = max(pol["aprobaciones"], ca["aprobaciones"])
+        pol["checks"] |= ca["checks"]
+        pol["paradas"] |= ca["paradas"]
+        pol["lote"] = pol["lote"] and ca["lote"]
     extra = cfg.get("politica_carriles", {}).get(carril, {}) if fila in ORDEN else {}
     if "roles_diseno" in extra:
         pol["roles_min"] = max(pol["roles_min"], extra["roles_diseno"])
@@ -543,6 +549,7 @@ def seccion_a(personal, trabajo):
         (".taskcode exacto (fichero o enlace)", [("A", [".taskcode"])], {}, "riesgo-alto"),
         (".github exacto (submodulo)", [("A", [".github"])], {}, "riesgo-alto"),
         (".githubx/ no es el suelo", [("A", [".githubx/a"])], {}, "fix"),
+        ("./.github/ se normaliza", [("M", ["./.github/workflows/ci.yml"])], {}, "riesgo-alto"),
         ("PR sin ficheros", [], {}, "ERROR"),
         ("ruta con ..", [("M", ["docs/../src/x.rs"])], {}, "ERROR"),
     ]
@@ -742,7 +749,7 @@ def seccion_c(personal, tabla, minimos, trabajo):
         print("reparto (hoy -> nuevo: tareas): " + ", ".join(f"{h}->{x}: {c}" for (h, x), c in sorted(dist.items())))
         filas_res.append(f"{repo}: tareas={n} hoy={hoy_t / n:.2f} nuevo={nue_t / n:.2f} cota={cota_t / n:.2f}")
     print("-- tareas sinteticas de tipo release y hotfix (la 0.16 no tiene ninguna terminada)")
-    sint = [("release", "funcionalidad", "develop"), ("hotfix", "fix", "hotfix/task-900-x")]
+    sint = [("release", "errata", "develop"), ("hotfix", "fix", "hotfix/task-900-x")]
     for tipo, decl, rama in sint:
         t = {"tipo": tipo, "trans": [{"fase": "plan", "modo": "automatico", "decidido_por": "persona"},
                                      {"fase": "review", "modo": "automatico", "decidido_por": "persona"}]}
@@ -756,29 +763,38 @@ def seccion_c(personal, tabla, minimos, trabajo):
     print("-- tipo de la tarea frente a la base real del PR (revision 1, IMP-1)")
     gh = [("M", [".github/workflows/ci.yml"]), ("M", ["src/a.rs"])]
     src = [("M", ["src/a.rs"])]
+    docs = [("M", ["docs/a.md"])]
+    RIA = ["carril", "revision-ia", "verificacion"]
     casos = [
-        # nombre, tipo, base, rama, cambios, declarado, esperado (fila, plan, aprobaciones, paradas) o ERROR
+        # nombre, tipo, base, rama, cambios, declarado,
+        # esperado (fila, plan, aprobaciones, paradas, checks) o ERROR
         ("hotfix con .github/ contra develop", "hotfix", "develop", "hotfix/task-901-x", gh, "fix",
-         ("riesgo-alto", True, 2, ["approve", "merge-pr"])),
+         ("riesgo-alto", True, 2, ["approve", "merge-pr"], RIA)),
         ("hotfix con .github/ contra main", "hotfix", "main", "hotfix/task-901-x", gh, "fix",
-         ("hotfix+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"])),
+         ("hotfix+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"], RIA)),
         ("hotfix solo src/ contra main", "hotfix", "main", "hotfix/task-902-x", src, "fix",
-         ("hotfix", False, 1, ["merge-pr", "tag"])),
+         ("hotfix+fix", False, 1, ["merge-pr", "tag"], RIA)),
         ("release con .github/ contra develop", "release", "develop", "feature/task-903-x", gh, "fix",
-         ("riesgo-alto", True, 2, ["approve", "merge-pr"])),
-        ("release con .taskcode/ contra main", "release", "main", "develop", [("M", [".taskcode/config.yml"])], "fix",
-         ("release+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"])),
-        ("release solo src/ contra main", "release", "main", "develop", src, "fix",
-         ("release", False, 1, ["merge-pr", "tag"])),
+         ("riesgo-alto", True, 2, ["approve", "merge-pr"], RIA)),
+        ("release con .taskcode/ contra main", "release", "main", "develop", [("M", [".taskcode/config.yml"])], "errata",
+         ("release+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"], RIA)),
+        ("release solo docs/ contra main", "release", "main", "develop", docs, "errata",
+         ("release+errata", False, 1, ["merge-pr", "tag"], RIA)),
         ("hotfix contra main desde feature/*", "hotfix", "main", "feature/task-904-x", src, "fix", "ERROR"),
         ("feature contra main", "feature", "main", "feature/task-905-x", src, "funcionalidad", "ERROR"),
+        # revision 2, IMP-1
+        ("M1 release contra main desde feature/*", "release", "main", "feature/task-011-x", src, "funcionalidad", "ERROR"),
+        ("M3 hotfix funcionalidad contra main", "hotfix", "main", "hotfix/task-012-x", src, "funcionalidad",
+         ("hotfix+funcionalidad", True, 2, ["approve", "merge-pr", "tag"], RIA)),
+        ("union: release funcionalidad desde develop", "release", "main", "develop", src, "funcionalidad",
+         ("release+funcionalidad", True, 2, ["approve", "merge-pr", "tag"], RIA)),
     ]
     okt = 0
     for nombre, tipo, base, rama, cambios, decl, esp in casos:
         ef = carril_efectivo(decl, carril_minimo(cambios, {})[0])
         try:
             p = politica(ef, tipo, {}, tabla, base, rama)
-            obt = (p["fila"], p["plan"], p["aprobaciones"], sorted(p["paradas"]))
+            obt = (p["fila"], p["plan"], p["aprobaciones"], sorted(p["paradas"]), sorted(p["checks"]))
         except ErrorCarril:
             obt = "ERROR"
         bien = obt == esp
@@ -805,6 +821,15 @@ def seccion_c(personal, tabla, minimos, trabajo):
                                           pol, modo, cfg, tabla)
                             cont += a == "continuar"
     print(f"  combinaciones={barr} ; continuar={cont} ; tipo y base que fallan cerrado (sin fila)={rech}")
+    baja = 0
+    for carril in ORDEN:
+        for tipo, base, rama in (("release", "main", "develop"), ("hotfix", "main", "hotfix/task-1-x")):
+            p, c = politica(carril, tipo, {}, tabla, base, rama), tabla[carril]
+            if (c["plan"] and not p["plan"]) or p["aprobaciones"] < c["aprobaciones"] or p["roles_min"] < c["roles_min"] \
+                    or not (p["checks"] >= c["checks"]) or not (p["paradas"] >= c["paradas"]):
+                baja += 1
+                falla("C", f"fila {tipo} baja de {carril}")
+    print(f"  filas de main por debajo del carril efectivo: {baja}/8")
     if cont:
         falla("C", f"{cont} continuar sobre una parada fija")
     total_malas += cont

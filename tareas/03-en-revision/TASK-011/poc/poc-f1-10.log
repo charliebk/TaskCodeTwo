@@ -1,5 +1,5 @@
 python 3.12.10 (-I: True) ; git version 2.56.0.windows.4
-ADR: F1-10-carriles-y-modo-automatico.md ; trabajo: .../pruebas-claude/taskcodetwo/task-011-c1
+ADR: F1-10-carriles-y-modo-automatico.md ; trabajo: .../pruebas-claude/taskcodetwo/task-011-c2
 repo ToolsaWeb: commit 93c9618ac (2026-11-14)
 repo OpenDockTrading: commit fab8d7e05 (2026-11-14)
 repo TaskCodeTwo: commit afc3791b5 (2026-11-14)
@@ -42,6 +42,7 @@ renombrados fuera de tareas/: 0 ; que cambian de clase con los dos nombres: 0
   .taskcode exacto (fichero o enlace)      -> riesgo-alto  ok
   .github exacto (submodulo)               -> riesgo-alto  ok
   .githubx/ no es el suelo                 -> fix          ok
+  ./.github/ se normaliza                  -> riesgo-alto  ok
   PR sin ficheros                          -> ERROR        ok
   ruta con ..                              -> ERROR        ok
 -- carril efectivo (solo sube)
@@ -50,7 +51,7 @@ renombrados fuera de tareas/: 0 ; que cambian de clase con los dos nombres: 0
   declarado=fix            minimo=riesgo-alto  -> riesgo-alto
   declarado=riesgo-alto    minimo=errata       -> riesgo-alto
   declarado=release (es un tipo, no un carril) -> rechazado
-RESULTADO A ToolsaWeb: errata=22 fix=134 riesgo-alto=4 funcionalidad=0 solo-estado=0 renombrados=6 cruzan=0 ; OpenDockTrading: errata=1 fix=41 riesgo-alto=1 funcionalidad=0 solo-estado=0 renombrados=0 cruzan=0 ; casos 22/22
+RESULTADO A ToolsaWeb: errata=22 fix=134 riesgo-alto=4 funcionalidad=0 solo-estado=0 renombrados=6 cruzan=0 ; OpenDockTrading: errata=1 fix=41 riesgo-alto=1 funcionalidad=0 solo-estado=0 renombrados=0 cruzan=0 ; casos 23/23
 
 === B: tabla de politica del ADR frente a F1-5 y F1-7 ===
 perfiles de F1-7: {'develop': 'completa', 'release': 'completa y pesada', 'hotfix': 'completa'}
@@ -100,17 +101,21 @@ reparto (hoy -> nuevo: tareas): 1->2: 7, 2->3: 2
   release  paradas=2 [('merge-pr', 1), ('tag', 1)] politica=['merge-pr', 'tag'] -> ok
   hotfix   paradas=2 [('merge-pr', 1), ('tag', 1)] politica=['merge-pr', 'tag'] -> ok
 -- tipo de la tarea frente a la base real del PR (revision 1, IMP-1)
-  hotfix con .github/ contra develop     efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr']) ok
-  hotfix con .github/ contra main        efectivo=riesgo-alto  -> ('hotfix+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag']) ok
-  hotfix solo src/ contra main           efectivo=fix          -> ('hotfix', False, 1, ['merge-pr', 'tag']) ok
-  release con .github/ contra develop    efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr']) ok
-  release con .taskcode/ contra main     efectivo=riesgo-alto  -> ('release+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag']) ok
-  release solo src/ contra main          efectivo=fix          -> ('release', False, 1, ['merge-pr', 'tag']) ok
+  hotfix con .github/ contra develop     efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr'], ['carril', 'revision-ia', 'verificacion']) ok
+  hotfix con .github/ contra main        efectivo=riesgo-alto  -> ('hotfix+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  hotfix solo src/ contra main           efectivo=fix          -> ('hotfix+fix', False, 1, ['merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  release con .github/ contra develop    efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr'], ['carril', 'revision-ia', 'verificacion']) ok
+  release con .taskcode/ contra main     efectivo=riesgo-alto  -> ('release+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  release solo docs/ contra main         efectivo=errata       -> ('release+errata', False, 1, ['merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
   hotfix contra main desde feature/*     efectivo=fix          -> ERROR ok
   feature contra main                    efectivo=funcionalidad -> ERROR ok
+  M1 release contra main desde feature/* efectivo=funcionalidad -> ERROR ok
+  M3 hotfix funcionalidad contra main    efectivo=funcionalidad -> ('hotfix+funcionalidad', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  union: release funcionalidad desde develop efectivo=funcionalidad -> ('release+funcionalidad', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
 -- barrido: approve, merge-pr y tag en todo carril, tipo, base, modo y configuracion valida de D
-  combinaciones=1440 ; continuar=0 ; tipo y base que fallan cerrado (sin fila)=140
-RESULTADO C ToolsaWeb: tareas=160 hoy=0.85 nuevo=2.52 cota=1.52 ; OpenDockTrading: tareas=43 hoy=2.12 nuevo=3.19 cota=2.16 ; TaskCodeTwo: tareas=9 hoy=1.22 nuevo=2.22 cota=1.22 ; tipo y base 8/8 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
+  combinaciones=1260 ; continuar=0 ; tipo y base que fallan cerrado (sin fila)=160
+  filas de main por debajo del carril efectivo: 0/8
+RESULTADO C ToolsaWeb: tareas=160 hoy=0.85 nuevo=2.52 cota=1.52 ; OpenDockTrading: tareas=43 hoy=2.12 nuevo=3.19 cota=2.16 ; TaskCodeTwo: tareas=9 hoy=1.22 nuevo=2.22 cota=1.22 ; tipo y base 11/11 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
 
 === D: configuracion que solo endurece ===
 -- aceptadas (endurecen o no cambian nada)
