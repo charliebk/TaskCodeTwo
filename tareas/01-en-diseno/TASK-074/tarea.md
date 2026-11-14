@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1214551
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -39,3 +39,12 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T22:31:25Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T22:40:40Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-14T22:40:38Z | diseno | agente:aaf90b533374b7743 | 26 | 64483 | 568740 | 12650 | 20 | 645899 | - | - |
+| 2026-11-14T22:40:39Z | diseno | agente:acee77252357bf7a7 | 24 | 41249 | 351481 | 12111 | 23 | 404865 | - | - |
+| 2026-11-14T22:40:39Z | diseno | agente:a07b5e3cf1cddbf60 | 10 | 37027 | 113758 | 12992 | 8 | 163787 | - | - |
