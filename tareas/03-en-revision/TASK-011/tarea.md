@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 461024
 tokens_implementacion: 9566139
-tokens_revision: 4346012
+tokens_revision: 6458409
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-006]
@@ -50,8 +50,14 @@ Tarea F1-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T09:30:38Z | implementacion | sesion:f7ef1603-d233-4a21-a36b-4afb2c4b0c0e | 8 | 4633 | 1567218 | 2252 | 0 | 1574111 | - | - |
 | 2026-11-14T09:30:38Z | implementacion | agente:a680e063f95f50532 | 96 | 200771 | 7709541 | 81620 | 18 | 7992028 | - | - |
 | 2026-11-14T09:37:14Z | revision | agente:a319c3cadfb076d57 | 62 | 128372 | 4190788 | 26790 | 3 | 4346012 | 1 | - |
+| 2026-11-14T09:47:28Z | revision | agente:ada6025bdb1180fa2 | 30 | 167075 | 1916134 | 29158 | 9 | 2112397 | 2 | - |
 
 ## Autorrevision
 
 - code-quality-reviewer — 4f82305
 - code-quality-reviewer — 232628f
+- code-quality-reviewer — e8e3306
+
+## Rondas extra
+
+- Ronda 3: Carlos, con la consigna «responder la opcion recomendada»; la correccion de IMP-1 en la ronda 1 quedo incompleta (release contra main sin exigir head develop) y un IMPORTANTE se corrige siempre; es barato, asi que se verifica en una ronda mas.
