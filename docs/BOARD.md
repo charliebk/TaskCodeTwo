@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
 
-## Planificadas (00-planificadas) — 82
+## Planificadas (00-planificadas) — 81
 
 ```text
 ID        Titulo                                                                 Asignado
 --------  ---------------------------------------------------------------------  -------------
-TASK-012  F1-11 ADR extensiones declaradas                                       (sin asignar)
 TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                   (sin asignar)
 TASK-014  F1-14 ADR distribucion e instalacion                                   (sin asignar)
 TASK-015  F1-13 ADR adaptador de plataforma GitHub y GitLab                      (sin asignar)
@@ -91,7 +90,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 11
+## Terminadas (04-terminadas) — 12
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -107,4 +106,5 @@ TASK-008  F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners        
 TASK-009  F1-8 ADR seguridad                                                        charlie.bk@gmail.com
 TASK-010  F1-9 ADR formato de tarea, plan y especificacion                          charlie.bk@gmail.com
 TASK-011  F1-10 ADR carriles y modo automatico                                      charlie.bk@gmail.com
+TASK-012  F1-11 ADR extensiones declaradas                                          charlie.bk@gmail.com
 ```
