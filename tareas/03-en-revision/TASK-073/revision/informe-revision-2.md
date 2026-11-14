@@ -2,7 +2,7 @@
 
 - Commit revisado: 3a11b7d5f06ab04c7f968196e2ff98b1822451a3 (HEAD de trabajo 3911c36, solo anade la peticion)
 - Revisor: code-quality-reviewer
-- Veredicto: aprobada-con-correcciones
+- Veredicto: aprobada con correcciones
 
 Pase generico, verificacion acotada al diff de las correcciones (806f024 y 5768e3c). Profundidad: a fondo el interprete de `tabla-seleccion` (`seleccionar`, `parsear_regla`, `_cumple`), `dominios()`, los controles de reglas y de evasion y la tabla de la muestra; por encima la prosa de «Cómo se ve» y «Consecuencias».
 
