@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 461024
 tokens_implementacion: 9566139
-tokens_revision: 6458409
+tokens_revision: 8970061
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-006]
@@ -52,6 +52,7 @@ Tarea F1-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T09:30:38Z | implementacion | agente:a680e063f95f50532 | 96 | 200771 | 7709541 | 81620 | 18 | 7992028 | - | - |
 | 2026-11-14T09:37:14Z | revision | agente:a319c3cadfb076d57 | 62 | 128372 | 4190788 | 26790 | 3 | 4346012 | 1 | - |
 | 2026-11-14T09:47:28Z | revision | agente:ada6025bdb1180fa2 | 30 | 167075 | 1916134 | 29158 | 9 | 2112397 | 2 | - |
+| 2026-11-14T09:55:35Z | revision | agente:a9be7fa0f720a02ab | 40 | 113244 | 2373887 | 24481 | 8 | 2511652 | 3 | - |
 
 ## Autorrevision
 
@@ -62,3 +63,5 @@ Tarea F1-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 ## Rondas extra
 
 - Ronda 3: Carlos, con la consigna «responder la opcion recomendada»; la correccion de IMP-1 en la ronda 1 quedo incompleta (release contra main sin exigir head develop) y un IMPORTANTE se corrige siempre; es barato, asi que se verifica en una ronda mas.
+- code-quality-reviewer — 4f79940
+- Ronda 4: Carlos (2026-11-14: «me interesa que los ADR de este plugin sean lo mas fiel posibles a los datos recolectados»); la correccion de la ronda 2 introdujo IMP-2 (union de puertas sin la politica configurada), que se corrige y se verifica en una ronda mas.
