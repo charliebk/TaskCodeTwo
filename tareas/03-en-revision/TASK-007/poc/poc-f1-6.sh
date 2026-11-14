@@ -2,36 +2,46 @@
 # PoC de F1-6 (TASK-007): identidades del agente implementador, del revisor IA
 # y de la persona. SOLO LECTURA en GitHub.
 #
-# (A) Permisos de cada identidad validados contra el esquema `app-permissions`
-#     de la descripcion OpenAPI publica (github/rest-api-description, commit
-#     fijado, descargada a una carpeta vacia propia). Controles negativos.
-# (B) Endpoints que alcanza cada identidad segun la tabla publica de permisos
-#     por endpoint de las GitHub Apps (github/docs,
-#     src/github-apps/data/<version>/server-to-server-permissions.json, la
-#     fuente de la pagina «Permissions required for GitHub Apps»). La
-#     descripcion OpenAPI no declara permisos por endpoint (x-github solo
-#     trae enabledForGitHubApps): se comprueba y se dice.
-#     Ademas: la tabla operacion -> identidad es ejecutable con esos permisos
-#     y cada permiso se usa (minimo).
-# (C) GET de actions/permissions/workflow en los dos repos y type de
-#     /users/{login} (persona, web-flow, github-actions[bot]).
-# (D) Simulacion del contrato del firmante que usa `carril` (con los type
-#     reales de C) y controles negativos sobre la tabla de permisos.
+# Las tablas que se comprueban se extraen del propio ADR, entre marcadores:
+#   <!-- tabla-identidades:... -->  decision 1, operacion -> identidad
+#   <!-- tabla-permisos:... -->     decision 2, permisos de cada identidad
+#
+# (A) Permisos de cada App (del ADR) validados contra el esquema
+#     `app-permissions` de la descripcion OpenAPI publica
+#     (github/rest-api-description, commit fijado, descargada a una carpeta
+#     vacia propia). El agente lee checks y statuses y no los escribe.
+#     Controles negativos.
+# (B) Con la tabla publica de permisos por endpoint de las GitHub Apps
+#     (github/docs, src/github-apps/data/<version>/server-to-server-permissions.json,
+#     fuente de la pagina «Permissions required for GitHub Apps"; la
+#     descripcion OpenAPI no trae permisos por endpoint, se comprueba):
+#     - cada operacion de la decision 1 asignada a una App la alcanza con los
+#       permisos de la decision 2; las de solo persona por administration no
+#       las alcanza ninguna App; invariantes "ninguna IA aprueba ni mergea";
+#       cada permiso se usa (minimo);
+#     - enumeracion completa de las escrituras que alcanza cada App;
+#     - copias mutadas del ADR en la carpeta temporal: tienen que fallar.
+# (C) GET de actions/permissions/workflow en los dos repos (con el token de
+#     la persona) y type e id de /users/{login}.
+# (D) Simulacion del contrato del firmante (approve) y de la regla de
+#     reviews de carril, con los type e id reales de C; campos del esquema.
 # (E) Firma SSH local con claves desechables: commit de approve con trailer
 #     Plan-Blob, git verify-commit con allowed_signers bueno y malo, clave con
 #     frase de paso sin agente ni TTY, y soporte de claves FIDO (-sk).
 #
-# Uso: poc-f1-6.sh <carpeta-de-trabajo>
+# Uso: poc-f1-6.sh <carpeta-de-trabajo> <ruta-del-ADR>
 # Ningun POST/PUT/PATCH/DELETE: todas las llamadas a la API pasan por gh_get.
 set -u
-[ $# -eq 1 ] || { echo "uso: $0 <trabajo>"; exit 2; }
+[ $# -eq 2 ] || { echo "uso: $0 <trabajo> <adr>"; exit 2; }
+[ -f "$2" ] || { echo "ERROR: no existe el ADR $2"; exit 2; }
+ADR=$(cd "$(dirname "$2")" && (pwd -W 2>/dev/null || pwd))/$(basename "$2")
 mkdir -p "$1" || exit 2
 base="$(cd "$1" && pwd)"
 if [ -n "$(ls -A "$base")" ] && [ ! -f "$base/.poc-f1-6" ]; then
   echo "ERROR: $base no esta vacia ni es de una ejecucion anterior de la PoC"; exit 2
 fi
-rm -rf "$base"; mkdir -p "$base/esquema" "$base/docs" "$base/claves" "$base/e"; : > "$base/.poc-f1-6"
-: > "$base/llamadas.txt"; : > "$base/resultados.txt"
+rm -rf "$base"; mkdir -p "$base/esquema" "$base/docs" "$base/claves" "$base/e" "$base/mutaciones" "$base/py"
+: > "$base/.poc-f1-6"; : > "$base/llamadas.txt"; : > "$base/resultados.txt"
 cd "$base" || exit 2
 RAIZ=$(pwd -W 2>/dev/null || pwd)          # ruta C:/... para python.exe
 PY=$(command -v python || command -v python3)
@@ -55,15 +65,125 @@ gh_get_q() {
   echo "\$ gh api --method GET $1 -q ..." >> "$base/llamadas.txt"
   gh api --method GET "$1" -q "$2" 2>/dev/null
 }
-descarga() {   # descarga() <url> <fichero>: GET de un fichero publico
+descarga() {   # descarga <url> <fichero>: GET de un fichero publico
   echo "descarga GET $1" >> "$base/llamadas.txt"
   curl -sSfL -o "$2" "$1" || { echo "ERROR: descarga $1"; exit 1; }
   echo "  $(basename "$2"): $(wc -c < "$2") bytes ; sha256 $(sha256sum "$2" | cut -c1-16)"
 }
 
 ######################################################################
+# Modulo comun (escrito por el guion en su propia carpeta py/): extrae las
+# tablas del ADR y calcula alcances sobre la tabla de permisos por endpoint.
+cat > "$base/py/tablas.py" <<'EOF'
+import re, json
+NIVEL = {'read': 1, 'write': 2, 'admin': 3}
+R = '/repos/{owner}/{repo}'
+def bloque(txt, marca):
+    m = re.search(r'<!-- %s:inicio -->(.*?)<!-- %s:fin -->' % (marca, marca), txt, re.S)
+    if not m: raise ValueError('falta la tabla %s en el ADR' % marca)
+    filas = [l.strip() for l in m.group(1).splitlines() if l.strip().startswith('|')][2:]
+    return [[c.strip() for c in f.strip('|').split('|')] for f in filas]
+def permisos(txt):
+    """decision 2 -> {app: {permiso: nivel}} (la persona no es una App)."""
+    ids = {}
+    for c in bloque(txt, 'tabla-permisos'):
+        ident = re.search(r'`(agente|revisor|persona)`', c[0]).group(1)
+        if ident != 'persona':
+            ids[ident] = dict(re.findall(r'`([a-z_]+):([a-z]+)`', c[2]))
+    return ids
+def operaciones(txt):
+    """decision 1 -> [(operacion, [identidades])]; la operacion es el primer `...` de la fila."""
+    ops = []
+    for c in bloque(txt, 'tabla-identidades'):
+        m = re.search(r'`([^`]+)`', c[0])
+        if not m: raise ValueError('fila sin operacion entre comillas: %s' % c[0])
+        ops.append((m.group(1), re.findall(r'\b(agente|revisor|persona)\b', c[2])))
+    return ops
+def indice(fich):
+    d = json.load(open(fich, encoding='utf-8'))
+    idx = {}
+    for perm, v in d.items():
+        for e in v['permissions']:
+            if e.get('server-to-server'):
+                idx.setdefault((e['verb'].upper(), e['requestPath']), []).append((perm, e['access']))
+    return idx
+def alcanza(perms, idx, verbo, ruta):
+    """None si el endpoint no esta en la tabla; si no, si algun permiso basta.
+    workflows se trata aparte: solo cuenta para ficheros de .github/workflows/."""
+    ent = idx.get((verbo, ruta))
+    if ent is None: return None
+    return any(NIVEL.get(perms.get(p, ''), 0) >= NIVEL[a] for p, a in ent if p != 'workflows')
+# Endpoints de cada operacion del puerto (equivalencia REST de las de Git).
+EP_OP = {
+  'fetch':                 [('GET', R + '/git/matching-refs/{ref}'), ('GET', R + '/commits/{ref}')],
+  'push':                  [('POST', R + '/git/refs'), ('PATCH', R + '/git/refs/{ref}')],
+  'actualizar-rama':       [('POST', R + '/git/refs'), ('PATCH', R + '/git/refs/{ref}')],
+  'commit-estado':         [('PATCH', R + '/git/refs/{ref}')],
+  'approve':               [('PATCH', R + '/git/refs/{ref}')],
+  'abrir-pr':              [('GET', R + '/pulls'), ('POST', R + '/pulls')],
+  'estado-puertas':        [('GET', R + '/pulls/{pull_number}'), ('GET', R + '/pulls/{pull_number}/reviews'),
+                            ('GET', R + '/commits/{ref}/check-runs'), ('GET', R + '/commits/{ref}/status')],
+  'merge-pr':              [('PUT', R + '/pulls/{pull_number}/merge')],
+  'tag-anotado':           [('POST', R + '/git/refs')],
+  'aplicar-puertas':       [('POST', R + '/rulesets'), ('PUT', R + '/rulesets/{ruleset_id}')],
+  'leer-puertas':          [('GET', R + '/rulesets'), ('GET', R + '/rules/branches/{branch}')],
+  'leer-permisos-actions': [('GET', R + '/actions/permissions/workflow')],
+  'revision-ia':           [('POST', R + '/check-runs'), ('PATCH', R + '/check-runs/{check_run_id}'),
+                            ('GET', R + '/pulls/{pull_number}/files'), ('GET', R + '/contents/{path}')],
+}
+SOLO_PERSONA = {'approve', 'merge-pr', 'tag-anotado', 'aplicar-puertas', 'leer-permisos-actions'}
+FUERA_DE_APPS = {'aplicar-puertas', 'leer-permisos-actions'}   # ninguna App las alcanza (administration)
+LIMITE = {'merge-pr', 'tag-anotado'}                           # el agente las alcanza: limite escrito (D3a)
+def invariantes(ids, idx):
+    f = []
+    rv, ag = ids.get('revisor', {}), ids.get('agente', {})
+    if alcanza(rv, idx, 'POST', R + '/pulls/{pull_number}/reviews'): f.append('el revisor puede crear reviews (APPROVE)')
+    if alcanza(rv, idx, 'PUT', R + '/pulls/{pull_number}/merge'): f.append('el revisor puede mergear')
+    if alcanza(rv, idx, 'POST', R + '/git/refs'): f.append('el revisor puede empujar')
+    for who, p in (('agente', ag), ('revisor', rv)):
+        if alcanza(p, idx, 'POST', R + '/rulesets'): f.append('%s administra rulesets' % who)
+        if p.get('workflows'): f.append('%s tiene workflows' % who)
+        if alcanza(p, idx, 'GET', R + '/actions/permissions/workflow'): f.append('%s lee administration' % who)
+    if alcanza(ag, idx, 'POST', R + '/check-runs'): f.append('el agente puede publicar checks (revision-ia)')
+    if alcanza(ag, idx, 'POST', R + '/statuses/{sha}'): f.append('el agente puede publicar statuses')
+    return f
+def evalua(txt, idx, ver=False):
+    """Comprueba las dos tablas del ADR. Devuelve la lista de fallos."""
+    f = []
+    try: ids, ops = permisos(txt), operaciones(txt)
+    except (ValueError, AttributeError) as ex: return ['tablas ilegibles: %s' % ex]
+    nombres = [o for o, _ in ops]
+    for o in sorted(set(EP_OP) - set(nombres)): f.append('operacion %s sin fila en la decision 1' % o)
+    usados = {k: set() for k in ids}
+    for op, idents in ops:
+        if op not in EP_OP: f.append('operacion %s sin endpoints conocidos' % op); continue
+        if not idents: f.append('%s sin identidad' % op)
+        if op in SOLO_PERSONA and idents != ['persona']: f.append('%s asignada a %s (solo persona)' % (op, ','.join(idents)))
+        for app in ('agente', 'revisor'):
+            res = [alcanza(ids.get(app, {}), idx, v, r) for v, r in EP_OP[op]]
+            if app in idents:
+                if not all(res): f.append('%s no alcanza %s' % (app, op))
+                for v, r in EP_OP[op]:
+                    for p, a in idx.get((v, r), []):
+                        if NIVEL.get(ids.get(app, {}).get(p, ''), 0) >= NIVEL[a]: usados[app].add(p)
+            if op in FUERA_DE_APPS and any(res): f.append('%s alcanza %s (exige administration)' % (app, op))
+        if ver:
+            fl = lambda app: 'si' if all(alcanza(ids.get(app, {}), idx, v, r) for v, r in EP_OP[op]) else 'no'
+            exige = ' + '.join('/'.join(sorted({'%s:%s' % pa for pa in idx.get((v, r), [])})) or 'NO LISTADO' for v, r in EP_OP[op])
+            print('  %-22s identidad=%-16s agente=%-2s revisor=%-2s %s exige=%s' % (
+                op, ','.join(idents), fl('agente'), fl('revisor'), '(limite) ' if op in LIMITE and fl('agente') == 'si' else '', exige))
+    for app, perms in ids.items():
+        sin_uso = sorted(set(perms) - usados.get(app, set()) - {'metadata'})
+        if sin_uso: f.append('%s: permisos sin uso %s' % (app, ','.join(sin_uso)))
+        if ver: print('  minimo %-8s usados=%s ; sin uso=%s' % (app, ','.join(sorted(usados.get(app, set()))), ','.join(sin_uso) or 'ninguno'))
+    f += invariantes(ids, idx)
+    return f
+EOF
+
+######################################################################
 sep "Descargas publicas (cada una en su carpeta vacia)"
 gh --version | head -1
+echo "ADR leido: $(basename "$ADR")"
 SHA=$(gh_get_q "repos/$SCHEMA_REPO/commits/main" '.sha + " " + .commit.committer.date')
 echo "commit de $SCHEMA_REPO: $SHA"
 descarga "https://raw.githubusercontent.com/$SCHEMA_REPO/${SHA%% *}/descriptions/api.github.com/api.github.com.json" "$base/esquema/api.github.com.json"
@@ -76,26 +196,17 @@ for v in $VERSIONES; do
 done
 
 ######################################################################
-# Identidades y tabla operacion -> identidad (decision del ADR), en un JSON
-# que leen A, B y D.
-cat > "$base/identidades.json" <<'EOF'
-{
-  "agente":  {"contents": "write", "pull_requests": "write", "metadata": "read"},
-  "revisor": {"checks": "write", "contents": "read", "pull_requests": "read", "metadata": "read"}
-}
-EOF
-
-######################################################################
-sep "A. Permisos de cada identidad contra el esquema app-permissions"
-"$PY" -I - "$RAIZ/esquema/api.github.com.json" "$RAIZ/identidades.json" <<'EOF' | tee "$base/a.txt"
-import json, sys, copy
-doc = json.load(open(sys.argv[1], encoding='utf-8'))
-ids = json.load(open(sys.argv[2], encoding='utf-8'))
+sep "A. Permisos de cada App (tabla de la decision 2 del ADR) contra app-permissions"
+"$PY" -I - "$RAIZ/py" "$RAIZ/esquema/api.github.com.json" "$ADR" <<'EOF' | tee "$base/a.txt"
+import json, sys
+sys.path.insert(0, sys.argv[1]); import tablas
+doc = json.load(open(sys.argv[2], encoding='utf-8'))
+ids = tablas.permisos(open(sys.argv[3], encoding='utf-8').read())
 print('OpenAPI', doc['openapi'], 'version', doc['info']['version'])
 ap = doc['components']['schemas']['app-permissions']
 props = ap['properties']
 print('app-permissions: %d permisos; additionalProperties=%s' % (len(props), ap.get('additionalProperties', '(no declarado)')))
-for p in ('contents', 'pull_requests', 'metadata', 'checks', 'administration', 'workflows', 'statuses', 'secrets'):
+for p in ('contents', 'pull_requests', 'metadata', 'checks', 'statuses', 'administration', 'workflows'):
     print('  %-15s enum=%s' % (p, props[p]['enum']))
 def valida(perms):
     e = []
@@ -106,7 +217,9 @@ def valida(perms):
 err = 0
 for nombre, perms in ids.items():
     e = valida(perms); err += len(e)
-    print('%-8s %-60s -> %s' % (nombre, ', '.join('%s:%s' % kv for kv in perms.items()), 'VALIDO' if not e else 'INVALIDO: ' + '; '.join(e)))
+    print('%-8s %-78s -> %s' % (nombre, ', '.join('%s:%s' % kv for kv in perms.items()), 'VALIDO' if not e else 'INVALIDO: ' + '; '.join(e)))
+lect = ids['agente'].get('checks') == 'read' and ids['agente'].get('statuses') == 'read'
+print('agente lee checks y statuses sin escribirlos (checks:read, statuses:read): %s' % ('si' if lect else 'NO'))
 print('-- controles negativos (tienen que salir rechazados)')
 neg = {
   'permiso inventado approvals:write': dict(ids['revisor'], approvals='write'),
@@ -118,112 +231,79 @@ rech = 0
 for k, v in neg.items():
     e = valida(v); rech += bool(e)
     print('  %-45s -> %s' % (k, 'rechazado: ' + e[0] if e else 'ACEPTADO (fallo del validador)'))
-print('RESULTADO A identidades=%d errores=%d ; negativos rechazados=%d/%d' % (len(ids), err, rech, len(neg)))
+print('RESULTADO A apps=%d errores=%d ; agente checks/statuses solo lectura=%s ; negativos rechazados=%d/%d'
+      % (len(ids), err, 'si' if lect else 'NO', rech, len(neg)))
 EOF
 grep '^RESULTADO' "$base/a.txt" >> "$base/resultados.txt"
 
 ######################################################################
-sep "B. Endpoints que alcanza cada identidad (tabla publica de permisos por endpoint)"
-"$PY" -I - "$RAIZ/esquema/api.github.com.json" "$RAIZ/identidades.json" "$RAIZ/docs" $VERSIONES <<'EOF' | tee "$base/b.txt"
+sep "B. Tablas del ADR frente a la tabla publica de permisos por endpoint"
+"$PY" -I - "$RAIZ/py" "$RAIZ/esquema/api.github.com.json" "$ADR" "$RAIZ/docs" "$RAIZ/mutaciones" $VERSIONES <<'EOF' | tee "$base/b.txt"
 import json, sys, os, collections
-doc = json.load(open(sys.argv[1], encoding='utf-8'))
-ids = json.load(open(sys.argv[2], encoding='utf-8'))
-ddir, versiones = sys.argv[3], sys.argv[4:]
-# 1) La descripcion OpenAPI no trae permisos por endpoint: claves de x-github.
+sys.path.insert(0, sys.argv[1]); import tablas
+doc = json.load(open(sys.argv[2], encoding='utf-8'))
+adr = open(sys.argv[3], encoding='utf-8').read()
+ddir, mdir, versiones = sys.argv[4], sys.argv[5], sys.argv[6:]
 claves = collections.Counter()
 for p, v in doc['paths'].items():
     for m, o in v.items():
         if isinstance(o, dict) and 'x-github' in o: claves.update(o['x-github'].keys())
 print('claves x-github en la descripcion OpenAPI:', dict(claves))
 print('  -> sin permisos por endpoint en OpenAPI: %s' % ('si' if not any('permission' in k.lower() for k in claves) else 'NO'))
-NIVEL = {'read': 1, 'write': 2}
-def indice(fich):
-    d = json.load(open(fich, encoding='utf-8'))
-    idx = {}
-    for perm, v in d.items():
-        for e in v['permissions']:
-            if e.get('server-to-server'):
-                idx.setdefault((e['verb'].upper(), e['requestPath']), []).append((perm, e['access'], e['additional-permissions']))
-    return idx
-def alcanza(perms, idx, verbo, ruta, workflow=False):
-    ent = idx.get((verbo, ruta))
-    if ent is None: return None                      # endpoint no listado
-    ok = any(NIVEL.get(perms.get(p, ''), 0) >= NIVEL[a] for p, a, _ in ent if p != 'workflows')
-    if workflow:   # fichero bajo .github/workflows/: ademas workflows:write (descripcion del permiso)
-        ok = ok and perms.get('workflows') == 'write' and any(p == 'workflows' for p, _, _ in ent)
-    return ok
-R = '/repos/{owner}/{repo}'
-# (operacion, verbo, ruta, workflow?, esperado agente, esperado revisor)
-# esperado: True alcanza, False no alcanza. Las filas marcadas 'limite' son alcances
-# del agente que el ADR deja escritos como limite (no los quita la plataforma).
-EP = [
-  ('crear o mover rama (equivale a push)',  'POST',  R + '/git/refs', False,            True,  False, ''),
-  ('abrir-pr',                              'POST',  R + '/pulls', False,               True,  False, ''),
-  ('editar el PR (titulo, descripcion)',    'PATCH', R + '/pulls/{pull_number}', False, True,  False, ''),
-  ('actualizar rama del PR (boton)',        'PUT',   R + '/pulls/{pull_number}/update-branch', False, True, False, ''),
-  ('merge-pr',                              'PUT',   R + '/pulls/{pull_number}/merge', False, True, False, 'limite'),
-  ('merge directo de ramas',                'POST',  R + '/merges', False,              True,  False, 'limite'),
-  ('review (tambien APPROVE)',              'POST',  R + '/pulls/{pull_number}/reviews', False, True, False, 'limite'),
-  ('descartar una review',                  'PUT',   R + '/pulls/{pull_number}/reviews/{review_id}/dismissals', False, True, False, 'limite'),
-  ('check revision-ia',                     'POST',  R + '/check-runs', False,          False, True,  ''),
-  ('estado de commit (statuses)',           'POST',  R + '/statuses/{sha}', False,      False, False, ''),
-  ('aplicar-puertas (crear ruleset)',       'POST',  R + '/rulesets', False,            False, False, ''),
-  ('aplicar-puertas (cambiar ruleset)',     'PUT',   R + '/rulesets/{ruleset_id}', False, False, False, ''),
-  ('permisos de workflows del repo',        'PUT',   R + '/actions/permissions/workflow', False, False, False, ''),
-  ('anadir colaborador',                    'PUT',   R + '/collaborators/{username}', False, False, False, ''),
-  ('secreto de Actions',                    'PUT',   R + '/actions/secrets/{secret_name}', False, False, False, ''),
-  ('fichero normal por API',                'PUT',   R + '/contents/{path}', False,     True,  False, ''),
-  ('fichero de .github/workflows/ por API', 'PUT',   R + '/contents/{path}', True,      False, False, ''),
-  ('tag (objeto anotado)',                  'POST',  R + '/git/tags', False,            True,  False, 'limite'),
-  ('release',                               'POST',  R + '/releases', False,            True,  False, 'limite'),
-  ('leer commit y su firma',                'GET',   R + '/commits/{ref}', False,       True,  True,  ''),
-  ('leer ficheros del PR',                  'GET',   R + '/pulls/{pull_number}/files', False, True, True, ''),
-  ('leer-puertas (reglas de la rama)',      'GET',   R + '/rules/branches/{branch}', False, True, True, ''),
-  ('comentar en el PR',                     'POST',  R + '/issues/{issue_number}/comments', False, True, False, ''),
-]
-fallos = 0; detalle = {}
+ids = tablas.permisos(adr)
+print('decision 2 extraida del ADR:', ids)
+print('decision 1 extraida del ADR: %d operaciones' % len(tablas.operaciones(adr)))
+fallos = {}
 for v in versiones:
-    idx = indice(os.path.join(ddir, v + '.json'))
+    idx = tablas.indice(os.path.join(ddir, v + '.json'))
     print('-- tabla %s: %d endpoints server-to-server' % (v, len(idx)))
-    for op, verbo, ruta, wf, e_ag, e_rv, nota in EP:
-        ag, rv = alcanza(ids['agente'], idx, verbo, ruta, wf), alcanza(ids['revisor'], idx, verbo, ruta, wf)
-        ok = (ag == e_ag) and (rv == e_rv)
-        fallos += not ok
-        perm = ','.join(sorted({'%s:%s' % (p, a) for p, a, _ in idx.get((verbo, ruta), [])})) or 'NO LISTADO'
-        detalle.setdefault((op, verbo, ruta, wf), []).append((ag, rv, perm))
-        if v == versiones[0]:
-            f = lambda x: '-' if x is None else ('si' if x else 'no')
-            print('  %-38s %-6s %-58s exige=%-45s agente=%-2s revisor=%-2s %s%s' % (
-                op, verbo, ruta.replace(R, '') + (' [workflow]' if wf else ''), perm, f(ag), f(rv),
-                '(limite) ' if nota and ag else '', '' if ok else 'INESPERADO'))
-iguales = all(len(set(x)) == 1 for x in detalle.values())
-print('las %d versiones dan el mismo resultado en las %d filas: %s' % (len(versiones), len(EP), 'si' if iguales else 'NO'))
-# 2) Minimo: cada permiso de cada App lo usa al menos una operacion que la App tiene asignada.
-USO = {
-  'agente':  [('POST', R + '/git/refs'), ('POST', R + '/pulls'), ('PATCH', R + '/pulls/{pull_number}'), ('GET', R + '/commits/{ref}')],
-  'revisor': [('POST', R + '/check-runs'), ('GET', R + '/pulls/{pull_number}/files'), ('GET', R + '/commits/{ref}')],
+    fallos[v] = tablas.evalua(adr, idx, ver=(v == versiones[0]))
+    print('  fallos: %s' % ('; '.join(fallos[v]) or 'ninguno'))
+iguales = len({tuple(x) for x in fallos.values()}) == 1
+print('las %d versiones dan el mismo resultado: %s' % (len(versiones), 'si' if iguales else 'NO'))
+idx = tablas.indice(os.path.join(ddir, versiones[0] + '.json'))
+print('-- enumeracion completa de escrituras (verbo distinto de GET) que alcanza cada App')
+nesc = {}
+for app, perms in ids.items():
+    esc = sorted((r, v) for (v, r), _ in idx.items() if v != 'GET' and tablas.alcanza(perms, idx, v, r))
+    nesc[app] = len(esc)
+    print('  %s: %d escrituras' % (app, len(esc)))
+    for r, v in esc:
+        print('    %-6s %-78s %s' % (v, r.replace(tablas.R, '{repo}'), ','.join(sorted({'%s:%s' % pa for pa in idx[(v, r)]}))))
+print('-- copias mutadas del ADR (en la carpeta temporal): tienen que fallar')
+R2 = '| `revisor` (IA) | otra GitHub App (D2a) | `checks:write`, `contents:read`, `pull_requests:read`, `metadata:read` |'
+MUT = {
+  'revisor-pr-y-contents-write': (R2, R2.replace('`contents:read`, `pull_requests:read`', '`contents:write`, `pull_requests:write`')),
+  'merge-pr-del-agente': ('| `merge-pr` | `finish`, `release` | persona |', '| `merge-pr` | `finish`, `release` | agente |'),
+  'agente-sin-checks-read': ('`checks:read`, `statuses:read`, `metadata:read`', '`statuses:read`, `metadata:read`'),
+  'leer-permisos-actions-del-agente': ('| `doctor`, `init` | persona | exige `administration:read`', '| `doctor`, `init` | agente | exige `administration:read`'),
+  'agente-con-administration': ('`contents:write`, `pull_requests:write`, `checks:read`', '`contents:write`, `pull_requests:write`, `administration:write`, `checks:read`'),
+  'revisor-sin-fila-de-operacion': ('| check `revision-ia` |', '| check revision |'),
 }
-idx = indice(os.path.join(ddir, versiones[0] + '.json'))
-sobran = 0
-for nombre, perms in ids.items():
-    usados = set()
-    for verbo, ruta in USO[nombre]:
-        for p, a, _ in idx.get((verbo, ruta), []):
-            if NIVEL.get(perms.get(p, ''), 0) >= NIVEL[a]: usados.add(p)
-    resto = sorted(set(perms) - usados - {'metadata'})   # metadata:read es obligatorio en toda App
-    sobran += len(resto)
-    print('minimo %-8s usados=%s ; sin uso=%s' % (nombre, ','.join(sorted(usados)), ','.join(resto) or 'ninguno'))
-print('RESULTADO B filas=%d x versiones=%d fallos=%d ; versiones iguales=%s ; permisos sin uso=%d'
-      % (len(EP), len(versiones), fallos, 'si' if iguales else 'NO', sobran))
+det = 0
+for nombre, (viejo, nuevo) in MUT.items():
+    if adr.count(viejo) != 1: print('  %-34s -> NO APLICADA (texto no encontrado)' % nombre); continue
+    ruta = os.path.join(mdir, 'F1-6-' + nombre + '.md')
+    open(ruta, 'w', encoding='utf-8', newline='\n').write(adr.replace(viejo, nuevo))
+    f = tablas.evalua(open(ruta, encoding='utf-8').read(), idx)
+    det += bool(f)
+    print('  %-34s -> %s' % (nombre, ('detectada: ' + f[0] + (' (+%d)' % (len(f) - 1) if len(f) > 1 else '')) if f else 'NO detectada'))
+print('RESULTADO B operaciones=%d x versiones=%d fallos=%d ; versiones iguales=%s ; escrituras agente=%d revisor=%d ; mutaciones del ADR detectadas=%d/%d'
+      % (len(tablas.operaciones(adr)), len(versiones), sum(len(x) for x in fallos.values()), 'si' if iguales else 'NO',
+         nesc.get('agente', 0), nesc.get('revisor', 0), det, len(MUT)))
 EOF
 grep '^RESULTADO' "$base/b.txt" >> "$base/resultados.txt"
 
 ######################################################################
 sep "C. Permisos de los workflows en los repos y tipo de cuenta (solo GET)"
+echo "token usado: $(gh_get_q user '.login + " (" + .type + ")"') -- la persona; ninguna App"
+: > "$base/caw.txt"
 for r in $REPOS; do
   echo "--- $r (visibilidad: $(gh repo view "$r" --json visibility -q .visibility 2>&1))"
   echo "\$ gh repo view $r --json visibility" >> "$base/llamadas.txt"
-  printf '%-34s ' "actions/permissions/workflow:"; gh_get "repos/$r/actions/permissions/workflow"
+  linea=$(gh_get "repos/$r/actions/permissions/workflow")
+  printf '%-34s %s\n' "actions/permissions/workflow:" "$linea"
+  printf '%s\n' "$linea" | grep -o '"can_approve_pull_request_reviews":[a-z]*' | cut -d: -f2 >> "$base/caw.txt"
 done
 : > "$base/usuarios.txt"
 for u in $USUARIOS; do
@@ -232,80 +312,79 @@ for u in $USUARIOS; do
   echo "users/$u: ${linea:-ERROR}"
   [ -n "$linea" ] && echo "$linea" >> "$base/usuarios.txt"
 done
-caw=$(for r in $REPOS; do gh_get_q "repos/$r/actions/permissions/workflow" '.can_approve_pull_request_reviews'; done | sort -u | tr '\n' ' ')
-echo "RESULTADO C can_approve_pull_request_reviews en los dos repos: $caw; tipos: $(awk '{print $1"="$2}' "$base/usuarios.txt" | tr '\n' ' ')" | tee -a "$base/resultados.txt"
+echo "RESULTADO C can_approve_pull_request_reviews en los dos repos: $(sort -u "$base/caw.txt" | tr '\n' ' ')(leido con el token de la persona) ; cuentas: $(awk '{print $1"="$2"/"$3}' "$base/usuarios.txt" | tr '\n' ' ')" | tee -a "$base/resultados.txt"
 
 ######################################################################
-sep "D. Contrato del firmante (simulado con los type reales) y controles negativos"
-"$PY" -I - "$RAIZ/usuarios.txt" "$RAIZ/identidades.json" "$RAIZ/docs/${VERSIONES%% *}.json" <<'EOF' | tee "$base/d.txt"
-import json, sys, copy
-tipos = {}
+sep "D. Contrato del firmante y regla de reviews de carril (simulados con los type e id reales)"
+"$PY" -I - "$RAIZ/usuarios.txt" "$RAIZ/esquema/api.github.com.json" <<'EOF' | tee "$base/d.txt"
+import json, sys
+cuentas = {}
 for l in open(sys.argv[1], encoding='utf-8'):
-    login, tipo, _ = l.split(); tipos[login] = tipo
-tipos['otra-persona'] = 'User'                       # cuenta de persona ficticia, fuera de la lista
-ids = json.load(open(sys.argv[2], encoding='utf-8'))
-print('type observado en C:', {k: v for k, v in tipos.items() if k != 'otra-persona'})
-# --- Contrato del firmante (decision del ADR) ---
-PERSONAS = {'charliebk'}                             # .taskcode/personas en la rama de codigo, bajo CODEOWNERS
-EXCLUIDAS = {'web-flow'}                             # firma de la propia plataforma: nunca vale
-def firmante_valido(c, personas):
-    login = c.get('committer')
-    return (c.get('verified') is True and login is not None and login in personas
-            and login not in EXCLUIDAS and tipos.get(login) == 'User')
+    login, tipo, id_ = l.split(); cuentas[login] = (tipo, int(id_))
+print('cuentas observadas en C:', cuentas)
+doc = json.load(open(sys.argv[2], encoding='utf-8'))
+comp = doc['components']['schemas']
+def res(s):
+    while '$ref' in s: s = comp[s['$ref'].split('/')[-1]]
+    return s
+def props(s):
+    s = res(s)
+    for k in ('anyOf', 'oneOf', 'allOf'):
+        if k in s:
+            out = {}
+            for x in s[k]: out.update(props(x))
+            return out
+    return s.get('properties', {})
+c = res(doc['paths']['/repos/{owner}/{repo}/commits/{ref}']['get']['responses']['200']['content']['application/json']['schema'])
+cm = props(c['properties']['committer'])
+rv = res(comp['pull-request-review'])
+ru = props(rv['properties']['user'])
+print('esquema: commit.committer tiene id=%s type=%s ; review.user tiene id=%s type=%s ; review.state=%s'
+      % ('id' in cm, 'type' in cm, 'id' in ru, 'type' in ru, 'state' in rv['properties']))
+# Lista de personas (.taskcode/ en la rama de codigo, bajo CODEOWNERS): login e id numerico.
+PERSONAS = {'charliebk': cuentas['charliebk'][1]}
+EXCLUIDAS = {'web-flow'}
+def es_persona(login, id_, tipos, personas):
+    return (login is not None and login in personas and personas[login] == id_
+            and login not in EXCLUIDAS and tipos.get(login, (None,))[0] == 'User')
+T = dict(cuentas); T['otra-persona'] = ('User', 99999901); T['charliebk-nuevo-dueno'] = ('User', 99999902)
+# --- reglas 1-5: commit de approve ---
+def approve_cuenta(c_, personas, tipos=T):
+    return c_.get('verified') is True and es_persona(c_.get('login'), c_.get('id'), tipos, personas)
+ID = cuentas['charliebk'][1]
 casos = [
-  ('persona verificada en la lista',               dict(verified=True,  committer='charliebk'), PERSONAS, True),
-  ('Bot verificado (github-actions[bot])',         dict(verified=True,  committer='github-actions[bot]'), PERSONAS, False),
-  ('Bot metido en la lista por error',             dict(verified=True,  committer='github-actions[bot]'), PERSONAS | {'github-actions[bot]'}, False),
-  ('persona verificada fuera de la lista',         dict(verified=True,  committer='otra-persona'), PERSONAS, False),
-  ('web-flow (firma de la plataforma)',            dict(verified=True,  committer='web-flow'), PERSONAS, False),
-  ('web-flow metido en la lista por error',        dict(verified=True,  committer='web-flow'), PERSONAS | {'web-flow'}, False),
-  ('persona sin firma',                            dict(verified=False, committer='charliebk'), PERSONAS, False),
-  ('firmado, correo sin cuenta (committer null)',  dict(verified=True,  committer=None), PERSONAS, False),
+  ('persona verificada en la lista (login e id)',      dict(verified=True,  login='charliebk', id=ID), PERSONAS, None, True),
+  ('Bot verificado (github-actions[bot])',             dict(verified=True,  login='github-actions[bot]', id=cuentas['github-actions[bot]'][1]), PERSONAS, None, False),
+  ('Bot metido en la lista por error',                 dict(verified=True,  login='github-actions[bot]', id=cuentas['github-actions[bot]'][1]), dict(PERSONAS, **{'github-actions[bot]': cuentas['github-actions[bot]'][1]}), None, False),
+  ('persona verificada fuera de la lista',             dict(verified=True,  login='otra-persona', id=99999901), PERSONAS, None, False),
+  ('web-flow (firma de la plataforma)',                dict(verified=True,  login='web-flow', id=cuentas['web-flow'][1]), PERSONAS, None, False),
+  ('web-flow metido en la lista por error',            dict(verified=True,  login='web-flow', id=cuentas['web-flow'][1]), dict(PERSONAS, **{'web-flow': cuentas['web-flow'][1]}), None, False),
+  ('persona sin firma',                                dict(verified=False, login='charliebk', id=ID), PERSONAS, None, False),
+  ('firmado, correo sin cuenta (committer null)',      dict(verified=True,  login=None, id=None), PERSONAS, None, False),
+  ('login reutilizado por otra cuenta (otro id)',      dict(verified=True,  login='charliebk', id=99999902), PERSONAS, dict(T, charliebk=('User', 99999902)), False),
 ]
 ok = 0
-for nombre, c, lista, esperado in casos:
-    r = firmante_valido(c, lista); ok += (r == esperado)
-    print('  firmante: %-46s -> %-9s %s' % (nombre, 'cuenta' if r else 'no cuenta', '' if r == esperado else '(INESPERADO)'))
-print('  nota: web-flow es type=%s; lo excluye la lista y la exclusion explicita, no el type' % tipos.get('web-flow'))
-# --- Invariantes "ninguna IA aprueba ni mergea" sobre la tabla de permisos ---
-d = json.load(open(sys.argv[3], encoding='utf-8'))
-idx = {}
-for perm, v in d.items():
-    for e in v['permissions']:
-        if e.get('server-to-server'): idx.setdefault((e['verb'].upper(), e['requestPath']), []).append((perm, e['access']))
-N = {'read': 1, 'write': 2}
-def alc(perms, verbo, ruta):
-    return any(N.get(perms.get(p, ''), 0) >= N[a] for p, a in idx.get((verbo, ruta), []) if p != 'workflows')
-R = '/repos/{owner}/{repo}'
-def invariantes(t):
-    f = []
-    rv, ag = t['revisor'], t['agente']
-    if alc(rv, 'POST', R + '/pulls/{pull_number}/reviews'): f.append('el revisor puede crear reviews (APPROVE)')
-    if alc(rv, 'PUT', R + '/pulls/{pull_number}/merge'): f.append('el revisor puede mergear')
-    if alc(rv, 'POST', R + '/git/refs'): f.append('el revisor puede empujar')
-    for who, p in (('agente', ag), ('revisor', rv)):
-        if alc(p, 'POST', R + '/rulesets'): f.append('%s administra rulesets' % who)
-        if p.get('workflows'): f.append('%s tiene workflows' % who)
-    if alc(ag, 'POST', R + '/check-runs'): f.append('el agente puede publicar checks (revision-ia)')
-    if alc(ag, 'POST', R + '/statuses/{sha}'): f.append('el agente puede publicar statuses')
-    return f
-f0 = invariantes(ids)
-print('  invariantes sobre la tabla del ADR: %s' % ('se cumplen' if not f0 else 'FALLAN: ' + '; '.join(f0)))
-def muta(fn):
-    t = copy.deepcopy(ids); fn(t); return t
-neg = {
-  'revisor con pull_requests:write': muta(lambda t: t['revisor'].__setitem__('pull_requests', 'write')),
-  'revisor con contents:write':      muta(lambda t: t['revisor'].__setitem__('contents', 'write')),
-  'agente con administration:write': muta(lambda t: t['agente'].__setitem__('administration', 'write')),
-  'agente con workflows:write':      muta(lambda t: t['agente'].__setitem__('workflows', 'write')),
-  'agente con checks:write':         muta(lambda t: t['agente'].__setitem__('checks', 'write')),
-}
-det = 0
-for k, t in neg.items():
-    f = invariantes(t); det += bool(f)
-    print('  negativo %-34s -> %s' % (k, 'detectado: ' + f[0] if f else 'NO detectado'))
-print('RESULTADO D firmante %d/%d casos ; invariantes=%s ; negativos detectados=%d/%d'
-      % (ok, len(casos), 'ok' if not f0 else 'FALLO', det, len(neg)))
+for nombre, c_, lista, tipos, esperado in casos:
+    r = approve_cuenta(c_, lista, tipos or T); ok += (r == esperado)
+    print('  approve: %-46s -> %-9s %s' % (nombre, 'cuenta' if r else 'no cuenta', '' if r == esperado else '(INESPERADO)'))
+# --- regla 6: reviews del PR que cuenta carril ---
+def review_cuenta(rv_):
+    u = rv_['user']
+    return rv_['state'] == 'APPROVED' and es_persona(u['login'], u['id'], T, PERSONAS)
+rcasos = [
+  ('APPROVED de la persona',                 dict(state='APPROVED', user=dict(login='charliebk', id=ID)), True),
+  ('APPROVED de la App del agente',          dict(state='APPROVED', user=dict(login='taskcode-agente[bot]', id=99999903)), False),
+  ('APPROVED de github-actions[bot]',        dict(state='APPROVED', user=dict(login='github-actions[bot]', id=cuentas['github-actions[bot]'][1])), False),
+  ('COMMENTED de la persona',                dict(state='COMMENTED', user=dict(login='charliebk', id=ID)), False),
+  ('APPROVED de persona fuera de la lista',  dict(state='APPROVED', user=dict(login='otra-persona', id=99999901)), False),
+]
+rok = 0
+for nombre, r_, esperado in rcasos:
+    r = review_cuenta(r_); rok += (r == esperado)
+    print('  review:  %-46s -> %-9s %s' % (nombre, 'cuenta' if r else 'no cuenta', '' if r == esperado else '(INESPERADO)'))
+print('  nota: web-flow es type=%s; lo excluye la lista y la exclusion explicita, no el type' % cuentas['web-flow'][0])
+print('RESULTADO D approve %d/%d casos ; reviews %d/%d casos ; esquema con id y type=%s'
+      % (ok, len(casos), rok, len(rcasos), 'si' if all(('id' in cm, 'type' in cm, 'id' in ru, 'type' in ru)) else 'NO'))
 EOF
 grep '^RESULTADO' "$base/d.txt" >> "$base/resultados.txt"
 
