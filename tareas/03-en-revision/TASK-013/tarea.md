@@ -58,3 +58,4 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 
 - code-quality-reviewer — 7f431ff
 - code-quality-reviewer — 3c44c18
+- code-quality-reviewer — d4799bc
