@@ -1,0 +1,269 @@
+PoC F1-13 ; modo completo ; GitHub charliebk/TaskCodeTwo@e8ee970802d9 ; GitLab.com proyecto 278964 MR !271075 @e5b0c3022386
+
+=== I: inventario (where, --version y sesion de gh sin token) ===
+gh: gh version 2.95.0 (2026-06-17)
+glab: glab 1.102.0 (b5a548b)
+python: 3.12.10
+gh auth status: sesion=si ; ambitos incluyen escritura (repo)=si (la lectura la garantiza el envoltorio, no el token)
+glab: no se usa (GET anonimos con urllib por el envoltorio)
+
+=== N: el envoltorio rechaza, antes de la red, lo que no es GET o no va a un destino de la lista blanca ===
+NEG-01 POST: rechazado por el envoltorio
+NEG-02 DELETE: rechazado por el envoltorio
+NEG-03 PUT: rechazado por el envoltorio
+NEG-04 get: rechazado por el envoltorio
+NEG-05 GET a otro host: rechazado por el envoltorio
+NEG-06 GET a otro proyecto de GitLab: rechazado por el envoltorio
+NEG-07 GET con prefijo enganoso: rechazado por el envoltorio
+NEG-08 gh GET a un repo ajeno: rechazado por el envoltorio
+NEG-09 gh GET con una ruta que es una opcion: rechazado por el envoltorio
+NEG-10 GET a otro puerto local: rechazado por el envoltorio
+NEG-11 gh GET fuera de repos/: rechazado por el envoltorio
+NEG-12 gh GET con ..: rechazado por el envoltorio
+NEG-13 GET con ..: rechazado por el envoltorio
+NEG-14 GET con %2e%2e: rechazado por el envoltorio
+NEG-15 GET con %252e%252e: rechazado por el envoltorio
+NEG-16 GET con .: rechazado por el envoltorio
+peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 16
+
+=== R: GET reales (solo lo estable: estado HTTP y campos; el cuerpo en la carpeta de trabajo) ===
+GH-01 GET https://api.github.com/repos/charliebk/TaskCodeTwo -> 200 ; repo: visibilidad y tipo de cuenta
+    visibility = "public"
+    owner.type = "User"
+GH-02 GET https://api.github.com/repos/charliebk/TaskCodeTwo/rulesets -> 200 ; rulesets del repo
+    lista_vacia = true
+GH-03 GET https://api.github.com/repos/charliebk/TaskCodeTwo/rules/branches/develop -> 200 ; reglas efectivas de develop
+    lista_vacia = true
+GH-04 GET https://api.github.com/repos/charliebk/TaskCodeTwo/branches/develop/protection -> 404 ; proteccion clasica de develop
+    message = "Branch not protected"
+GH-05 GET https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc/check-runs -> 200 ; check-runs del commit de develop
+    total_count = 1
+    runs = ["comprobar-repo<-15368:success"]
+    claves_check_run = ["app", "check_suite", "completed_at", "conclusion", "details_url", "external_id", "head_sha", "html_url", "id", "name", "node_id", "output", "pull_requests", "started_at", "status", "url"]
+GH-06 GET https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc/status -> 200 ; estado combinado (statuses) del commit
+    state = "pending"
+    total_count = 0
+GH-07 GET https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc -> 200 ; firma del commit (verification)
+    verification.verified = false
+    verification.reason = "unsigned"
+GH-08 GET https://api.github.com/repos/charliebk/TaskCodeTwo/pulls?state=all&per_page=5 -> 200 ; PR existentes
+    prs = 0
+GH-09 GET https://api.github.com/repos/charliebk/TaskCodeTwo/actions/permissions/workflow -> 200 ; permisos de GITHUB_TOKEN
+    can_approve_pull_request_reviews = false
+    default_workflow_permissions = "read"
+GH-10 GET https://api.github.com/apps/github-actions -> 200 ; integration_id de GitHub Actions
+    id = 15368
+GH-11 GET https://api.github.com/repos/charliebk/TaskCodeTwo/commits/03f0c42464c6b5bd2e9d3cc46a0e51f4629e0a15 -> 200 ; ficheros renombrados de un commit
+    renombrados = 4
+    con_previous_filename = 4
+GH-12 GET https://api.github.com/repos/charliebk/taskcodetwo-poc-f1-1/rulesets -> 403 ; rulesets en el privado gratuito
+    aviso_de_plan = true
+GH-13 GET https://api.github.com/repos/charliebk/taskcodetwo-poc-f1-1/branches/develop/protection -> 403 ; proteccion en el privado gratuito
+    aviso_de_plan = true
+GH-14 GET https://api.github.com/repos/charliebk/TaskCodeTwo/codeowners/errors -> 404 ; CODEOWNERS
+    message = "Not Found"
+GH-15 GET https://api.github.com/repos/charliebk/TaskCodeTwo/pulls/1/reviews -> 404 ; reviews del PR 1 (no hay PR)
+    message = "Not Found"
+GL-01 GET https://gitlab.com/api/v4/projects/278964 -> 200 ; proyecto
+    visibility = "public"
+    merge_method_visible_anonimo = false
+    only_allow_merge_if_pipeline_succeeds_visible_anonimo = false
+GL-02 GET https://gitlab.com/api/v4/projects/278964/protected_branches -> 200 ; ramas protegidas
+    es_lista = true
+    claves_rama = ["allow_force_push", "code_owner_approval_required", "id", "inherited", "merge_access_levels", "name", "push_access_levels", "unprotect_access_levels"]
+GL-03 GET https://gitlab.com/api/v4/projects/278964/protected_branches/master -> 200 ; rama protegida master
+    claves_rama = ["allow_force_push", "code_owner_approval_required", "id", "inherited", "merge_access_levels", "name", "push_access_levels", "unprotect_access_levels"]
+    allow_force_push = false
+GL-04 GET https://gitlab.com/api/v4/projects/278964/protected_tags -> 403 ; tags protegidos
+GL-05 GET https://gitlab.com/api/v4/projects/278964/approval_rules -> 401 ; reglas de aprobacion del proyecto
+GL-06 GET https://gitlab.com/api/v4/projects/278964/approvals -> 401 ; ajustes de aprobacion del proyecto
+GL-07 GET https://gitlab.com/api/v4/projects/278964/push_rule -> 401 ; push rules
+GL-08 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075?include_diverged_commits_count=true -> 200 ; MR con commits por detras
+    state = "merged"
+    claves_mr = ["approvals_before_merge", "assignee", "assignees", "author", "blocking_discussions_resolved", "changes_count", "closed_at", "closed_by", "created_at", "description", "detailed_merge_status", "diff_refs", "discussion_locked", "diverged_commits_count", "downvotes", "draft", "first_contribution", "first_deployed_to_production_at", "force_remove_source_branch", "has_conflicts", "head_pipeline", "id", "iid", "imported", "imported_from", "labels", "latest_build_finished_at", "latest_build_started_at", "merge_after", "merge_commit_sha", "merge_error", "merge_status", "merge_user", "merge_when_pipeline_succeeds", "merged_at", "merged_by", "milestone", "pipeline", "prepared_at", "project_id", "reference", "references", "reviewers", "sha", "should_remove_source_branch", "source_branch", "source_project_id", "squash", "squash_commit_sha", "squash_on_merge", "state", "subscribed", "target_branch", "target_project_id", "task_completion_status", "time_stats", "title", "updated_at", "upvotes", "user", "user_notes_count", "web_url", "work_in_progress"]
+GL-09 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approvals -> 200 ; aprobaciones del MR
+    claves = ["approval_rules_left", "approvals_left", "approvals_required", "approved", "approved_by", "approver_groups", "approvers", "created_at", "description", "has_approval_rules", "id", "iid", "invalid_approvers_rules", "merge_request_approvers_available", "merge_status", "multiple_approval_rules_available", "project_id", "require_password_to_approve", "state", "suggested_approvers", "title", "updated_at", "user_can_approve", "user_has_approved"]
+    aprobador_bot_de_proyecto = true
+    campo_bot_en_aprobador = false
+    claves_usuario_aprobador = ["avatar_url", "id", "locked", "name", "public_email", "state", "username", "web_url"]
+GL-10 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approval_state -> 200 ; estado de las reglas de aprobacion del MR
+    claves = ["approval_rules_overwritten", "rules"]
+    rule_types = ["any_approver", "code_owner"]
+GL-11 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approval_rules -> 200 ; reglas de aprobacion del MR
+    es_lista = true
+GL-12 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/pipelines -> 200 ; pipelines del MR
+    sources = ["merge_request_event"]
+    ref_de_tren = true
+GL-13 GET https://gitlab.com/api/v4/projects/278964/pipelines?sha=e5b0c3022386a560e8377e9cd057dc883316cfeb -> 200 ; pipelines por sha
+    es_lista = true
+    claves_pipeline = ["created_at", "id", "iid", "name", "project_id", "ref", "sha", "source", "status", "updated_at", "web_url"]
+GL-14 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/diffs?per_page=5 -> 200 ; diffs del MR
+    claves_diff = ["a_mode", "b_mode", "collapsed", "deleted_file", "diff", "generated_file", "new_file", "new_path", "old_path", "renamed_file", "too_large"]
+GL-15 GET https://gitlab.com/api/v4/projects/278964/repository/commits/e5b0c3022386a560e8377e9cd057dc883316cfeb/signature -> 200 ; firma del commit
+    signature_type = "SSH"
+    verification_status = "verified_system"
+    claves = ["commit_source", "key", "signature_type", "verification_status"]
+    claves_key = ["created_at", "expires_at", "id", "key", "last_used_at", "title", "usage_type"]
+GL-16 GET https://gitlab.com/api/v4/projects/278964/repository/commits/e5b0c3022386a560e8377e9cd057dc883316cfeb/statuses -> 401 ; estados del commit
+GL-17 GET https://gitlab.com/api/v4/projects/278964/merge_trains -> 200 ; trenes de merge
+    es_lista = true
+GL-18 GET https://gitlab.com/api/v4/projects/278964/external_status_checks -> 401 ; checks de estado externos
+GL-19 GET https://gitlab.com/api/v4/projects/278964/merge_requests/271075/status_checks -> 401 ; checks externos del MR
+GL-20 GET https://gitlab.com/api/v4/users/26073976 -> 403 ; usuario aprobador (bot)
+GL-21 GET https://gitlab.com/api/v4/projects/278964/runners -> 401 ; runners del proyecto
+GL-22 GET https://gitlab.com/api/v4/projects/278964/variables -> 401 ; variables de CI
+GL-23 GET https://gitlab.com/api/v4/projects/278964/access_tokens -> 401 ; tokens de proyecto
+llamadas registradas: 38 ; metodos en el registro: ['GET'] ; procesos gh: 15 ; HTTP: 23 ; rechazos: 0
+comparado con fixtures/observado.json: 38 llamadas
+
+=== M: misma bateria contra el mock (127.0.0.1) con los dos adaptadores ===
+verde: github [0] estado-puertas ok pr=12 aprobaciones=1 ignoradas=0
+       gitlab [0] estado-puertas ok pr=12 aprobaciones=1 ignoradas=0
+       iguales=si ; esperado=si ; llamadas github=4 gitlab=5
+esperando-checks: github [7] estado-puertas esperando pr=12 aprobaciones=1 ignoradas=0 falta=revision-ia
+                  gitlab [7] estado-puertas esperando pr=12 aprobaciones=1 ignoradas=0 falta=revision-ia
+                  iguales=si ; esperado=si ; llamadas github=4 gitlab=5
+sin-aprobacion: github [7] estado-puertas esperando pr=12 aprobaciones=0 ignoradas=0 falta=aprobacion
+                gitlab [7] estado-puertas esperando pr=12 aprobaciones=0 ignoradas=0 falta=aprobacion
+                iguales=si ; esperado=si ; llamadas github=4 gitlab=5
+aprobacion-bot: github [7] estado-puertas esperando pr=12 aprobaciones=0 ignoradas=1 falta=aprobacion
+                gitlab [7] estado-puertas esperando pr=12 aprobaciones=0 ignoradas=1 falta=aprobacion
+                iguales=si ; esperado=si ; llamadas github=4 gitlab=5
+plan: github [3] estado-puertas rechazada pr=12 motivo=plan garantia=G03
+      gitlab [3] estado-puertas rechazada pr=12 motivo=plan garantia=G03
+      iguales=si ; esperado=si ; llamadas github=2 gitlab=2
+sin-cambios: github [0] estado-puertas sin-cambios pr=12 estado=mergeado
+             gitlab [0] estado-puertas sin-cambios pr=12 estado=mergeado
+             iguales=si ; esperado=si ; llamadas github=1 gitlab=1
+peticiones al mock: 42 ; metodos: ['GET']
+contraste de campos (fixture subconjunto de lo observado):
+  github GH-05.claves_check_run: ok
+  gitlab GL-08.claves_mr: ok
+  gitlab GL-09.claves: ok
+  gitlab GL-09.claves_usuario_aprobador: ok
+  gitlab GL-03.claves_rama: ok
+  sin respuesta real que contrastar: GitHub pulls/{n} y reviews (no hay PR en el repo, GH-08), rules/branches con reglas (GH-03 vacio); GitLab statuses (GL-16: 401 anonimo) y approval_rules en Free (GL-05: 401 anonimo; el 403 de plan del fixture no se ha observado)
+
+=== C: capacidades por plan y salida de doctor (tabla del ADR como dato) ===
+-- github free-publico-usuario
+   doctor puertas plataforma=github plan=free-publico-usuario impuestas=19 sustituidas=1 no-disponibles=0
+   G10 sustituida motivo=plan por=al-dia-por-cli arreglo=organizacion-o-enterprise-cloud
+   lista completa: G10=sustituida(al-dia-por-cli)
+-- github free-privado-usuario
+   doctor puertas plataforma=github plan=free-privado-usuario impuestas=9 sustituidas=1 no-disponibles=10
+   G01 no_disponible motivo=plan arreglo=repo-publico-o-github-pro
+   G02 no_disponible motivo=plan arreglo=repo-publico-o-github-pro
+   G03 no_disponible motivo=plan arreglo=repo-publico-o-github-pro
+   y 8 mas: tc2 doctor --json
+   lista completa: G01=no_disponible G02=no_disponible G03=no_disponible G04=no_disponible G05=no_disponible G06=no_disponible G07=no_disponible G08=no_disponible G09=no_disponible G10=sustituida(al-dia-por-cli) G11=no_disponible
+-- github pro-privado-usuario
+   doctor puertas plataforma=github plan=pro-privado-usuario impuestas=19 sustituidas=1 no-disponibles=0
+   G10 sustituida motivo=plan por=al-dia-por-cli arreglo=organizacion-o-enterprise-cloud
+   lista completa: G10=sustituida(al-dia-por-cli)
+-- github free-publico-org
+   doctor puertas plataforma=github plan=free-publico-org impuestas=20 sustituidas=0 no-disponibles=0
+   lista completa: 
+-- github team-privado-org
+   doctor puertas plataforma=github plan=team-privado-org impuestas=19 sustituidas=1 no-disponibles=0
+   G10 sustituida motivo=plan por=al-dia-por-cli arreglo=organizacion-o-enterprise-cloud
+   lista completa: G10=sustituida(al-dia-por-cli)
+-- github enterprise-privado-org
+   doctor puertas plataforma=github plan=enterprise-privado-org impuestas=20 sustituidas=0 no-disponibles=0
+   lista completa: 
+-- gitlab free
+   doctor puertas plataforma=gitlab plan=free impuestas=11 sustituidas=9 no-disponibles=0
+   G01 sustituida motivo=plataforma por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma
+   G03 sustituida motivo=plan por=merge-solo-persona arreglo=gitlab-premium
+   G04 sustituida motivo=plan por=merge-solo-persona arreglo=gitlab-premium
+   y 6 mas: tc2 doctor --json
+   lista completa: G01=sustituida(maintainer-solo-persona) G03=sustituida(merge-solo-persona) G04=sustituida(merge-solo-persona) G05=sustituida(merge-solo-persona) G06=sustituida(carril-propietarios) G08=sustituida(al-dia-por-cli) G09=sustituida(autor-del-estado) G10=sustituida(al-dia-por-cli) G12=sustituida(cuenta-de-servicio)
+-- gitlab premium
+   doctor puertas plataforma=gitlab plan=premium impuestas=17 sustituidas=3 no-disponibles=0
+   G01 sustituida motivo=plataforma por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma
+   G08 sustituida motivo=plataforma por=al-dia-por-cli arreglo=ninguno-limite-de-la-plataforma
+   G09 sustituida motivo=plataforma por=autor-del-estado arreglo=ninguno-limite-de-la-plataforma
+   lista completa: G01=sustituida(maintainer-solo-persona) G08=sustituida(al-dia-por-cli) G09=sustituida(autor-del-estado)
+-- gitlab ultimate
+   doctor puertas plataforma=gitlab plan=ultimate impuestas=17 sustituidas=3 no-disponibles=0
+   G01 sustituida motivo=plataforma por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma
+   G08 sustituida motivo=plataforma por=al-dia-por-cli arreglo=ninguno-limite-de-la-plataforma
+   G09 sustituida motivo=plataforma por=autor-del-estado arreglo=ninguno-limite-de-la-plataforma
+   lista completa: G01=sustituida(maintainer-solo-persona) G08=sustituida(al-dia-por-cli) G09=sustituida(autor-del-estado)
+-- G09 en GitLab free: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
+-- G09 en GitLab premium: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
+-- G09 en GitLab ultimate: sustituida(autor-del-estado) motivo=plataforma arreglo=ninguno-limite-de-la-plataforma
+-- puertas leidas sin CODEOWNERS en GitLab Premium: G06 no_disponible motivo=config arreglo=tc2-init
+
+=== G: el ADR (tabla, fuentes, capacidades, IDs, enlaces, prosa) y sus mutaciones de control ===
+cifras de la tabla: total=20 ; gh_rs=10 ; gh_todos=9 ; gh_cola=1 ; gl_free=11 ; gl_premium=6 ; gl_ultimate=0 ; gl_ninguno=3 ; empiricas=13
+linea de F1-7: 274 caracteres con hashes completos, 114 con 12 (limite de description en GitLab: 255, L13)
+errores del ADR: 0
+  mutacion fila-borrada: falla como se espera (falta la garantia G07)
+  mutacion fila-extra: falla como se espera (sobra la garantia G21)
+  mutacion url-sin-fecha: falla como se espera (G07: la celda GitHub no cita una URL oficial de GitHub con fecha)
+  mutacion url-fuera-de-fuentes: falla como se espera (G07: URL que no esta en fuentes.md: https://docs.github.com/en/repositories/configuring-branches-and-merges-in)
+  mutacion tier-cambiado: falla como se espera (G03: tier GitLab 'Free' y la documentacion dice 'Premium')
+  mutacion tier-de-fuente-cambiado: falla como se espera (G12: tier GitLab 'Premium' no coincide con el de ninguna URL citada en fuentes.md)
+  mutacion sustituto-borrado: falla como se espera (G12: sustituto GitLab None y se espera 'cuenta-de-servicio')
+  mutacion empirica-sin-id: falla como se espera (G14: fila empírica sin id de llamada del log)
+  mutacion id-de-llamada-inexistente: falla como se espera (G14: id de llamada que no esta en el log: GH-99)
+  mutacion cita-larga: falla como se espera (fuentes.md: D07 cita de 15 palabras (tiene que ser de menos de 15, entre «»))
+  mutacion capacidades-cambiadas: falla como se espera (capacidades gitlab free: el ADR dice '99 / 9 / 0' y lo calculado es '11 / 9 / 0')
+  mutacion prosa-garantias: falla como se espera (prosa: «12 garantías» fuera de una frase que diga a qué corresponde (… privada con Enterprise Cloud); y en Git)
+  mutacion prosa-llamadas: falla como se espera (prosa: «3 llamadas» fuera de una frase que diga a qué corresponde (…adas contra el mock en el caso verde: `est)
+  mutacion prosa-caracteres: falla como se espera (prosa: «250 caracteres» fuera de una frase que diga a qué corresponde (…completos y `runner=github-windows`, l)
+  mutacion resumen-inventado: falla como se espera (el resumen cita '9999' ('9999'), que no es una cifra calculada)
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion enlace-roto: falla como se espera (enlace que no resuelve: F1-99-no-existe.md)
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## Cómo se ve en GitHub y en GitLab'])
+  mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
+  mutacion sin-self-managed: falla como se espera («No verificado» no nombra «self-managed»)
+  mutacion divergencia-sin-f1-8: falla como se espera («Divergencias con el plan» no trata F1-8)
+  mutacion sin-motivo-plataforma: falla como se espera (falta la regla: motivo=plataforma)
+  mutacion g09-tier-ultimate: falla como se espera (G09: tier GitLab 'Ultimate' y la documentacion dice 'ninguno')
+  mutacion ids-de-g15-cambiados: falla como se espera (G15: GL-01 no prueba nada de esta garantia (200: sin valor de prueba))
+  mutacion empirica-con-401: falla como se espera (G20: GL-21 no prueba nada de esta garantia (401: sin valor de prueba))
+
+=== V: lo variable (hash y tamano de cada cuerpo, limites de peticiones); NO se comprueba ===
+GH-01 sha256=f89217de0b873456 bytes=6139 x-ratelimit-remaining=4933
+GH-02 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4932
+GH-03 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4931
+GH-04 sha256=d6020ee3b0852c3d bytes=149 x-ratelimit-remaining=4930
+GH-05 sha256=60ba8acbf9e08a10 bytes=3101 x-ratelimit-remaining=4929
+GH-06 sha256=c6adf21b0e0ac309 bytes=4686 x-ratelimit-remaining=4928
+GH-07 sha256=57a09f45cbdb00e9 bytes=70460 x-ratelimit-remaining=4927
+GH-08 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4926
+GH-09 sha256=f6e178fc1e56cf43 bytes=80 x-ratelimit-remaining=4999
+GH-10 sha256=b44eb514d435b509 bytes=2244 x-ratelimit-remaining=4998
+GH-11 sha256=a9a4a40fdeaa4d16 bytes=54586 x-ratelimit-remaining=4925
+GH-12 sha256=7d0f2593fefaebc9 bytes=196 x-ratelimit-remaining=4924
+GH-13 sha256=679d5e86a2d0420e bytes=205 x-ratelimit-remaining=4923
+GH-14 sha256=62af8411c3c89abb bytes=124 x-ratelimit-remaining=4997
+GH-15 sha256=40911239223ffac2 bytes=135 x-ratelimit-remaining=4922
+GL-01 sha256=1e5e67f39a034b91 bytes=1246 ratelimit-remaining=499
+GL-02 sha256=ccac00f2edb65c02 bytes=12600 ratelimit-remaining=498
+GL-03 sha256=fd7fd9884eacca34 bytes=1190 ratelimit-remaining=497
+GL-04 sha256=049f7d7b2d353566 bytes=27 ratelimit-remaining=496
+GL-05 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=495
+GL-06 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=494
+GL-07 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=493
+GL-08 sha256=f08f221cece6508b bytes=5822 ratelimit-remaining=492
+GL-09 sha256=2ef353bb24b6ce8f bytes=6557 ratelimit-remaining=491
+GL-10 sha256=d8a8878771bd2d9b bytes=8533 ratelimit-remaining=490
+GL-11 sha256=1cc6d8be1dbf9705 bytes=90546 ratelimit-remaining=489
+GL-12 sha256=dd6f46d4243602d1 bytes=689 ratelimit-remaining=488
+GL-13 sha256=f1e3de4948cbf21b bytes=344 ratelimit-remaining=487
+GL-14 sha256=ce180377f7e4a996 bytes=175736 ratelimit-remaining=486
+GL-15 sha256=67e285c9b220b332 bytes=376 ratelimit-remaining=485
+GL-16 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=484
+GL-17 sha256=5cb33cd01106826f bytes=67027 ratelimit-remaining=483
+GL-18 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=482
+GL-19 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=481
+GL-20 sha256=c0f015c0a59967b3 bytes=45 ratelimit-remaining=480
+GL-21 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=479
+GL-22 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=478
+GL-23 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=477
+
+carpeta de trabajo borrada al terminar: si
+
+RESULTADO: todo como se espera
