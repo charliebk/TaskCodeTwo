@@ -1,0 +1,44 @@
+
+=== A.1 repo con develop, remoto bare y codigo ===
+
+=== A.2 rama huerfana taskcode/tareas como worktree en tareas/ ===
+C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-002/poc/a        e8698c8 [develop]
+C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-002/poc/a/tareas 4064699 [taskcode/tareas]
+merge-base develop taskcode/tareas: NINGUNA (historias distintas)
+
+=== A.3 diez transiciones de estado ===
+arbol develop antes : f1e7cf4b12d12288e86fe83341a1c28a6c1516ba
+arbol develop despues: f1e7cf4b12d12288e86fe83341a1c28a6c1516ba
+RESULTADO A.3: arbol de develop IDENTICO tras 10 transiciones
+git status (develop):
+(vacio = limpio)
+commits en develop: 1 ; que tocan tareas/: 0
+commits en taskcode/tareas: 11
+
+=== A.4 revert en una rama de codigo no puede tocar tareas/ ===
+TASK-* en tareas/ tras el revert: 6 (eran 6)
+
+=== A.5 dos clones escriben en carpetas TASK distintas ===
+c1 push OK
+c2 push:  ! [rejected]        taskcode/tareas -> taskcode/tareas (fetch first)
+Auto-merging ROADMAP.md
+CONFLICT (content): Merge conflict in ROADMAP.md
+conflicto solo en: ROADMAP.md 
+ROADMAP.md regenerado (no mergeado) y rebase continuado
+c2 push OK tras rebase
+ROADMAP final:
+- TASK-006: en-curso
+- TASK-007: planificada
+- TASK-008: planificada
+
+=== B.1 estado en develop ===
+arboles distintos de develop en 6 estados: 6 (6 = cada transicion invalida la cache)
+
+=== B.2 conflicto de ROADMAP al integrar una rama de tarea ===
+CONFLICTO en: tareas/ROADMAP.md 
+
+=== B.3 caso TASK-172: un revert que viaja con un cierre borra otra tarea ===
+TASK-007 existe en develop: si
+tras revertir el merge de TASK-004, TASK-007 existe: NO: BORRADA
+
+FIN PoC
