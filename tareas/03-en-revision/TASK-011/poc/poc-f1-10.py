@@ -100,7 +100,7 @@ def casa(glob, ruta):
     return re.fullmatch(rx, ruta) is not None
 
 
-SUELO_RIESGO = (".github/", ".taskcode/")
+SUELO_RIESGO = (".github", ".taskcode")      # primer componente de la ruta, sin mayusculas
 
 
 def clase_ruta(ruta, reglas):
@@ -109,7 +109,7 @@ def clase_ruta(ruta, reglas):
     if ruta.startswith("/") or ".." in ruta.split("/") or not ruta:
         raise ErrorCarril(f"ruta no valida: {ruta!r}")
     baja = ruta.lower()
-    if baja.startswith(SUELO_RIESGO) or baja.rsplit("/", 1)[-1] == "codeowners":
+    if baja.split("/", 1)[0] in SUELO_RIESGO or baja.rsplit("/", 1)[-1] == "codeowners":
         return "riesgo-alto"
     if any(casa(g, ruta) for g in reglas.get("riesgo-alto", [])):
         return "riesgo-alto"
@@ -177,7 +177,7 @@ def validar_config(cfg, tabla):
                 if x is not True:
                     err.append(f"{p}: solo admite true (no se quita el plan aprobado)")
             elif k == "paradas_extra":
-                if not isinstance(x, list) or any(f not in FASES_EXTRA for f in x):
+                if not isinstance(x, list) or any(not isinstance(f, str) or f not in FASES_EXTRA for f in x):
                     err.append(f"{p}: solo fases de {sorted(FASES_EXTRA)}")
             elif k == "revisoras_extra":
                 if not isinstance(x, list) or any(not isinstance(s, str) or not s for s in x):
@@ -213,15 +213,40 @@ def cargar_config(cfg, tabla):
     return cfg
 
 
-def politica(carril, tipo, cfg, tabla):
-    """Fila de la tabla (por tipo en release y hotfix, por carril en el resto)
-    endurecida con la configuracion ya validada."""
-    fila = tipo if tipo in TIPOS_MAIN else carril
-    base = tabla[fila]
-    pol = dict(base)
-    pol["paradas"] = set(base["paradas"])
-    pol["checks"] = set(base["checks"])
+def fila_politica(carril, tipo, base, rama):
+    """Fila de la tabla. `tipo` (texto de tarea.md, no confiable) solo elige
+    fila con la base REAL del PR: release con base main; hotfix con base main
+    y rama hotfix/*. Contra develop el tipo se ignora y manda el carril."""
+    if base == "main":
+        if tipo == "release":
+            return "release"
+        if tipo == "hotfix" and (rama or "").startswith("hotfix/"):
+            return "hotfix"
+        raise ErrorCarril(f"PR contra main con tipo {tipo!r} y rama {rama!r}: falla cerrado")
+    if base != "develop":
+        raise ErrorCarril(f"base no admitida {base!r}")
+    return carril
+
+
+def politica(carril, tipo, cfg, tabla, base="develop", rama=None):
+    """Fila de la tabla endurecida con la configuracion ya validada. En una fila
+    de main (release, hotfix), si el carril efectivo es riesgo-alto (minimo por
+    ficheros), se exige ademas lo de riesgo-alto: plan firmado, 2 aprobaciones."""
+    fila = fila_politica(carril, tipo, base, rama)
+    fb = tabla[fila]
+    pol = dict(fb)
+    pol["paradas"] = set(fb["paradas"])
+    pol["checks"] = set(fb["checks"])
     pol["fila"] = fila
+    if fila in TIPOS_MAIN and carril == "riesgo-alto":
+        ra = tabla["riesgo-alto"]
+        pol["fila"] = f"{fila}+riesgo-alto"
+        pol["plan"] = True
+        pol["roles_min"] = max(pol["roles_min"], ra["roles_min"])
+        pol["aprobaciones"] = max(pol["aprobaciones"], ra["aprobaciones"])
+        pol["checks"] |= ra["checks"]
+        pol["paradas"] |= ra["paradas"]
+        pol["lote"] = False
     extra = cfg.get("politica_carriles", {}).get(carril, {}) if fila in ORDEN else {}
     if "roles_diseno" in extra:
         pol["roles_min"] = max(pol["roles_min"], extra["roles_diseno"])
@@ -250,7 +275,7 @@ def accion(fase, tarea, pol, modo, cfg, tabla):
     if fase == "review":
         ef = tarea.get("efectivo", tarea["declarado"])
         if rango(ef) > rango(tarea["declarado"]):
-            nueva = politica(ef, tarea.get("tipo"), cfg, tabla)
+            nueva = politica(ef, tarea.get("tipo"), cfg, tabla, tarea.get("base", "develop"), tarea.get("rama"))
             return "detener", (f"el carril sube de {tarea['declarado']} a {ef}"
                                + (": vuelve a plan" if nueva["plan"] or nueva["roles_min"] > 0 else ""))
         if tarea.get("ronda", 1) > tarea.get("tope", 2):
@@ -300,7 +325,7 @@ def leer_tabla_politica(texto):
         m = re.match(r"(\d+)", roles)
         roles_min = 4 if roles.startswith("todos") else (int(m.group(1)) if m else -1)
         tabla[nombre] = {
-            "base": f[1].strip("`"),
+            "base": (re.findall(r"`([^`]+)`", f[1]) or [f[1]])[0],
             "roles_min": roles_min,
             "plan": f[3].lower().startswith("sí"),
             "revisoras": f[4],
@@ -515,6 +540,9 @@ def seccion_a(personal, trabajo):
         ("copia desde .github/", [("C075", [".github/scripts/x.sh", "scripts/x.sh"])], {}, "riesgo-alto"),
         ("rutas_carril sube src/auth/**", [("M", ["src/auth/login.rs"])], {"riesgo-alto": ["src/auth/**"]}, "riesgo-alto"),
         ("rutas_carril fix sobre docs/api/**", [("M", ["docs/api/x.md"])], {"fix": ["docs/api/**"]}, "fix"),
+        (".taskcode exacto (fichero o enlace)", [("A", [".taskcode"])], {}, "riesgo-alto"),
+        (".github exacto (submodulo)", [("A", [".github"])], {}, "riesgo-alto"),
+        (".githubx/ no es el suelo", [("A", [".githubx/a"])], {}, "fix"),
         ("PR sin ficheros", [], {}, "ERROR"),
         ("ruta con ..", [("M", ["docs/../src/x.rs"])], {}, "ERROR"),
     ]
@@ -629,8 +657,9 @@ def simular(t, tarea, tabla, cfg, modo):
     """Recorre la cadena nueva de una tarea con accion(). Si en review el carril
     efectivo supera al declarado, para (subida), vuelve a plan con el efectivo
     y, si este exige plan aprobado, pasa otra vez por approve."""
-    pol_d = politica(tarea["declarado"], tarea.get("tipo"), cfg, tabla)
-    pol_e = politica(tarea["efectivo"], tarea.get("tipo"), cfg, tabla)
+    b, r = tarea.get("base", "develop"), tarea.get("rama")
+    pol_d = politica(tarea["declarado"], tarea.get("tipo"), cfg, tabla, b, r)
+    pol_e = politica(tarea["efectivo"], tarea.get("tipo"), cfg, tabla, b, r)
     res = {"paradas": 0, "tipos": {}, "vistas": set(), "malas": []}
 
     def paso(fase, actual, pol, ronda):
@@ -670,8 +699,12 @@ def seccion_c(personal, tabla, minimos, trabajo):
         ruta = os.path.join(personal, repo)
         tareas = tareas_de(ruta, FIJO[repo])
         tope = tope_de(ruta, FIJO[repo])
-        hoy_t = nue_t = 0
+        hoy_t = nue_t = cota_t = 0
         tipos_t, dist, por_carril = {}, {}, {}
+        filas_auto = [r for t in tareas.values() for r in t["trans"] if r["modo"] == "automatico"]
+        fin_auto = sum(r["fase"] == "finish" for r in filas_auto)
+        apr_auto = sum(r["fase"] == "approve" and r["decidido_por"] == "automatico" for r in filas_auto)
+        apr_pers = sum(r["fase"] == "approve" and r["decidido_por"] == "persona" for r in filas_auto)
         sin_trans = 0
         for id_, t in sorted(tareas.items(), key=lambda x: int(x[0][5:])):
             if not t["trans"]:
@@ -684,6 +717,10 @@ def seccion_c(personal, tabla, minimos, trabajo):
             modo = [r for r in t["trans"] if r["fase"] != "pausa"][0]["modo"]
             hoy = paradas_hoy(t, tope)
             nue, tipos, fijas, malas, pol = simular(t, tarea, tabla, {}, modo)
+            # cota inferior: la tarea se habria declarado con su carril minimo
+            # (solo docs/ -> errata, codigo -> fix): sin approve salvo riesgo-alto
+            cota = simular(t, dict(tarea, declarado=minimo, efectivo=minimo), tabla, {}, modo)[0]
+            cota_t += cota
             total_malas += len(malas)
             if modo == "automatico" and not (pol["paradas"] <= fijas):
                 discrepancias += 1
@@ -697,38 +734,81 @@ def seccion_c(personal, tabla, minimos, trabajo):
         n = sum(dist.values())
         print(f"--- {repo} (commit {FIJO[repo][:9]}, tope_rondas={tope}) tareas={n} sin transiciones={sin_trans}")
         print(f"carril efectivo: {', '.join(f'{k}={por_carril.get(k, 0)}' for k in ORDEN)}")
-        print(f"paradas humanas: hoy={hoy_t} ({hoy_t / n:.2f}/tarea) ; nuevo={nue_t} ({nue_t / n:.2f}/tarea)")
+        print(f"filas en automatico: finish={fin_auto} ; approve decidido_por automatico={apr_auto} ; "
+              f"approve decidido_por persona={apr_pers}")
+        print(f"paradas humanas: hoy={hoy_t} ({hoy_t / n:.2f}/tarea) ; nuevo={nue_t} ({nue_t / n:.2f}/tarea) ; "
+              f"cota inferior con declarado = minimo por ficheros={cota_t} ({cota_t / n:.2f}/tarea)")
         print(f"paradas nuevas por tipo: {', '.join(f'{k}={v}' for k, v in sorted(tipos_t.items()))}")
         print("reparto (hoy -> nuevo: tareas): " + ", ".join(f"{h}->{x}: {c}" for (h, x), c in sorted(dist.items())))
-        filas_res.append(f"{repo}: tareas={n} hoy={hoy_t / n:.2f} nuevo={nue_t / n:.2f}")
+        filas_res.append(f"{repo}: tareas={n} hoy={hoy_t / n:.2f} nuevo={nue_t / n:.2f} cota={cota_t / n:.2f}")
     print("-- tareas sinteticas de tipo release y hotfix (la 0.16 no tiene ninguna terminada)")
-    sint = [("release", "funcionalidad"), ("hotfix", "fix")]
-    for tipo, decl in sint:
+    sint = [("release", "funcionalidad", "develop"), ("hotfix", "fix", "hotfix/task-900-x")]
+    for tipo, decl, rama in sint:
         t = {"tipo": tipo, "trans": [{"fase": "plan", "modo": "automatico", "decidido_por": "persona"},
                                      {"fase": "review", "modo": "automatico", "decidido_por": "persona"}]}
-        tarea = {"declarado": decl, "efectivo": decl, "tipo": tipo, "tope": 2}
+        tarea = {"declarado": decl, "efectivo": decl, "tipo": tipo, "tope": 2, "base": "main", "rama": rama}
         nue, tipos, fijas, malas, pol = simular(t, tarea, tabla, {}, "automatico")
         total_malas += len(malas)
         bien = fijas == pol["paradas"] and not malas
         print(f"  {tipo:8} paradas={nue} {sorted(tipos.items())} politica={sorted(pol['paradas'])} -> {'ok' if bien else 'FALLO'}")
         if not bien:
             falla("C", f"sintetica {tipo}")
-    print("-- barrido: approve, merge-pr y tag en todo carril, tipo, modo y configuracion valida de D")
-    barr = cont = 0
+    print("-- tipo de la tarea frente a la base real del PR (revision 1, IMP-1)")
+    gh = [("M", [".github/workflows/ci.yml"]), ("M", ["src/a.rs"])]
+    src = [("M", ["src/a.rs"])]
+    casos = [
+        # nombre, tipo, base, rama, cambios, declarado, esperado (fila, plan, aprobaciones, paradas) o ERROR
+        ("hotfix con .github/ contra develop", "hotfix", "develop", "hotfix/task-901-x", gh, "fix",
+         ("riesgo-alto", True, 2, ["approve", "merge-pr"])),
+        ("hotfix con .github/ contra main", "hotfix", "main", "hotfix/task-901-x", gh, "fix",
+         ("hotfix+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"])),
+        ("hotfix solo src/ contra main", "hotfix", "main", "hotfix/task-902-x", src, "fix",
+         ("hotfix", False, 1, ["merge-pr", "tag"])),
+        ("release con .github/ contra develop", "release", "develop", "feature/task-903-x", gh, "fix",
+         ("riesgo-alto", True, 2, ["approve", "merge-pr"])),
+        ("release con .taskcode/ contra main", "release", "main", "develop", [("M", [".taskcode/config.yml"])], "fix",
+         ("release+riesgo-alto", True, 2, ["approve", "merge-pr", "tag"])),
+        ("release solo src/ contra main", "release", "main", "develop", src, "fix",
+         ("release", False, 1, ["merge-pr", "tag"])),
+        ("hotfix contra main desde feature/*", "hotfix", "main", "feature/task-904-x", src, "fix", "ERROR"),
+        ("feature contra main", "feature", "main", "feature/task-905-x", src, "funcionalidad", "ERROR"),
+    ]
+    okt = 0
+    for nombre, tipo, base, rama, cambios, decl, esp in casos:
+        ef = carril_efectivo(decl, carril_minimo(cambios, {})[0])
+        try:
+            p = politica(ef, tipo, {}, tabla, base, rama)
+            obt = (p["fila"], p["plan"], p["aprobaciones"], sorted(p["paradas"]))
+        except ErrorCarril:
+            obt = "ERROR"
+        bien = obt == esp
+        okt += bien
+        print(f"  {nombre:38} efectivo={ef:12} -> {obt} {'ok' if bien else 'FALLO (se esperaba ' + str(esp) + ')'}")
+        if not bien:
+            falla("C", f"tipo y base: {nombre}")
+    print("-- barrido: approve, merge-pr y tag en todo carril, tipo, base, modo y configuracion valida de D")
+    barr = cont = rech = 0
+    bases = (("develop", "feature/task-1-x"), ("main", "develop"), ("main", "hotfix/task-1-x"))
     for cfg in CONFIGS_VALIDAS:
         for carril in ORDEN:
             for tipo in [None, "feature", "fix"] + TIPOS_MAIN:
-                for modo in ("manual", "semiautomatico", "automatico"):
-                    pol = politica(carril, tipo, cfg, tabla)
-                    for fase in FIJAS:
-                        barr += 1
-                        a, _ = accion(fase, {"declarado": carril, "tipo": tipo}, pol, modo, cfg, tabla)
-                        cont += a == "continuar"
-    print(f"  combinaciones={barr} ; continuar={cont}")
+                for base, rama in bases:
+                    try:
+                        pol = politica(carril, tipo, cfg, tabla, base, rama)
+                    except ErrorCarril:
+                        rech += 1
+                        continue
+                    for modo in ("manual", "semiautomatico", "automatico"):
+                        for fase in FIJAS:
+                            barr += 1
+                            a, _ = accion(fase, {"declarado": carril, "tipo": tipo, "base": base, "rama": rama},
+                                          pol, modo, cfg, tabla)
+                            cont += a == "continuar"
+    print(f"  combinaciones={barr} ; continuar={cont} ; tipo y base que fallan cerrado (sin fila)={rech}")
     if cont:
         falla("C", f"{cont} continuar sobre una parada fija")
     total_malas += cont
-    print(f"RESULTADO C {' ; '.join(filas_res)} ; continuar sobre approve/merge-pr/tag={total_malas} ; "
+    print(f"RESULTADO C {' ; '.join(filas_res)} ; tipo y base {okt}/{len(casos)} ; continuar sobre approve/merge-pr/tag={total_malas} ; "
           f"paradas distintas de la politica={discrepancias}")
 
 
@@ -782,6 +862,7 @@ def seccion_d(tabla, trabajo):
         ("clave raiz desconocida", {"carril_maximo": "fix"}),
         ("modo que se salta paradas", {"politica_carriles": {"funcionalidad": {"modo": "sin-paradas"}}}),
         ("riesgo-alto con roles como texto", {"politica_carriles": {"riesgo-alto": {"roles_diseno": "4"}}}),
+        ("paradas_extra con una lista dentro", {"politica_carriles": {"fix": {"paradas_extra": [["review"]]}}}),
     ]
     rech = 0
     for nombre, cfg in negativos:
