@@ -26,7 +26,7 @@ precondiciones: tareas activas=0 ; arbol limpio=True
 actualizar sin capacidad tareas-json: codigo 5 ; huecos bloqueantes: scripts/lector-tareas.py (1-44) sin tareas-json; scripts/comprobar-modulos.py (_cargar_grafo 87-92, tareas_vivas 95-105) sin tareas-json; scripts/comprobar-fallos.py (_cargar_grafo 51-56, tareas_vivas 302-310) sin tareas-json
    ficheros cambiados por la negativa (con .git): 0
 actualizar (huecos forzados en la PoC): codigo 0 ; rama de estado calculada 3471bf334
-subtree split: 1151 commits ; tiempo: menos de 600 s ; rama de estado tras aplanar y formato 2: 1153 commits
+subtree split: 1151 commits ; rama de estado tras aplanar y formato 2: 1153 commits (el tiempo de reloj va a stderr: no es una cifra comprobada)
 criterio: tareas 96 de 96 ; frontmatter no YAML 0 ; con formato 2 96 ; diferencias 0 ; roadmap iguales (94 filas) ; merge-base ninguna
 historia por tarea: commits por ruta >= develop 96/96 ; git log --follow >= el de develop 96/96 [] ; --follow ya roto en develop (la 0.16 mueve y reescribe en el mismo commit): 3 ['TASK-019 1 de 11', 'TASK-020 1 de 11', 'TASK-080 5 de 6']
 remoto: refs antes del push 1 ; tras el push 3
@@ -52,6 +52,7 @@ plan recalculado tras la vuelta atras: igual al inicial
       Nada en marcha.
    roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> Linea de config inv
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
    new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       [ERROR] <copia> Linea de config invalida (falta ":"): "---"
    hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
@@ -72,6 +73,7 @@ plan recalculado tras la vuelta atras: igual al inicial
       Nada en marcha.
    roadmap --escribir: codigo 0 ; escribe en el proyecto: tareas/ROADMAP.md ; en .git: ninguno
       Regenerado tareas/ROADMAP.md (sin commitear: revisalo y commitealo).
+      filas de tarea en tareas/ROADMAP.md: 94 -> 0
    new: codigo 1 ; escribe en el proyecto: tareas/00-planificadas/TASK-001/tarea.md ; en .git: ninguno
       [ERROR] taskctl escribio los ficheros de la tarea pero no pudo preparar "tareas/00-planificadas/TASK-001" para
       new crea ['tareas/00-planificadas/TASK-001'] ; ID que ya existe en la carpeta fija: 1
@@ -93,6 +95,7 @@ plan recalculado tras la vuelta atras: igual al inicial
       Nada en marcha.
    roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> Linea de config inv
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
    new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       [ERROR] <copia> Linea de config invalida (falta ":"): "    - 'Cargo.lock'"
    hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
@@ -113,6 +116,7 @@ plan recalculado tras la vuelta atras: igual al inicial
       Nada en marcha.
    roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> modo_flujo "'automa
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
    new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
       [ERROR] <copia> modo_flujo "'automatico'" no es valido. ¿Querias decir "automatico"?
    hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
@@ -174,11 +178,17 @@ uso de los campos (tareas con valor distinto del defecto de la 0.16; `rama` no s
    scripts/resumen-verificacion.py: 1 lineas (136)
    tools/odt-arquitectura/tests/verificar.rs: 3 lineas (3, 25, 69)
 
-=== G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) ===
-cifras en la tabla del ADR: 108 ; medidas: 108
-secciones de la plantilla que faltan: ninguna
-IDs citados: requisitos 5 ; tareas del plan 27 ; auditoria 0 ; inexistentes: ninguno
-enlaces: 6 ; a tareas/ o a otros repos: ninguno
-fila en el indice: si
+=== G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control ===
+cifras en la tabla del ADR: 111 ; medidas: 111
+IDs citados: requisitos 5 ; tareas del plan 27 ; auditoria 0 ; enlaces: 6
+errores del ADR: 0
+  mutacion cifra-cambiada: falla como se espera (subtree split: commits de la rama de estado: el ADR dice '1150' y lo medido es '1151')
+  mutacion fila-borrada: falla como se espera (cifra medida que falta en la tabla: subtree split: commits de la rama de estado = 1151)
+  mutacion fila-sin-medida: falla como se espera (fila de la tabla sin medida: cifra inventada)
+  mutacion tiempo-de-reloj-en-la-tabla: falla como se espera (fila de la tabla sin medida: subtree split: tiempo en OpenDockTrading)
+  mutacion resumen-inventado: falla como se espera (el resumen cita '9999', que no es un valor de la tabla)
+  mutacion enlace-a-tareas: falla como se espera (enlaces prohibidos ['../../tareas/x.md'])
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## No verificado'])
 
 RESULTADO: todo como se espera

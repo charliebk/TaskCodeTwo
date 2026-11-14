@@ -19,15 +19,16 @@ nombres a npm, Homebrew y winget son de solo lectura.
     automatica con el criterio roto sobre una segunda copia que reanuda una
     migracion a medias.
 (C) Convivencia: board, doctor, estado --stdin, roadmap --escribir y new de la
-    0.16 y sus hooks con stdin sobre la copia migrada, con tres variantes de la
-    config formato 2; busca un fallo cerrado de la 0.16 para D2.
+    0.16 y sus hooks con stdin sobre la copia migrada, con cuatro variantes de la
+    config formato 2 (una es control sin centinela); busca un fallo cerrado de la 0.16 para D2.
 (A) Informe de adopcion de OpenDockTrading: uso de campos (F1-9), parches y
     propio de F1-11 con fichero:lineas recalculados en el commit fijo, y lo
     que nombra TaskCode fuera de tareas/ sin clasificar.
 (G) El ADR: cada cifra de la tabla `cifras` es la medida y toda cifra medida
     esta en la tabla; los numeros en negrita del `resumen` son valores de la
     tabla; secciones de la plantilla; IDs citados que existen; ningun enlace a
-    tareas/ ni a otros repos; fila en el indice.
+    tareas/ ni a otros repos; fila en el indice; y ocho copias mutadas del ADR que
+    tienen que fallar cada una por su motivo.
 
 Uso: python -I -B poc-f1-12.py <trabajo> <repo-TaskCodeTwo> <carpeta-Personal> <plugin-0.16.1> [--cache-split <dir>]
 Sale con 0 solo si todo sale como se espera. El log (stdout) es determinista
@@ -844,15 +845,6 @@ def contar_por_carpeta(tareas):
     return " / ".join(str(sum(1 for t in tareas.values() if t["carpeta"] == c)) for c in CARPETA_ESTADO)
 
 
-def cubos(seg):
-    if seg is None:
-        return "reutilizado"
-    for tope in (60, 300, 600, 1200):
-        if seg < tope:
-            return f"menos de {tope} s"
-    return "1200 s o mas"
-
-
 def seccion_m(personal, trabajo, cache):
     sep("M: migracion de una copia de OpenDockTrading (commit fijo)")
     copia = preparar_copia(personal, trabajo, "odt-migrada")
@@ -926,10 +918,9 @@ def seccion_m(personal, trabajo, cache):
         return copia, remoto, tareas
     n_split = len(git(copia, "rev-list", inf["sha_split"]).split())
     n_estado = len(git(copia, "rev-list", f"refs/heads/{NOMBRE['rama_estado']}").split())
-    print(f"subtree split: {n_split} commits ; tiempo: {cubos(inf['dur_split'])} ; rama de estado tras aplanar y "
-          f"formato 2: {n_estado} commits")
+    print(f"subtree split: {n_split} commits ; rama de estado tras aplanar y formato 2: {n_estado} commits "
+          f"(el tiempo de reloj va a stderr: no es una cifra comprobada)")
     MEDIDO["subtree split: commits de la rama de estado"] = str(n_split)
-    MEDIDO["subtree split: tiempo en OpenDockTrading"] = cubos(inf["dur_split"])
     print(f"criterio: tareas {c['tareas']} ; frontmatter no YAML {c['no_yaml']} ; con formato 2 {c['formato2']} ; "
           f"diferencias {len(c['diferencias'])} ; roadmap {c['roadmap']} ({c['roadmap_filas']} filas) ; "
           f"merge-base {c['merge_base']}")
@@ -1124,7 +1115,10 @@ def seccion_c(plugin, copia):
         res = {}
         for nombre, f in ordenes:
             h0 = hash_dir(copia)
+            rm_ruta = os.path.join(copia, "tareas", "ROADMAP.md")
+            filas0 = len(roadmap_estructura(open(rm_ruta, encoding="utf-8").read()))
             codigo, salida = f()
+            filas1 = len(roadmap_estructura(open(rm_ruta, encoding="utf-8").read())) if os.path.exists(rm_ruta) else 0
             camb = diferencias(h0, hash_dir(copia))
             proyecto = [x for x in camb if not x.startswith(".git/")]
             ids = sorted(set(re.findall(r"TASK-\d{3,}", salida)))
@@ -1133,6 +1127,9 @@ def seccion_c(plugin, copia):
             print(f"   {nombre}: codigo {codigo} ; escribe en el proyecto: {resumir_rutas(proyecto)} ; "
                   f"en .git: {resumir_rutas([x for x in camb if x.startswith('.git/')], 3)}{extra}")
             print(f"      {primera(salida)}")
+            if nombre == "roadmap --escribir":
+                print(f"      filas de tarea en tareas/ROADMAP.md: {filas0} -> {filas1}")
+                res[nombre]["filas"] = f"{filas0} -> {filas1}"
             if nombre == "doctor":
                 errs = sorted(set(re.findall(r"\[ERROR\]\s+([\w-]+):", salida)))
                 avisos = len(re.findall(r"\[AVISO\]", salida))
@@ -1159,6 +1156,7 @@ def seccion_c(plugin, copia):
         for nombre in ("board", "doctor", "new", "roadmap --escribir", "hook pre-tool-merge", "hook stop-verificacion"):
             r = variantes[v][nombre]
             MEDIDO[f"0.16 {nombre}, config {v}: codigo"] = str(r["codigo"])
+        MEDIDO[f"0.16 roadmap --escribir, config {v}: filas de tarea del ROADMAP"] = variantes[v]["roadmap --escribir"]["filas"]
         MEDIDO[f"0.16 doctor, config {v}: comprobaciones en error"] = ", ".join(variantes[v]["doctor"]["errores"])
         r = variantes[v]["new"]
         MEDIDO[f"0.16 new, config {v}: ID duplicado creado"] = \
@@ -1246,8 +1244,92 @@ def filas_tabla(bloque):
     return filas[0], filas[1:]
 
 
+def errores_adr(adr, ruta, repo_tc2, medido, con_indice=True):
+    """Lista de errores del ADR frente a lo medido (funcion pura: la usan G y sus mutaciones)."""
+    err = []
+    try:
+        _, filas = filas_tabla(entre_marcadores(adr, "cifras"))
+    except SystemExit as e:
+        return [str(e)]
+    tabla = {}
+    for f in filas:
+        if f[0] in tabla:
+            err.append(f"fila repetida en la tabla: {f[0]}")
+        tabla[f[0]] = f[1].strip("`")
+    for k, v in sorted(medido.items()):
+        if k not in tabla:
+            err.append(f"cifra medida que falta en la tabla: {k} = {v}")
+        elif tabla[k] != v:
+            err.append(f"{k}: el ADR dice {tabla[k]!r} y lo medido es {v!r}")
+    for k in tabla:
+        if k not in medido:
+            err.append(f"fila de la tabla sin medida: {k}")
+    try:
+        res = entre_marcadores(adr, "resumen")
+    except SystemExit as e:
+        return err + [str(e)]
+    valores = set(tabla.values()) | {p for v in tabla.values() for p in re.split(r"\s*(?:/|->|y|de)\s*", v)}
+    for b in re.findall(r"\*\*([^*]+)\*\*", res):
+        if re.search(r"\d", b) and b not in valores:
+            err.append(f"el resumen cita {b!r}, que no es un valor de la tabla")
+    secciones = ["## Contexto", "## Alternativas", "## Pruebas de concepto", "## Decisión", "## Requisitos y evidencia",
+                 "## Consecuencias", "## Fuera de alcance", "## Preguntas abiertas", "## No verificado",
+                 "## Divergencias"]
+    faltan = [s for s in secciones if not re.search(rf"^{re.escape(s)}", adr, re.M)]
+    if faltan:
+        err.append(f"faltan secciones {faltan}")
+    req = open(os.path.join(repo_tc2, "docs", "plan", "REQUISITOS-FUNCIONALES.md"), encoding="utf-8").read()
+    plan = open(os.path.join(repo_tc2, "docs", "plan", "PLAN-TASKCODE-2.md"), encoding="utf-8").read()
+    aud = "".join(open(os.path.join(repo_tc2, "docs", "auditoria", x), encoding="utf-8").read()
+                  for x in sorted(os.listdir(os.path.join(repo_tc2, "docs", "auditoria"))))
+    ids_r = sorted(set(re.findall(r"\b(R[RFN]-\d+)\b", adr)))
+    ids_f = sorted(set(re.findall(r"\b(F\d+-\d+[a-z]?)\b", adr)))
+    ids_h = sorted(set(re.findall(r"\b(H\d+)\b", adr)))
+    malos = [i for i in ids_r if not re.search(rf"\|\s*{i}\s*\|", req)]
+    malos += [i for i in ids_f if not re.search(rf"\|\s*{i}\s*\|", plan)]
+    malos += [i for i in ids_h if not re.search(rf"\b{i}\b", aud)]
+    if malos:
+        err.append(f"IDs que no existen: {malos}")
+    enlaces = re.findall(r"\]\(([^)]+)\)", adr)
+    prohibidos = [e for e in enlaces if "tareas/" in e or "OpenDockTrading" in e or "ToolsaWeb" in e
+                  or e.startswith("../../")]
+    if prohibidos:
+        err.append(f"enlaces prohibidos {prohibidos}")
+    for e in enlaces:
+        if not e.startswith("http") and not os.path.exists(os.path.join(os.path.dirname(ruta), e.split("#")[0])):
+            err.append(f"enlace que no resuelve: {e}")
+    if con_indice:
+        idx = open(os.path.join(repo_tc2, "docs", "adr", "README.md"), encoding="utf-8").read()
+        if "[F1-12](F1-12-actualizacion-entre-versiones.md)" not in idx:
+            err.append("falta la fila en docs/adr/README.md")
+    return err, tabla, ids_r, ids_f, ids_h, enlaces
+
+
+# Mutaciones de control del propio ADR: cada copia mutada tiene que fallar por el motivo esperado.
+def mutaciones(adr):
+    fila_split = "| subtree split: commits de la rama de estado | `1151` | M |"
+    return [
+        ("cifra-cambiada", adr.replace(fila_split, fila_split.replace("`1151`", "`1150`")),
+         "subtree split: commits de la rama de estado: el ADR dice"),
+        ("fila-borrada", adr.replace(fila_split + "\n", ""),
+         "cifra medida que falta en la tabla: subtree split: commits de la rama de estado"),
+        ("fila-sin-medida", adr.replace("<!-- cifras:fin -->", "| cifra inventada | `1` | M |\n<!-- cifras:fin -->"),
+         "fila de la tabla sin medida: cifra inventada"),
+        ("tiempo-de-reloj-en-la-tabla", adr.replace("<!-- cifras:fin -->",
+                                                     "| subtree split: tiempo en OpenDockTrading | `menos de 600 s` | M |\n"
+                                                     "<!-- cifras:fin -->"),
+         "fila de la tabla sin medida: subtree split: tiempo en OpenDockTrading"),
+        ("resumen-inventado", adr.replace("<!-- resumen:fin -->", "Cifra suelta: **9999**.\n<!-- resumen:fin -->"),
+         "el resumen cita '9999'"),
+        ("enlace-a-tareas", adr.replace("## Contexto", "## Contexto\n\n[x](../../tareas/x.md)", 1),
+         "enlaces prohibidos"),
+        ("id-inexistente", adr.replace("## Contexto", "## Contexto\n\nVer F7-99.", 1), "IDs que no existen: ['F7-99']"),
+        ("seccion-borrada", adr.replace("## No verificado", "## Sin verificar"), "faltan secciones"),
+    ]
+
+
 def seccion_g(repo_tc2):
-    sep("G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice)")
+    sep("G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control")
     ruta = os.path.join(repo_tc2, "docs", "adr", "F1-12-actualizacion-entre-versiones.md")
     if not os.path.exists(ruta):
         falla("G", "no existe el ADR")
@@ -1261,59 +1343,47 @@ def seccion_g(repo_tc2):
         b = sum(1 for l in t if "taskcode/tareas" in l)
         c = sum(1 for l in t if ".git/taskcode" in l)
         MEDIDO[f"F1-{n}: lineas con taskctl / taskcode/tareas / .git/taskcode"] = f"{a} / {b} / {c}"
-    cab, filas = filas_tabla(entre_marcadores(adr, "cifras"))
-    tabla = {}
-    for f in filas:
-        tabla[f[0]] = f[1].strip("`")
+    r = errores_adr(adr, ruta, repo_tc2, MEDIDO)
+    if isinstance(r, list):
+        for e in r:
+            falla("G", e)
+        return
+    err, tabla, ids_r, ids_f, ids_h, enlaces = r
     print(f"cifras en la tabla del ADR: {len(tabla)} ; medidas: {len(MEDIDO)}")
-    for k, v in sorted(MEDIDO.items()):
-        if k not in tabla:
-            falla("G", f"cifra medida que falta en la tabla: {k} = {v}")
-        elif tabla[k] != v:
-            falla("G", f"{k}: el ADR dice {tabla[k]!r} y lo medido es {v!r}")
-    for k in tabla:
-        if k not in MEDIDO:
-            falla("G", f"fila de la tabla sin medida: {k}")
-    res = entre_marcadores(adr, "resumen")
-    valores = set(tabla.values()) | {p for v in tabla.values() for p in re.split(r"\s*(?:/|->|y|de)\s*", v)}
-    for b in re.findall(r"\*\*([^*]+)\*\*", res):
-        if re.search(r"\d", b) and b not in valores:
-            falla("G", f"el resumen cita {b!r}, que no es un valor de la tabla")
-    secciones = ["## Contexto", "## Alternativas", "## Pruebas de concepto", "## Decisión", "## Requisitos y evidencia",
-                 "## Consecuencias", "## Fuera de alcance", "## Preguntas abiertas", "## No verificado",
-                 "## Divergencias"]
-    faltan = [s for s in secciones if not re.search(rf"^{re.escape(s)}", adr, re.M)]
-    print(f"secciones de la plantilla que faltan: {faltan or 'ninguna'}")
-    if faltan:
-        falla("G", f"faltan secciones {faltan}")
-    req = open(os.path.join(repo_tc2, "docs", "plan", "REQUISITOS-FUNCIONALES.md"), encoding="utf-8").read()
-    plan = open(os.path.join(repo_tc2, "docs", "plan", "PLAN-TASKCODE-2.md"), encoding="utf-8").read()
-    aud = "".join(open(os.path.join(repo_tc2, "docs", "auditoria", x), encoding="utf-8").read()
-                  for x in os.listdir(os.path.join(repo_tc2, "docs", "auditoria")))
-    ids_r = sorted(set(re.findall(r"\b(R[RFN]-\d+)\b", adr)))
-    ids_f = sorted(set(re.findall(r"\b(F\d+-\d+[a-z]?)\b", adr)))
-    ids_h = sorted(set(re.findall(r"\b(H\d+)\b", adr)))
-    malos = [i for i in ids_r if not re.search(rf"\|\s*{i}\s*\|", req)]
-    malos += [i for i in ids_f if not re.search(rf"\|\s*{i}\s*\|", plan)]
-    malos += [i for i in ids_h if not re.search(rf"\b{i}\b", aud)]
-    print(f"IDs citados: requisitos {len(ids_r)} ; tareas del plan {len(ids_f)} ; auditoria {len(ids_h)} ; inexistentes: "
-          f"{malos or 'ninguno'}")
-    if malos:
-        falla("G", f"IDs que no existen: {malos}")
-    enlaces = re.findall(r"\]\(([^)]+)\)", adr)
-    prohibidos = [e for e in enlaces if "tareas/" in e or "OpenDockTrading" in e or "ToolsaWeb" in e
-                  or e.startswith("../../")]
-    print(f"enlaces: {len(enlaces)} ; a tareas/ o a otros repos: {prohibidos or 'ninguno'}")
-    if prohibidos:
-        falla("G", f"enlaces prohibidos {prohibidos}")
-    for e in enlaces:
-        if not e.startswith("http") and not os.path.exists(os.path.join(os.path.dirname(ruta), e.split("#")[0])):
-            falla("G", f"enlace que no resuelve: {e}")
-    idx = open(os.path.join(repo_tc2, "docs", "adr", "README.md"), encoding="utf-8").read()
-    fila = "[F1-12](F1-12-actualizacion-entre-versiones.md)" in idx
-    print(f"fila en el indice: {'si' if fila else 'NO'}")
-    if not fila:
-        falla("G", "falta la fila en docs/adr/README.md")
+    print(f"IDs citados: requisitos {len(ids_r)} ; tareas del plan {len(ids_f)} ; auditoria {len(ids_h)} ; enlaces: {len(enlaces)}")
+    for e in err:
+        falla("G", e)
+    print(f"errores del ADR: {len(err)}")
+    for nombre, mutado, esperado in mutaciones(adr):
+        if mutado == adr:
+            falla("G", f"la mutacion {nombre} no cambia el ADR")
+            continue
+        rm = errores_adr(mutado, ruta, repo_tc2, MEDIDO)
+        errs = rm if isinstance(rm, list) else rm[0]
+        ok = any(esperado in e for e in errs)
+        print(f"  mutacion {nombre}: {'falla como se espera' if ok else 'NO FALLA'} "
+              f"({str(next((e for e in errs if esperado in e), errs[:1]))[:110]})")
+        if not ok:
+            falla("G", f"la mutacion {nombre} no la detecta el guion")
+
+
+MARCA = ".poc-f1-12"
+
+
+def comprobar_trabajo(trabajo):
+    """<...>/pruebas-claude/<proyecto>/<motivo>[/...]: dos niveles como minimo bajo pruebas-claude, y la carpeta
+    no existe, esta vacia o lleva la marca de esta PoC. Si no, no se borra nada."""
+    partes = trabajo.replace("\\", "/").rstrip("/").split("/")
+    if "pruebas-claude" not in partes:
+        raise SystemExit("ERROR: la carpeta de trabajo tiene que estar bajo pruebas-claude/<proyecto>/<motivo>")
+    debajo = partes[len(partes) - partes[::-1].index("pruebas-claude"):]
+    if len(debajo) < 2:
+        raise SystemExit(f"ERROR: {trabajo}: hacen falta dos niveles bajo pruebas-claude (<proyecto>/<motivo>)")
+    if os.path.lexists(trabajo):
+        if not os.path.isdir(trabajo):
+            raise SystemExit(f"ERROR: {trabajo} existe y no es una carpeta")
+        if os.listdir(trabajo) and not os.path.exists(os.path.join(trabajo, MARCA)):
+            raise SystemExit(f"ERROR: {trabajo} no esta vacia ni lleva la marca {MARCA}: no se borra")
 
 
 def main():
@@ -1327,10 +1397,10 @@ def main():
         raise SystemExit(__doc__)
     trabajo, repo_tc2, personal, plugin = (os.path.abspath(a) for a in args)
     sys.stdout.reconfigure(encoding="utf-8", newline="\n")
-    if "pruebas-claude" not in trabajo.replace("\\", "/"):
-        raise SystemExit("ERROR: la carpeta de trabajo tiene que estar bajo pruebas-claude")
+    comprobar_trabajo(trabajo)
     borrar(trabajo)
     os.makedirs(trabajo)
+    open(os.path.join(trabajo, MARCA), "w", encoding="utf-8").write("carpeta de trabajo de poc-f1-12.py\n")
     print(f"PoC F1-12 ; OpenDockTrading {FIJO_ODT[:9]} ; Python {sys.version.split()[0]} ; PyYAML {yaml.__version__} ; "
           f"{git(trabajo, 'version').strip()} ; node {run(['node', '--version']).stdout.decode().strip()}")
     seccion_n()

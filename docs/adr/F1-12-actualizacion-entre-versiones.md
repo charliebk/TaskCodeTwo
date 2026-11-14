@@ -44,7 +44,7 @@ deterministas** (ningún paso de la actualización depende de un hook).
 | TR2 | Push y, si algo falla, revertir en el remoto | Descartada: F1-5 prohíbe borrar o forzar la rama de estado y `develop` solo cambia por PR |
 | **CR1** | **Criterio estructural**: instantánea `{id → título, estado, dependencias, sprint, etiquetas}` antes y después, roadmap por estructura, `merge-base` vacío e historia por tarea | **Elegida**: detecta una sola dependencia borrada (PoC M2) |
 | CR2 | Comparar el `ROADMAP.md` byte a byte | Descartada: la 2.0 lo regenera con otro contenido (F1-1, decisión 3) |
-| **D1a** | Nombres `tc2` (CLI) y `taskcodetwo` (plugin, prefijo de skills, `.git/taskcodetwo/`, rama `taskcodetwo/tareas`, paquete npm) | **Elegida** (consigna «la opción recomendada»): `tc2` no está en el PATH; el paquete npm `tc2` está ocupado, `taskcodetwo` libre (PoC N) |
+| **D1a** | Nombres `tc2` (CLI) y `taskcodetwo` (plugin, prefijo de skills, `.git/taskcodetwo/`, rama `taskcodetwo/tareas`, paquete npm) | **Elegida** (consigna «la opción recomendada»; aprobados por Carlos el 2026-11-14): `tc2` no está en el PATH; el paquete npm `tc2` está ocupado, `taskcodetwo` libre (PoC N) |
 | D1b | `tctwo` | Descartada: libre en todo, pero no se lee como «TaskCode» y no gana nada frente a `tc2` |
 | D1c | `taskcodetwo` como CLI | Descartada: largo para escribirlo a diario |
 | D1d | `tc` | Descartada: `tc` es la orden de control de tráfico de iproute2 en Linux (no verificado en una distro con iproute2, ver «No verificado») y el paquete npm `tc` instala un binario `tc` (PoC N) |
@@ -77,7 +77,12 @@ python -I -B tareas/<estado>/TASK-013/poc/poc-f1-12.py \
 El guion lee la tabla `cifras` de este ADR y sale con 1 si una cifra no es
 la medida, si falta una medida o si sobra una fila; también comprueba el
 `resumen`, las secciones, los IDs citados, los enlaces y la fila del índice.
-Salida observada, recortada (la completa está en el log):
+Ocho copias mutadas del ADR (una cifra cambiada, una fila borrada, una fila
+sin medida, el tiempo de reloj metido en la tabla, un número inventado en
+el resumen, un enlace a `tareas/`, un ID que no existe y una sección
+borrada) tienen que fallar, cada una por su motivo. El tiempo de reloj no es
+una cifra comprobada: va a stderr. Salida observada, recortada (la completa
+está en el log):
 
 ### N — Nombres
 
@@ -104,7 +109,7 @@ commit fijo 8141a08a7: 96 tareas ; por carpeta 00..05: 50 / 0 / 0 / 0 / 44 / 2
 plan: tareas a mover=96 ; a descartada=2 (TASK-015, TASK-068) ; con motivo de ## Descartada=2 ; claves retiradas=192
 actualizar sin capacidad tareas-json: codigo 5 ; huecos bloqueantes: scripts/lector-tareas.py (1-44) ...
    ficheros cambiados por la negativa (con .git): 0
-subtree split: 1151 commits ; tiempo: menos de 600 s ; rama de estado tras aplanar y formato 2: 1153 commits
+subtree split: 1151 commits ; rama de estado tras aplanar y formato 2: 1153 commits
 criterio: tareas 96 de 96 ; frontmatter no YAML 0 ; con formato 2 96 ; diferencias 0 ; roadmap iguales (94 filas) ; merge-base ninguna
 historia por tarea: commits por ruta >= develop 96/96 ; git log --follow >= el de develop 96/96 ;
    --follow ya roto en develop (la 0.16 mueve y reescribe en el mismo commit): 3 ['TASK-019 1 de 11', 'TASK-020 1 de 11', 'TASK-080 5 de 6']
@@ -126,10 +131,11 @@ separado del formato 2. Sin la capacidad `tareas-json` la migración se niega
 tareas tras migrar. La PoC fuerza la migración para medir el resto.
 
 El `subtree split` recorre los 1350 commits de `develop` y deja 1151 en la
-rama de estado: tardó 594 s en la ejecución que deja el log y 907 s en una
-prueba anterior sobre otro clon (tiempos por stderr; el log solo da el
-tramo, que puede cambiar entre ejecuciones). Es el paso caro de la
-migración.
+rama de estado. Es el paso caro de la migración y su tiempo de reloj varía
+entre ejecuciones en la misma máquina, así que no entra en la tabla
+comprobada. Rango observado: 594 s en la entrega, 614 s en la reejecución
+de la revisión 1 y 647 s en la ejecución que deja el log de esta
+corrección (su stderr va junto al log, en `poc-f1-12.tiempos.log`).
 
 ### M2 — Vuelta atrás con el criterio roto, sobre una migración a medias
 
@@ -162,7 +168,7 @@ cada fichero de la copia, `.git` incluido, y la restaura.
 | `board` | 0, «No hay tareas» | 0, «No hay tareas» | 0 | 0 |
 | `doctor` | 1: `config`, `rama-principal`, `tareas-carpetas` | 1: `rama-principal`, `tareas-carpetas` y 18 avisos de claves desconocidas | 1, como B | 1, como B |
 | `estado --stdin` | 0, «Nada en marcha» | 0 | 0 | 0 |
-| `roadmap --escribir` | **1, no escribe** | **0, reescribe `tareas/ROADMAP.md`** | 1, no escribe | 1, no escribe |
+| `roadmap --escribir` | **1, no escribe** (el ROADMAP sigue con 94 filas de tarea) | **0, reescribe `tareas/ROADMAP.md`: de 94 filas de tarea a 0** | 1, no escribe | 1, no escribe |
 | `new` | **1, no escribe** (`Linea de config invalida (falta ":"): "---"`) | **1, pero escribe `tareas/00-planificadas/TASK-001/tarea.md`**: un `TASK-001` que ya existe en la carpeta fija | 1, no escribe | 1, no escribe |
 | hook `pre-tool-merge` | **2, bloquea** (la config no se puede leer) | 0, deja pasar | 2 | 2 |
 | hooks `pre-tool-lectura`, `stop-verificacion`, `coste-turno` | 0, sin escribir nada | 0 | 0 | 0 |
@@ -221,8 +227,9 @@ ocho campos de la 0.16 sin ningún valor propio en OpenDockTrading.
 
 Cada fila es una medida del guion, con la sección que la produce. El guion
 falla si un valor no es el medido, si falta una medida o si sobra una fila.
-El tiempo del `subtree split` es el de la ejecución que deja el log; las
-ejecuciones de prueba lo reutilizaron de una caché fuera de la copia.
+Solo entran valores que no dependen del reloj. Las ejecuciones de prueba
+reutilizaron el `subtree split` de una caché fuera de la copia; la del log,
+no.
 
 <!-- cifras:inicio -->
 | Cifra | Valor | Fuente |
@@ -274,7 +281,6 @@ ejecuciones de prueba lo reutilizaron de una caché fuera de la copia.
 | remoto: refs antes del criterio y tras el push | `1 -> 3` | M |
 | segunda pasada: pasos del plan y ficheros cambiados | `0 y 0` | M |
 | subtree split: commits de la rama de estado | `1151` | M |
-| subtree split: tiempo en OpenDockTrading | `menos de 600 s` | M |
 | reanudar: rama de estado a medias reutilizable | `si` | M2 |
 | vuelta atras: codigo con el criterio roto | `6` | M2 |
 | vuelta atras: diferencia detectada | `TASK-002: dependencias` | M2 |
@@ -313,6 +319,10 @@ ejecuciones de prueba lo reutilizaron de una caché fuera de la copia.
 | 0.16 roadmap --escribir, config B: codigo | `1` | C |
 | 0.16 roadmap --escribir, config C: codigo | `1` | C |
 | 0.16 roadmap --escribir, config D: codigo | `1` | C |
+| 0.16 roadmap --escribir, config A: filas de tarea del ROADMAP | `94 -> 0` | C |
+| 0.16 roadmap --escribir, config B: filas de tarea del ROADMAP | `94 -> 94` | C |
+| 0.16 roadmap --escribir, config C: filas de tarea del ROADMAP | `94 -> 94` | C |
+| 0.16 roadmap --escribir, config D: filas de tarea del ROADMAP | `94 -> 94` | C |
 | D2: ordenes de escritura de la 0.16 cerradas con la config A | `no` | C |
 | D2: ordenes de escritura de la 0.16 cerradas con la config B | `si` | C |
 | D2: ordenes de escritura de la 0.16 cerradas con la config C | `si` | C |
@@ -386,7 +396,7 @@ algo: sin `tareas-json` la migración se niega (código y ficheros cambiados:
    | `tareas/NN-estado/.gitkeep` | se borran (las carpetas de estado desaparecen) |
    | frontmatter de la 0.16 | formato 2 de F1-9: `formato: 2`, cadenas y fechas entre comillas dobles, `modelo_sugerido` → `roles.implementacion.modelo`, `skills_recomendados` y `regla_seleccion_skill` → `roles.implementacion`, `agente_revisor` → `roles.revision.agente`; fuera `revision_codex` y `ultimo_commit_revisado`; `carril` y `estimacion` a `null`; las claves desconocidas se conservan (F1-9 D4a). El cuerpo, byte a byte |
    | `tareas/ROADMAP.md` | se lleva tal cual a la raíz de la rama de estado; la 2.0 lo regenera con el contenido de F1-1 en su primera transición (F3-4) |
-   | `.taskcode/config.yml` plana | la misma ruta (D4a) con `---` en la primera línea, `formato: 2`, las claves base de F2-7 y los bloques de F1-11 (`verificacion`, `derivados`, `confianza_incluye`); los valores de la 0.16 pasan tal cual (`comando_verificacion` → `verificacion.comando` entre comillas simples, `timeout_verificacion` → `perfiles.completa.timeout`) y lo que la 0.16 no tenía lo declara el proyecto (F1-11, «valores a rellenar») |
+   | `.taskcode/config.yml` plana | la misma ruta (D4a) con `---` en la primera línea, `formato: 2`, las claves base de F2-7 y los bloques de F1-11 (`verificacion`, `derivados`, `confianza_incluye`); los valores de la 0.16 pasan tal cual (`comando_verificacion` → `verificacion.comando`, `timeout_verificacion` → `perfiles.completa.timeout`) y lo que la 0.16 no tenía lo declara el proyecto (F1-11, «valores a rellenar»). **Comillas**: las claves que la 0.16 también lee (`modo_flujo` y las demás claves base heredadas) van entre **comillas dobles**, como pide F1-9 para las cadenas y porque la 0.16 quita las dobles pero conserva las simples dentro del valor (variante D de la PoC C); las órdenes y rutas de los bloques nuevos, que la 0.16 no lee, van entre **simples** o con `/`, como fija F1-11 (decisión 1), para que el `\v` de una ruta de Windows no sea un escape |
    | `.gitignore` | añade `tareas/` |
    | `.git/taskcode/` (estado interno de la 0.16) | no migra: lo borra la desinstalación de la 0.16 (F9-10) |
 
@@ -463,8 +473,8 @@ algo: sin `tareas-json` la migración se niega (código y ficheros cambiados:
      desinstalar la 0.16 (F9-10); nunca con una tarea en curso; opcional y
      por proyecto.
 
-7. **Nombres definitivos** (D1a). Distintos de los de la 0.16 y los mismos
-   tras desinstalarla:
+7. **Nombres definitivos** (D1a), aprobados por Carlos el 2026-11-14.
+   Distintos de los de la 0.16 y los mismos tras desinstalarla:
 
    | Pieza | 0.16 | 2.0 |
    |---|---|---|
@@ -561,12 +571,22 @@ Las órdenes que esos ADR nombran para la 2.0 (`taskctl actualizar`,
    línea tiene `:`; solo avisa de claves desconocidas): aborta una línea sin
    `:` (`---` o una lista en bloque) o un valor inválido de una clave suya.
    Se elige `---`.
-7. **Nombres**: el paquete npm `tc2` está ocupado; el paquete es
-   `taskcodetwo` y el binario `tc2`. La config de la migración pone los
-   valores de la 0.16 entre comillas dobles: con simples, la 0.16 conserva
-   las comillas dentro del valor (variante D).
+7. **Nombres y comillas**: el paquete npm `tc2` está ocupado; el paquete
+   es `taskcodetwo` y el binario `tc2`. La config de la migración pone entre
+   comillas dobles los valores de las claves que la 0.16 también lee
+   (`modo_flujo`): con simples, la 0.16 conserva las comillas dentro del
+   valor y aborta (variante D). Las órdenes de los bloques nuevos siguen
+   entre simples (F1-11); ver la fila de la config en el punto 2.
 8. **El commit fijo** es `8141a08`, no el `f8a9b5f` de F1-11: los scripts
    del desglose no cambian entre los dos.
+9. **ToolsaWeb tiene 404 tareas**, no las 403 del criterio de F9-2 en el
+   plan: 404 en la PoC A de F1-9 y 404 en `develop` en el recuento de la
+   revisión 1 de esta tarea (234 planificadas, 161 terminadas, 9
+   archivadas). Se propone corregir el criterio de F9-2 a 404 junto con las
+   dependencias de D3; este ADR no cambia el plan.
+10. **El tiempo del `subtree split`** sale de la tabla comprobada
+    (revisión 1): varía entre ejecuciones y la puerta fallaba con datos
+    honestos al cruzar un tramo.
 
 ## Requisitos y evidencia
 
@@ -613,10 +633,6 @@ Las órdenes que esos ADR nombran para la 2.0 (`taskctl actualizar`,
 
 ## Preguntas abiertas
 
-- **D1 (nombre)**: `tc2` y `taskcodetwo` salen de la consigna «la opción
-  recomendada»; Carlos puede confirmarlos o cambiarlos antes de F1-14. Un
-  cambio solo toca la tabla del punto 7 y la nota de nombres.
-
 Este ADR se planificó con un solo rol (arquitectura). Lo que no cubrió:
 
 - **Riesgos**: corte a medias entre el push de la rama de estado y el de
@@ -632,6 +648,11 @@ Este ADR se planificó con un solo rol (arquitectura). Lo que no cubrió:
   split propio con `git fast-export`, a decidir en F9-2 con la medida.
 
 ## No verificado
+
+- **La retirada de parches no se ejecuta en la PoC**: no se editan
+  `verificar.bat` ni los lectores de OpenDockTrading; solo se calcula su
+  alcance (`fichero:líneas` y el 91 / 973). Los únicos ficheros de código que
+  cambia la migración de la PoC son `.gitignore` y `.taskcode/config.yml`.
 
 - **El choque de `tc` con iproute2** en una distro Linux de uso normal: la
   única distro de WSL de esta máquina (`docker-desktop`) no trae iproute2.
