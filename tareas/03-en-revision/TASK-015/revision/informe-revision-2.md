@@ -2,7 +2,7 @@
 
 - Commit revisado: dd39c4108a460d33676e2d283ea2012b370bd381
 - Revisor: code-quality-reviewer
-- Veredicto: aprobada-con-correcciones
+- Veredicto: aprobada con correcciones
 
 Alcance: pase generico, verificacion acotada al diff de las correcciones
 (ca2d75f frente a 91a8078): `docs/adr/F1-13-adaptador-de-plataforma.md`,
