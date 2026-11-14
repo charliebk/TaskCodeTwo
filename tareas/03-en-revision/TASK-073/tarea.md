@@ -61,3 +61,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 
 - code-quality-reviewer — 90330c6
 - code-quality-reviewer — 806f024
+
+## Verificacion ligera
+
+- 2026-11-14T22:30:19Z: ronda 2; commit revisado 3a11b7d5f06ab04c7f968196e2ff98b1822451a3; commit verificado 71bc716772fd994d3a40b5db6793621e5d5ff7a0; ficheros: docs/adr/F1-15-seleccion-de-skills-agentes-y-modelo.md; corregidos: MEN-8, MEN-11; pendientes: MEN-9, MEN-10
