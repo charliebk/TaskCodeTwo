@@ -40,6 +40,7 @@ Tarea F1-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-14T07:12:24Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-14T07:12:25Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T07:27:02Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T07:39:14Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
