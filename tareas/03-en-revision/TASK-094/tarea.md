@@ -39,6 +39,7 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 | 2026-11-14T16:22:46Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-14T16:22:54Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T16:59:01Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T17:31:05Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
