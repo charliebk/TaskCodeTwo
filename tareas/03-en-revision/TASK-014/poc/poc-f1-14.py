@@ -65,14 +65,18 @@ MIB = 1024 * 1024
 SIGNTOOL = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
 CN_PRUEBA = "TaskCodeTwo PoC desechable"
 MARCA = ".poc-f1-14"
+# Carpeta poc/ de la tarea: la del propio guion, para que funcione en cualquier estado (02, 03, 04) y tras el cierre.
+POC = os.path.dirname(os.path.abspath(__file__))
 ADR_REL = os.path.join("docs", "adr", "F1-14-distribucion-e-instalacion.md")
 FILA_INDICE = "| [F1-14](F1-14-distribucion-e-instalacion.md) |"
 
-# Criterios 4 y 5 de D1a: no salen de un cronometro sino de lo anotado (DEPENDENCIAS.md, NOTAS.md);
-# se declaran aqui con su motivo para que el ADR no pueda decir otra cosa sin que G lo vea.
+# Criterios 4 y 5 de D1a: son JUICIOS, no medidas del guion. Salen de lo anotado (DEPENDENCIAS.md, NOTAS.md);
+# se declaran aqui con su motivo para que el ADR no pueda decir otra cosa sin que G lo vea, y su fila en la tabla
+# lo dice («juicio»).
 CRITERIO_4 = ("Rust", "las dos librerias YAML estan mantenidas y rechazan duplicadas (F1-9), pero la cadena de "
                       "empaquetado de TypeScript depende de postject 1.0.0-alpha.6 (sin publicar desde 2023-05-19)")
-CRITERIO_5 = ("ninguno", "minutos parecidos (~8 frente a ~9) y tokens no anotados por implementacion")
+CRITERIO_5 = ("ninguno", "minutos parecidos (~8 frente a ~9); Rust tuvo un fallo funcional (TLS) y TypeScript "
+                         "3 iteraciones extra para igualar a Rust (147 frente a 215 lineas); tokens no anotados")
 
 FALLOS = []
 MEDIDO = {}
@@ -244,7 +248,7 @@ def build_ts(fuentes, destino):
 
 def seccion_b(repo, trabajo):
     sep("B: build en limpio de los dos, dos veces (fuera del repo)")
-    poc = os.path.join(repo, "tareas", "02-en-curso", "TASK-014", "poc")
+    poc = POC
     exes = {}
     for nombre, fn, sub in (("Rust", build_rust, "poc-rust"), ("TypeScript", build_ts, "poc-ts")):
         hashes = []
@@ -282,7 +286,7 @@ def seccion_b(repo, trabajo):
         falla("B", "el build de Rust con /Brepro no es reproducible: las cifras de M no serian deterministas")
     borrar(os.path.join(trabajo, "build-poc-rust-brepro"))
     # El repo no cambia por compilar: las fuentes no se tocan.
-    sucio = git(repo, "status", "--porcelain", "--", os.path.join("tareas", "02-en-curso", "TASK-014", "poc"))
+    sucio = git(repo, "status", "--porcelain", "--", os.path.relpath(POC, repo))
     ajenos = [l for l in sucio.splitlines() if re.search(r"target/|node_modules/|dist/|\.exe", l)]
     print(f"artefactos de build dentro del repo: {len(ajenos)}")
     medir("B: artefactos de build dentro del repo", len(ajenos), "B")
@@ -555,7 +559,7 @@ def seccion_f(exes, copias, trabajo, inv):
 
 def seccion_x(repo, trabajo, inv):
     sep("X: compilacion cruzada y ejecucion fuera de Windows, solo con lo instalado")
-    fuentes = os.path.join(repo, "tareas", "02-en-curso", "TASK-014", "poc", "poc-rust")
+    fuentes = os.path.join(POC, "poc-rust")
     env = dict(os.environ, CARGO_TARGET_DIR=os.path.join(trabajo, "build-cruzada"))
     for t in CRUZADOS_RUST:
         # Sin --offline: las crates propias de Linux y macOS (p. ej. openssl-probe) no estan en la cache y se bajan
@@ -619,7 +623,7 @@ def lineas(p):
 
 def seccion_d(repo):
     sep("D: dependencias y lineas de codigo (de las fuentes del repo)")
-    poc = os.path.join(repo, "tareas", "02-en-curso", "TASK-014", "poc")
+    poc = POC
     lock = open(os.path.join(poc, "poc-rust", "Cargo.lock"), encoding="utf-8").read()
     toml = open(os.path.join(poc, "poc-rust", "Cargo.toml"), encoding="utf-8").read()
     deps = re.search(r"^\[dependencies\]\s*$(.*?)(?=^\[|\Z)", toml, re.S | re.M).group(1)
@@ -682,7 +686,53 @@ def seccion_t(exes, copias, vacio, trabajo, env_sin_node):
         c, s = ejecutar(exe, vacio, env=env_sin_node)
         red = next((l for l in s.decode().splitlines() if l.startswith("red: ")), "red: ?")
         reloj(f"{nombre} con red y sin variables NODE_* (almacen del sistema): {red}")
+    lanzadores(exes["Rust"], vacio, trabajo)
     return rapido
+
+
+def tiempo_cmd(cmd):
+    t = time.perf_counter()
+    r = run(cmd, timeout=120)
+    if r.returncode != 0:
+        raise SystemExit(f"ERROR: {cmd[0]} salio con {r.returncode}: {r.stderr.decode('utf-8', 'replace')[-300:]}")
+    return (time.perf_counter() - t) * 1000
+
+
+def lanzadores(exe, vacio, trabajo):
+    """Coste de un lanzador delante del binario (D3a), con lo instalado: .cmd, sh de Git for Windows (sin
+    comprobar, comprobando tamano y fecha, comprobando sha256) y .ps1. Solo informativo (seccion T)."""
+    d = os.path.join(trabajo, "lanzador")
+    os.makedirs(d)
+    binario = os.path.join(d, "tc2-bin.exe")
+    shutil.copyfile(exe, binario)
+    sha = sha256_fichero(binario)
+    st = os.stat(binario)
+    bash = r"C:\Program Files\Git\bin\bash.exe"
+    ficheros = {
+        "tc2.cmd": '@"%~dp0tc2-bin.exe" %*\r\n',
+        "tc2.ps1": '& "$PSScriptRoot\\tc2-bin.exe" @args\r\nexit $LASTEXITCODE\r\n',
+        "tc2": '#!/bin/sh\nexec "${0%/*}/tc2-bin.exe" "$@"\n',
+        "tc2-fecha": '#!/bin/sh\nb="${0%/*}/tc2-bin.exe"\n'
+                     f'[ "$(stat -c %s.%Y "$b")" = "{st.st_size}.{int(st.st_mtime)}" ] || exit 9\nexec "$b" "$@"\n',
+        "tc2-sha256": '#!/bin/sh\nb="${0%/*}/tc2-bin.exe"\n'
+                      f'echo "{sha}  $b" | sha256sum -c --status || exit 9\nexec "$b" "$@"\n',
+    }
+    for n, txt in ficheros.items():
+        open(os.path.join(d, n), "w", encoding="utf-8", newline="").write(txt)
+    casos = [("directo", [binario]), ("tc2.cmd", ["cmd", "/d", "/c", os.path.join(d, "tc2.cmd")])]
+    if os.path.exists(bash):
+        casos += [(f"sh {n}", [bash, f"{d}/{n}".replace("\\", "/")]) for n in ("tc2", "tc2-fecha", "tc2-sha256")]
+    casos.append(("tc2.ps1", ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
+                              os.path.join(d, "tc2.ps1")]))
+    base = None
+    for nombre, cmd in casos:
+        cmd = cmd + [vacio, "--sin-red"]
+        tiempo_cmd(cmd)
+        xs = [tiempo_cmd(cmd) for _ in range(N_CALIENTE)]
+        m = mediana(xs)
+        base = m if base is None else base
+        reloj(f"lanzador {nombre} + Rust sobre repo vacio: caliente mediana de {N_CALIENTE} {m:.0f} ms "
+              f"(+{m - base:.0f} ms sobre el binario directo)")
 
 
 # --------------------------------------------------------------------------- D1
@@ -694,8 +744,8 @@ def regla_d1(rapido, tam, cruzada):
         ("2 tamano", "Rust" if tam["Rust"][0] < tam["TypeScript"][0] else "TypeScript"),
         ("3 compilacion cruzada reproducible", "Rust" if cruzada["Rust"] and not cruzada["TypeScript"] else
          "TypeScript" if cruzada["TypeScript"] and not cruzada["Rust"] else "ninguno"),
-        ("4 librerias mantenidas que cumplan F1-9", CRITERIO_4[0]),
-        ("5 coste del agente", CRITERIO_5[0]),
+        ("4 librerias mantenidas que cumplan F1-9 (juicio, no medida)", CRITERIO_4[0]),
+        ("5 coste del agente (juicio, no medida)", CRITERIO_5[0]),
     ]
     for c, g in crit:
         print(f"criterio {c}: {g}")
@@ -803,7 +853,56 @@ def errores_adr(adr, ruta, repo, medido, con_indice=True):
         idx = open(os.path.join(repo, "docs", "adr", "README.md"), encoding="utf-8").read()
         if FILA_INDICE not in idx:
             err.append("falta la fila en docs/adr/README.md")
+    err += errores_prosa(adr, tabla)
     return err, tabla
+
+
+def _miles(n):
+    return f"{int(n):,}".replace(",", " ") if str(n).isdigit() else str(n)
+
+
+def errores_prosa(adr, tabla):
+    """Las cifras repetidas en la prosa (fuera de la tabla, del resumen ya comprobado y de los extractos del log)
+    tienen que ser las medidas: veces, MiB, repos, lineas, bytes, criterios de D1 y la clave duplicada."""
+    err = []
+    v = lambda k: tabla.get(k, ("?", ""))[0]
+    prosa = re.sub(r"<!-- cifras:inicio -->.*?<!-- cifras:fin -->", " ", adr, flags=re.S)
+    prosa = re.sub(r"```.*?```", " ", prosa, flags=re.S)
+    prosa = re.sub(r"\s+", " ", prosa)
+    veces = v("M: tamano TypeScript / Rust (veces)")
+    for x in re.findall(r"(\d+,\d+)\** veces", prosa):
+        if x != veces:
+            err.append(f"prosa: «{x} veces» y lo medido es {veces}")
+    mib_ok = {val for k, (val, _) in tabla.items() if k.endswith("(MiB)")}
+    mib_ok |= {mib(int(val)) for k, (val, _) in tabla.items() if k.endswith("(bytes)") and val.isdigit()}
+    for x in re.findall(r"(\d+,\d+)\** MiB", prosa):
+        if x not in mib_ok:
+            err.append(f"prosa: «{x} MiB» no es una cifra medida ({', '.join(sorted(mib_ok))})")
+    n_repos = str(sum(1 for k in tabla if k.startswith("S: ") and "salida Rust y TypeScript identica" in k))
+    for x in re.findall(r"en (?:los )?(\d+) repos", prosa):
+        if x != n_repos:
+            err.append(f"prosa: «en {x} repos» y se midieron {n_repos}")
+    if "en los 3 repos" in prosa and v("T: Rust mas rapido en caliente (mediana de 20) en los 3 repos") != "si":
+        err.append("prosa: dice «en los 3 repos» y la relacion medida no es «si»")
+    lineas_m = v("D: lineas de main.rs / main.ts (sin blancos ni comentarios de linea)").replace(" / ", " frente a ")
+    for x in re.findall(r"\(?(\d+ frente a \d+) líneas", prosa):
+        if x != lineas_m:
+            err.append(f"prosa: «{x} líneas» y lo medido es {lineas_m}")
+    bytes_m = f"{_miles(v('M: Rust: tamano del .exe win-x64 (bytes)'))} frente a " \
+              f"{_miles(v('M: TypeScript: tamano del .exe win-x64 (bytes)'))} bytes"
+    for x in re.findall(r"(\d{1,3}(?: \d{3})+ frente a \d{1,3}(?: \d{3})+ bytes)", prosa):
+        if x != bytes_m:
+            err.append(f"prosa: «{x}» y lo medido es {bytes_m}")
+    ganador = v("D1: ganador (el 1.o y al menos dos mas)")
+    nombres = {"2": "2.º", "3": "3.º", "4": "4.º", "5": "5.º"}
+    otros = [nombres[k.split("criterio ")[1][0]] for k, (val, _) in sorted(tabla.items())
+             if k.startswith("D1: criterio ") and val == ganador and not k.startswith("D1: criterio 1")]
+    if ganador != "ninguno" and f"({' y '.join(otros)})" not in prosa:
+        err.append(f"prosa: la decision no cita los criterios que gana {ganador} ({' y '.join(otros)})")
+    if v("S: clave duplicada en una tarea real: rechazada por Rust / TypeScript") == "si / si":
+        if "rechazan la clave duplicada" not in prosa or re.search(r"aceptan la clave duplicada", prosa):
+            err.append("prosa: no dice que los dos rechazan la clave duplicada (medido: si / si)")
+    return err
 
 
 def mutaciones(adr):
@@ -835,6 +934,18 @@ def mutaciones(adr):
         ("sin-macos-en-no-verificado", re.sub(r"(^## No verificado\s*$)(.*?)(?=^## |\Z)",
                                               lambda x: x.group(1) + x.group(2).replace("macOS", "Mac"), adr,
                                               flags=re.S | re.M), "«No verificado» no nombra Linux y macOS"),
+        # Cifras de la prosa (MEN-2 de la revision 1).
+        ("prosa-mib", re.sub(r"500,3(\s+)MiB(\s+)en(\s+)TypeScript", r"600,3\1MiB\2en\3TypeScript", adr, count=1),
+         "prosa: «600,3 MiB» no es una cifra medida"),
+        ("prosa-veces", re.sub(r"pesa(\s+)32,1(\s+)veces", r"pesa\g<1>3,2\2veces", adr, count=1), "prosa: «3,2 veces»"),
+        ("prosa-repos", re.sub(r"en(\s+)los(\s+)3(\s+)repos", r"en\1los\g<2>2\3repos", adr, count=1),
+         "prosa: «en 2 repos»"),
+        ("prosa-lineas", re.sub(r"147(\s+)frente(\s+)a(\s+)215", r"147\1frente\2a\g<3>115", adr, count=1),
+         "prosa: «147 frente a 115 líneas»"),
+        ("prosa-bytes", adr.replace("2 720 768 frente a", "2 720 769 frente a", 1), "prosa: «2 720 769 frente a"),
+        ("prosa-criterios", adr.replace("(2.º y 4.º)", "(otro más)"), "prosa: la decision no cita los criterios"),
+        ("prosa-duplicada", re.sub(r"rechazan(\s+)la(\s+)clave(\s+)duplicada", r"aceptan\1la\2clave\3duplicada", adr),
+         "prosa: no dice que los dos rechazan la clave duplicada"),
     ]
 
 
@@ -890,6 +1001,11 @@ def main():
     if len(args) != 3:
         raise SystemExit(__doc__)
     trabajo, repo, personal = (os.path.abspath(a) for a in args)
+    if not os.path.normcase(POC).startswith(os.path.normcase(os.path.join(repo, "tareas")) + os.sep):
+        raise SystemExit(f"ERROR: el guion ({POC}) no esta dentro de tareas/ del repo {repo}")
+    for sub in ("poc-rust", "poc-ts"):
+        if not os.path.isdir(os.path.join(POC, sub)):
+            raise SystemExit(f"ERROR: falta {sub}/ junto al guion en {POC}")
     comprobar_trabajo(trabajo)
     borrar(trabajo)
     os.makedirs(trabajo)

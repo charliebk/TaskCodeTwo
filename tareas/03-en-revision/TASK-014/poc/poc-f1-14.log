@@ -72,10 +72,10 @@ OpenDockTrading: hash del arbol (con .git) antes y despues: igual
 criterio 1 arranque en caliente: Rust
 criterio 2 tamano: Rust
 criterio 3 compilacion cruzada reproducible: ninguno
-criterio 4 librerias mantenidas que cumplan F1-9: Rust
-criterio 5 coste del agente: ninguno
+criterio 4 librerias mantenidas que cumplan F1-9 (juicio, no medida): Rust
+criterio 5 coste del agente (juicio, no medida): ninguno
    motivo del 4: las dos librerias YAML estan mantenidas y rechazan duplicadas (F1-9), pero la cadena de empaquetado de TypeScript depende de postject 1.0.0-alpha.6 (sin publicar desde 2023-05-19)
-   motivo del 5: minutos parecidos (~8 frente a ~9) y tokens no anotados por implementacion
+   motivo del 5: minutos parecidos (~8 frente a ~9); Rust tuvo un fallo funcional (TLS) y TypeScript 3 iteraciones extra para igualar a Rust (147 frente a 215 lineas); tokens no anotados
 gana: Rust (el 1.o y al menos dos mas)
 
 === G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control ===
@@ -95,24 +95,37 @@ errores del ADR: 0
   mutacion engram-obligatorio: falla como se espera (falta la regla: engram no es obligatorio)
   mutacion ganador-cambiado: falla como se espera (D1: ganador (el 1.o y al menos dos mas): el ADR dice 'TypeScript' y lo medido es 'Rust')
   mutacion sin-macos-en-no-verificado: falla como se espera («No verificado» no nombra Linux y macOS)
+  mutacion prosa-mib: falla como se espera (prosa: «600,3 MiB» no es una cifra medida (1,3, 15,6, 155,7, 2,6, 31,6, 500,3, 5002,8, 83,4))
+  mutacion prosa-veces: falla como se espera (prosa: «3,2 veces» y lo medido es 32,1)
+  mutacion prosa-repos: falla como se espera (prosa: «en 2 repos» y se midieron 3)
+  mutacion prosa-lineas: falla como se espera (prosa: «147 frente a 115 líneas» y lo medido es 147 frente a 215)
+  mutacion prosa-bytes: falla como se espera (prosa: «2 720 769 frente a 87 430 656 bytes» y lo medido es 2 720 768 frente a 87 430 656 bytes)
+  mutacion prosa-criterios: falla como se espera (prosa: la decision no cita los criterios que gana Rust (2.º y 4.º))
+  mutacion prosa-duplicada: falla como se espera (prosa: no dice que los dos rechazan la clave duplicada (medido: si / si))
 
 === T: tiempos de reloj (NO deterministas; fuera de la tabla comprobada del ADR) ===
-build en limpio Rust (1.a): 39.8 s
-build en limpio Rust (2.a): 39.7 s
-build en limpio TypeScript (1.a): 17.2 s
-build en limpio TypeScript (2.a): 17.9 s
-build en limpio Rust con /Brepro (1.a): 39.3 s
-build en limpio Rust con /Brepro (2.a): 39.8 s
+build en limpio Rust (1.a): 39.6 s
+build en limpio Rust (2.a): 38.2 s
+build en limpio TypeScript (1.a): 16.7 s
+build en limpio TypeScript (2.a): 16.7 s
+build en limpio Rust con /Brepro (1.a): 38.9 s
+build en limpio Rust con /Brepro (2.a): 40.7 s
 firma Rust: el .exe crece 1832 bytes
 firma TypeScript: el .exe crece 1832 bytes
-Rust sobre repo vacio: frio (1.a ejecucion de copia nueva) 86 ms ; caliente mediana de 20 49 ms (min 46, max 58)
-Rust sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 403 ms ; caliente mediana de 20 385 ms (min 349, max 500)
-Rust sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 158 ms ; caliente mediana de 20 133 ms (min 123, max 139)
-TypeScript sobre repo vacio: frio (1.a ejecucion de copia nueva) 1213 ms ; caliente mediana de 20 136 ms (min 130, max 149)
-TypeScript sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 1787 ms ; caliente mediana de 20 691 ms (min 666, max 778)
-TypeScript sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 1508 ms ; caliente mediana de 20 327 ms (min 299, max 397)
+Rust sobre repo vacio: frio (1.a ejecucion de copia nueva) 81 ms ; caliente mediana de 20 51 ms (min 48, max 58)
+Rust sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 415 ms ; caliente mediana de 20 369 ms (min 354, max 452)
+Rust sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 159 ms ; caliente mediana de 20 124 ms (min 120, max 146)
+TypeScript sobre repo vacio: frio (1.a ejecucion de copia nueva) 1144 ms ; caliente mediana de 20 135 ms (min 129, max 152)
+TypeScript sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 1717 ms ; caliente mediana de 20 683 ms (min 661, max 825)
+TypeScript sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 1431 ms ; caliente mediana de 20 316 ms (min 297, max 355)
 Rust con red y sin variables NODE_* (almacen del sistema): red: si
 TypeScript con red y sin variables NODE_* (almacen del sistema): red: si
+lanzador directo + Rust sobre repo vacio: caliente mediana de 20 47 ms (+0 ms sobre el binario directo)
+lanzador tc2.cmd + Rust sobre repo vacio: caliente mediana de 20 94 ms (+47 ms sobre el binario directo)
+lanzador sh tc2 + Rust sobre repo vacio: caliente mediana de 20 103 ms (+56 ms sobre el binario directo)
+lanzador sh tc2-fecha + Rust sobre repo vacio: caliente mediana de 20 142 ms (+95 ms sobre el binario directo)
+lanzador sh tc2-sha256 + Rust sobre repo vacio: caliente mediana de 20 185 ms (+138 ms sobre el binario directo)
+lanzador tc2.ps1 + Rust sobre repo vacio: caliente mediana de 20 364 ms (+317 ms sobre el binario directo)
 
 carpeta de trabajo borrada al terminar: si
 
