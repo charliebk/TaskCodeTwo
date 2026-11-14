@@ -1,0 +1,23 @@
+{
+  "name": "taskcodetwo-poc-tablero",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PoC de F1-14 (TASK-014): comando tablero en TypeScript empaquetado con Node SEA",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "postject": "1.0.0-alpha.6",
+    "typescript": "7.0.2"
+  }
+}
