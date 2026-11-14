@@ -1,5 +1,5 @@
-fecha: 2026-11-14T08:15:45Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
-repo: C:/Users/nullcad2025/Documents/sources/Personal/TaskCodeTwo (134a3eb) ; ADR: F1-8-seguridad-modelo-de-amenazas.md
+fecha: 2026-11-14T08:27:41Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
+repo: C:/Users/nullcad2025/Documents/sources/Personal/TaskCodeTwo (a9da7bd) ; ADR: F1-8-seguridad-modelo-de-amenazas.md
 
 === A. Hash de confianza local (decision 5, D4b) ===
 cierre inicial de la orden: ['scripts/lib/paso.sh', 'scripts/verificar.sh']
@@ -20,24 +20,24 @@ cierre inicial de la orden: ['scripts/lib/paso.sh', 'scripts/verificar.sh']
   ok   neg   cambiado  se declara el glob tests/*.sh en la config (esperado cambiado)
   ok   caso  confiado  confianza dada de nuevo con el glob (esperado confiado)
   ok   neg   cambiado  test cambiado con el glob declarado (esperado cambiado)
-  ok   almacen fuera del arbol del repo: C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-009/poc/almacen\confianza.json
+  ok   almacen fuera del arbol del repo: C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-009-c1/almacen\confianza.json
 RESULTADO A1 casos=7/7 ; controles negativos=8/8 ; limite documentado=1/1 ; almacen fuera del arbol=si
 --- coste del hash con las ordenes reales de los pilotos (solo lectura de ficheros)
   ToolsaWeb: rama feature/task-193-operaciones-sobre-el-eje-invertir-el-sen @ 93c9618a
   OpenDockTrading: rama feature/task-020-esquema-de-ordenes-ejecuciones-lotes-y-c @ fab8d7e
   repo             clave                           nombrados    cierre      bytes  ms (max)
   aviso ToolsaWeb comando_verificacion: YAML estandar lee 'scripts\x0berificar.bat'; la linea dice 'scripts\\verificar.bat'
-  ToolsaWeb        comando_verificacion                    1        51    1246280     752.5   orden: scripts\verificar.bat
+  ToolsaWeb        comando_verificacion                    1        51    1246280     778.2   orden: scripts\verificar.bat
       fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
       commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
   aviso ToolsaWeb comando_verificacion_freno: YAML estandar lee 'scripts\x0berificar.bat --rapida'; la linea dice 'scripts\\verificar.bat --rapida'
-  ToolsaWeb        comando_verificacion_freno              1        51    1246280     868.0   orden: scripts\verificar.bat --rapida
+  ToolsaWeb        comando_verificacion_freno              1        51    1246280     763.7   orden: scripts\verificar.bat --rapida
       fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
       commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
-  ToolsaWeb        comando_sincronizacion                  1        51    1246280     731.8   orden: python -I scripts/grafo-tareas.py --escribir
+  ToolsaWeb        comando_sincronizacion                  1        51    1246280     928.8   orden: python -I scripts/grafo-tareas.py --escribir
       fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
       commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
-  OpenDockTrading  comando_verificacion                    1        19     731381     421.1   orden: scripts\verificar.bat
+  OpenDockTrading  comando_verificacion                    1        19     731381     451.2   orden: scripts\verificar.bat
       fuera de la orden y dentro del cierre (18): scripts/autopsia-opentrading.py, scripts/captura-ws-kraken.py, scripts/comprobar-datos.py, scripts/comprobar-entorno.py, scripts/comprobar-evolucion.py, scripts/comprobar-fallos.py, scripts/comprobar-modelo.py, scripts/comprobar-modulos.py ...
       commits de develop (ultimos 100, sin merges) que cambian el cierre: 9
 RESULTADO A2 ordenes medidas=4 ; sin orden o cierre vacio=0
@@ -57,22 +57,31 @@ RESULTADO A2 ordenes medidas=4 ; sin orden o cierre vacio=0
   ok   neg  N12-pr-secreto-en-env      esperado R1 ; detectado: R1 verificacion ejecuta codigo del PR y tiene privilegio
   ok   neg  N13-dispatch-en-lista      esperado R4 ; detectado: R4 escucha repository_dispatch
   ok   neg  N14-job-sin-permissions    esperado R2 ; detectado: R2 b sin bloque permissions (ni del job ni del workflow)
+  ok   neg  N15-prt-checkout-repository-head esperado R1 ; detectado: R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N16-prt-gh-pr-checkout     esperado R8 ; detectado: R8 carril trae el head del PR en run: fuera de un evento de PR | R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N17-titulo-en-github-script esperado R5 ; detectado: R5 carril interpola datos del evento en script: console.log('${{ github.event.pull_request.title }}')
+  ok   neg  N18-evento-con-corchetes   esperado R5 ; detectado: R5 carril interpola datos del evento en run: echo "${{ github['event']['pull_request']['title'] }}"
+  ok   neg  N19-tojson-del-evento      esperado R5 ; detectado: R5 carril interpola datos del evento en run: echo '${{ toJSON(github.event) }}' > evento.json
+  ok   neg  N20-secrets-inherit        esperado R9 ; detectado: R9 verificar pasa todos los secretos (secrets: inherit) | R1 verificar ejecuta codigo del PR y tiene privilegio
   ok   pos  P1-verificacion            eventos=['merge_group', 'pull_request'] clases={'buscar': 'ejecuta', 'ejecutar': 'ejecuta', 'verificacion': 'privilegio'} errores=0
   ok   pos  P2-carril                  eventos=['pull_request_target'] clases={'carril': 'privilegio'} errores=0
   ok   pos  P3-revision-reproducir     eventos=['pull_request'] clases={'reproducir': 'ejecuta'} errores=0
   ok   pos  P4-revision-ia             eventos=['workflow_run'] clases={'revision-ia': 'privilegio'} errores=0
   ok   pos  P5-ci-real                 eventos=['pull_request', 'push'] clases={'repo': 'ejecuta'} errores=0
-RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=14/14
+RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=20/20
 
 === B2. Regla D5a: la linea arbol= solo cuenta si la publico el job publicador ===
-  ok   F1-7 acepta   D5a acepta   publicador legitimo (control positivo)
-  ok   F1-7 acepta   D5a rechaza  check-run creado por la API desde un script del PR con checks:write
-  ok   F1-7 rechaza  D5a rechaza  linea escrita en el resumen del job ejecutor
-  ok   F1-7 acepta   D5a rechaza  job verificacion de otro workflow anadido en el PR
-  ok   F1-7 rechaza  D5a rechaza  check verificacion de otra App
-  ok   F1-7 rechaza  D5a rechaza  publicador con otro arbol
-  ok   F1-7 rechaza  D5a rechaza  publicador en rojo
-RESULTADO B2 casos D5a=7/7 ; falsos que la regla de F1-7 aceptaria=2
+  ok   F1-7 acepta   solo-job acepta   decision-7 acepta   publicador legitimo (control positivo)
+  ok   F1-7 acepta   solo-job rechaza  decision-7 rechaza  check-run creado por la API desde un script del PR con checks:write
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  linea escrita en el resumen del job ejecutor
+  ok   F1-7 acepta   solo-job rechaza  decision-7 rechaza  job verificacion de otro workflow anadido en el PR
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  check verificacion de otra App
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  publicador con otro arbol
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  publicador en rojo
+  ok   F1-7 acepta   solo-job acepta   decision-7 rechaza  publicador de un workflow modificado en el PR (toca .github/workflows/verificacion.yml)
+  ok   F1-7 acepta   solo-job acepta   decision-7 rechaza  publicador con el PR tocando .taskcode/config.yml
+  ok   F1-7 acepta   solo-job acepta   decision-7 acepta   publicador con el PR tocando solo codigo (control positivo)
+RESULTADO B2 casos decision 7=10/10 ; falsos que aceptaria la regla de F1-7=4 ; solo job publicador=2
 
 === C. El ADR: matriz de activos, preguntas heredadas, requisitos e indice ===
 -- ADR real: 16 activos, 13 preguntas heredadas
@@ -80,10 +89,10 @@ RESULTADO B2 casos D5a=7/7 ; falsos que la regla de F1-7 aceptaria=2
   `A2`  Z3   duena: F6-1, F6-3, no verificado → F2-6
   `A3`  Z3   duena: F6-3, F6-4, no verificado → F2-6
   `A4`  Z1   duena: F4-2, F3-8, no verificado → F2-6
-  `A5`  Z1   duena: F2-6, F3-8, no verificado → F2-6
+  `A5`  Z1   duena: decide un ADR nuevo de Fase 1, «aislamiento del agente frente a las credenciales de la persona» (sin fila en el plan: acción en «Consecuencias»); implementan F2-6, F3-8; no verificado → F2-6
   `A6`  Z3   duena: F5-1, F3-8, no verificado → F2-6
   `A7`  Z3   duena: F5-1, F5-2, no verificado → F2-6
-  `A8`  Z3   duena: F5-1, F6 (`carril` sin fila en el plan), no verificado → F2-6
+  `A8`  Z3   duena: F5-1 (mientras no exista la fila de `carril` en F6: acción en «Consecuencias»), no verificado → F2-6
   `A9`  Z3   duena: F6-4, F6-5, F6-7
   `A10` Z2   duena: F6-7, F9-5
   `A11` Z2   duena: F0-2, F5-6, F1-11
@@ -118,7 +127,9 @@ RESULTADO B2 casos D5a=7/7 ; falsos que la regla de F1-7 aceptaria=2
   ok   M10 divergencia con F1-7 (D5a) quitada             detectada por "divergencias: falta 'F1-7, decisión 3'" (1 error(es))
   ok   M11 decision del runner propio quitada             detectada por 'parte del enunciado sin decision propia: runner propio' (1 error(es))
   ok   M12 marcador de la matriz borrado                  detectada por 'marcadores' (1 error(es))
-RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=12/12 ; no aplicadas=0
+  ok   M13 A7 sin declarar parcial                        detectada por 'A7: mitigacion no declarada parcial' (1 error(es))
+  ok   M14 salvedad A4/A5 quitada de la tabla de la decision 4 detectada por 'decision 4: falta la salvedad' (1 error(es))
+RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=14/14 ; no aplicadas=0
 
 === D. Ajustes de Actions de los tres repos (solo GET) y workflows de los pilotos ===
 --- charliebk/TaskCodeTwo
@@ -158,9 +169,9 @@ RESULTADO D comprobaciones=16/16
 === Resumen ===
 RESULTADO A1 casos=7/7 ; controles negativos=8/8 ; limite documentado=1/1 ; almacen fuera del arbol=si
 RESULTADO A2 ordenes medidas=4 ; sin orden o cierre vacio=0
-RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=14/14
-RESULTADO B2 casos D5a=7/7 ; falsos que la regla de F1-7 aceptaria=2
-RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=12/12 ; no aplicadas=0
+RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=20/20
+RESULTADO B2 casos decision 7=10/10 ; falsos que aceptaria la regla de F1-7=4 ; solo job publicador=2
+RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=14/14 ; no aplicadas=0
 RESULTADO D comprobaciones=16/16
 RESULTADO llamadas gh api con GET=15 ; gh api con otro metodo=0
 llamadas a GitHub registradas:

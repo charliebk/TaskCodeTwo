@@ -508,16 +508,77 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{uses: actions/checkout@v4}, {run: echo b}]
 EOF
+# Revision 1, IMP-2: variantes que la primera version del lint dejaba pasar (M1-M5 del informe).
+neg N15-prt-checkout-repository-head <<'EOF'
+on: pull_request_target
+permissions: {contents: read, checks: write}
+jobs:
+  carril:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {repository: "${{ github.event.pull_request.head.repo.full_name }}"}
+      - run: bash scripts/verificar.sh
+EOF
+neg N16-prt-gh-pr-checkout <<'EOF'
+on: pull_request_target
+permissions: {contents: read, checks: write}
+jobs:
+  carril:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh pr checkout "$PR"
+          bash scripts/verificar.sh
+        env: {PR: "${{ github.event.pull_request.number }}", GH_TOKEN: "${{ github.token }}"}
+EOF
+neg N17-titulo-en-github-script <<'EOF'
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  carril:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with: {script: "console.log('${{ github.event.pull_request.title }}')"}
+EOF
+neg N18-evento-con-corchetes <<'EOF'
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  carril:
+    runs-on: ubuntu-latest
+    steps: [{run: "echo \"${{ github['event']['pull_request']['title'] }}\""}]
+EOF
+neg N19-tojson-del-evento <<'EOF'
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  carril:
+    runs-on: ubuntu-latest
+    steps: [{run: "echo '${{ toJSON(github.event) }}' > evento.json"}]
+EOF
+neg N20-secrets-inherit <<'EOF'
+on: pull_request
+permissions: {contents: read}
+jobs:
+  verificar:
+    uses: ./.github/workflows/reutilizable.yml
+    secrets: inherit
+EOF
 cat > "$base/py/clases.py" <<'EOF'
-"""Lint de clases de job (ADR F1-8, decision 1): prototipo del de F5-1 y doctor."""
+"""Lint de clases de job (ADR F1-8, decision 1): prototipo HEURISTICO del de F5-1 y doctor.
+Busca patrones prohibidos; no prueba que un workflow sea seguro (F5-1: lista blanca)."""
 import re
 import yaml
 
 EJECUTA_EV = {'pull_request', 'merge_group', 'push', 'pull_request_review', 'pull_request_review_comment'}
 REVIEW_EV = {'pull_request_review', 'pull_request_review_comment'}
 SECRETO = re.compile(r'\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)', re.I)
-EVENTO_EN_RUN = re.compile(r'\$\{\{[^}]*\b(github\.event\.|github\.head_ref)', re.I)
+# Datos del evento en una expresion: github.event.x, github['event'], toJSON(github...), github.head_ref.
+EVENTO_EN_RUN = re.compile(r'\$\{\{[^}]*(\bgithub\s*\.\s*event\b|\bgithub\s*\[\s*[\'"]event[\'"]\s*\]|toJSON\s*\(\s*github\b|\bgithub\.head_ref)', re.I)
 HEAD = re.compile(r'head|refs/pull|github\.event\.pull_request', re.I)
+HEAD_EN_RUN = re.compile(r'\bgh\s+pr\s+checkout\b|git\s+fetch\b.*\bpull/|refs/pull/', re.I)
 INTERPRETE = re.compile(r'^\s*(?:bash|sh|pwsh|powershell|python3?|node|source|\.)\s+(\S+)|^\s*(\./\S+)')
 
 def eventos(y):
@@ -540,19 +601,33 @@ def evalua(y):
         perm = job.get('permissions', y.get('permissions'))
         texto = yaml.safe_dump(job, allow_unicode=True)
         checkout = [s for s in _pasos(job) if str(s.get('uses', '')).startswith('actions/checkout')]
-        head = any(HEAD.search(str((s.get('with') or {}).get('ref', ''))) for s in checkout)
+        # checkout del head: ref al head o al merge ref, o repository del head (fork)
+        head = any(HEAD.search(str((s.get('with') or {}).get('ref', ''))) or
+                   HEAD.search(str((s.get('with') or {}).get('repository', ''))) for s in checkout)
         dirs = [str((s.get('with') or {}).get('path', '.')).rstrip('/') for s in _pasos(job)
                 if str(s.get('uses', '')).startswith('actions/download-artifact')]
-        artefacto = False
+        artefacto = head_run = False
         for s in _pasos(job):
-            for linea in str(s.get('run', '')).splitlines():
-                m = INTERPRETE.match(linea)
-                if m and dirs and any((m.group(1) or m.group(2) or '').lstrip('./').startswith(d + '/') for d in dirs):
-                    artefacto = True
-                if EVENTO_EN_RUN.search(linea):
-                    errores.append('R5 %s interpola datos del evento en run: %s' % (nombre, linea.strip()[:60]))
-        ejecuta = bool((ev & EJECUTA_EV) and checkout) or head or artefacto or bool(ev & REVIEW_EV)
-        privilegio = _escribe(perm) or bool(SECRETO.search(texto)) or 'environment' in job
+            campos = [('run', str(s.get('run', '')))]
+            if str(s.get('uses', '')).startswith('actions/github-script'):
+                campos.append(('script', str((s.get('with') or {}).get('script', ''))))
+            for campo, valor in campos:
+                for linea in valor.splitlines():
+                    m = INTERPRETE.match(linea) if campo == 'run' else None
+                    if m and dirs and any((m.group(1) or m.group(2) or '').lstrip('./').startswith(d + '/') for d in dirs):
+                        artefacto = True
+                    if campo == 'run' and HEAD_EN_RUN.search(linea) and not (ev & EJECUTA_EV):
+                        head_run = True
+                    if EVENTO_EN_RUN.search(linea):
+                        errores.append('R5 %s interpola datos del evento en %s: %s' % (nombre, campo, linea.strip()[:60]))
+        hereda = str(job.get('secrets', '')).strip() == 'inherit'
+        ejecuta = (bool((ev & EJECUTA_EV) and (checkout or 'uses' in job)) or head or head_run
+                   or artefacto or bool(ev & REVIEW_EV))
+        privilegio = _escribe(perm) or bool(SECRETO.search(texto)) or 'environment' in job or hereda
+        if head_run:
+            errores.append('R8 %s trae el head del PR en run: fuera de un evento de PR' % nombre)
+        if hereda:
+            errores.append('R9 %s pasa todos los secretos (secrets: inherit)' % nombre)
         if perm is None:
             errores.append('R2 %s sin bloque permissions (ni del job ni del workflow)' % nombre)
         if perm == 'write-all':
@@ -582,7 +657,11 @@ NEG = {'N01-pr-con-checks-write': 'R1', 'N02-pr-con-secreto': 'R1', 'N03-prt-che
        'N04-repository-dispatch': 'R4', 'N05-interpola-titulo': 'R5', 'N06-sin-permissions': 'R2',
        'N07-write-all': 'R3', 'N08-ejecuta-artefacto': 'R7', 'N09-review-con-escritura': 'R6',
        'N10-interpola-head-ref': 'R5', 'N11-prt-checkout-merge-ref': 'R1', 'N12-pr-secreto-en-env': 'R1',
-       'N13-dispatch-en-lista': 'R4', 'N14-job-sin-permissions': 'R2'}
+       'N13-dispatch-en-lista': 'R4', 'N14-job-sin-permissions': 'R2',
+       # revision 1 (IMP-2): M1-M5 del informe
+       'N15-prt-checkout-repository-head': 'R1', 'N16-prt-gh-pr-checkout': 'R8',
+       'N17-titulo-en-github-script': 'R5', 'N18-evento-con-corchetes': 'R5',
+       'N19-tojson-del-evento': 'R5', 'N20-secrets-inherit': 'R9'}
 okp = okn = 0
 for f in sorted(os.listdir(W)):
     n = f[:-4]; y = yaml.safe_load(open(os.path.join(W, f), encoding='utf-8'))
@@ -602,7 +681,7 @@ grep '^RESULTADO' "$base/b1.txt" >> "$base/resultados.txt"
 
 sep "B2. Regla D5a: la linea arbol= solo cuenta si la publico el job publicador"
 "$PY" -I - <<'EOF' | tee "$base/b2.txt"
-import sys
+import re, sys
 sys.stdout.reconfigure(encoding='utf-8', newline='\n')
 V = 'a1b2c3'                                   # arbol del commit verificado
 WF = '.github/workflows/verificacion.yml'      # workflow de TaskCode, leido de la base
@@ -614,19 +693,30 @@ C = [('publicador legitimo (control positivo)', dict(nombre='verificacion', app=
      ('job verificacion de otro workflow anadido en el PR', dict(nombre='verificacion', app=15368, concl='success', job='verificacion', wf='.github/workflows/otro.yml', resumen=linea(V))),
      ('check verificacion de otra App', dict(nombre='verificacion', app=999, concl='success', job=None, wf=None, resumen=linea(V))),
      ('publicador con otro arbol', dict(nombre='verificacion', app=15368, concl='success', job='verificacion', wf=WF, resumen=linea('ffff00'))),
-     ('publicador en rojo', dict(nombre='verificacion', app=15368, concl='failure', job='verificacion', wf=WF, resumen=linea(V)))]
+     ('publicador en rojo', dict(nombre='verificacion', app=15368, concl='failure', job='verificacion', wf=WF, resumen=linea(V))),
+     # revision 1, IMP-1: con pull_request el workflow del publicador sale del PR; mismos atributos que el legitimo
+     ('publicador de un workflow modificado en el PR (toca .github/workflows/verificacion.yml)',
+      dict(nombre='verificacion', app=15368, concl='success', job='verificacion', wf=WF, resumen=linea(V), toca=[WF])),
+     ('publicador con el PR tocando .taskcode/config.yml',
+      dict(nombre='verificacion', app=15368, concl='success', job='verificacion', wf=WF, resumen=linea(V), toca=['.taskcode/config.yml'])),
+     ('publicador con el PR tocando solo codigo (control positivo)',
+      dict(nombre='verificacion', app=15368, concl='success', job='verificacion', wf=WF, resumen=linea(V), toca=['src/lib.rs']))]
+PROTEGIDO = re.compile(r'^(\.github/workflows/|\.taskcode/)')
 def f17(c):   # regla de F1-7, decision 3: nombre, App, verde y arbol en el resumen
     return c['nombre'] == 'verificacion' and c['app'] == 15368 and c['concl'] == 'success' and ('arbol=%s ' % V) in c['resumen']
-def f18(c):   # D5a: ademas, el check-run es el job publicador del workflow de TaskCode
+def job_publicador(c):   # D5a en la primera version: ademas, el job publicador del workflow de TaskCode
     return f17(c) and c['job'] == 'verificacion' and c['wf'] == WF
-ESP18 = [True, False, False, False, False, False, False]
-ok = 0; huecos17 = 0
+def f18(c):   # decision 7 tras la revision 1: sin acierto si el PR toca workflows o .taskcode/
+    return job_publicador(c) and not any(PROTEGIDO.match(p) for p in c.get('toca', []))
+ESP18 = [True, False, False, False, False, False, False, False, False, True]
+ok = huecos17 = huecos_job = 0
 for (desc, c), e in zip(C, ESP18):
-    a17, a18 = f17(c), f18(c)
-    ok += a18 == e; huecos17 += a17 and not e
-    print('  %-4s F1-7 %-8s D5a %-8s %s' % ('ok' if a18 == e else 'MAL', 'acepta' if a17 else 'rechaza', 'acepta' if a18 else 'rechaza', desc))
-print('RESULTADO B2 casos D5a=%d/%d ; falsos que la regla de F1-7 aceptaria=%d' % (ok, len(C), huecos17))
-sys.exit(0 if ok == len(C) and huecos17 > 0 else 1)
+    a17, aj, a18 = f17(c), job_publicador(c), f18(c)
+    ok += a18 == e; huecos17 += a17 and not e; huecos_job += aj and not e
+    print('  %-4s F1-7 %-8s solo-job %-8s decision-7 %-8s %s' % ('ok' if a18 == e else 'MAL', 'acepta' if a17 else 'rechaza',
+          'acepta' if aj else 'rechaza', 'acepta' if a18 else 'rechaza', desc))
+print('RESULTADO B2 casos decision 7=%d/%d ; falsos que aceptaria la regla de F1-7=%d ; solo job publicador=%d' % (ok, len(C), huecos17, huecos_job))
+sys.exit(0 if ok == len(C) and huecos17 > 0 and huecos_job > 0 else 1)
 EOF
 [ "${PIPESTATUS[0]}" -eq 0 ] || falla "B2"
 grep '^RESULTADO' "$base/b2.txt" >> "$base/resultados.txt"
@@ -708,6 +798,12 @@ def evaluar(ruta, raiz):
         if not re.search('^' + re.escape(s) + r'\s*$', txt, re.M): e.append('falta la seccion %r' % s)
     for p, marca in PARTES.items():
         if marca not in txt: e.append('parte del enunciado sin decision propia: %s' % p)
+    # Revision 1: A7 y A8 son parciales (IMP-1); la tabla de capacidades lleva la salvedad A4/A5 (IMP-3).
+    for f in m:
+        if len(f) == 7 and f[0].strip('`') in ('A7', 'A8') and 'parcial' not in f[5]:
+            e.append('%s: mitigacion no declarada parcial' % f[0].strip('`'))
+    d4 = txt.split('4. **Prompt injection: defensa por capacidades.**')[-1].split('\n5. **')[0]
+    if d4.count('salvo A4/A5') < 2: e.append('decision 4: falta la salvedad salvo A4/A5')
     div = txt.split('## Divergencias con F1-5, F1-6 y F1-7')[-1].split('\n## ')[0]
     for k in ('F1-7, decisión 3', 'arbol=', 'publicador', 'F1-5, decisión 6', 'D1b', 'F1-6, D5a'):
         if k not in div: e.append('divergencias: falta %r' % k)
@@ -742,7 +838,7 @@ print('  lineas que citan F1-8 en los ADR aceptados: %s' % deleg)
 errs = adr.evaluar(ruta, raiz)
 for x in errs: print('  ERROR', x)
 fila = lambda i: next(l for l in txt.splitlines() if l.startswith('| `%s` |' % i))
-A2, A12, A6, P6 = fila('A2'), fila('A12'), fila('A6'), fila('P6')
+A2, A12, A6, P6, A7 = fila('A2'), fila('A12'), fila('A6'), fila('P6'), fila('A7')
 MUT = [('M1 duena de A2 vaciada', [(A2, A2.rsplit('|', 2)[0] + '| |')], 'A2: sin duena'),
        ('M2 duena inexistente (F5-99)', [(A6, A6.replace('| F5-1, F3-8,', '| F5-99, F3-8,'))], 'A6: duena F5-99'),
        ('M3 zona invalida (Z9)', [(A12, A12.replace('| Z4 |', '| Z9 |'))], 'A12: zona'),
@@ -754,7 +850,9 @@ MUT = [('M1 duena de A2 vaciada', [(A2, A2.rsplit('|', 2)[0] + '| |')], 'A2: sin
        ('M9 gravedad quitada en A12', [(A12, A12.replace('(CRÍTICA)', ''))], 'A12: amenaza sin gravedad'),
        ('M10 divergencia con F1-7 (D5a) quitada', [('1. **F1-7, decisión 3** (D5a)', '1. **F1-7** (D5a)')], "divergencias: falta 'F1-7, decisión 3'"),
        ('M11 decision del runner propio quitada', [('6. **Runner propio** (D3b)', '6. Runner (D3b)')], 'parte del enunciado sin decision propia: runner propio'),
-       ('M12 marcador de la matriz borrado', [('<!-- matriz-amenazas:fin -->', '')], 'marcadores')]
+       ('M12 marcador de la matriz borrado', [('<!-- matriz-amenazas:fin -->', '')], 'marcadores'),
+       ('M13 A7 sin declarar parcial', [(A7, A7.replace('mitigación **parcial**', 'mitigación'))], 'A7: mitigacion no declarada parcial'),
+       ('M14 salvedad A4/A5 quitada de la tabla de la decision 4', [('**salvo A4/A5**', '**sin salvedad**')], 'decision 4: falta la salvedad')]
 det = noap = 0
 for k, (desc, subs, espera) in enumerate(MUT):
     malo = [a for a, _ in subs if txt.count(a) != 1]
