@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-073-f1-15-adr-seleccion-de-skills-agentes-y
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2497389
-tokens_implementacion: null
+tokens_implementacion: 13822945
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-14
@@ -42,12 +42,15 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | 2026-11-14T20:39:39Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T20:49:09Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-14T20:49:11Z | start | automatico | persona | 0.16.1 |
+| 2026-11-14T21:24:48Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-14T20:49:08Z | diseno | agente:ab10be6189a7b5c59 | 56 | 142811 | 2324615 | 29907 | 48 | 2497389 | - | - |
+| 2026-11-14T21:24:48Z | implementacion | sesion:f7ef1603-d233-4a21-a36b-4afb2c4b0c0e | 8 | 16061 | 1155072 | 3582 | 0 | 1174723 | - | - |
+| 2026-11-14T21:24:48Z | implementacion | agente:af178d5c044e54716 | 124 | 335797 | 12180069 | 132232 | 16 | 12648222 | - | - |
 
 ## Autorrevision
 
