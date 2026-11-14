@@ -14,6 +14,7 @@ directo a la tabla de la Fase 1 y a su tarea.
 | [F1-4](F1-4-operaciones-git-y-contrato-de-salida.md) | Capa de operaciones Git/GitHub deterministas: lista cerrada, contrato de salida, códigos y objetivo de tokens por tarea | TASK-005 | aceptada |
 | [F1-5](F1-5-puertas-en-github.md) | Puertas en GitHub por carril: rulesets por rama y tag, checks obligatorios con su origen, check `carril`, CODEOWNERS, cola y rama al día | TASK-006 | aceptada |
 | [F1-6](F1-6-identidades-agente-revisor-persona.md) | Identidades del agente implementador, del revisor IA y de la persona: operación → identidad, permisos mínimos de dos GitHub Apps, contrato del firmante y por qué ninguna IA aprueba ni mergea | TASK-007 | aceptada |
+| [F1-7](F1-7-verificacion-ci-perfiles-cache-runners.md) | Verificación en CI: un comando con perfiles, caché por árbol en el check `verificacion` con búsqueda en dos niveles de padres, perfil por evento, runner por perfil (self-hosted solo en privados, falla cerrado) y coste con ToolsaWeb y OpenDockTrading | TASK-008 | aceptada |
 
 ## Plantilla
 
