@@ -1,0 +1,130 @@
+
+=== Descargas publicas (cada una en su carpeta vacia) ===
+gh version 2.95.0 (2026-06-17)
+commit de github/rest-api-description: 2a33d9cc5d1dc6ca603b908e0796454af88c1999 2026-11-14T00:44:38Z
+  api.github.com.json: 14274027 bytes ; sha256 f7a3de68869181d3
+commit de github/docs: d59b2631959db46d71ca5f7748ec04311c6d0870 2026-11-13T23:26:07Z
+versiones fpt de la tabla de permisos: fpt-2022-11-28 fpt-2026-03-10
+  fpt-2022-11-28.json: 433876 bytes ; sha256 0fe1fd4ce3390530
+  fpt-2026-03-10.json: 433876 bytes ; sha256 0fe1fd4ce3390530
+
+=== A. Permisos de cada identidad contra el esquema app-permissions ===
+OpenAPI 3.0.3 version 1.1.4
+app-permissions: 57 permisos; additionalProperties=(no declarado)
+  contents        enum=['read', 'write']
+  pull_requests   enum=['read', 'write']
+  metadata        enum=['read', 'write']
+  checks          enum=['read', 'write']
+  administration  enum=['read', 'write']
+  workflows       enum=['write']
+  statuses        enum=['read', 'write']
+  secrets         enum=['read', 'write']
+agente   contents:write, pull_requests:write, metadata:read           -> VALIDO
+revisor  checks:write, contents:read, pull_requests:read, metadata:read -> VALIDO
+-- controles negativos (tienen que salir rechazados)
+  permiso inventado approvals:write             -> rechazado: permiso desconocido approvals
+  permiso inventado merge:write                 -> rechazado: permiso desconocido merge
+  valor inventado contents:admin                -> rechazado: contents='admin' fuera del enum ['read', 'write']
+  workflows:read (el enum solo admite write)    -> rechazado: workflows='read' fuera del enum ['write']
+RESULTADO A identidades=2 errores=0 ; negativos rechazados=4/4
+
+=== B. Endpoints que alcanza cada identidad (tabla publica de permisos por endpoint) ===
+claves x-github en la descripcion OpenAPI: {'githubCloudOnly': 1200, 'enabledForGitHubApps': 1276, 'category': 1281, 'subcategory': 1281, 'deprecationDate': 35, 'removalDate': 35, 'previews': 23, 'triggersNotification': 26, 'requestBodyParameterName': 12}
+  -> sin permisos por endpoint en OpenAPI: si
+-- tabla fpt-2022-11-28: 940 endpoints server-to-server
+  crear o mover rama (equivale a push)   POST   /git/refs                                                  exige=contents:write,workflows:write                agente=si revisor=no 
+  abrir-pr                               POST   /pulls                                                     exige=pull_requests:write                           agente=si revisor=no 
+  editar el PR (titulo, descripcion)     PATCH  /pulls/{pull_number}                                       exige=pull_requests:write                           agente=si revisor=no 
+  actualizar rama del PR (boton)         PUT    /pulls/{pull_number}/update-branch                         exige=pull_requests:write                           agente=si revisor=no 
+  merge-pr                               PUT    /pulls/{pull_number}/merge                                 exige=contents:write                                agente=si revisor=no (limite) 
+  merge directo de ramas                 POST   /merges                                                    exige=contents:write                                agente=si revisor=no (limite) 
+  review (tambien APPROVE)               POST   /pulls/{pull_number}/reviews                               exige=pull_requests:write                           agente=si revisor=no (limite) 
+  descartar una review                   PUT    /pulls/{pull_number}/reviews/{review_id}/dismissals        exige=pull_requests:write                           agente=si revisor=no (limite) 
+  check revision-ia                      POST   /check-runs                                                exige=checks:write                                  agente=no revisor=si 
+  estado de commit (statuses)            POST   /statuses/{sha}                                            exige=statuses:write                                agente=no revisor=no 
+  aplicar-puertas (crear ruleset)        POST   /rulesets                                                  exige=administration:write                          agente=no revisor=no 
+  aplicar-puertas (cambiar ruleset)      PUT    /rulesets/{ruleset_id}                                     exige=administration:write                          agente=no revisor=no 
+  permisos de workflows del repo         PUT    /actions/permissions/workflow                              exige=administration:write                          agente=no revisor=no 
+  anadir colaborador                     PUT    /collaborators/{username}                                  exige=administration:write                          agente=no revisor=no 
+  secreto de Actions                     PUT    /actions/secrets/{secret_name}                             exige=secrets:write                                 agente=no revisor=no 
+  fichero normal por API                 PUT    /contents/{path}                                           exige=contents:write,workflows:write                agente=si revisor=no 
+  fichero de .github/workflows/ por API  PUT    /contents/{path} [workflow]                                exige=contents:write,workflows:write                agente=no revisor=no 
+  tag (objeto anotado)                   POST   /git/tags                                                  exige=contents:write                                agente=si revisor=no (limite) 
+  release                                POST   /releases                                                  exige=contents:write,workflows:write                agente=si revisor=no (limite) 
+  leer commit y su firma                 GET    /commits/{ref}                                             exige=contents:read                                 agente=si revisor=si 
+  leer ficheros del PR                   GET    /pulls/{pull_number}/files                                 exige=pull_requests:read                            agente=si revisor=si 
+  leer-puertas (reglas de la rama)       GET    /rules/branches/{branch}                                   exige=metadata:read                                 agente=si revisor=si 
+  comentar en el PR                      POST   /issues/{issue_number}/comments                            exige=issues:write,pull_requests:write              agente=si revisor=no 
+-- tabla fpt-2026-03-10: 940 endpoints server-to-server
+las 2 versiones dan el mismo resultado en las 23 filas: si
+minimo agente   usados=contents,pull_requests ; sin uso=ninguno
+minimo revisor  usados=checks,contents,pull_requests ; sin uso=ninguno
+RESULTADO B filas=23 x versiones=2 fallos=0 ; versiones iguales=si ; permisos sin uso=0
+
+=== C. Permisos de los workflows en los repos y tipo de cuenta (solo GET) ===
+--- charliebk/TaskCodeTwo (visibilidad: PUBLIC)
+actions/permissions/workflow:      HTTP 200 {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+--- charliebk/taskcodetwo-poc-f1-1 (visibilidad: PRIVATE)
+actions/permissions/workflow:      HTTP 200 {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+users/charliebk: charliebk User 11063961
+users/web-flow: web-flow User 19864447
+users/github-actions[bot]: github-actions[bot] Bot 41898282
+RESULTADO C can_approve_pull_request_reviews en los dos repos: false ; tipos: charliebk=User web-flow=User github-actions[bot]=Bot 
+
+=== D. Contrato del firmante (simulado con los type reales) y controles negativos ===
+type observado en C: {'charliebk': 'User', 'web-flow': 'User', 'github-actions[bot]': 'Bot'}
+  firmante: persona verificada en la lista                 -> cuenta    
+  firmante: Bot verificado (github-actions[bot])           -> no cuenta 
+  firmante: Bot metido en la lista por error               -> no cuenta 
+  firmante: persona verificada fuera de la lista           -> no cuenta 
+  firmante: web-flow (firma de la plataforma)              -> no cuenta 
+  firmante: web-flow metido en la lista por error          -> no cuenta 
+  firmante: persona sin firma                              -> no cuenta 
+  firmante: firmado, correo sin cuenta (committer null)    -> no cuenta 
+  nota: web-flow es type=User; lo excluye la lista y la exclusion explicita, no el type
+  invariantes sobre la tabla del ADR: se cumplen
+  negativo revisor con pull_requests:write    -> detectado: el revisor puede crear reviews (APPROVE)
+  negativo revisor con contents:write         -> detectado: el revisor puede mergear
+  negativo agente con administration:write    -> detectado: agente administra rulesets
+  negativo agente con workflows:write         -> detectado: agente tiene workflows
+  negativo agente con checks:write            -> detectado: el agente puede publicar checks (revision-ia)
+RESULTADO D firmante 8/8 casos ; invariantes=ok ; negativos detectados=5/5
+
+=== E. Firma SSH local: approve con Plan-Blob, allowed_signers bueno y malo ===
+OpenSSH_10.6p1, OpenSSL 3.5.9 29 Sep 2026 ; git version 2.56.0.windows.4
+claves desechables: agente agente.pub allowed_signers allowed_signers_malo persona persona-frase persona-frase.pub persona.pub 
+commit de approve ab86416 ; firma=G ; trailer Plan-Blob=1608d7cd2379f7dcb0576f1981d650e21d2304e6 
+verify-commit approve, allowed_signers bueno:            ok
+verify-commit approve, allowed_signers con otra clave:  falla
+plan aprobado (firma ok y Plan-Blob = blob actual):     cuenta
+tras cambiar el plan (blob v2):                         no cuenta
+tras revertir el contenido (blob v1 otra vez):          cuenta
+approve firmado con la clave del agente, bueno:         falla
+approve sin firma, bueno:                               falla
+clave con frase, sin ssh-agent ni TTY:                  no firma (error: Enter passphrase for "C:/Users/nullcad2025/AppData/Local/pruebas-claude/taskcodetwo...)
+OpenSSH admite claves FIDO ed25519-sk: si (crear una exige llave fisica: no se prueba)
+RESULTADO E casos=8/8 como se esperaba ; claves FIDO admitidas por OpenSSH=1
+
+=== Resumen ===
+RESULTADO A identidades=2 errores=0 ; negativos rechazados=4/4
+RESULTADO B filas=23 x versiones=2 fallos=0 ; versiones iguales=si ; permisos sin uso=0
+RESULTADO C can_approve_pull_request_reviews en los dos repos: false ; tipos: charliebk=User web-flow=User github-actions[bot]=Bot 
+RESULTADO D firmante 8/8 casos ; invariantes=ok ; negativos detectados=5/5
+RESULTADO E casos=8/8 como se esperaba ; claves FIDO admitidas por OpenSSH=1
+RESULTADO llamadas gh api con GET=10 ; gh api con otro metodo=0 ; gh repo view=2 ; descargas GET=3
+llamadas a GitHub registradas:
+  $ gh api --method GET repos/github/rest-api-description/commits/main -q ...
+  descarga GET https://raw.githubusercontent.com/github/rest-api-description/2a33d9cc5d1dc6ca603b908e0796454af88c1999/descriptions/api.github.com/api.github.com.json
+  $ gh api --method GET repos/github/docs/commits/main -q ...
+  $ gh api --method GET repos/github/docs/contents/src/github-apps/data?ref=d59b2631959db46d71ca5f7748ec04311c6d0870 -q ...
+  descarga GET https://raw.githubusercontent.com/github/docs/d59b2631959db46d71ca5f7748ec04311c6d0870/src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json
+  descarga GET https://raw.githubusercontent.com/github/docs/d59b2631959db46d71ca5f7748ec04311c6d0870/src/github-apps/data/fpt-2026-03-10/server-to-server-permissions.json
+  $ gh repo view charliebk/TaskCodeTwo --json visibility
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/permissions/workflow
+  $ gh repo view charliebk/taskcodetwo-poc-f1-1 --json visibility
+  $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/actions/permissions/workflow
+  $ gh api --method GET users/charliebk -q ...
+  $ gh api --method GET users/web-flow -q ...
+  $ gh api --method GET users/github-actions%5Bbot%5D -q ...
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/permissions/workflow -q ...
+  $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/actions/permissions/workflow -q ...
