@@ -730,7 +730,7 @@ def mutaciones(adr):
         ("enlace-roto", adr.replace("## Contexto", "## Contexto\n\n[x](F1-99-no-existe.md)", 1),
          "enlace que no resuelve: F1-99-no-existe.md"),
         ("seccion-borrada", adr.replace("## No verificado", "## Sin verificar"), "faltan secciones"),
-        ("sin-fila-f1-18-propuesta", re.sub(r"^(\s*)\| F1-18 \|", r"| F1-18bis |", adr, flags=re.M),
+        ("sin-fila-f1-18-propuesta", re.sub(r"^(\s*)\| F1-18 \|", r"\1| F1-18bis |", adr, flags=re.M),
          "F1-18 no esta en el plan"),
         ("estado-propuesta", adr.replace("- Estado: **aceptada**", "- Estado: **propuesta**"), "el estado no es aceptada"),
     ]
