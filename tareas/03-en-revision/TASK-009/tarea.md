@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 578544
 tokens_implementacion: 11528585
-tokens_revision: 5134387
+tokens_revision: 6974161
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-007, TASK-008]
@@ -52,6 +52,7 @@ Tarea F1-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-14T08:17:36Z | implementacion | agente:ae0317153b121b4af | 98 | 276273 | 9312752 | 102326 | 19 | 9691449 | - | - |
 | 2026-11-14T08:22:42Z | revision | agente:ad7595ebc10b9a87d | 44 | 164649 | 2786814 | 25127 | 11 | 2976634 | 1 | - |
 | 2026-11-14T08:33:09Z | revision | agente:a29cafed91767d7e4 | 30 | 182125 | 1939960 | 35638 | 15 | 2157753 | 2 | - |
+| 2026-11-14T08:37:03Z | revision | agente:a0200fd81b95ad75a | 34 | 89433 | 1727110 | 23197 | 9 | 1839774 | 3 | - |
 
 ## Autorrevision
 
@@ -62,3 +63,7 @@ Tarea F1-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 ## Rondas extra
 
 - Ronda 3: Carlos, con la consigna «responder la opcion recomendada»; la correccion de la ronda 1 introdujo un IMPORTANTE (IMP-4, una celda de la tabla de capacidades) que se corrige siempre y es barato, asi que se verifica en una ronda mas en vez de cerrar con el abierto.
+
+## Verificacion ligera
+
+- 2026-11-14T08:37:06Z: ronda 3; commit revisado 15920490783032be788e78412e2adf495fc805ca; commit verificado 65d91ca1a4ffe8a3f05a4772f63ac76f86796132; ficheros: docs/adr/F1-8-seguridad-modelo-de-amenazas.md; corregidos: MEN-7; pendientes: ninguno
