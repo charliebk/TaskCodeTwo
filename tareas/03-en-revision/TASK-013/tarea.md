@@ -32,6 +32,10 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 - [ ] Qué migra, simulación, vuelta atrás, convivencia 0.16/2.0
 - [ ] Cumple lo que pide la tarea F1-12 del plan y los requisitos que cita
 
+## Decisiones de la persona
+
+- 2026-11-14, Carlos, en la conversacion de la tarea tras ver la propuesta D1a: "Aprobamos los nombres". Quedan aprobados `tc2` (CLI), `taskcodetwo` (plugin, prefijo de skills, `.git/taskcodetwo/`, rama `taskcodetwo/tareas`) y el paquete npm `taskcodetwo` con binario `tc2`.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |

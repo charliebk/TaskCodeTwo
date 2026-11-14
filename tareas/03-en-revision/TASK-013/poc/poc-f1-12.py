@@ -1373,6 +1373,12 @@ MARCA = ".poc-f1-12"
 def comprobar_trabajo(trabajo):
     """<...>/pruebas-claude/<proyecto>/<motivo>[/...]: dos niveles como minimo bajo pruebas-claude, y la carpeta
     no existe, esta vacia o lleva la marca de esta PoC. Si no, no se borra nada."""
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        raise SystemExit("ERROR: falta LOCALAPPDATA: la carpeta de trabajo va en %LOCALAPPDATA%/pruebas-claude/<proyecto>/<motivo>")
+    raiz = os.path.normcase(os.path.abspath(os.path.join(base, "pruebas-claude")))
+    if not os.path.normcase(os.path.abspath(trabajo)).startswith(raiz + os.sep):
+        raise SystemExit(f"ERROR: {trabajo} no esta bajo %LOCALAPPDATA%/pruebas-claude ({raiz})")
     partes = trabajo.replace("\\", "/").rstrip("/").split("/")
     if "pruebas-claude" not in partes:
         raise SystemExit("ERROR: la carpeta de trabajo tiene que estar bajo pruebas-claude/<proyecto>/<motivo>")

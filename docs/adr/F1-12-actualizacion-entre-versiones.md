@@ -133,7 +133,8 @@ tareas tras migrar. La PoC fuerza la migración para medir el resto.
 El `subtree split` recorre los 1350 commits de `develop` y deja 1151 en la
 rama de estado. Es el paso caro de la migración y su tiempo de reloj varía
 entre ejecuciones en la misma máquina, así que no entra en la tabla
-comprobada. Rango observado: 594 s en la entrega, 614 s en la reejecución
+comprobada. Rango observado: 594 s en la entrega (su log solo guardó el
+cubo «menos de 600 s», línea 29 del log del commit 7f431ff), 614 s en la reejecución
 de la revisión 1 y 647 s en la ejecución que deja el log de esta
 corrección (su stderr va junto al log, en `poc-f1-12.tiempos.log`).
 
@@ -396,7 +397,7 @@ algo: sin `tareas-json` la migración se niega (código y ficheros cambiados:
    | `tareas/NN-estado/.gitkeep` | se borran (las carpetas de estado desaparecen) |
    | frontmatter de la 0.16 | formato 2 de F1-9: `formato: 2`, cadenas y fechas entre comillas dobles, `modelo_sugerido` → `roles.implementacion.modelo`, `skills_recomendados` y `regla_seleccion_skill` → `roles.implementacion`, `agente_revisor` → `roles.revision.agente`; fuera `revision_codex` y `ultimo_commit_revisado`; `carril` y `estimacion` a `null`; las claves desconocidas se conservan (F1-9 D4a). El cuerpo, byte a byte |
    | `tareas/ROADMAP.md` | se lleva tal cual a la raíz de la rama de estado; la 2.0 lo regenera con el contenido de F1-1 en su primera transición (F3-4) |
-   | `.taskcode/config.yml` plana | la misma ruta (D4a) con `---` en la primera línea, `formato: 2`, las claves base de F2-7 y los bloques de F1-11 (`verificacion`, `derivados`, `confianza_incluye`); los valores de la 0.16 pasan tal cual (`comando_verificacion` → `verificacion.comando`, `timeout_verificacion` → `perfiles.completa.timeout`) y lo que la 0.16 no tenía lo declara el proyecto (F1-11, «valores a rellenar»). **Comillas**: las claves que la 0.16 también lee (`modo_flujo` y las demás claves base heredadas) van entre **comillas dobles**, como pide F1-9 para las cadenas y porque la 0.16 quita las dobles pero conserva las simples dentro del valor (variante D de la PoC C); las órdenes y rutas de los bloques nuevos, que la 0.16 no lee, van entre **simples** o con `/`, como fija F1-11 (decisión 1), para que el `\v` de una ruta de Windows no sea un escape |
+   | `.taskcode/config.yml` plana | la misma ruta (D4a) con `---` en la primera línea, `formato: 2`, las claves base de F2-7 y los bloques de F1-11 (`verificacion`, `derivados`, `confianza_incluye`); los valores de la 0.16 pasan tal cual (`comando_verificacion` → `verificacion.comando`, `timeout_verificacion` → `perfiles.completa.timeout`) y lo que la 0.16 no tenía lo declara el proyecto (F1-11, «valores a rellenar»). **Comillas**: las claves que la 0.16 también lee (hoy solo `modo_flujo`) van entre **comillas dobles**, porque la 0.16 quita las dobles pero conserva las simples dentro del valor (variante D de la PoC C); es el mismo criterio que F1-9 fija para las cadenas del frontmatter de `tarea.md`, aplicado aquí por analogía a `config.yml`; las órdenes y rutas de los bloques nuevos, que la 0.16 no lee, van entre **simples** o con `/`, como fija F1-11 (decisión 1), para que el `\v` de una ruta de Windows no sea un escape |
    | `.gitignore` | añade `tareas/` |
    | `.git/taskcode/` (estado interno de la 0.16) | no migra: lo borra la desinstalación de la 0.16 (F9-10) |
 
@@ -473,7 +474,7 @@ algo: sin `tareas-json` la migración se niega (código y ficheros cambiados:
      desinstalar la 0.16 (F9-10); nunca con una tarea en curso; opcional y
      por proyecto.
 
-7. **Nombres definitivos** (D1a), aprobados por Carlos el 2026-11-14.
+7. **Nombres definitivos** (D1a), aprobados por Carlos el 2026-11-14 en la conversación de la tarea; queda registrado en la sección «Decisiones de la persona» del `tarea.md` de TASK-013.
    Distintos de los de la 0.16 y los mismos tras desinstalarla:
 
    | Pieza | 0.16 | 2.0 |
