@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: true
+plan_aprobado: false
 rama: feature/task-001-f1-0-crear-taskcodetwo
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -39,4 +39,3 @@ Tarea F1-0 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: —
 |---|---|---|---|---|
 | 2026-11-14T01:58:40Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T01:58:57Z | plan | automatico | persona | 0.16.1 |
-| 2026-11-14T02:01:52Z | approve | automatico | automatico | 0.16.1 |
