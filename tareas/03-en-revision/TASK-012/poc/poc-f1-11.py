@@ -149,11 +149,47 @@ def glob_ok(g):
 
 
 def mal_runner(p, r):
-    if r in ("github-windows", "github-linux", "github-macos"):
+    """Vocabulario de F1-7 dec. 5: `github` con el sistema (windows o linux) o una lista de etiquetas."""
+    if isinstance(r, dict) and list(r) == ["github"] and r["github"] in ("windows", "linux"):
         return None
     if isinstance(r, list) and r and all(isinstance(e, str) and e for e in r) and r[0] == "self-hosted":
         return None
-    return f"{p}: runner {r!r}: github-windows|github-linux|github-macos o [self-hosted, ...]"
+    return f"{p}: runner {r!r}: {{github: windows|linux}} o [self-hosted, ...] (F1-7 dec. 5)"
+
+
+RX_RESERVADO_WIN = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$", re.I)
+
+
+def normalizar_escribe(r):
+    """(ruta normalizada, None) o (None, motivo). Resuelve `.`, `..` y separadores repetidos antes de comparar;
+    las reservadas se comparan sin distinguir mayusculas (NTFS y APFS no las distinguen)."""
+    if not isinstance(r, str) or not r:
+        return None, "ruta vacia o no es texto"
+    if "\\" in r or ":" in r or r.startswith("/") or re.search(r"[\x00-\x1f*?\"<>|]", r):
+        return None, "ruta absoluta o con un caracter no admitido (\\ : * ? \" < > | o de control)"
+    partes = []
+    for c in r.split("/"):
+        if c in ("", "."):
+            continue
+        if c == "..":
+            if not partes:
+                return None, "sale de la raiz"
+            partes.pop()
+            continue
+        if c.lower() == ".git":
+            return None, "toca .git"
+        if RX_RESERVADO_WIN.match(c) or c.endswith((".", " ")):
+            return None, f"nombre reservado o no portable en Windows ({c!r})"
+        partes.append(c)
+    if not partes or partes[0] != "tareas":
+        return None, "fuera de tareas/ (D2a: solo la rama de estado)"
+    if len(partes) < 2:
+        return None, "tareas/ entera (toda la rama de estado)"
+    n = "/".join(partes)
+    baja = n.lower()
+    if baja in {x.lower() for x in RESERVADAS_TAREAS} or re.match(r"tareas/task-\d+(/|$)", baja):
+        return None, "lo escribe taskctl (roadmap o carpeta de tarea)"
+    return n, None
 
 
 def validar(cfg):
@@ -246,11 +282,9 @@ def validar(cfg):
         if tipo == "comprueba" and es:
             err.append(f"{q}.escribe: un derivado comprueba no escribe nada")
         for r in es:
-            if not isinstance(r, str) or not r.startswith("tareas/") or ".." in r.split("/") or "\\" in r \
-                    or "*" in r:
-                err.append(f"{q}.escribe: {r!r} fuera de tareas/ (D2a: solo la rama de estado)")
-            elif r in RESERVADAS_TAREAS or re.match(r"tareas/TASK-\d+(/|$)", r):
-                err.append(f"{q}.escribe: {r!r} lo escribe taskctl (roadmap o carpeta de tarea)")
+            _n, motivo = normalizar_escribe(r)
+            if motivo:
+                err.append(f"{q}.escribe: {r!r}: {motivo}")
         fs = d.get("fases", list(FASES))
         if not isinstance(fs, list) or not fs or any(f not in FASES for f in fs):
             err.append(f"{q}.fases: subconjunto no vacio de {list(FASES)}")
@@ -479,6 +513,154 @@ def seccion_a(pil, plugin, adr):
 
 
 # ---------------------------------------------------------------------------
+# A2: clasificacion parche de TaskCode / propio del proyecto (decision de la persona, 2026-11-14)
+# ---------------------------------------------------------------------------
+
+# Parche: existe para que la 0.16 funcione o para tapar sus carencias, y la 2.0 lo cubre de forma generica:
+# se retira del proyecto al migrar. Propio: como se verifica o que es el proyecto: se queda.
+# Ficheros enteros o por funciones (lo que no se nombra de un fichero partido es propio).
+DESGLOSE_FICHEROS = [
+    ("TW", "scripts/cache-verificacion.py", "entero", "parche",
+     "cache por paso y completa del mismo arbol, para no repetir lo que la 0.16 relanza en cada turno y ronda (F1-7 dec. 2)"),
+    ("TW", "scripts/cerrojo-verificacion.py", "entero", "parche",
+     "una verificacion a la vez: la 0.16 la lanza desde el freno, finish y el guardian (F1-7, F1-8 dec. 6)"),
+    ("TW", "scripts/clasificar-verificacion.py", "entero", "parche",
+     "selectiva para las rondas de review de la 0.16; generica solo si F5-3 da el impacto (pregunta abierta)"),
+    ("TW", "scripts/recuento-tests.py", "entero", "parche", "linea «# tests N» para el registro de puertas de la 0.16 (F5-4)"),
+    ("TW", "scripts/resumen-verificacion.py", "entero", "parche",
+     "x/N de TASKCTL_PROGRESO, evidencia de la ronda y «# tests N» (F5-4); incluye el resumen del panel de tareas"),
+    ("TW", ".claude/settings.json", "entero", "parche", "guardas del arnes frente a fallos de la 0.16 (F1-3, F1-5)"),
+    ("TW", "scripts/grafo-tareas.py", "quitar_comentario leer_tarea cargar", "parche", "lector propio (tareas --json)"),
+    ("TW", "scripts/grafo-tareas.py", "roadmap", "parche",
+     "tareas/ROADMAP.md lo escribe taskctl (F1-1 dec. 3); orden_de_trabajo se queda: lo usa el comprueba"),
+    ("TW", "scripts/verificar-rapida.py", "entero", "propio", "que corre la rapida del proyecto"),
+    ("ODT", "scripts/lector-tareas.py", "entero", "parche", "lector propio (tareas --json)"),
+    ("ODT", "scripts/comprobar-modulos.py", "_cargar_grafo tareas_vivas", "parche", "lectura propia del estado (tareas --json)"),
+    ("ODT", "scripts/comprobar-fallos.py", "_cargar_grafo tareas_vivas", "parche", "lectura propia del estado (tareas --json)"),
+]
+
+# verificar.bat de OpenDockTrading: lineas de parche; el resto, propio.
+ODT_BAT_PARCHE = [(3, 5, "lo lanzan el freno"), (16, 18, "Un candado"), (25, 25, "taskctl tiene que estar en el PATH"),
+                  (35, 37, "candado"), (44, 47, "sin_candado"), (59, 59, "taskctl roadmap --comparar")]
+
+# verificar.bat de ToolsaWeb: bloques de parche (con un texto que tienen que contener) y patrones por linea.
+TW_BAT_BLOQUES = [(34, 35, "panel de tareas"), (37, 43, "clasificar-verificacion.py"), (48, 52, "TASKCTL_PROGRESO"),
+                  (61, 67, "TW_CACHE"), (70, 70, "--selectiva"), (76, 76, "--selectiva"), (80, 107, "plan --completa"),
+                  (111, 112, "cache-verificacion.py"), (535, 537, "TW_SELECTIVA"), (543, 554, "completa_cacheada"),
+                  (630, 631, "Sale con 10"), (634, 634, ":paso_corre"), (642, 649, ":grupo"),
+                  (651, 653, "Cerrojo"), (658, 668, "verificar.lck"), (670, 675, "con_cerrojo"), (678, 682, "recuento")]
+TW_BAT_PATRONES = [r"cache-verificacion\.py (verde|completa|instantanea)", r"clasificar-verificacion\.py",
+                   r"cerrojo-verificacion\.py", r"recuento-tests\.py", r"resumen-verificacion\.py", r"verificar\.lck",
+                   r"TW_CERROJO", r"call :grupo", r"if errorlevel 10", r"^:tras_", r"TASKCTL_PROGRESO", r"TW_PLAN",
+                   r"TW_G_", r"TW_AVISO_PESADA", r"TW_CACHE", r"[Rr]ecuento", r"comando_verificacion", r"\btaskctl\b",
+                   r"\bfreno\b", r"TaskCode"]
+TW_BAT_ENVOLTORIO = r"cache-verificacion\.py correr "   # propio: se queda sin el envoltorio de la cache
+
+
+def rangos(lineas):
+    out, ini, prev = [], None, None
+    for n in sorted(lineas):
+        if ini is None:
+            ini = prev = n
+        elif n == prev + 1:
+            prev = n
+        else:
+            out.append((ini, prev))
+            ini = prev = n
+    if ini is not None:
+        out.append((ini, prev))
+    return ", ".join(f"{a}" if a == b else f"{a}-{b}" for a, b in out)
+
+
+def seccion_a2(pil, adr):
+    sep("A2: clasificacion de cada practica y de los ficheros (parche de TaskCode / propio del proyecto)")
+    cab, filas = entre_marcadores(adr, "inventario")
+    col = {c: i for i, c in enumerate(cab)}
+    if "Clasificación" not in col:
+        raise SystemExit("ERROR: falta la columna Clasificación en inventario")
+    cuenta = {}
+    for f in filas:
+        c = f[col["Clasificación"]]
+        cuenta.setdefault(c, []).append(f[col["#"]])
+        if c not in ("parche", "propio"):
+            falla("A2", f"practica {f[col['#']]}: clasificacion {c!r}")
+    print(f"practicas: parche={len(cuenta.get('parche', []))} ({' '.join(cuenta.get('parche', []))}) ; "
+          f"propio={len(cuenta.get('propio', []))} ({' '.join(cuenta.get('propio', []))})")
+    a_mano = [f for f in filas if f[col["En la 0.16"]] == "a mano"]
+    poc = {}
+    for f in a_mano:
+        poc.setdefault(f[col["En la PoC"]], []).append(f[col["#"]])
+    print(f"las {len(a_mano)} practicas a mano en la 0.16, segun la PoC: " +
+          " ; ".join(f"{k}={len(v)} ({' '.join(v)})" for k, v in sorted(poc.items())))
+    for k in ("comprobado", "proyectado", "dentro del comando", "convención", "fuera"):
+        MEDIDO[f"practicas a mano en la 0.16: {k}"] = str(len(poc.get(k, [])))
+    MEDIDO["practicas que son parche de TaskCode"] = str(len(cuenta.get("parche", [])))
+    MEDIDO["practicas propias del proyecto"] = str(len(cuenta.get("propio", [])))
+    retira, queda = {"TW": 0, "ODT": 0}, {"TW": 0, "ODT": 0}
+    partidos = {}
+    print("-- ficheros enteros o por funciones")
+    for clave, ruta, alcance, clase, motivo in DESGLOSE_FICHEROS:
+        fuente = pil.show(clave, ruta).replace("\r\n", "\n")
+        total = len(fuente.rstrip("\n").split("\n"))
+        if alcance == "entero":
+            n = total
+            donde = f"1-{total}"
+        else:
+            arbol = ast.parse(fuente)
+            fs = {x.name: (x.lineno, x.end_lineno) for x in arbol.body if isinstance(x, ast.FunctionDef)}
+            faltan = [a for a in alcance.split() if a not in fs]
+            if faltan:
+                falla("A2", f"{clave} {ruta}: no tiene {faltan}")
+                continue
+            n = sum(fs[a][1] - fs[a][0] + 1 for a in alcance.split())
+            donde = ", ".join(f"{a} {fs[a][0]}-{fs[a][1]}" for a in alcance.split())
+        if clase == "parche":
+            retira[clave] += n
+            partidos[(clave, ruta)] = (total, partidos.get((clave, ruta), (total, 0))[1] + n)
+        else:
+            queda[clave] += n
+        print(f"  {clave} {ruta}: {clase} {n} de {total} lineas ({donde}) ; {motivo}")
+    for (clave, ruta), (total, n) in sorted(partidos.items()):
+        if n < total:
+            queda[clave] += total - n
+            print(f"  {clave} {ruta}: propio el resto, {total - n} lineas")
+    print("-- OpenDockTrading scripts/verificar.bat")
+    bat = pil.show("ODT", "scripts/verificar.bat").replace("\r\n", "\n").rstrip("\n").split("\n")
+    parche = set()
+    for a, b, frag in ODT_BAT_PARCHE:
+        if norm(frag) not in norm(" ".join(bat[a - 1:b])):
+            falla("A2", f"ODT verificar.bat:{a}-{b} no contiene «{frag}»")
+        parche |= set(range(a, b + 1))
+    retira["ODT"] += len(parche)
+    queda["ODT"] += len(bat) - len(parche)
+    print(f"  parche {len(parche)} de {len(bat)} lineas ({rangos(parche)}) ; propio {len(bat) - len(parche)}")
+    print("-- ToolsaWeb scripts/verificar.bat (bloques declarados y patrones por linea)")
+    bat = pil.show("TW", "scripts/verificar.bat").replace("\r\n", "\n").rstrip("\n").split("\n")
+    parche = set()
+    for a, b, frag in TW_BAT_BLOQUES:
+        if norm(frag) not in norm(" ".join(bat[a - 1:b])):
+            falla("A2", f"TW verificar.bat:{a}-{b} no contiene «{frag}»")
+        parche |= set(range(a, b + 1))
+    por_patron = {i + 1 for i, l in enumerate(bat) if any(re.search(p, l) for p in TW_BAT_PATRONES)}
+    parche |= por_patron
+    envoltorio = {i + 1 for i, l in enumerate(bat) if re.search(TW_BAT_ENVOLTORIO, l)} - parche
+    retira["TW"] += len(parche)
+    queda["TW"] += len(bat) - len(parche)
+    print(f"  parche {len(parche)} de {len(bat)} lineas: {rangos(parche)}")
+    print(f"  propio {len(bat) - len(parche)} lineas ; de ellas {len(envoltorio)} se quedan sin el envoltorio "
+          f"«cache-verificacion.py correr»")
+    MEDIDO["ToolsaWeb verificar.bat: lineas de parche frente a propias"] = f"{len(parche)} / {len(bat) - len(parche)}"
+    for clave in ("TW", "ODT"):
+        print(f"  {FIJO[clave][0]}: lineas que se retiran={retira[clave]} ; lineas que se quedan={queda[clave]} "
+              f"(de los ficheros desglosados)")
+        MEDIDO[f"{FIJO[clave][0]}: lineas que se retiran frente a las que se quedan"] = f"{retira[clave]} / {queda[clave]}"
+    n_ficheros = sum(1 for x in DESGLOSE_FICHEROS if x[2] == "entero" and x[3] == "parche")
+    MEDIDO["ficheros enteros que se retiran"] = str(n_ficheros)
+    print(f"RESULTADO A2 parches={len(cuenta.get('parche', []))} ; ficheros enteros que se retiran={n_ficheros} ; "
+          f"lineas TW {retira['TW']}/{queda['TW']} ; ODT {retira['ODT']}/{queda['ODT']}")
+
+
+# ---------------------------------------------------------------------------
 # B: esquema, presupuesto y ventaja en claves
 # ---------------------------------------------------------------------------
 
@@ -495,9 +677,11 @@ verificacion:
   huella_arbol: ['Cargo.lock', 'web/package-lock.json']
   huella_local: 'python -I scripts/huella-local.py'
 derivados:
+  - comando: 'python -I scripts/grafo-tareas.py --escribir'
+    tipo: 'genera'
+    escribe: ['tareas/hitos.md']
   - comando: 'python -I scripts/grafo-tareas.py --comprobar'
     tipo: 'comprueba'
-    fases: ['plan', 'approve', 'finish']
 confianza_incluye: ['scripts/cache-verificacion.py', 'scripts/memo_ficheros.py']
 """
 
@@ -507,27 +691,28 @@ verificacion:
   comando: 'scripts\\verificar.bat'
   shell: 'cmd'
   perfiles:
-    completa: {timeout: 1200, runner: 'github-windows'}
+    completa: {timeout: 1200, runner: {github: 'windows'}}
   huella_arbol: ['Cargo.lock', 'web/package-lock.json']
   programada:
     comando: 'cargo audit --no-yanked --deny unsound && npm --prefix web audit'
     cron: '0 6 * * 1'
-    runner: 'github-windows'
+    runner: {github: 'windows'}
 derivados:
   - comando: 'python -I scripts/comprobar-modulos.py --comprobar'
     tipo: 'comprueba'
-    fases: ['plan', 'finish']
+  - comando: 'python -I scripts/comprobar-fallos.py --probar'
+    tipo: 'comprueba'
 confianza_incluye: ['scripts/lector-tareas.py']
 """
 
 HOSTILES = [
     ("clave desconocida (la 0.16 en plano)", "comando_verificacion_freno: 'scripts/verificar.bat --rapida'\n"),
     ("clave desconocida dentro de verificacion",
-     "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: {completa: {timeout: 60, runner: 'github-windows'}},"
+     "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: {completa: {timeout: 60, runner: {github: 'windows'}}},"
      " presupuesto_freno_s: 180}\n"),
     ("ruta de Windows con \\v entre comillas dobles (linea 9 de ToolsaWeb)",
      "verificacion:\n  comando: \"scripts\\verificar.bat\"\n  shell: 'cmd'\n"
-     "  perfiles: {completa: {timeout: 60, runner: 'github-windows'}}\n"),
+     "  perfiles: {completa: {timeout: 60, runner: {github: 'windows'}}}\n"),
     ("derivado que escribe fuera de tareas/ (hitos.md de ToolsaWeb)",
      "derivados:\n  - {comando: 'python -I scripts/grafo-tareas.py --escribir', tipo: 'genera',"
      " escribe: ['docs/planificacion/hitos.md']}\n"),
@@ -538,13 +723,29 @@ HOSTILES = [
     ("derivado con fase inventada", "derivados:\n  - {comando: 'c.py', tipo: 'comprueba', fases: ['push']}\n"),
     ("estado propio declarado (D1a: sin clave)", "estados: ['archivada']\n"),
     ("perfil fuera de F1-7", "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: {completa: {timeout: 60,"
-     " runner: 'github-windows'}, selectiva: {timeout: 60}}}\n"),
+     " runner: {github: 'windows'}}, selectiva: {timeout: 60}}}\n"),
     ("rapida con runner (corre en local)", "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: {completa: "
-     "{timeout: 60, runner: 'github-windows'}, rapida: {timeout: 60, runner: 'github-linux'}}}\n"),
+     "{timeout: 60, runner: {github: 'windows'}}, rapida: {timeout: 60, runner: {github: 'linux'}}}}\n"),
     ("confianza_incluye que hashea todo el arbol", "confianza_incluye: ['**']\n"),
     ("timeout como texto", "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: {completa: {timeout: '60',"
-     " runner: 'github-windows'}}}\n"),
-]
+     " runner: {github: 'windows'}}}}\n"),
+    ("runner con el vocabulario viejo (github-windows)", "verificacion: {comando: 'a.bat', shell: 'cmd', perfiles: "
+     "{completa: {timeout: 60, runner: 'github-windows'}}}\n"),
+] + [(f"escribe {r!r} (revision 1, IMP-2)",
+      f"derivados:\n  - {{comando: 'g.py', tipo: 'genera', escribe: ['{r}']}}\n")
+     for r in ("tareas/./ROADMAP.md", "tareas/roadmap.md", "tareas/./TASK-001/tarea.md", "tareas//TASK-001/tarea.md",
+               "tareas/task-001/tarea.md", "tareas/", "tareas/.git", "tareas/x:ads")]
+
+ACEPTADAS_ESCRIBE = ["tareas/hitos.md", "tareas/informes/grafo.md", "tareas/./hitos.md"]
+
+def hojas(x, p=""):
+    """Valores que una persona rellena: cada escalar, o cada lista de escalares como un solo valor."""
+    if isinstance(x, dict):
+        return [h for k, v in x.items() for h in hojas(v, f"{p}.{k}" if p else k)]
+    if isinstance(x, list) and x and all(isinstance(e, dict) for e in x):
+        return [h for i, e in enumerate(x) for h in hojas(e, f"{p}[{i}]")]
+    return [p]
+
 
 # Claves de la 0.16 que sustituyen los bloques verificacion y derivados (catalogo de src/core/config.ts)
 SUSTITUIDAS_016 = [
@@ -606,6 +807,12 @@ def seccion_b(pil, plugin, trabajo):
             rech += 1
             print(f"  {nombre:66} -> rechazada: {str(e)[:110]}")
     MEDIDO["configuraciones hostiles rechazadas"] = f"{rech}/{len(HOSTILES)}"
+    print("-- rutas de escribe que se aceptan, ya normalizadas")
+    for r in ACEPTADAS_ESCRIBE:
+        n, motivo = normalizar_escribe(r)
+        print(f"  {r!r:30} -> {repr(n) if n else 'RECHAZADA: ' + motivo}")
+        if not n:
+            falla("B", f"ruta legitima rechazada: {r}")
     tw_yaml = yaml.safe_load(pil.show("TW", ".taskcode/config.yml"))
     odt_yaml = yaml.safe_load(pil.show("ODT", ".taskcode/config.yml"))
     print(f"  lector YAML estandar sobre la config real de ToolsaWeb: comando_verificacion = "
@@ -656,13 +863,18 @@ def seccion_b(pil, plugin, trabajo):
         usadas = sorted(y)
         ext = [k for k in usadas if k in SUSTITUIDAS_016]
         nuevas = [k for k in sorted(cfgs[clave]) if k in ("verificacion", "derivados")]
+        valores = hojas({k: v for k, v in cfgs[clave].items()})
         print(f"  {FIJO[clave][0]}: claves en su config 0.16 = {len(usadas)} ; de verificacion y sincronizacion = "
-              f"{len(ext)} ({', '.join(ext)}) ; en el esquema nuevo = {len(nuevas)} ({', '.join(nuevas)}) ; "
+              f"{len(ext)} ({', '.join(ext)}) ; bloques en el esquema nuevo = {len(nuevas)} ({', '.join(nuevas)}) ; "
               f"resto, de F2-7: {[k for k in usadas if k not in SUSTITUIDAS_016]}")
-        MEDIDO[f"{FIJO[clave][0]}: claves de verificacion y sincronizacion 0.16 -> 2.0"] = f"{len(ext)} -> {len(nuevas)}"
+        print(f"  {FIJO[clave][0]}: valores a rellenar 0.16 = {len(ext)} ; 2.0 = {len(valores)} ({', '.join(valores)})")
+        MEDIDO[f"{FIJO[clave][0]}: claves planas 0.16 -> bloques 2.0"] = f"{len(ext)} -> {len(nuevas)}"
+        MEDIDO[f"{FIJO[clave][0]}: valores a rellenar 0.16 -> 2.0"] = f"{len(ext)} -> {len(valores)}"
     total = len(CLAVES_F111) + len(CLAVES_F110)
-    print(f"  presupuesto: F1-11 {len(CLAVES_F111)} + F1-10 {len(CLAVES_F110)} = {total} de 12 "
-          f"(F1-8 no anade clave propia: sus globs son confianza_incluye)")
+    MEDIDO["claves hoja del esquema de F1-11"] = str(len(ESQUEMA - {"verificacion", "derivados"}))
+    print(f"  esquema de F1-11: {len(CLAVES_F111)} claves de primer nivel y {len(ESQUEMA - {"verificacion", "derivados"})} hojas")
+    print(f"  presupuesto (el tope de 12 de F2-7 cuenta claves de primer nivel): F1-11 {len(CLAVES_F111)} + F1-10 "
+          f"{len(CLAVES_F110)} = {total} de 12 (F1-8 no anade clave propia: sus globs son confianza_incluye)")
     MEDIDO["claves de primer nivel de F1-10 y F1-11 frente al tope de 12"] = f"{total} de 12"
     if total > 12:
         falla("B", "se pasa del tope de 12")
@@ -716,16 +928,27 @@ if faltan:
 '''
 
 MALO_PY = '''\
-"""Derivado hostil: escribe en el arbol de codigo."""
-import os
-open(os.path.join(os.environ["TASKCODE_CODIGO"], "src", "intruso.txt"), "w").write("x")
+"""Derivados hostiles de la PoC: escriben donde no deben, segun el argumento."""
+import os, re, sys
+T, C = os.environ["TASKCODE_TAREAS"], os.environ["TASKCODE_CODIGO"]
+modo = sys.argv[1]
+if modo == "codigo":
+    open(os.path.join(C, "src", "intruso.txt"), "w").write("x")
+elif modo == "ignorado":
+    os.makedirs(os.path.join(C, ".estado"), exist_ok=True)
+    open(os.path.join(C, ".estado", "x.txt"), "w").write("x")
+elif modo == "tarea":
+    p = os.path.join(T, sys.argv[2], "tarea.md")
+    t = open(p, encoding="utf-8").read()
+    t = re.sub(r'^estado: .*$', 'estado: "terminada"', t, count=1, flags=re.M)
+    open(p, "w", encoding="utf-8", newline="\\n").write(t)
 '''
 
 CFG_C = """\
 verificacion:
   comando: 'scripts/verificar.sh'
   shell: 'cmd'
-  perfiles: {completa: {timeout: 60, runner: 'github-linux'}}
+  perfiles: {completa: {timeout: 60, runner: {github: 'linux'}}}
 derivados:
   - comando: 'python -I -B scripts/grafo.py'
     tipo: 'genera'
@@ -735,28 +958,69 @@ derivados:
     fases: ['review', 'finish']
 """
 
+AUSENTE = object()
+
 
 def tarea_md(tid, estado, sprint, deps):
     return (f"---\nid: \"{tid}\"\ntitulo: \"Tarea {tid}\"\nestado: \"{estado}\"\nsprint: {sprint}\n"
             f"dependencias: [{', '.join(deps)}]\n---\n## Objetivo\n\nx\n")
 
 
-def porcelana(repo):
-    return set(git(repo, "status", "--porcelain", "--untracked-files=all").splitlines())
+def foto_tareas(tareas):
+    """Contenido de todo fichero de la rama de estado montada (sin su enlace .git)."""
+    f = {}
+    for base, dirs, ficheros in os.walk(tareas):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for n in ficheros:
+            rel = os.path.relpath(os.path.join(base, n), tareas).replace(os.sep, "/")
+            if rel != ".git":
+                f[rel] = open(os.path.join(base, n), "rb").read()
+    return f
 
 
-def deshacer(repo, lineas):
-    for l in sorted(lineas):
-        ruta = l[3:]
-        if l.startswith("??"):
-            os.remove(os.path.join(repo, ruta))
+def foto_codigo(raiz):
+    """Contenido de lo modificado, nuevo o ignorado del arbol de codigo (sin tareas/): un fichero limpio que
+    cambia aparece despues; uno sucio que se vuelve a cambiar se ve por contenido; uno borrado, como None."""
+    f = {}
+    for e in git(raiz, "status", "--porcelain=v1", "-z", "--ignored", "--untracked-files=all").split("\0"):
+        if len(e) > 3:
+            rel = e[3:]
+            if rel == "tareas/" or rel.startswith("tareas/"):
+                continue
+            p = os.path.join(raiz, rel)
+            f[rel] = open(p, "rb").read() if os.path.isfile(p) else None
+    return f
+
+
+def cambios(a, b):
+    return sorted(p for p in set(a) | set(b) if a.get(p, AUSENTE) != b.get(p, AUSENTE))
+
+
+def restaurar(base, antes, rutas, versionados=frozenset()):
+    for p in rutas:
+        q = os.path.join(base, p)
+        v = antes.get(p, AUSENTE)
+        if v is AUSENTE and p in versionados:
+            git(base, "checkout", "-q", "--", p)
+        elif v is AUSENTE or v is None:
+            if os.path.isfile(q):
+                os.remove(q)
         else:
-            git(repo, "checkout", "-q", "--", ruta)
+            os.makedirs(os.path.dirname(q), exist_ok=True)
+            open(q, "wb").write(v)
+
+
+def lanzar(raiz, tareas, d):
+    env = dict(os.environ, TASKCODE_TAREAS=tareas, TASKCODE_CODIGO=raiz)
+    return subprocess.run(["cmd", "/d", "/c", d["comando"]], cwd=raiz, env=env, capture_output=True,
+                          stdin=subprocess.DEVNULL, timeout=d.get("timeout", 60))
 
 
 def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
     """Lo que haria `taskctl <fase>`: escribe la tarea, ejecuta los derivados de esa fase (punto explicito,
-    no un hook), y lo commitea todo junto en la rama de estado. Devuelve (avisos, ficheros del commit)."""
+    no un hook), y lo commitea todo junto en la rama de estado. Lo escrito se compara por CONTENIDO: en la
+    rama de estado, todo fichero fuera de `escribe` (tambien el tarea.md de la transicion); en el codigo,
+    cualquier cambio, tambien en rutas ignoradas. Devuelve (avisos, ficheros del commit)."""
     tareas = os.path.join(raiz, "tareas")
     p = os.path.join(tareas, tid, "tarea.md")
     t = open(p, encoding="utf-8").read()
@@ -765,7 +1029,7 @@ def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
         t = re.sub(r'^dependencias: .*$', f"dependencias: [{', '.join(deps)}]", t, count=1, flags=re.M)
     open(p, "w", encoding="utf-8", newline="\n").write(t)
     avisos = []
-    env = dict(os.environ, TASKCODE_TAREAS=tareas, TASKCODE_CODIGO=raiz)
+    versionados = frozenset(git(raiz, "ls-files").splitlines())
     for i, d in enumerate(derivados if derivados is not None else cfg["derivados"]):
         clave = f"derivados[{i}]"
         if fase not in d.get("fases", list(FASES)):
@@ -774,20 +1038,26 @@ def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
         if st != "confiado":
             avisos.append(f"{clave} {st}: no se ejecuta; revisa la orden y `taskctl confiar {clave}`")
             continue
-        cod0, tar0 = porcelana(raiz), porcelana(tareas)
-        r = subprocess.run(["cmd", "/d", "/c", d["comando"]], cwd=raiz, env=env, capture_output=True,
-                           stdin=subprocess.DEVNULL, timeout=d.get("timeout", 60))
-        cod1, tar1 = porcelana(raiz), porcelana(tareas)
-        permitidas = {f"{tid}/tarea.md"} | {e[len("tareas/"):] for e in d.get("escribe", [])}
-        fuera_tar = {l for l in tar1 - tar0 if l[3:] not in permitidas}
-        fuera_cod = cod1 - cod0
-        if fuera_cod or fuera_tar:
-            deshacer(raiz, fuera_cod)
-            deshacer(tareas, fuera_tar | {l for l in tar1 - tar0 if l[3:] != f"{tid}/tarea.md"})
-            avisos.append(f"{clave} escribio fuera de `escribe` ({sorted(l[3:] for l in fuera_cod | fuera_tar)}): "
+        escribe = [normalizar_escribe(e)[0] for e in d.get("escribe", [])]
+        ignoradas = [e for e in escribe
+                     if git(tareas, "check-ignore", "-q", e[len("tareas/"):], check=False).returncode == 0]
+        if ignoradas:
+            avisos.append(f"{clave} escribe una ruta ignorada en la rama de estado ({ignoradas}): no se "
+                          f"commitearia; no se ejecuta")
+            continue
+        permitidas = {e[len("tareas/"):].lower() for e in escribe}
+        ft0, fc0 = foto_tareas(tareas), foto_codigo(raiz)
+        r = lanzar(raiz, tareas, d)
+        ft1, fc1 = foto_tareas(tareas), foto_codigo(raiz)
+        ct, cc = cambios(ft0, ft1), cambios(fc0, fc1)
+        fuera = [x for x in ct if x.lower() not in permitidas]
+        if cc or fuera:
+            restaurar(tareas, ft0, ct)
+            restaurar(raiz, fc0, cc, versionados)
+            avisos.append(f"{clave} escribio fuera de `escribe` ({sorted(fuera + ['codigo:' + x for x in cc])}): "
                           f"descartado; la transicion sigue")
         elif r.returncode != 0:
-            deshacer(tareas, {l for l in tar1 - tar0 if l[3:] != f"{tid}/tarea.md"})
+            restaurar(tareas, ft0, ct)
             ult = r.stderr.decode("utf-8", "replace").strip().splitlines()[-1:]
             avisos.append(f"{clave} fallo (codigo {r.returncode}: {' '.join(ult)}); la transicion sigue; "
                           f"arreglalo y ejecuta `taskctl derivados`")
@@ -797,13 +1067,26 @@ def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
     return avisos, ficheros
 
 
+def check_estado(raiz, cfg):
+    """El check `estado` del PR: ejecuta los `comprueba` de la configuracion DE LA BASE contra el arbol del PR
+    y la rama de estado; no se cachea; rojo (bloquea) si alguno sale distinto de 0."""
+    rojos = []
+    for i, d in enumerate(cfg["derivados"]):
+        if d["tipo"] == "comprueba":
+            r = lanzar(raiz, os.path.join(raiz, "tareas"), d)
+            if r.returncode != 0:
+                rojos.append(f"derivados[{i}] codigo {r.returncode}: "
+                             f"{' '.join(r.stderr.decode('utf-8', 'replace').strip().splitlines()[-1:])}")
+    return rojos
+
+
 def seccion_c(trabajo):
     sep("C: derivados ejecutados por taskctl en la transicion, en la rama de estado")
     raiz = os.path.join(trabajo, "c", "repo")
     os.makedirs(os.path.join(raiz, "src"))
     os.makedirs(os.path.join(raiz, "scripts"))
     git(raiz, "init", "-q", "-b", "develop")
-    open(os.path.join(raiz, ".gitignore"), "w").write("tareas/\n")
+    open(os.path.join(raiz, ".gitignore"), "w").write("tareas/\n.estado/\n")
     open(os.path.join(raiz, "src", "app.txt"), "w").write("implementa TASK-001 y TASK-002\n")
     for n, c in (("grafo.py", GRAFO_PY), ("comprueba.py", COMPRUEBA_PY), ("malo.py", MALO_PY)):
         open(os.path.join(raiz, "scripts", n), "w", encoding="utf-8", newline="\n").write(c)
@@ -813,6 +1096,7 @@ def seccion_c(trabajo):
     git(raiz, "commit", "-q", "-m", "codigo")
     git(raiz, "worktree", "add", "-q", "--orphan", "-b", "taskcode/tareas", "tareas")
     tareas = os.path.join(raiz, "tareas")
+    open(os.path.join(tareas, ".gitignore"), "w", newline="\n").write("*.tmp\n")
     for tid, s, deps in (("TASK-001", 1, []), ("TASK-002", 1, ["TASK-001"]), ("TASK-003", 2, ["TASK-002"])):
         os.makedirs(os.path.join(tareas, tid))
         open(os.path.join(tareas, tid, "tarea.md"), "w", newline="\n").write(tarea_md(tid, "planificada", s, deps))
@@ -832,89 +1116,267 @@ def seccion_c(trabajo):
         av, fs = transicion(raiz, cfg, alm, *a, **k)
         gen = "grafo-hitos.md" in fs
         pasos.append((nombre, av, fs, gen))
-        print(f"  {nombre:46} commit={fs} ; grafo regenerado={gen}")
+        print(f"  {nombre:52} commit={fs} ; grafo regenerado={gen}")
         for x in av:
             print(f"      aviso: {x}")
         return av, gen
 
+    def hostil(modo, *extra, escribe=("tareas/grafo-hitos.md",), comando=None):
+        d = {"comando": comando or " ".join(["python -I -B scripts/malo.py", modo, *extra]), "tipo": "genera",
+             "escribe": list(escribe)}
+        confiar(raiz, "derivados[0]", d["comando"], [], alm)
+        return [d]
+
+    def estado_de(tid):
+        return re.search(r'^estado: "?([^"\n]+)"?$', open(os.path.join(tareas, tid, "tarea.md"), encoding="utf-8").read(),
+                         re.M).group(1)
+
     print("-- transiciones")
     av, gen = paso("T1 plan TASK-001", "TASK-001", "plan", "en-diseno")
-    ok1 = gen and not av
+    ok = [gen and not av]
     av, gen = paso("T2 approve TASK-001", "TASK-001", "approve", "en-curso")
-    ok2 = gen and not av
+    ok.append(gen and not av)
     av, gen = paso("T3 plan TASK-003 con dependencia rota", "TASK-003", "plan", "en-diseno", deps=["TASK-099"])
-    ok3 = not gen and any("fallo (codigo 1" in x and "TASK-099" in x for x in av)
+    ok.append(not gen and any("fallo (codigo 1" in x and "TASK-099" in x for x in av))
     open(os.path.join(raiz, "scripts", "grafo.py"), "a").write("# un pull cambia el generador\n")
     av, gen = paso("T4 review TASK-001 con el generador cambiado", "TASK-001", "review", "en-revision")
-    ok4 = not gen and any("derivados[0] cambiado" in x for x in av) and not any("derivados[1]" in x for x in av)
+    ok.append(not gen and any("derivados[0] cambiado" in x for x in av) and not any("derivados[1]" in x for x in av))
     git(raiz, "checkout", "-q", "--", "scripts/grafo.py")
     open(os.path.join(tareas, "TASK-003", "tarea.md"), "w", newline="\n").write(
         tarea_md("TASK-003", "en-diseno", 2, ["TASK-002"]))
     av, gen = paso("T5 finish TASK-001 (generador restaurado)", "TASK-001", "finish", "terminada")
-    ok5 = gen and not av
-    print("-- hostiles en ejecucion")
+    ok.append(gen and not av)
+    print("-- un comprueba en rojo: la transicion avisa; el check `estado` del PR bloquea")
     open(os.path.join(raiz, "src", "nuevo.txt"), "w").write("usa TASK-404\n")
     av, gen = paso("T6 finish TASK-002, codigo cita TASK-404", "TASK-002", "finish", "terminada")
-    ok6 = any("derivados[1] fallo" in x and "TASK-404" in x for x in av)
+    rojo = check_estado(raiz, cfg)
+    print(f"  check estado en el PR con ese codigo: {'ROJO (bloquea): ' + '; '.join(rojo) if rojo else 'verde'}")
     os.remove(os.path.join(raiz, "src", "nuevo.txt"))
-    malo = {"comando": "python -I -B scripts/malo.py", "tipo": "genera", "escribe": ["tareas/grafo-hitos.md"]}
-    confiar(raiz, "derivados[0]", malo["comando"], [], alm)
+    verde = check_estado(raiz, cfg)
+    print(f"  check estado sin la cita rota: {'ROJO' if verde else 'verde'}")
+    ok.append(any("derivados[1] fallo" in x and "TASK-404" in x for x in av) and bool(rojo) and not verde)
+    MEDIDO["check estado con un comprueba en rojo"] = "rojo (bloquea)" if rojo else "verde"
+    print("-- hostiles en ejecucion (lo escrito se compara por contenido)")
     av, gen = paso("T7 pausa TASK-003, derivado que escribe en codigo", "TASK-003", "pausa", "pausa",
-                   derivados=[malo])
-    ok7 = any("escribio fuera de `escribe`" in x and "src/intruso.txt" in x for x in av) \
-        and not os.path.exists(os.path.join(raiz, "src", "intruso.txt"))
+                   derivados=hostil("codigo"))
+    ok.append(any("codigo:src/intruso.txt" in x for x in av) and not os.path.exists(os.path.join(raiz, "src", "intruso.txt")))
+    av, gen = paso("T8 plan TASK-003, derivado que reescribe su tarea.md", "TASK-003", "plan", "en-diseno",
+                   derivados=hostil("tarea", "TASK-003"))
+    ok.append(any("TASK-003/tarea.md" in x for x in av) and estado_de("TASK-003") == "en-diseno"
+              and "TASK-003/tarea.md" in git(tareas, "show", "--name-only", "--format=", "HEAD"))
+    print(f"      estado de TASK-003 tras T8: {estado_de('TASK-003')}")
+    av, gen = paso("T9 start TASK-003, derivado que escribe en una ruta ignorada", "TASK-003", "start", "en-curso",
+                   derivados=hostil("ignorado"))
+    ok.append(any("codigo:.estado/x.txt" in x for x in av) and not os.path.exists(os.path.join(raiz, ".estado", "x.txt")))
+    av, gen = paso("T10 review TASK-003, escribe una ruta ignorada del estado", "TASK-003", "review", "en-revision",
+                   derivados=hostil("", escribe=("tareas/borrador.tmp",), comando="python -I -B scripts/grafo.py"))
+    ok.append(any("ruta ignorada" in x for x in av))
     arbol1 = git(raiz, "rev-parse", "develop^{tree}").strip()
     ncod1 = git(raiz, "rev-list", "--count", "develop").strip()
-    limpio = git(raiz, "status", "--porcelain", "--untracked-files=all").strip() == ""
+    limpio = git(raiz, "status", "--porcelain", "--untracked-files=all", "--ignored").strip() == "!! tareas/"
     nest = git(raiz, "rev-list", "--count", "taskcode/tareas").strip()
     print(f"arbol de develop antes={arbol0[:12]} despues={arbol1[:12]} identico={arbol0 == arbol1} ; "
-          f"commits en develop {ncod0}->{ncod1} ; status limpio={limpio}")
+          f"commits en develop {ncod0}->{ncod1} ; status limpio, tambien lo ignorado={limpio}")
     print(f"commits en taskcode/tareas: {nest} (alta + {len(pasos)} transiciones, uno por transicion)")
     g = open(os.path.join(tareas, "grafo-hitos.md"), encoding="utf-8").read()
+    fin_ok = "TASK-001[" not in g and "TASK-003[TASK-003 en-diseno]" in g.split("## H2")[1]
     print(f"grafo-hitos.md final: TASK-001 fuera (terminada)={'TASK-001[' not in g} ; "
           f"TASK-003 en H2={'TASK-003[TASK-003 en-diseno]' in g.split('## H2')[1]}")
-    fin_ok = "TASK-001[" not in g and "TASK-003[TASK-003 en-diseno]" in g.split("## H2")[1]
-    res = [ok1, ok2, ok3, ok4, ok5, ok6, ok7, arbol0 == arbol1, ncod0 == ncod1, limpio, nest == str(1 + len(pasos)),
-           fin_ok]
     for i, (nombre, *_r) in enumerate(pasos):
-        if not res[i]:
+        if not ok[i]:
             falla("C", f"{nombre}: resultado inesperado")
-    if not all(res[7:]):
+    if not (arbol0 == arbol1 and ncod0 == ncod1 and limpio and nest == str(1 + len(pasos)) and fin_ok):
         falla("C", "develop cambio, la rama de estado no tiene un commit por transicion o el grafo final no cuadra")
     MEDIDO["transiciones con derivados en la rama de estado"] = str(len(pasos))
+    MEDIDO["hostiles en ejecucion descartados"] = f"{sum(ok[6:])}/{len(ok[6:])}"
     MEDIDO["arbol de develop tras las transiciones"] = "identico" if arbol0 == arbol1 else "distinto"
-    print(f"RESULTADO C transiciones={len(pasos)} ; como se espera={sum(res[:7])}/7 ; develop identico="
+    print(f"RESULTADO C transiciones={len(pasos)} ; como se espera={sum(ok)}/{len(ok)} ; develop identico="
           f"{arbol0 == arbol1}")
+
+
+# ---------------------------------------------------------------------------
+# Tareas de los pilotos en la estructura de la 0.16 y en la carpeta fija, y `tareas --json` simulado
+# ---------------------------------------------------------------------------
+
+def copiar_tareas(pil, clave, base):
+    """Escribe base/v016/tareas/<NN-estado>/TASK-NNN/tarea.md y base/v20/tareas/TASK-NNN/tarea.md (las de
+    05-archivadas, con estado descartada: lo que haria la migracion de D1a). Devuelve las rutas leidas."""
+    rutas = [p for p in pil.ls(clave, "tareas") if re.fullmatch(r"tareas/0\d-[^/]+/TASK-\d+/tarea\.md", p)]
+    for p in rutas:
+        _t, carpeta, tid, _f = p.split("/")
+        txt = pil.show(clave, p)
+        for capa, rel in (("v016", (carpeta, tid)), ("v20", (tid,))):
+            dst = os.path.join(base, capa, "tareas", *rel)
+            os.makedirs(dst, exist_ok=True)
+            t2 = re.sub(r"^estado: .*$", "estado: descartada", txt, count=1, flags=re.M) \
+                if capa == "v20" and carpeta == "05-archivadas" else txt
+            open(os.path.join(dst, "tarea.md"), "w", encoding="utf-8", newline="").write(t2)
+    return rutas
+
+
+def tareas_json_simulado(raiz_tareas):
+    """Simula `taskctl tareas --json` sobre la carpeta fija. Campos (revision 1, IMP-3): todo el frontmatter
+    leido con YAML estandar, `criterios` (las lineas `- [ ]`/`- [x]` de «## Criterios de aceptacion») y
+    `texto` (tarea.md entero), que es lo que leen los consumidores reales de los pilotos."""
+    out = []
+    for d in sorted(os.listdir(raiz_tareas)):
+        p = os.path.join(raiz_tareas, d, "tarea.md")
+        if not os.path.isfile(p):
+            continue
+        texto = open(p, encoding="utf-8").read()
+        cab, cuerpo = texto.split("\n---\n", 1)
+        fm = yaml.safe_load(cab[4:])
+        criterios, dentro = [], False
+        for linea in cuerpo.splitlines():
+            if linea.startswith("## "):
+                dentro = linea.strip().lower().startswith("## criterios de aceptacion")
+            elif dentro and re.match(r"^- \[[ xX]\] \S", linea):
+                criterios.append(linea)
+        out.append({**fm, "criterios": criterios, "texto": texto})
+    return json.dumps(out, ensure_ascii=False, default=str)
+
+
+# Consumidores con `tareas --json`: lo que sustituye a los lectores propios de los pilotos.
+
+def modulos_desde_json(js):
+    """comprobar-modulos.py de OpenDockTrading: {id: texto} de las vivas."""
+    return {t["id"]: t["texto"] for t in js if t["estado"] != "descartada"}
+
+
+def fallos_desde_json(js):
+    """comprobar-fallos.py de OpenDockTrading: {id: casillas de criterio} de las vivas."""
+    return {t["id"]: len(re.findall(r"^- \[[ x]\] ", t["texto"], re.M)) for t in js if t["estado"] != "descartada"}
+
+
+def grafo_desde_json(js):
+    """grafo-tareas.py de ToolsaWeb: frontmatter como texto (como su lector) y numero de criterios."""
+    plano = lambda v: "null" if v is None else str(v).lower() if isinstance(v, bool) else str(v)
+    return {t["id"]: {**{k: [plano(x) for x in v] if isinstance(v, list) else plano(v) for k, v in t.items()
+                         if k not in ("criterios", "texto")}, "criterios": len(t["criterios"])} for t in js}
+
+
+# ---------------------------------------------------------------------------
+# C2: hitos de ToolsaWeb con la disposicion nueva (funciones reales del script copiado)
+# ---------------------------------------------------------------------------
+
+def quitar_generado(texto, m):
+    """hitos.md sin lo generado: las tablas de §1 (duplican el frontmatter) y el bloque del Mermaid de §4."""
+    i, f = texto.find("\n## 1."), texto.find("\n## 2.")
+    sec = "\n".join(l for l in texto[i:f].split("\n") if not l.lstrip().startswith("|"))
+    sec = re.sub(r"\n{3,}", "\n\n", sec)
+    a, b = texto.find(m.INICIO), texto.find(m.FIN) + len(m.FIN)
+    resto = texto[f:a] + "Las tablas de tareas por hito y el grafo se generan en la rama de estado (`tareas/hitos.md`)." \
+        + texto[b:]
+    return texto[:i] + sec + resto
+
+
+def generar_hitos(m, tareas, titulos):
+    """Derivado `genera` de ToolsaWeb en la 2.0: tablas de §1 y Mermaid, en la rama de estado."""
+    lineas = ["# Hitos: tablas y grafo (generado en la rama de estado; no editar)", "",
+              "## 1. Tareas pendientes por hito", ""]
+    por_hito = {}
+    for t in sorted(m.pendientes(tareas)):
+        por_hito.setdefault(int(tareas[t].get("sprint", 0)), []).append(t)
+    for h in sorted(por_hito, key=m.rango):
+        lineas += [f"### H{h} — {titulos.get(h, f'H{h}')}", "", "| ID | Tarea | Complejidad | Depende de |",
+                   "|---|---|---|---|"]
+        for t in por_hito[h]:
+            deps = ", ".join(tareas[t].get("dependencias", [])) or "—"
+            lineas.append(f"| {t} | {tareas[t].get('titulo', '').replace('|', '/')} | "
+                          f"{tareas[t].get('complejidad', '')} | {deps} |")
+        lineas.append("")
+    lineas += ["## 2. Grafo de dependencias", "", m.mermaid(tareas, titulos), ""]
+    return "\n".join(lineas)
+
+
+def seccion_c2(pil, trabajo):
+    sep("C2: hitos de ToolsaWeb, hoy y con la disposicion nueva (script real copiado)")
+    base = os.path.join(trabajo, "c2")
+    copiar_tareas(pil, "TW", base)
+    texto = pil.show("TW", "docs/planificacion/hitos.md")
+    for capa in ("v016", "v20"):
+        os.makedirs(os.path.join(base, capa, "scripts"))
+        os.makedirs(os.path.join(base, capa, "docs", "planificacion"))
+        open(os.path.join(base, capa, "scripts", "grafo-tareas.py"), "w", encoding="utf-8", newline="").write(
+            pil.show("TW", "scripts/grafo-tareas.py"))
+    hoy = os.path.join(base, "v016")
+    open(os.path.join(hoy, "docs", "planificacion", "hitos.md"), "w", encoding="utf-8", newline="").write(texto)
+    open(os.path.join(hoy, "tareas", "ROADMAP.md"), "w", encoding="utf-8", newline="").write(
+        pil.show("TW", "tareas/ROADMAP.md"))
+
+    def cli(arg):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("TW_")}
+        r = subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", os.path.join(hoy, "scripts", "grafo-tareas.py"),
+                            arg],
+                           cwd=hoy, env=env, capture_output=True, stdin=subprocess.DEVNULL, timeout=300)
+        return r.returncode, [l for l in r.stdout.decode("utf-8", "replace").splitlines() if l.startswith("[")]
+
+    c0, s0 = cli("--comprobar")
+    mh = cargar_modulo("grafo_c2_hoy", os.path.join(hoy, "scripts", "grafo-tareas.py"))
+    th = mh.cargar(mh.TAREAS)
+    elegida = next(t for t, fm in sorted(th.items()) if fm.get("estado") == "planificada"
+                   and "descartada" not in fm.get("etiquetas", [])
+                   and all(th.get(d, {}).get("estado") == "terminada" for d in fm.get("dependencias", [])))
+    carpeta = next(c for c in os.listdir(os.path.join(hoy, "tareas")) if os.path.isdir(os.path.join(hoy, "tareas", c, elegida)))
+
+    def terminar(p):
+        t = open(p, encoding="utf-8", newline="").read()
+        open(p, "w", encoding="utf-8", newline="").write(re.sub(r"^estado: .*$", "estado: terminada", t, count=1, flags=re.M))
+
+    terminar(os.path.join(hoy, "tareas", carpeta, elegida, "tarea.md"))
+    c1, s1 = cli("--comprobar")
+    print(f"-- hoy (0.16, hitos.md en docs/): transicion simulada = finish de {elegida} (lista para empezar)")
+    print(f"  --comprobar antes: codigo {c0} ; {s0[-1][:90] if s0 else ''}")
+    print(f"  --comprobar despues, sin poder regenerar docs/ (D2a): codigo {c1} ; errores={len(s1)}")
+    for l in s1[:3]:
+        print(f"    {l[:120]}")
+    nueva = os.path.join(base, "v20")
+    m = cargar_modulo("grafo_c2_nueva", os.path.join(nueva, "scripts", "grafo-tareas.py"))
+    manual = quitar_generado(texto.replace("\r\n", "\n"), m)
+    open(os.path.join(nueva, "docs", "planificacion", "hitos.md"), "w", encoding="utf-8", newline="\n").write(manual)
+    n0 = len(texto.replace("\r\n", "\n").rstrip("\n").split("\n"))
+    n1 = len(manual.rstrip("\n").split("\n"))
+    titulos = m.titulos_de_hitos(manual)
+    m.fijar_rango(titulos)
+    generado = os.path.join(nueva, "tareas", "hitos.md")
+
+    def ronda():
+        tareas = grafo_desde_json(json.loads(tareas_json_simulado(os.path.join(nueva, "tareas"))))
+        g = generar_hitos(m, tareas, titulos)                       # el derivado genera
+        open(generado, "w", encoding="utf-8", newline="\n").write(g)
+        comprueba = m.errores(tareas) + m.errores_de_titulos(tareas, titulos)   # el comprueba codigo<->estado
+        tablas = m.errores_de_tablas(tareas, m.tablas_de_hitos(g))  # coherencia de lo generado
+        return comprueba, tablas, hashlib.sha256(g.encode()).hexdigest()
+
+    sha_docs = hashlib.sha256(manual.encode()).hexdigest()
+    e0, t0, g0 = ronda()
+    terminar(os.path.join(nueva, "tareas", elegida, "tarea.md"))
+    e1, t1, g1 = ronda()
+    docs_igual = hashlib.sha256(open(os.path.join(nueva, "docs", "planificacion", "hitos.md"), encoding="utf-8")
+                                .read().encode()).hexdigest() == sha_docs
+    print("-- disposicion nueva: en docs/ solo el texto a mano; tablas y Mermaid en tareas/hitos.md (genera); "
+          "titulos de docs/ frente al estado (comprueba)")
+    print(f"  docs/planificacion/hitos.md: {n0} lineas hoy ; {n1} a mano ; {n0 - n1} generadas salen a la rama de estado")
+    print(f"  antes de la transicion: comprueba={len(e0)} errores ; tablas generadas incoherentes={len(t0)}")
+    print(f"  tras el finish de {elegida}: comprueba={len(e1)} errores ; tablas incoherentes={len(t1)} ; "
+          f"tareas/hitos.md regenerado={g0 != g1} ; docs/ sin tocar={docs_igual}")
+    if c0 != 0 or c1 == 0 or e0 or t0 or e1 or t1 or g0 == g1 or not docs_igual:
+        falla("C2", "la disposicion nueva de hitos no se comporta como se espera")
+    MEDIDO["comprobar de ToolsaWeb tras una transicion, hitos en docs (hoy)"] = f"codigo {c1}"
+    MEDIDO["comprueba de ToolsaWeb tras una transicion, disposicion nueva"] = f"{len(e1)} errores"
+    MEDIDO["lineas generadas que salen de docs/planificacion/hitos.md"] = f"{n0 - n1} de {n0}"
+    print(f"RESULTADO C2 hoy={c0}->{c1} ; nueva={len(e0)}->{len(e1)} errores ; docs sin tocar={docs_igual}")
 
 
 # ---------------------------------------------------------------------------
 # D: lectura del estado
 # ---------------------------------------------------------------------------
 
-def vivas_desde_json(salida):
-    """Lo que necesita un script del proyecto con `taskctl tareas --json`: ni glob ni lector de frontmatter."""
-    return {t["id"] for t in json.loads(salida) if t["estado"] != "descartada"}
-
-
-def tareas_json_simulado(raiz_tareas):
-    """Simula `taskctl tareas --json` sobre la carpeta fija: frontmatter leido con YAML estandar; las
-    tareas de 05-archivadas migran con estado `descartada` (D1a; la migracion la fija F1-12)."""
-    out = []
-    for d in sorted(os.listdir(raiz_tareas)):
-        p = os.path.join(raiz_tareas, d, "tarea.md")
-        if not os.path.isfile(p):
-            continue
-        fm = yaml.safe_load(open(p, encoding="utf-8").read().replace("\r\n", "\n").split("\n---\n", 1)[0][4:])
-        out.append({"id": fm["id"], "estado": fm["estado"], "etiquetas": fm.get("etiquetas") or [],
-                    "dependencias": fm.get("dependencias") or [], "sprint": fm.get("sprint")})
-    return json.dumps(out, ensure_ascii=False, default=str)
-
-
 def cargar_modulo(nombre, ruta):
     spec = importlib.util.spec_from_file_location(nombre, ruta)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    return m
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def lineas_funciones(fuente, nombres):
@@ -924,56 +1386,73 @@ def lineas_funciones(fuente, nombres):
 
 
 def seccion_d(pil, trabajo):
-    sep("D: lectura del estado (lectores propios copiados frente a `tareas --json` simulado)")
-    casos = (("ODT", "scripts/lector-tareas.py", "lector_tareas"), ("TW", "scripts/grafo-tareas.py", "grafo_tareas"))
-    for clave, script, mod in casos:
-        base = os.path.join(trabajo, "d", clave)
-        rutas = [p for p in pil.ls(clave, "tareas") if re.fullmatch(r"tareas/0\d-[^/]+/TASK-\d+/tarea\.md", p)]
-        for capa in ("v016", "v20"):
-            os.makedirs(os.path.join(base, capa, "scripts"))
-            open(os.path.join(base, capa, script), "w", encoding="utf-8", newline="\n").write(pil.show(clave, script))
-        for p in rutas:
-            _t, carpeta, tid, _f = p.split("/")
-            txt = pil.show(clave, p)
-            for capa, rel in (("v016", (carpeta, tid)), ("v20", (tid,))):
-                dst = os.path.join(base, capa, "tareas", *rel)
-                os.makedirs(dst, exist_ok=True)
-                if capa == "v20" and carpeta == "05-archivadas":
-                    txt2 = re.sub(r"^estado: .*$", "estado: descartada", txt, count=1, flags=re.M)
-                else:
-                    txt2 = txt
-                open(os.path.join(dst, "tarea.md"), "w", encoding="utf-8", newline="").write(txt2)
-        hoy = cargar_modulo(f"{mod}_v016", os.path.join(base, "v016", script))
-        fijo = cargar_modulo(f"{mod}_v20", os.path.join(base, "v20", script))
-        def vivas(m):
-            t = m.cargar(m.TAREAS)
-            return {k for k, fm in t.items() if "descartada" not in (fm.get("etiquetas") or [])}
-        v_hoy, v_fijo = vivas(hoy), vivas(fijo)
-        salida = tareas_json_simulado(os.path.join(base, "v20", "tareas"))
-        v_json = vivas_desde_json(salida)
-        print(f"  {FIJO[clave][0]} ({script}): tareas.md={len(rutas)} ; vivas hoy (0.16)={len(v_hoy)} ; "
-              f"mismo glob en carpeta fija={len(v_fijo)} ; desde tareas --json={len(v_json)} ; "
-              f"mismo conjunto que hoy={v_json == v_hoy}")
-        if len(v_fijo) != 0 or v_json != v_hoy or not v_hoy:
-            falla("D", f"{clave}: lectura del estado inesperada")
-        MEDIDO[f"{FIJO[clave][0]}: tareas que encuentra su lector en la carpeta fija"] = str(len(v_fijo))
-    fuente_odt = pil.show("ODT", "scripts/lector-tareas.py")
-    fuente_tw = pil.show("TW", "scripts/grafo-tareas.py")
-    n_odt = len(fuente_odt.replace("\r\n", "\n").rstrip("\n").split("\n"))
-    f_tw = lineas_funciones(fuente_tw, {"quitar_comentario", "leer_tarea", "cargar"})
-    f_rm = lineas_funciones(fuente_tw, {"mermaid", "orden_de_trabajo", "roadmap"})
+    sep("D: lectura del estado (tres consumidores reales copiados frente a `tareas --json` simulado)")
     import inspect
-    n_json = len(inspect.getsource(vivas_desde_json).rstrip("\n").split("\n"))
-    print(f"  lineas que deja de necesitar un lector propio: OpenDockTrading lector-tareas.py entero = {n_odt} ; "
-          f"ToolsaWeb grafo-tareas.py {f_tw} = {sum(f_tw.values())} ; el consumidor de tareas --json = {n_json}")
+    resultados = {}
+    # OpenDockTrading: lector-tareas.py + sus dos consumidores
+    base = os.path.join(trabajo, "d", "ODT")
+    rutas = copiar_tareas(pil, "ODT", base)
+    scripts = ("lector-tareas.py", "comprobar-modulos.py", "comprobar-fallos.py")
+    for capa in ("v016", "v20"):
+        os.makedirs(os.path.join(base, capa, "scripts"))
+        for s in scripts:
+            open(os.path.join(base, capa, "scripts", s), "w", encoding="utf-8", newline="").write(
+                pil.show("ODT", f"scripts/{s}"))
+    js = json.loads(tareas_json_simulado(os.path.join(base, "v20", "tareas")))
+    for nombre, mod, desde_json in (("comprobar-modulos.py", "cm", modulos_desde_json),
+                                    ("comprobar-fallos.py", "cf", fallos_desde_json)):
+        hoy = cargar_modulo(f"{mod}_v016", os.path.join(base, "v016", "scripts", nombre)).tareas_vivas()
+        fijo = cargar_modulo(f"{mod}_v20", os.path.join(base, "v20", "scripts", nombre)).tareas_vivas()
+        nuevo = desde_json(js)
+        resultados[nombre] = (hoy == nuevo and len(fijo) == 0 and len(hoy) > 0)
+        print(f"  OpenDockTrading {nombre}: tareas.md={len(rutas)} ; tareas_vivas() hoy={len(hoy)} ; en carpeta fija="
+              f"{len(fijo)} ; desde tareas --json={len(nuevo)} ; mismo resultado (ids y valores)={hoy == nuevo}")
+        MEDIDO[f"OpenDockTrading {nombre}: tareas que ve en la carpeta fija"] = str(len(fijo))
+    # ToolsaWeb: grafo-tareas.py
+    base = os.path.join(trabajo, "d", "TW")
+    rutas = copiar_tareas(pil, "TW", base)
+    for capa in ("v016", "v20"):
+        os.makedirs(os.path.join(base, capa, "scripts"))
+        open(os.path.join(base, capa, "scripts", "grafo-tareas.py"), "w", encoding="utf-8", newline="").write(
+            pil.show("TW", "scripts/grafo-tareas.py"))
+    mh = cargar_modulo("gt_v016", os.path.join(base, "v016", "scripts", "grafo-tareas.py"))
+    mf = cargar_modulo("gt_v20", os.path.join(base, "v20", "scripts", "grafo-tareas.py"))
+    titulos = mh.titulos_de_hitos(pil.show("TW", "docs/planificacion/hitos.md"))
+    mh.fijar_rango(titulos)
+    th, tf = mh.cargar(mh.TAREAS), mf.cargar(mf.TAREAS)
+    tj = grafo_desde_json(json.loads(tareas_json_simulado(os.path.join(base, "v20", "tareas"))))
+
+    def salida(t):
+        return (mh.errores(t), mh.mermaid(t, titulos), mh.roadmap(t, titulos))
+    igual = salida(th) == salida(tj)
+    resultados["grafo-tareas.py"] = igual and len(tf) == 0
+    print(f"  ToolsaWeb grafo-tareas.py: tareas.md={len(rutas)} ; cargar() hoy={len(th)} ; en carpeta fija={len(tf)} ; "
+          f"desde tareas --json={len(tj)} ; errores, Mermaid y roadmap iguales a hoy={igual}")
+    MEDIDO["ToolsaWeb grafo-tareas.py: tareas que ve en la carpeta fija"] = str(len(tf))
+    for k, v in resultados.items():
+        if not v:
+            falla("D", f"{k}: lectura del estado inesperada")
+    MEDIDO["consumidores reales con el mismo resultado desde tareas --json (interfaz simulada)"] = \
+        f"{sum(resultados.values())}/{len(resultados)}"
+    f_lector = len(pil.show("ODT", "scripts/lector-tareas.py").replace("\r\n", "\n").rstrip("\n").split("\n"))
+    f_cm = lineas_funciones(pil.show("ODT", "scripts/comprobar-modulos.py"), {"_cargar_grafo", "tareas_vivas"})
+    f_cf = lineas_funciones(pil.show("ODT", "scripts/comprobar-fallos.py"), {"_cargar_grafo", "tareas_vivas"})
+    f_tw = lineas_funciones(pil.show("TW", "scripts/grafo-tareas.py"), {"quitar_comentario", "leer_tarea", "cargar"})
+    hoy_l = f_lector + sum(f_cm.values()) + sum(f_cf.values()) + sum(f_tw.values())
+    nuevo_l = sum(len(inspect.getsource(f).rstrip("\n").split("\n"))
+                  for f in (modulos_desde_json, fallos_desde_json, grafo_desde_json))
+    print(f"  lectura propia hoy: lector-tareas.py={f_lector} ; comprobar-modulos.py {f_cm} ; comprobar-fallos.py {f_cf} ; "
+          f"grafo-tareas.py {f_tw} ; total={hoy_l}")
+    print(f"  consumidores de tareas --json (modulos_desde_json, fallos_desde_json, grafo_desde_json): {nuevo_l} lineas")
+    MEDIDO["lineas de lectura propia que sustituye tareas --json (interfaz simulada)"] = f"{hoy_l} -> {nuevo_l}"
+    f_rm = lineas_funciones(pil.show("TW", "scripts/grafo-tareas.py"), {"mermaid", "orden_de_trabajo", "roadmap"})
     print(f"  ToolsaWeb grafo-tareas.py que solapa con el roadmap nativo (F1-1 dec. 3, F3-4) {f_rm} = "
           f"{sum(f_rm.values())} (no se cuenta como ahorro: falta ver que F3-4 cubra su orden)")
-    MEDIDO["lineas de lectores propios que sustituye tareas --json"] = f"{n_odt + sum(f_tw.values())} -> {n_json}"
     lineas_bat = pil.show("ODT", "scripts/verificar.bat").replace("\r\n", "\n").split("\n")
     roadmap_paso = [i + 1 for i, l in enumerate(lineas_bat) if "taskctl roadmap --comparar" in l]
     print(f"  paso de OpenDockTrading que desaparece con el roadmap fuera del arbol (F1-7): verificar.bat:{roadmap_paso}")
     MEDIDO["pasos de verificacion que desaparecen (OpenDockTrading)"] = str(len(roadmap_paso))
-    print(f"RESULTADO D ok")
+    print(f"RESULTADO D consumidores iguales={sum(resultados.values())}/{len(resultados)}")
 
 
 # ---------------------------------------------------------------------------
@@ -1047,19 +1526,41 @@ def seccion_e(pil, trabajo):
 
 # ---------------------------------------------------------------------------
 
+PROYECTADAS = {
+    "lineas de lectura propia que sustituye tareas --json (interfaz simulada)",
+    "consumidores reales con el mismo resultado desde tareas --json (interfaz simulada)",
+}
+
+
 def comparar_ventaja(adr):
-    sep("Tabla `ventaja` del ADR frente a lo medido")
-    _c, filas = entre_marcadores(adr, "ventaja")
-    vistas = set()
+    sep("Tabla `ventaja` del ADR frente a lo medido, y cifras del resumen")
+    cab, filas = entre_marcadores(adr, "ventaja")
+    if cab[:3] != ["Cifra", "Valor", "Tipo"]:
+        raise SystemExit("ERROR: la tabla ventaja tiene que empezar por Cifra | Valor | Tipo")
+    vistas, valores = set(), set()
     for f in filas:
-        cifra, valor = f[0], f[1].strip("`")
+        cifra, valor, tipo = f[0], f[1].strip("`"), f[2]
         vistas.add(cifra)
+        valores.add(valor)
         med = MEDIDO.get(cifra)
-        print(f"  {cifra:70} ADR={valor!r:22} medido={med!r} {'OK' if med == valor else 'DISTINTO'}")
+        esperado = "proyectado" if cifra in PROYECTADAS else "medido"
+        print(f"  {cifra:84} ADR={valor!r:16} medido={med!r} {tipo} {'OK' if med == valor and tipo == esperado else 'DISTINTO'}")
         if med != valor:
             falla("ventaja", f"{cifra}: el ADR dice {valor!r} y lo medido es {med!r}")
+        if tipo != esperado:
+            falla("ventaja", f"{cifra}: tipo {tipo!r}, se espera {esperado!r}")
     for k in sorted(set(MEDIDO) - vistas):
         print(f"  (medido y no citado en el ADR) {k} = {MEDIDO[k]!r}")
+        falla("ventaja", f"cifra medida que no esta en la tabla: {k}")
+    m = re.search(r"<!-- resumen:inicio -->\n(.*?)<!-- resumen:fin -->", adr, re.S)
+    if not m:
+        raise SystemExit("ERROR: faltan los marcadores resumen")
+    negritas = re.findall(r"\*\*([^*]+)\*\*", m.group(1))
+    fuera = re.findall(r"\d+", re.sub(r"\*\*[^*]+\*\*", "", m.group(1)))
+    malas = [x for x in negritas if x not in valores]
+    print(f"  resumen: {len(negritas)} cifras en negrita, todas en la tabla={not malas} ; numeros fuera de negrita={len(fuera)}")
+    if malas or fuera:
+        falla("resumen", f"cifras que no estan en la tabla {malas} o numeros sin negrita {fuera}")
 
 
 def main():
@@ -1092,8 +1593,10 @@ def main():
         print(f"repo {nombre}: commit {c[:9]} ({fecha})")
     adr = open(adr_p, encoding="utf-8").read().replace("\r\n", "\n")
     seccion_a(pil, plugin, adr)
+    seccion_a2(pil, adr)
     seccion_b(pil, plugin, trabajo)
     seccion_c(trabajo)
+    seccion_c2(pil, trabajo)
     seccion_d(pil, trabajo)
     seccion_e(pil, trabajo)
     comparar_ventaja(adr)
@@ -1103,7 +1606,7 @@ def main():
         for f in FALLOS:
             print(f"  {f}")
         sys.exit(1)
-    print("todo como se espera: A, B, C, D, E y la tabla de ventaja")
+    print("todo como se espera: A, A2, B, C, C2, D, E, la tabla de ventaja y el resumen")
 
 
 if __name__ == "__main__":
