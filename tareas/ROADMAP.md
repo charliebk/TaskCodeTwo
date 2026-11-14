@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-007, TASK-008, TASK-010, TASK-011, TASK-014, TASK-015
+- **En marcha:** TASK-007 (en diseño)
+- **Listas para empezar:** TASK-008, TASK-010, TASK-011, TASK-014, TASK-015
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -54,7 +54,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-004 | F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release | — | TASK-001 | ✅ terminada |
 | — | TASK-005 | F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato | — | TASK-004 | ✅ terminada |
 | — | TASK-006 | F1-5 ADR puertas en GitHub | — | TASK-004 | ✅ terminada |
-| 1 | TASK-007 | F1-6 ADR identidades del agente, del revisor y de la persona | — | TASK-006 | lista para empezar |
+| 1 | TASK-007 | F1-6 ADR identidades del agente, del revisor y de la persona | — | TASK-006 | ▶ en diseño |
 | 2 | TASK-008 | F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners | — | TASK-006 | lista para empezar |
 | 3 | TASK-009 | F1-8 ADR seguridad | — | TASK-007, TASK-008 | espera a TASK-007, TASK-008 |
 | 4 | TASK-010 | F1-9 ADR formato de tarea, plan y especificacion | — | TASK-002 | lista para empezar |
