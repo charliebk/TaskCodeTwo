@@ -59,3 +59,4 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 ## Autorrevision
 
 - code-quality-reviewer — 90330c6
+- code-quality-reviewer — 806f024
