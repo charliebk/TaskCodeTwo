@@ -19,7 +19,12 @@ NEG-08 gh GET a un repo ajeno: rechazado por el envoltorio
 NEG-09 gh GET con una ruta que es una opcion: rechazado por el envoltorio
 NEG-10 GET a otro puerto local: rechazado por el envoltorio
 NEG-11 gh GET fuera de repos/: rechazado por el envoltorio
-peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 11
+NEG-12 gh GET con ..: rechazado por el envoltorio
+NEG-13 GET con ..: rechazado por el envoltorio
+NEG-14 GET con %2e%2e: rechazado por el envoltorio
+NEG-15 GET con %252e%252e: rechazado por el envoltorio
+NEG-16 GET con .: rechazado por el envoltorio
+peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 16
 
 === R: GET reales (solo lo estable: estado HTTP y campos; el cuerpo en la carpeta de trabajo) ===
 GH-01 GET https://api.github.com/repos/charliebk/TaskCodeTwo -> 200 ; repo: visibilidad y tipo de cuenta
@@ -220,21 +225,21 @@ errores del ADR: 0
   mutacion empirica-con-401: falla como se espera (G20: GL-21 no prueba nada de esta garantia (401: sin valor de prueba))
 
 === V: lo variable (hash y tamano de cada cuerpo, limites de peticiones); NO se comprueba ===
-GH-01 sha256=f89217de0b873456 bytes=6139 x-ratelimit-remaining=4993
-GH-02 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4992
-GH-03 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4991
-GH-04 sha256=d6020ee3b0852c3d bytes=149 x-ratelimit-remaining=4990
-GH-05 sha256=60ba8acbf9e08a10 bytes=3101 x-ratelimit-remaining=4989
-GH-06 sha256=c6adf21b0e0ac309 bytes=4686 x-ratelimit-remaining=4988
-GH-07 sha256=57a09f45cbdb00e9 bytes=70460 x-ratelimit-remaining=4987
-GH-08 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4986
-GH-09 sha256=f6e178fc1e56cf43 bytes=80 x-ratelimit-remaining=4977
-GH-10 sha256=b44eb514d435b509 bytes=2244 x-ratelimit-remaining=4976
-GH-11 sha256=a9a4a40fdeaa4d16 bytes=54586 x-ratelimit-remaining=4984
-GH-12 sha256=7d0f2593fefaebc9 bytes=196 x-ratelimit-remaining=4983
-GH-13 sha256=679d5e86a2d0420e bytes=205 x-ratelimit-remaining=4982
-GH-14 sha256=62af8411c3c89abb bytes=124 x-ratelimit-remaining=4975
-GH-15 sha256=40911239223ffac2 bytes=135 x-ratelimit-remaining=4981
+GH-01 sha256=f89217de0b873456 bytes=6139 x-ratelimit-remaining=4933
+GH-02 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4932
+GH-03 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4931
+GH-04 sha256=d6020ee3b0852c3d bytes=149 x-ratelimit-remaining=4930
+GH-05 sha256=60ba8acbf9e08a10 bytes=3101 x-ratelimit-remaining=4929
+GH-06 sha256=c6adf21b0e0ac309 bytes=4686 x-ratelimit-remaining=4928
+GH-07 sha256=57a09f45cbdb00e9 bytes=70460 x-ratelimit-remaining=4927
+GH-08 sha256=4f53cda18c2baa0c bytes=2 x-ratelimit-remaining=4926
+GH-09 sha256=f6e178fc1e56cf43 bytes=80 x-ratelimit-remaining=4999
+GH-10 sha256=b44eb514d435b509 bytes=2244 x-ratelimit-remaining=4998
+GH-11 sha256=a9a4a40fdeaa4d16 bytes=54586 x-ratelimit-remaining=4925
+GH-12 sha256=7d0f2593fefaebc9 bytes=196 x-ratelimit-remaining=4924
+GH-13 sha256=679d5e86a2d0420e bytes=205 x-ratelimit-remaining=4923
+GH-14 sha256=62af8411c3c89abb bytes=124 x-ratelimit-remaining=4997
+GH-15 sha256=40911239223ffac2 bytes=135 x-ratelimit-remaining=4922
 GL-01 sha256=1e5e67f39a034b91 bytes=1246 ratelimit-remaining=499
 GL-02 sha256=ccac00f2edb65c02 bytes=12600 ratelimit-remaining=498
 GL-03 sha256=fd7fd9884eacca34 bytes=1190 ratelimit-remaining=497
@@ -243,9 +248,9 @@ GL-05 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=495
 GL-06 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=494
 GL-07 sha256=51542f5c4584eb47 bytes=30 ratelimit-remaining=493
 GL-08 sha256=f08f221cece6508b bytes=5822 ratelimit-remaining=492
-GL-09 sha256=1604623292527e8d bytes=6557 ratelimit-remaining=491
-GL-10 sha256=a4668f251cea6a7f bytes=8533 ratelimit-remaining=490
-GL-11 sha256=71ff637b0085555a bytes=90546 ratelimit-remaining=489
+GL-09 sha256=2ef353bb24b6ce8f bytes=6557 ratelimit-remaining=491
+GL-10 sha256=d8a8878771bd2d9b bytes=8533 ratelimit-remaining=490
+GL-11 sha256=1cc6d8be1dbf9705 bytes=90546 ratelimit-remaining=489
 GL-12 sha256=dd6f46d4243602d1 bytes=689 ratelimit-remaining=488
 GL-13 sha256=f1e3de4948cbf21b bytes=344 ratelimit-remaining=487
 GL-14 sha256=ce180377f7e4a996 bytes=175736 ratelimit-remaining=486

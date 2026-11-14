@@ -50,6 +50,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 GH = r"C:\Program Files\GitHub CLI\gh.exe"
@@ -116,7 +117,9 @@ ESPERADO_TABLA = {
 # «empirica» solo puede citar ids de aqui, para una fila de su lista, y el hecho tiene que estar en lo observado
 # (un 2xx con el campo, o el 403 con aviso de plan). Un 401/403 anonimo solo prueba que hace falta sesion.
 PRUEBA = {
-    "GH-03": ({"G01", "G02"}, "200 [] en el publico gratuito: la API de reglas esta y lee", lambda o: o["estado"] == 200),
+    # GH-03 (200 []) solo prueba que la API de reglas lee en un publico gratuito: no prueba ninguna garantia
+    # (MEN-7 de la revision 2), asi que no vale para ninguna fila.
+    "GH-03": (set(), "200 []: el endpoint de reglas lee; no prueba ninguna garantia", lambda o: o["estado"] == 200),
     "GH-12": ({"G01", "G03"}, "403 con aviso de plan en el privado gratuito: sin rulesets",
               lambda o: o["estado"] == 403 and o["hechos"].get("aviso_de_plan") is True),
     "GH-05": ({"G09", "G17"}, "check-run con app.id (origen) leido por sha",
@@ -209,10 +212,31 @@ SIN_REDIRECCIONES = urllib.request.build_opener(_SinRedireccion)
 RUTA_GH = re.compile(r"^(?:repos/charliebk/[A-Za-z0-9._-]+(?:[/?][A-Za-z0-9._/?=&-]*)?|apps/github-actions)$")
 
 
+def segmentos_sospechosos(destino):
+    d = destino
+    for _ in range(5):
+        nuevo = urllib.parse.unquote(d)
+        if nuevo == d:
+            break
+        d = nuevo
+    else:
+        return True                     # codificado mas de cinco veces: se rechaza
+    ruta = d.split("?", 1)[0]
+    if "\\" in ruta:
+        return True
+    if "://" in ruta:
+        ruta = ruta.split("://", 1)[1]
+    return any(s in (".", "..") for s in ruta.split("/"))
+
+
 def destino_permitido(destino, via, mock_url):
     """Lista blanca: gh solo con rutas de repos de charliebk (y la App de Actions), nunca una ruta que empiece por
     '-' (seria una opcion de gh); HTTP solo a la API v4 de GitLab.com para el proyecto publico 278964 y el usuario
-    aprobador fijo, y al mock de 127.0.0.1 de esta ejecucion."""
+    aprobador fijo, y al mock de 127.0.0.1 de esta ejecucion. Antes de comparar se decodifica (hasta que no cambie)
+    y se rechaza cualquier segmento '.' o '..', tambien codificado (%2e), y la barra invertida (MEN-6 de la
+    revision 2)."""
+    if segmentos_sospechosos(destino):
+        return False
     if via == "gh":
         return not destino.startswith("-") and bool(RUTA_GH.match(destino))
     permitidos = [f"{GL}/projects/{GL_P}", f"{GL}/users/{GL_USR}"] + ([mock_url] if mock_url else [])
@@ -313,7 +337,12 @@ def seccion_n(mock):
                ("NEG-08", "gh GET a un repo ajeno", lambda: lector.gh("NEG-08", "GET", "repos/otra-cuenta/repo")),
                ("NEG-09", "gh GET con una ruta que es una opcion", lambda: lector.gh("NEG-09", "GET", "--method=POST")),
                ("NEG-10", "GET a otro puerto local", lambda: lector.http("NEG-10", "GET", "http://127.0.0.1:1/gh/verde/x")),
-               ("NEG-11", "gh GET fuera de repos/", lambda: lector.gh("NEG-11", "GET", "user/repos"))]
+               ("NEG-11", "gh GET fuera de repos/", lambda: lector.gh("NEG-11", "GET", "user/repos")),
+               ("NEG-12", "gh GET con ..", lambda: lector.gh("NEG-12", "GET", "repos/charliebk/../../user")),
+               ("NEG-13", "GET con ..", lambda: lector.http("NEG-13", "GET", f"{GL}/projects/{GL_P}/../1")),
+               ("NEG-14", "GET con %2e%2e", lambda: lector.http("NEG-14", "GET", f"{GL}/projects/{GL_P}/%2e%2e/1")),
+               ("NEG-15", "GET con %252e%252e", lambda: lector.http("NEG-15", "GET", f"{GL}/projects/{GL_P}/%252e%252e/1")),
+               ("NEG-16", "GET con .", lambda: lector.http("NEG-16", "GET", mock.url + "/gh/./verde/repos/o/r/pulls/12"))]
     for ident, metodo, f in pruebas:
         try:
             f()

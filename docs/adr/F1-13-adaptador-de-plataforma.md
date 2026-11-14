@@ -52,7 +52,8 @@ de estado al cerrarse). Ejecutado con Python 3.12.10 (`python -I -B`), `gh`
 terminar. **Nada se escribe en GitHub ni en GitLab**: toda llamada pasa por
 el envoltorio `Lector`, que comprueba el método y el destino antes de salir
 a la red: con `gh`, solo rutas `repos/charliebk/…` (y `apps/github-actions`),
-nunca una que empiece por `-`; por HTTP, solo la API v4 de GitLab.com para el
+nunca una que empiece por `-`; ningún segmento `.` o `..`, tampoco codificado
+(`%2e`, `%252e`), ni barra invertida; por HTTP, solo la API v4 de GitLab.com para el
 proyecto 278964 y el usuario aprobador fijo, y el mock de `127.0.0.1` de esa
 ejecución; sin seguir redirecciones.
 `glab` está instalado (1.102.0) pero no se usa: los GET a GitLab.com son
@@ -70,7 +71,7 @@ Los cuerpos se guardan en la carpeta de trabajo y se borran; en el repo solo
 quedan claves de campos, estados y booleanos, sin nombres de usuario.
 
 <!-- resumen:inicio -->
-Resumen: 38 GET reales y ninguna escritura; once peticiones con otro método
+Resumen: 38 GET reales y ninguna escritura; dieciséis peticiones con otro método
 o fuera de la lista blanca, rechazadas sin salir a la red. De las **20** garantías, en GitHub **10**
 dependen del plan de los rulesets, **9** no dependen del plan y **1** (la cola)
 exige organización. En GitLab, **11** se imponen en Free, **6** exigen
@@ -102,7 +103,12 @@ NEG-08 gh GET a un repo ajeno: rechazado por el envoltorio
 NEG-09 gh GET con una ruta que es una opcion: rechazado por el envoltorio
 NEG-10 GET a otro puerto local: rechazado por el envoltorio
 NEG-11 gh GET fuera de repos/: rechazado por el envoltorio
-peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 11
+NEG-12 gh GET con ..: rechazado por el envoltorio
+NEG-13 GET con ..: rechazado por el envoltorio
+NEG-14 GET con %2e%2e: rechazado por el envoltorio
+NEG-15 GET con %252e%252e: rechazado por el envoltorio
+NEG-16 GET con .: rechazado por el envoltorio
+peticiones HTTP que salieron: 0 ; procesos gh: 0 ; peticiones que llegaron al mock: 0 ; rechazos: 16
 ```
 
 `NEG-02` es un `DELETE` de una rama de este repo con `gh`: no llega a lanzarse
@@ -284,15 +290,16 @@ no se ha configurado nada en ninguna plataforma):
    corto, que es el que imprime `doctor`. La evidencia es «empírica» (con los
    ids de llamada del log, además de la documentación) o «documental». Un id
    solo vale si la llamada prueba algo de esa fila (un 2xx con el campo, o el
-   403 con aviso de plan); los 401 y 403 anónimos solo prueban que la lectura
+   403 con aviso de plan); GH-03 (`200 []`) solo prueba que el endpoint de
+   reglas lee y no hace empírica ninguna fila; los 401 y 403 anónimos solo prueban que la lectura
    necesita sesión y no hacen empírica ninguna fila (la PoC G lo comprueba con
    una tabla de qué prueba cada id).
 
    <!-- tabla-equivalencias:inicio -->
    | id | garantía | regla neutral | GitHub (API) | tier GitHub | GitLab (API) | tier GitLab | sustituto si falta | evidencia |
    |---|---|---|---|---|---|---|---|---|
-   | G01 | sin borrado ni force-push | `sin_borrado sin_forzar` | ruleset `deletion` y `non_fast_forward`, sin `bypass_actors` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | rama protegida con `allow_force_push: false`; borrarla la puede un Maintainer por la interfaz o la API ([doc](https://docs.gitlab.com/user/project/repository/branches/protected/), 2026-11-14) | ninguno | GitHub: — / GitLab: `maintainer-solo-persona` la persona es el único Maintainer u Owner; `doctor` compara la rama con el modelo | empírica: GH-03, GH-12, GL-03 |
-   | G02 | solo por PR o MR | `solo_pr` | ruleset `pull_request` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | rama protegida con «Allowed to push» a nadie (`push_access_levels` 0) ([doc](https://docs.gitlab.com/user/project/repository/branches/protected/), 2026-11-14) | Free | GitHub: — / GitLab: — | empírica: GH-03, GL-02 |
+   | G01 | sin borrado ni force-push | `sin_borrado sin_forzar` | ruleset `deletion` y `non_fast_forward`, sin `bypass_actors` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | rama protegida con `allow_force_push: false`; borrarla la puede un Maintainer por la interfaz o la API ([doc](https://docs.gitlab.com/user/project/repository/branches/protected/), 2026-11-14) | ninguno | GitHub: — / GitLab: `maintainer-solo-persona` la persona es el único Maintainer u Owner; `doctor` compara la rama con el modelo | empírica: GH-12, GL-03 |
+   | G02 | solo por PR o MR | `solo_pr` | ruleset `pull_request` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | rama protegida con «Allowed to push» a nadie (`push_access_levels` 0) ([doc](https://docs.gitlab.com/user/project/repository/branches/protected/), 2026-11-14) | Free | GitHub: — / GitLab: — | empírica: GL-02 |
    | G03 | N aprobaciones de persona | `aprobaciones=N` | `required_approving_review_count` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | regla de aprobación obligatoria ([doc](https://docs.gitlab.com/user/project/merge_requests/approvals/), 2026-11-14; [reglas](https://docs.gitlab.com/user/project/merge_requests/approvals/rules/), 2026-11-14); en Free son opcionales | Premium | GitHub: — / GitLab: `merge-solo-persona` «Allowed to merge» Maintainers con la persona como único Maintainer y `merge-pr` con su identidad; `estado-puertas` exige su aprobación | empírica: GH-12, GL-09 |
    | G04 | descartar aprobaciones en cada push | `descartar_viejas` | `dismiss_stale_reviews_on_push` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | «Remove all approvals when commits are added to the source branch» ([doc](https://docs.gitlab.com/user/project/merge_requests/approvals/settings/), 2026-11-14) | Premium | GitHub: — / GitLab: `merge-solo-persona` el merge lo hace la persona después del último push | documental |
    | G05 | aprobación del último push; ni el autor ni quien añade commits aprueban | `ultimo_push` | `require_last_push_approval` ([doc](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), 2026-11-14) | Free público; Pro/Team/Enterprise | «Prevent approval by author» y «Prevent approvals by users who add commits» ([doc](https://docs.gitlab.com/user/project/merge_requests/approvals/settings/), 2026-11-14) | Premium | GitHub: — / GitLab: `merge-solo-persona` el agente es Developer y no puede mergear; `carril` solo cuenta aprobaciones de personas | documental |
