@@ -26,7 +26,7 @@ reciente esté siempre a la vista de todo el equipo.
 | | Descripción | Veredicto |
 |---|---|---|
 | **A** | Rama **huérfana** `taskcode/tareas` (sin historia común con `develop`), montada con `git worktree` en `tareas/` del worktree principal; `tareas/` en el `.gitignore` de las ramas de código. En su raíz, `TASK-NNN/` fija y `ROADMAP.md`. Estado = campo del frontmatter. | **Elegida** |
-| A' | La misma rama pero nacida de `develop` (con historia común). | Descartada: GitHub deja abrir un PR de ella contra `develop` y mezclar historias; la huérfana lo impide por estructura (ver «Cómo se ve en GitHub»). |
+| A' | La misma rama pero nacida de `develop` (con historia común). | Descartada: con historia común GitHub deja abrir un PR de ella contra `develop` y mezclar historias (no probado aquí: conocimiento general de GitHub); la huérfana lo impide por estructura, eso sí comprobado (ver «Cómo se ve en GitHub»). |
 | B | Carpeta fija por tarea, estado como campo, **en `develop`**, con commits atómicos del CLI. | Descartada: ver PoC B y la tabla de requisitos. |
 | C | Estado en Issues/Projects o en refs fuera de `refs/heads`. | Descartada: RR-10 deja los issues como espejo opcional; refs ocultas no se ven en GitHub ni en el editor. |
 
@@ -139,8 +139,8 @@ borrarlo a mano.
 | RR-10 carpeta fija, estado como campo | sí | sí | ambas lo permiten; difieren en dónde viven |
 | RR-11 sin invalidar la verificación | sí: árbol de `develop` idéntico tras 10 transiciones; sin CI en el push | no: 6 árboles en 6 estados | PoC A.3, B.1; tabla GitHub |
 | RR-11 sin conflictos entre ramas | sí: las ramas de código no llevan tareas | no: conflicto de `ROADMAP.md` | PoC B.2; ficheros de los PR |
-| RR-12 estado más reciente a la vista | sí: una rama, push inmediato | sí, pero mezclado con el código | tabla GitHub |
-| RN-05 el estado no se pierde por Git | sí: el revert no alcanza `tareas/` | no: TASK-007 borrada | PoC A.4, B.3 |
+| RR-12 estado más reciente a la vista | sí en visibilidad: una rama, push inmediato; la frescura depende de que cada clon traiga la rama (protocolo de F1-2) | sí, pero mezclado con el código | tabla GitHub; PoC A.5 (c2 solo ve lo de c1 tras `fetch`) |
+| RN-05 el estado no se pierde por Git | sí para revert, merge y rebase de ramas de código (por construcción: esos commits no contienen `tareas/`); **no** para `git clean -ffdx`, que borra el worktree de `tareas/` y lo no commiteado (reproducido en la revisión) | no: TASK-007 borrada | PoC A.4 (cierta por construcción), B.3; informe de revisión 1 |
 | P3 garantías de GitHub | `develop` sigue protegida | exige saltar la protección | razonado; las reglas se deciden en F1-5 |
 
 ## Consecuencias
@@ -165,7 +165,7 @@ borrarlo a mano.
 - Formato de `tarea.md` y del plan: F1-9.
 - Migración desde la 0.16: F1-12.
 - Modos de fallo de la rama de estado (worktree desmontado o corrupto,
-  `tareas/` borrada a mano, trabajo sin red, rutas largas en Windows) y si los
+  `tareas/` borrada a mano o con `git clean -ffdx`, trabajo sin red, rutas largas en Windows) y si los
   estados de P1 bastan a los proyectos con `05-archivadas` (RF-71): quedan
   como preguntas abiertas para F1-2, F1-11 y F2-3. Este ADR se planificó con
   un solo rol (arquitectura).
