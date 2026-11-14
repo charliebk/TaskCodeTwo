@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-015-f1-13-adr-adaptador-de-plataforma-github
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 |---|---|---|---|---|
 | 2026-11-14T19:36:45Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T19:42:06Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T19:42:08Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
