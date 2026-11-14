@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 |---|---|---|---|---|
 | 2026-11-14T22:31:25Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T22:40:40Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T22:40:41Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
