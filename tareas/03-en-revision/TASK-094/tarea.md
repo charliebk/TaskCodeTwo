@@ -51,3 +51,4 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 ## Autorrevision
 
 - code-quality-reviewer — 85195c9
+- code-quality-reviewer — 283d19c
