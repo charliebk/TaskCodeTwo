@@ -2,7 +2,7 @@
 
 - Commit revisado: 70e685d5f42f815aa972ac9890ab5c8771692018 (HEAD de la rama al reproducir: ced700d, solo anade la peticion)
 - Revisor: code-quality-reviewer
-- Veredicto: aprobada-con-correcciones
+- Veredicto: cambios-solicitados
 
 Pase generico (el diff es un ADR, un indice y una PoC: ningun revisor de dominio casa). Profundidad: ADR y PoC a fondo; F1-10, F1-11 y F1-12 contrastados en los puntos que el ADR cita (codigos de salida, carril efectivo, hash/PL1/CR1), no releidos enteros.
 
@@ -66,3 +66,5 @@ Linea 41: «Descartada por Carlos: en un proyecto existente es donde mas se hace
 ## Lecturas fuera del contexto permitido
 
 - `tareas/03-en-revision/TASK-094/poc/poc-f1-18.py` y `poc-f1-18.log`, `docs/adr/F1-2`, `F1-4`, `F1-9`, `F1-10`, `F1-12` (y salidas de `git show` de TASK-002..TASK-013 en `0cc5bc3` y del clon de OpenDockTrading): los pidio la tarea del encargo para reproducir y contrastar.
+
+> Nota del orquestador: el revisor escribio `aprobada-con-correcciones` con tres IMPORTANTE abiertos; la skill de revision solo admite ese veredicto sin CRITICO ni IMPORTANTE abiertos, asi que se corrige a `cambios-solicitados` y las correcciones (283d19c) se verifican en la ronda 2.
