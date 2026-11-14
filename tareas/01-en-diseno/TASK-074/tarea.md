@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 ## Criterios de aceptacion
 - [ ] Dise√±o probado a mano con un lote real de ToolsaWeb
 - [ ] Cumple lo que pide la tarea F1-16 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T22:31:25Z | plan | automatico | persona | 0.16.1 |
