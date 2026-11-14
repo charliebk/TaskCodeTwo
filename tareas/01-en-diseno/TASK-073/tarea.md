@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-073-f1-15-adr-seleccion-de-skills-agentes-y
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -34,3 +34,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - [ ] Reglas probadas a mano sobre 10 tareas reales de ToolsaWeb y OpenDockTrading
 - [ ] nada lo decide el modelo «a ojo»
 - [ ] Cumple lo que pide la tarea F1-15 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T20:39:39Z | plan | automatico | persona | 0.16.1 |

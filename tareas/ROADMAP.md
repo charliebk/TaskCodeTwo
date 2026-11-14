@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-073, TASK-074, TASK-075, TASK-020, TASK-023, TASK-041, TASK-046, TASK-047
+- **En marcha:** TASK-073 (en diseño)
+- **Listas para empezar:** TASK-074, TASK-075, TASK-020, TASK-023, TASK-041, TASK-046, TASK-047
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -63,7 +63,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-013 | F1-12 ADR actualizacion de proyectos entre versiones | — | TASK-002, TASK-010 | ✅ terminada |
 | — | TASK-014 | F1-14 ADR distribucion e instalacion | — | TASK-001 | ✅ terminada |
 | — | TASK-015 | F1-13 ADR adaptador de plataforma GitHub y GitLab | — | TASK-005 | ✅ terminada |
-| 1 | TASK-073 | F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol | — | TASK-010, TASK-011 | lista para empezar |
+| 1 | TASK-073 | F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol | — | TASK-010, TASK-011 | ▶ en diseño |
 | 2 | TASK-074 | F1-16 ADR lotes desatendidos con revision humana al final | — | TASK-006, TASK-011 | lista para empezar |
 | 3 | TASK-075 | F1-17 ADR progreso en vivo y estimacion de tiempo | — | TASK-010, TASK-011 | lista para empezar |
 | — | TASK-094 | F1-18 ADR hito de decisiones (ADR) en init y en actualizar | — | TASK-012, TASK-013 | ✅ terminada |
