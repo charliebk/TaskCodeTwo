@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-001-f1-0-crear-taskcodetwo
 asignado_a: charlie.bk@gmail.com
@@ -40,3 +40,4 @@ Tarea F1-0 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: —
 | 2026-11-14T01:58:40Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T01:58:57Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T02:15:35Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T02:16:09Z | start | automatico | persona | 0.16.1 |
