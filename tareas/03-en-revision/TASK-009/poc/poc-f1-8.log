@@ -1,0 +1,194 @@
+fecha: 2026-11-14T08:27:41Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10 ; PyYAML 6.0.3
+repo: C:/Users/nullcad2025/Documents/sources/Personal/TaskCodeTwo (a9da7bd) ; ADR: F1-8-seguridad-modelo-de-amenazas.md
+
+=== A. Hash de confianza local (decision 5, D4b) ===
+cierre inicial de la orden: ['scripts/lib/paso.sh', 'scripts/verificar.sh']
+  ok   caso  nunca     sin confianza dada (esperado nunca)
+  ok   caso  confiado  tras taskctl confiar (esperado confiado)
+  ok   caso  confiado  README cambiado; orden y scripts iguales (esperado confiado)
+  ok   neg   cambiado  orden cambiada en la config (esperado cambiado)
+  ok   caso  confiado  config devuelta al contenido confiado (esperado confiado)
+  ok   neg   cambiado  script nombrado por la orden cambiado, config igual (H2) (esperado cambiado)
+       D4a (hash de la config) daria: confiado  <- el hueco de H2
+  ok   caso  confiado  script devuelto al contenido confiado (esperado confiado)
+  ok   neg   cambiado  script transitivo (lo carga el nombrado) cambiado (esperado cambiado)
+  ok   neg   cambiado  script nombrado borrado (esperado cambiado)
+  ok   neg   nunca     el repo trae su propio confianza.json; almacen de la persona vacio (esperado nunca)
+  ok   caso  confiado  worktree nuevo del mismo repo (F1-3), mismo contenido (esperado confiado)
+  ok   neg   nunca     otro clon con el mismo contenido (esperado nunca)
+  ok   lim   confiado  LIMITE: test alcanzado por glob (tests/*.sh), sin glob declarado (esperado confiado)
+  ok   neg   cambiado  se declara el glob tests/*.sh en la config (esperado cambiado)
+  ok   caso  confiado  confianza dada de nuevo con el glob (esperado confiado)
+  ok   neg   cambiado  test cambiado con el glob declarado (esperado cambiado)
+  ok   almacen fuera del arbol del repo: C:/Users/nullcad2025/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/pruebas-claude/taskcodetwo/task-009-c1/almacen\confianza.json
+RESULTADO A1 casos=7/7 ; controles negativos=8/8 ; limite documentado=1/1 ; almacen fuera del arbol=si
+--- coste del hash con las ordenes reales de los pilotos (solo lectura de ficheros)
+  ToolsaWeb: rama feature/task-193-operaciones-sobre-el-eje-invertir-el-sen @ 93c9618a
+  OpenDockTrading: rama feature/task-020-esquema-de-ordenes-ejecuciones-lotes-y-c @ fab8d7e
+  repo             clave                           nombrados    cierre      bytes  ms (max)
+  aviso ToolsaWeb comando_verificacion: YAML estandar lee 'scripts\x0berificar.bat'; la linea dice 'scripts\\verificar.bat'
+  ToolsaWeb        comando_verificacion                    1        51    1246280     778.2   orden: scripts\verificar.bat
+      fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
+      commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
+  aviso ToolsaWeb comando_verificacion_freno: YAML estandar lee 'scripts\x0berificar.bat --rapida'; la linea dice 'scripts\\verificar.bat --rapida'
+  ToolsaWeb        comando_verificacion_freno              1        51    1246280     763.7   orden: scripts\verificar.bat --rapida
+      fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
+      commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
+  ToolsaWeb        comando_sincronizacion                  1        51    1246280     928.8   orden: python -I scripts/grafo-tareas.py --escribir
+      fuera de la orden y dentro del cierre (50): .gitattributes, .gitignore, panel-tareas.bat, scripts/cache-verificacion.py, scripts/cerrojo-verificacion.py, scripts/clasificar-verificacion.py, scripts/comprobar-adr-006.py, scripts/comprobar-adr-011.py ...
+      commits de develop (ultimos 100, sin merges) que cambian el cierre: 8
+  OpenDockTrading  comando_verificacion                    1        19     731381     451.2   orden: scripts\verificar.bat
+      fuera de la orden y dentro del cierre (18): scripts/autopsia-opentrading.py, scripts/captura-ws-kraken.py, scripts/comprobar-datos.py, scripts/comprobar-entorno.py, scripts/comprobar-evolucion.py, scripts/comprobar-fallos.py, scripts/comprobar-modelo.py, scripts/comprobar-modulos.py ...
+      commits de develop (ultimos 100, sin merges) que cambian el cierre: 9
+RESULTADO A2 ordenes medidas=4 ; sin orden o cierre vacio=0
+
+=== B1. Clasificacion estatica de workflows por clase de job ===
+  ok   neg  N01-pr-con-checks-write    esperado R1 ; detectado: R1 verificacion ejecuta codigo del PR y tiene privilegio
+  ok   neg  N02-pr-con-secreto         esperado R1 ; detectado: R1 reproducir ejecuta codigo del PR y tiene privilegio
+  ok   neg  N03-prt-checkout-head      esperado R1 ; detectado: R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N04-repository-dispatch    esperado R4 ; detectado: R4 escucha repository_dispatch
+  ok   neg  N05-interpola-titulo       esperado R5 ; detectado: R5 carril interpola datos del evento en run: echo "${{ github.event.pull_request.title }}"
+  ok   neg  N06-sin-permissions        esperado R2 ; detectado: R2 verificacion sin bloque permissions (ni del job ni del workflow)
+  ok   neg  N07-write-all              esperado R3 ; detectado: R3 verificacion con permissions: write-all | R1 verificacion ejecuta codigo del PR y tiene privilegio
+  ok   neg  N08-ejecuta-artefacto      esperado R7 ; detectado: R7 revision-ia ejecuta un fichero del artefacto | R1 revision-ia ejecuta codigo del PR y tiene privilegio
+  ok   neg  N09-review-con-escritura   esperado R6 ; detectado: R6 carril con escritura o secretos en pull_request_review (corre el workflow del PR; D1b)
+  ok   neg  N10-interpola-head-ref     esperado R5 ; detectado: R5 x interpola datos del evento en run: git log origin/${{ github.head_ref }}
+  ok   neg  N11-prt-checkout-merge-ref esperado R1 ; detectado: R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N12-pr-secreto-en-env      esperado R1 ; detectado: R1 verificacion ejecuta codigo del PR y tiene privilegio
+  ok   neg  N13-dispatch-en-lista      esperado R4 ; detectado: R4 escucha repository_dispatch
+  ok   neg  N14-job-sin-permissions    esperado R2 ; detectado: R2 b sin bloque permissions (ni del job ni del workflow)
+  ok   neg  N15-prt-checkout-repository-head esperado R1 ; detectado: R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N16-prt-gh-pr-checkout     esperado R8 ; detectado: R8 carril trae el head del PR en run: fuera de un evento de PR | R1 carril ejecuta codigo del PR y tiene privilegio
+  ok   neg  N17-titulo-en-github-script esperado R5 ; detectado: R5 carril interpola datos del evento en script: console.log('${{ github.event.pull_request.title }}')
+  ok   neg  N18-evento-con-corchetes   esperado R5 ; detectado: R5 carril interpola datos del evento en run: echo "${{ github['event']['pull_request']['title'] }}"
+  ok   neg  N19-tojson-del-evento      esperado R5 ; detectado: R5 carril interpola datos del evento en run: echo '${{ toJSON(github.event) }}' > evento.json
+  ok   neg  N20-secrets-inherit        esperado R9 ; detectado: R9 verificar pasa todos los secretos (secrets: inherit) | R1 verificar ejecuta codigo del PR y tiene privilegio
+  ok   pos  P1-verificacion            eventos=['merge_group', 'pull_request'] clases={'buscar': 'ejecuta', 'ejecutar': 'ejecuta', 'verificacion': 'privilegio'} errores=0
+  ok   pos  P2-carril                  eventos=['pull_request_target'] clases={'carril': 'privilegio'} errores=0
+  ok   pos  P3-revision-reproducir     eventos=['pull_request'] clases={'reproducir': 'ejecuta'} errores=0
+  ok   pos  P4-revision-ia             eventos=['workflow_run'] clases={'revision-ia': 'privilegio'} errores=0
+  ok   pos  P5-ci-real                 eventos=['pull_request', 'push'] clases={'repo': 'ejecuta'} errores=0
+RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=20/20
+
+=== B2. Regla D5a: la linea arbol= solo cuenta si la publico el job publicador ===
+  ok   F1-7 acepta   solo-job acepta   decision-7 acepta   publicador legitimo (control positivo)
+  ok   F1-7 acepta   solo-job rechaza  decision-7 rechaza  check-run creado por la API desde un script del PR con checks:write
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  linea escrita en el resumen del job ejecutor
+  ok   F1-7 acepta   solo-job rechaza  decision-7 rechaza  job verificacion de otro workflow anadido en el PR
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  check verificacion de otra App
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  publicador con otro arbol
+  ok   F1-7 rechaza  solo-job rechaza  decision-7 rechaza  publicador en rojo
+  ok   F1-7 acepta   solo-job acepta   decision-7 rechaza  publicador de un workflow modificado en el PR (toca .github/workflows/verificacion.yml)
+  ok   F1-7 acepta   solo-job acepta   decision-7 rechaza  publicador con el PR tocando .taskcode/config.yml
+  ok   F1-7 acepta   solo-job acepta   decision-7 acepta   publicador con el PR tocando solo codigo (control positivo)
+RESULTADO B2 casos decision 7=10/10 ; falsos que aceptaria la regla de F1-7=4 ; solo job publicador=2
+
+=== C. El ADR: matriz de activos, preguntas heredadas, requisitos e indice ===
+-- ADR real: 16 activos, 13 preguntas heredadas
+  `A1`  Z1   duena: F0-2, F5-6, F6-1
+  `A2`  Z3   duena: F6-1, F6-3, no verificado → F2-6
+  `A3`  Z3   duena: F6-3, F6-4, no verificado → F2-6
+  `A4`  Z1   duena: F4-2, F3-8, no verificado → F2-6
+  `A5`  Z1   duena: decide un ADR nuevo de Fase 1, «aislamiento del agente frente a las credenciales de la persona» (sin fila en el plan: acción en «Consecuencias»); implementan F2-6, F3-8; no verificado → F2-6
+  `A6`  Z3   duena: F5-1, F3-8, no verificado → F2-6
+  `A7`  Z3   duena: F5-1, F5-2, no verificado → F2-6
+  `A8`  Z3   duena: F5-1 (mientras no exista la fila de `carril` en F6: acción en «Consecuencias»), no verificado → F2-6
+  `A9`  Z3   duena: F6-4, F6-5, F6-7
+  `A10` Z2   duena: F6-7, F9-5
+  `A11` Z2   duena: F0-2, F5-6, F1-11
+  `A12` Z4   duena: F5-5, F3-8
+  `A13` Z2   duena: F5-1, F3-8
+  `A14` Z5   duena: F3-8, F3-1
+  `A15` Z1   duena: F5-6, F1-16
+  `A16` Z1   duena: F1-16, F4-7
+  `P1`  origen: F1-5 decisión 6 y preguntas abiertas; F1-7 preguntas abiertas
+  `P2`  origen: F1-5 preguntas abiertas
+  `P3`  origen: F1-5 preguntas abiertas
+  `P4`  origen: F1-5 preguntas abiertas; F1-6 preguntas abiertas
+  `P5`  origen: F1-6 decisión 5 y consecuencias
+  `P6`  origen: F1-6 consecuencias
+  `P7`  origen: F1-6 alternativa D5a
+  `P8`  origen: F1-6 preguntas abiertas
+  `P9`  origen: F1-6 preguntas abiertas
+  `P10` origen: F1-7 decisión 5, consecuencias y preguntas abiertas
+  `P11` origen: F1-7 consecuencias
+  `P12` origen: F1-7 consecuencias
+  `P13` origen: F1-7 decisión 4 y consecuencias
+  lineas que citan F1-8 en los ADR aceptados: {'F1-5': 5, 'F1-6': 6, 'F1-7': 7}
+  ok   M1 duena de A2 vaciada                             detectada por 'A2: sin duena' (1 error(es))
+  ok   M2 duena inexistente (F5-99)                       detectada por 'A6: duena F5-99' (1 error(es))
+  ok   M3 zona invalida (Z9)                              detectada por 'A12: zona' (1 error(es))
+  ok   M4 fila del runner propio borrada                  detectada por "falta el activo 'runner propio'" (1 error(es))
+  ok   M5 pregunta heredada de repository_dispatch borrada detectada por "falta la pregunta heredada 'repository_dispatch'" (1 error(es))
+  ok   M6 mitigacion de A6 vaciada                        detectada por 'A6: sin mitigacion' (1 error(es))
+  ok   M7 requisito inexistente en la cabecera (RR-99)    detectada por 'requisito RR-99' (1 error(es))
+  ok   M8 enlace a una carpeta de tareas                  detectada por 'enlace a tareas/' (1 error(es))
+  ok   M9 gravedad quitada en A12                         detectada por 'A12: amenaza sin gravedad' (1 error(es))
+  ok   M10 divergencia con F1-7 (D5a) quitada             detectada por "divergencias: falta 'F1-7, decisión 3'" (1 error(es))
+  ok   M11 decision del runner propio quitada             detectada por 'parte del enunciado sin decision propia: runner propio' (1 error(es))
+  ok   M12 marcador de la matriz borrado                  detectada por 'marcadores' (1 error(es))
+  ok   M13 A7 sin declarar parcial                        detectada por 'A7: mitigacion no declarada parcial' (1 error(es))
+  ok   M14 salvedad A4/A5 quitada de la tabla de la decision 4 detectada por 'decision 4: falta la salvedad' (1 error(es))
+RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=14/14 ; no aplicadas=0
+
+=== D. Ajustes de Actions de los tres repos (solo GET) y workflows de los pilotos ===
+--- charliebk/TaskCodeTwo
+  visibilidad: public
+  actions/permissions/workflow: {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+  ok   permisos por defecto de los workflows: read
+  ok   can_approve_pull_request_reviews: false
+  actions/permissions: {"enabled":true,"allowed_actions":"all","sha_pinning_required":false}
+  fork-pr-contributor-approval: {"approval_policy":"first_time_contributors"}
+  ok   runners propios registrados: 0
+--- charliebk/ToolsaWeb
+  visibilidad: private
+  actions/permissions/workflow: {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+  ok   permisos por defecto de los workflows: read
+  ok   can_approve_pull_request_reviews: false
+  actions/permissions: {"enabled":true,"allowed_actions":"all","sha_pinning_required":false}
+  fork-pr-workflows-private-repos: {"run_workflows_from_fork_pull_requests":false,"send_write_tokens_to_workflows":false,"send_secrets_and_variables":false,"require_approval_for_fork_pr_workflows":false}
+  ok   workflows de PR de forks en privado: false
+  ok   runners propios registrados: 0
+--- charliebk/OpenDockTrading
+  visibilidad: private
+  actions/permissions/workflow: {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+  ok   permisos por defecto de los workflows: read
+  ok   can_approve_pull_request_reviews: false
+  actions/permissions: {"enabled":true,"allowed_actions":"all","sha_pinning_required":false}
+  fork-pr-workflows-private-repos: {"run_workflows_from_fork_pull_requests":false,"send_write_tokens_to_workflows":false,"send_secrets_and_variables":false,"require_approval_for_fork_pr_workflows":false}
+  ok   workflows de PR de forks en privado: false
+  ok   runners propios registrados: 0
+  ok   ToolsaWeb develop: ficheros en .github/ (git ls-tree local): 0
+  ok   ToolsaWeb main: ficheros en .github/ (git ls-tree local): 0
+  ok   OpenDockTrading develop: ficheros en .github/ (git ls-tree local): 0
+  ok   OpenDockTrading main: ficheros en .github/ (git ls-tree local): 0
+  gh auth status: Logged in to github.com account charliebk (keyring)
+  ok   token de la persona guardado en el llavero, al alcance de esta sesion (riesgo A5): 1
+RESULTADO D comprobaciones=16/16
+
+=== Resumen ===
+RESULTADO A1 casos=7/7 ; controles negativos=8/8 ; limite documentado=1/1 ; almacen fuera del arbol=si
+RESULTADO A2 ordenes medidas=4 ; sin orden o cierre vacio=0
+RESULTADO B1 positivos sin errores y con su clase=5/5 ; controles negativos=20/20
+RESULTADO B2 casos decision 7=10/10 ; falsos que aceptaria la regla de F1-7=4 ; solo job publicador=2
+RESULTADO C errores ADR real=0 ; activos=16 ; preguntas heredadas=13 ; mutaciones detectadas=14/14 ; no aplicadas=0
+RESULTADO D comprobaciones=16/16
+RESULTADO llamadas gh api con GET=15 ; gh api con otro metodo=0
+llamadas a GitHub registradas:
+  $ gh api --method GET repos/charliebk/TaskCodeTwo
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/permissions/workflow
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/permissions
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/permissions/fork-pr-contributor-approval
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/actions/runners
+  $ gh api --method GET repos/charliebk/ToolsaWeb
+  $ gh api --method GET repos/charliebk/ToolsaWeb/actions/permissions/workflow
+  $ gh api --method GET repos/charliebk/ToolsaWeb/actions/permissions
+  $ gh api --method GET repos/charliebk/ToolsaWeb/actions/permissions/fork-pr-workflows-private-repos
+  $ gh api --method GET repos/charliebk/ToolsaWeb/actions/runners
+  $ gh api --method GET repos/charliebk/OpenDockTrading
+  $ gh api --method GET repos/charliebk/OpenDockTrading/actions/permissions/workflow
+  $ gh api --method GET repos/charliebk/OpenDockTrading/actions/permissions
+  $ gh api --method GET repos/charliebk/OpenDockTrading/actions/permissions/fork-pr-workflows-private-repos
+  $ gh api --method GET repos/charliebk/OpenDockTrading/actions/runners
+  $ gh auth status (sin el token)
+PoC sin fallos
