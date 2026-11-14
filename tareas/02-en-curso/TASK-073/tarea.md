@@ -48,3 +48,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-14T20:49:08Z | diseno | agente:ab10be6189a7b5c59 | 56 | 142811 | 2324615 | 29907 | 48 | 2497389 | - | - |
+
+## Autorrevision
+
+- code-quality-reviewer — 90330c6
