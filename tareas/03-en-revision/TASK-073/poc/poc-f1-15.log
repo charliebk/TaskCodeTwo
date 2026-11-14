@@ -29,7 +29,8 @@ puerta-seguridad: 17 de 33 ; en planes de un solo rol: 13 ; en planes sin rol de
 IMPORTANTES que aparecen en una ronda de verificacion (2 o mas): 7 ; de ellos puerta-seguridad: 5
 nivel de la heuristica: trivial=0 ; simple=14 ; media=1 ; alta=0 ; critica=0
 revisor usado: ['code-quality-reviewer'] en las 15
-tareas con alguna palabra de riesgo de la 0.16 en objetivo o criterios: 1 (TASK-009:seguridad) ; la lista de la 0.16 no tiene ninguna de las palabras de puertas de tabla-dominios: True
+tareas con alguna palabra de riesgo de la 0.16 en objetivo o criterios: 1 (TASK-009:seguridad)
+palabras de riesgo de la 0.16 (scripts/heuristica-complejidad.yml del plugin 0.16.1): 14 ; palabras de puertas-seguridad en tabla-dominios: 15 ; en las dos listas: ['seguridad']
 tareas con fila `implementacion | agente:` en ## Coste (la implementacion la hizo un subagente): 14 de 15
 
 === D: detector dominios() con la tabla-dominios del ADR sobre las 15 tareas de la Fase 1 ===
@@ -149,18 +150,52 @@ controles: un caso por fila de tabla-seleccion, interpretada desde el ADR (y cua
   S10 revisora declarada del dominio: bien (zz-revisora-puertas sin aviso, S10) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=sonnet reglas=['M04', 'S09', 'S10', 'S12'] avisos=[]
   S11 dominio sin revisora: bien (aviso, S11) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
   S13 ronda 2 sin dominio baja: bien (opus -> sonnet, S13) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M05', 'S09', 'S12', 'S13'] avisos=[]
-  S13 ronda 2 en riesgo-alto no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M07', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S13 ronda 2 en riesgo-alto no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M07', 'S09', 'S12'] avisos=[]
   S13 ronda 2 con puertas por texto no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
   S13 ronda 2 con puertas por ruta no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S13 ronda 2 con puertas por ruta en mayusculas no baja: bien (sigue opus: .Claude/ es .claude/) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
   S14 no instalado: bien (se quita con aviso, S14) -> agentes=['general-purpose'] skills=[] modelo=sonnet reglas=['M04', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
   S15 modelos_permitidos: bien (opus -> sonnet, S15) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=[] modelo=sonnet reglas=['M05', 'S02', 'S05', 'S15'] avisos=['modelo-restringido:opus->sonnet']
+  S07 en errata: bien (task-workflow) -> agentes=[] skills=['task-workflow'] modelo=haiku reglas=['M01', 'S07'] avisos=[]
+  S08 en errata: bien (rust-wasm y generica) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'code-quality-reviewer'] modelo=sonnet reglas=['M01', 'S08', 'S12'] avisos=[]
+  S09 y S12 en errata: bien (generica y general-purpose) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M01', 'S09', 'S12'] avisos=[]
+  S10 en errata: bien (zz-revisora-puertas) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=sonnet reglas=['M01', 'S09', 'S10', 'S12'] avisos=[]
+  S11 en errata: bien (aviso) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M01', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S14 en errata: bien (aviso no-instalado) -> agentes=['general-purpose'] skills=[] modelo=sonnet reglas=['M01', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
+  S15 en errata: bien (restringido a haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M01', 'S09', 'S12', 'S15'] avisos=['modelo-restringido:sonnet->haiku']
+  S13 en errata: bien (sonnet -> haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M01', 'S09', 'S12', 'S13'] avisos=[]
+  S07 en fix: bien (task-workflow) -> agentes=[] skills=['task-workflow'] modelo=sonnet reglas=['M02', 'S07'] avisos=[]
+  S08 en fix: bien (rust-wasm y generica) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'code-quality-reviewer'] modelo=sonnet reglas=['M02', 'S08', 'S12'] avisos=[]
+  S09 y S12 en fix: bien (generica y general-purpose) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M02', 'S09', 'S12'] avisos=[]
+  S10 en fix: bien (zz-revisora-puertas) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=sonnet reglas=['M02', 'S09', 'S10', 'S12'] avisos=[]
+  S11 en fix: bien (aviso) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M02', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S14 en fix: bien (aviso no-instalado) -> agentes=['general-purpose'] skills=[] modelo=sonnet reglas=['M02', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
+  S15 en fix: bien (restringido a haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M02', 'S09', 'S12', 'S15'] avisos=['modelo-restringido:sonnet->haiku']
+  S13 en fix: bien (sonnet -> haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M02', 'S09', 'S12', 'S13'] avisos=[]
+  S07 en funcionalidad: bien (task-workflow) -> agentes=[] skills=['task-workflow'] modelo=sonnet reglas=['M04', 'S07'] avisos=[]
+  S08 en funcionalidad: bien (rust-wasm y generica) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S08', 'S12'] avisos=[]
+  S09 y S12 en funcionalidad: bien (generica y general-purpose) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
+  S10 en funcionalidad: bien (zz-revisora-puertas) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=sonnet reglas=['M04', 'S09', 'S10', 'S12'] avisos=[]
+  S11 en funcionalidad: bien (aviso) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S14 en funcionalidad: bien (aviso no-instalado) -> agentes=['general-purpose'] skills=[] modelo=sonnet reglas=['M04', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
+  S15 en funcionalidad: bien (restringido a haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M04', 'S09', 'S12', 'S15'] avisos=['modelo-restringido:sonnet->haiku']
+  S13 en funcionalidad: bien (sonnet -> haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M04', 'S09', 'S12', 'S13'] avisos=[]
+  S07 en riesgo-alto: bien (task-workflow) -> agentes=[] skills=['task-workflow'] modelo=opus reglas=['M07', 'S07'] avisos=[]
+  S08 en riesgo-alto: bien (rust-wasm y generica) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'code-quality-reviewer'] modelo=opus reglas=['M07', 'S08', 'S12'] avisos=[]
+  S09 y S12 en riesgo-alto: bien (generica y general-purpose) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M07', 'S09', 'S12'] avisos=[]
+  S10 en riesgo-alto: bien (zz-revisora-puertas) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=opus reglas=['M07', 'S09', 'S10', 'S12'] avisos=[]
+  S11 en riesgo-alto: bien (aviso) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M07', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S14 en riesgo-alto: bien (aviso no-instalado) -> agentes=['general-purpose'] skills=[] modelo=opus reglas=['M07', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
+  S15 en riesgo-alto: bien (restringido a haiku) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=haiku reglas=['M07', 'S09', 'S12', 'S15'] avisos=['modelo-restringido:opus->haiku']
 filas de tabla-seleccion ejercitadas por los controles: 15 de 15
 evasion por vocabulario (IMP-3): el mismo trabajo con otro texto; que contiene la defensa y que no
   1 plan, texto con puertas: bien (contenido: suelo de 2 roles) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=[] modelo=sonnet reglas=['M04', 'S02', 'S03', 'S05'] avisos=[]
   2 plan, mismo trabajo con otro vocabulario: bien (NO lo contiene el binario: 1 rol; solo la persona en approve, que ve «dominios: ninguno») -> agentes=['arquitectura'] skills=[] modelo=sonnet reglas=['M04', 'S02'] avisos=[]
   3 revision ronda 2, aprobado con puertas y texto vivo reescrito: bien (contenido: el texto aprobado suma; sigue opus y el aviso) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer'] modelo=opus reglas=['M05', 'S08', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  3b revision ronda 2, etiqueta `puertas` aprobada y quitada del texto vivo: bien (contenido: la etiqueta aprobada suma) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer'] modelo=opus reglas=['M05', 'S08', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
   4 revision ronda 2, otro vocabulario y diff en .claude/: bien (contenido: la ruta del diff con la config de la base) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
   5 fix sin approve, otro vocabulario y diff solo en src/: bien (NO contenido: sin dominio, sin aviso y S13 baja; riesgo aceptado) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer'] modelo=sonnet reglas=['M03', 'S08', 'S12', 'S13'] avisos=[]
+cobertura por atomo (MEN-9): 50 de 50 variaciones de condicion (quitar cada atomo; anadir «no carril=X» en implementacion, revision y todos) cambian algun resultado o rompen la tabla
 catalogo del arbol del PR frente al de la base (MEN-4)
   catalogo de la base, diff .txt: bien (generica del plugin) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
   catalogo del PR con otra generica, diff .txt: bien (contenido por la funcion: la generica solo puede ser la del plugin) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
@@ -189,6 +224,7 @@ filas de la muestra con «coincide (Carlos, 2026-11-14)»: 10 de 10
   mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
   mutacion divergencia-sin-f1-9: falla como se espera («Divergencias con el plan» no trata F1-9)
   mutacion no-verificado-sin-vocabulario: falla como se espera («No verificado» no nombra «vocabulario»)
+  mutacion s09-no-en-fix: falla como se espera (control de reglas: caso S09 y S12 en fix: no da lo esperado (generica y general-purpose))
   mutacion s13-siempre: falla como se espera (control de reglas: caso S13 ronda 2 en riesgo-alto no baja: no da lo esperado (sigue opus))
   mutacion s03-suelo-3: falla como se espera (control de reglas: caso S03 suelo por puertas: no da lo esperado (arquitectura y riesgos, S03))
   mutacion s10-da-la-generica: falla como se espera (control de reglas: caso S10 revisora declarada del dominio: no da lo esperado (zz-revisora-puertas s)

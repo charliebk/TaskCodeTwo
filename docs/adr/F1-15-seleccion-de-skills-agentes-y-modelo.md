@@ -58,7 +58,7 @@ solo toca `docs/` y el reparto por rutas no ve su dominio.
 | Decisión | Alternativa | Veredicto |
 |---|---|---|
 | **D1a** | Roles de diseño = máx(`roles_min` del carril de F1-10, tabla de complejidad, suelo por dominio), con suelo 2 si salta `puertas-seguridad` | **Elegida**: la medida de la Fase 1 dice que el dominio, no la complejidad, predice los IMPORTANTES de puerta |
-| D1b | Sumar puntos de dominio a la heurística | Descartada: la lista de palabras de riesgo de la 0.16 no tiene ninguna palabra de puertas (puerta, check, ruleset, runner, permiso…), y en la Fase 1 solo 1 de las 15 tareas de la Fase 1 contiene alguna palabra de riesgo de la 0.16 (F1-8, «seguridad»); por eso 14 salieron «simple». Sumar puntos exigiría añadir esas palabras a la heurística, y el número de roles seguiría dependiendo de cuántas aparecen, no de si el dominio está; el suelo de D1a lo decide la presencia del dominio |
+| D1b | Sumar puntos de dominio a la heurística | Descartada: de las 15 palabras de puertas de la `tabla-dominios`, la lista de riesgo de la 0.16 (`scripts/heuristica-complejidad.yml`) solo comparte `seguridad`; no tiene puerta, check, ruleset, runner, permiso ni las demás, y en la Fase 1 solo 1 de las 15 tareas de la Fase 1 contiene alguna palabra de riesgo de la 0.16 (F1-8, «seguridad»); por eso 14 salieron «simple». Sumar puntos exigiría añadir esas palabras a la heurística, y el número de roles seguiría dependiendo de cuántas aparecen, no de si el dominio está; el suelo de D1a lo decide la presencia del dominio |
 | D1c | Dos roles en toda funcionalidad | Descartada: sube el coste en las tareas sin dominio delicado, que en la Fase 1 no tuvieron IMPORTANTES de puerta |
 | **D2a** | Detector de dominio con lista cerrada en el binario que la configuración solo amplía | **Elegida** |
 | D2b | Que el dominio lo clasifique un modelo | Descartada: es elegir «a ojo» |
@@ -144,7 +144,8 @@ verificación, 5 de puerta-seguridad: la regla de la 0.16 de bajar un escalón
 el modelo en esas rondas no se aplica en ese dominio (fila S13). La
 heurística dejó 14 tareas en «simple» y una (F1-8) en «media», porque solo
 1 de las 15 tareas de la Fase 1 contiene alguna palabra de riesgo de la 0.16
-(F1-8, «seguridad»; la lista no tiene ninguna palabra de puertas): sus puntos
+(F1-8, «seguridad»), y esa lista no tiene ninguna palabra de puertas salvo `seguridad`
+(la PoC compara las dos listas leídas de sus ficheros): sus puntos
 salen de dependencias y criterios. La revisora fue `code-quality-reviewer` en
 las 15. Y 14 de las 15 tareas de la Fase 1 tienen una fila de implementación
 hecha por un subagente en `## Coste` (todas menos F1-1), lo que fija qué hace
@@ -275,12 +276,22 @@ Ninguna fila de la muestra cae en un empate.
   de este fichero y aplica cada fila en su orden; la columna «Condición» es una
   lista de átomos de un vocabulario cerrado y «Acción» un token de otro
   (decisión 5). Una condición o acción fuera del vocabulario es un error.
-- Un caso de control por cada fila S01 a S15, más cuatro de S13 (ronda 2 sin
-  dominio baja de `opus` a `sonnet`; en riesgo alto, con `puertas-seguridad`
-  por el texto y con `puertas-seguridad` por la ruta `.claude/settings.json`
-  no baja). S01, S04, S06 y S10, que no salen en la muestra, tienen el suyo
-  (S06 y S10 con una skill y una revisora sintéticas que declaran
-  `puertas-seguridad`). La PoC falla si una fila no la ejercita ningún caso.
+- Un caso de control por cada fila S01 a S15, más cinco de S13 (ronda 2 sin
+  dominio baja de `opus` a `sonnet`; en riesgo alto sin dominio, con
+  `puertas-seguridad` por el texto, por la ruta `.claude/settings.json` y por
+  `.Claude/settings.json` no baja). S01, S04, S06 y S10, que no salen en la
+  muestra, tienen el suyo (S06 y S10 con una skill y una revisora sintéticas
+  que declaran `puertas-seguridad`). Las filas de implementación, revisión y
+  `todos` tienen además un caso en cada uno de los cuatro carriles. La PoC
+  falla si una fila no la ejercita ningún caso.
+- **Cada átomo de cada condición está acotado**: la PoC quita uno a uno los
+  átomos de cada fila (o la deja en `siempre`) y, en las filas de
+  implementación, revisión y `todos`, añade «y no `carril=X`» para cada
+  carril que la fila no nombra; cada variación tiene que cambiar algún
+  resultado (casos, evasión, catálogo del PR y la muestra) o romper la lectura
+  de la tabla, y si no, falla. En las filas de diseño solo se prueba quitar:
+  añadir un carril a S03 o S05 no cambia nada en riesgo alto, donde ya salen
+  todos los roles, y eso es lo correcto.
 - Las 10 tareas × 3 roles dos veces: mismo hash; con el inventario y el
   catálogo permutados, el mismo hash.
 - Quitar `angular-vue-reviewer` del inventario la saca de las 2 selecciones
@@ -309,6 +320,7 @@ Ninguna fila de la muestra cae en un empate.
   | 1. `plan`, texto con «puerta», «check», «token», «aprobación» | 2 roles (suelo) | sí |
   | 2. `plan`, mismo trabajo escrito con «validación», «credencial», «conformidad» | 1 rol, sin dominio | **no el binario**: solo la persona en `approve`, que ve «dominios: ninguno» y el suelo calculado |
   | 3. revisión ronda 2, texto aprobado con puertas y texto vivo reescrito | sigue `opus` y el aviso | sí: el texto aprobado suma |
+  | 3b. revisión ronda 2, etiqueta `puertas` aprobada y quitada de la tarea viva | sigue `opus` y el aviso | sí: la etiqueta aprobada suma |
   | 4. revisión ronda 2, otro vocabulario y el diff toca `.claude/settings.json` | sigue `opus` y el aviso | sí: la ruta, con la configuración de la base |
   | 5. carril `fix` (sin `approve`), otro vocabulario y diff solo en `src/` | sin dominio, sin aviso, S13 baja el modelo | **no**: riesgo aceptado |
 
@@ -331,9 +343,9 @@ de la retrospectiva no es la calculada, la columna «a mano» no lleva persona y
 fecha, falta una sección, una regla obligatoria, una divergencia o
 un «no verificado», un ID del plan o de los requisitos no existe, un enlace no
 resuelve o una cifra de la prosa (IMPORTANTES, recall, precisión) está fuera
-de la frase que dice a qué corresponde. Veinticinco copias mutadas fallan cada
-una por su motivo, entre ellas S13 cambiada a «siempre», el suelo de S03 a 3 y
-la acción de S10 cambiada por la genérica.
+de la frase que dice a qué corresponde. Veintiséis copias mutadas fallan cada
+una por su motivo, entre ellas S13 cambiada a «siempre», el suelo de S03 a 3,
+la acción de S10 cambiada por la genérica y S09 con «y no `carril=fix`».
 
 ## Cómo se ve en la tarea y en GitHub
 
@@ -395,7 +407,11 @@ selección de cada tarea en curso necesita y no está instalado.
    `dominio-sin-revisora`, `hay-no-instalado`, `modelo-no-permitido`) y aplica
    la «Acción» (un token de otro vocabulario cerrado). Lo que no es del
    vocabulario es un error al leer la tabla. Una fila se anota si su condición
-   se cumple y su acción cambia algo. La usan `plan`
+   se cumple y su acción cambia algo. Tras `sin-plan` no se evalúa ninguna
+   fila más de diseño. Una acción que necesita candidatos exige en su
+   condición el átomo que los garantiza (`skills-diseno-del-dominio` exige
+   `hay-skill-diseno-del-dominio`, `revisora-del-dominio` exige
+   `dominio-con-revisora`, y así las demás); si falta, la tabla no se lee. La usan `plan`
    (F4-6, F4-1), `review` y el revisor en CI (F6-3), el orquestador (F4-4),
    `lote` (F1-16) y `doctor` (F3-8, F3-9).
 
@@ -423,7 +439,9 @@ selección de cada tarea en curso necesita y no está instalado.
    etiquetas, palabras o rutas a un dominio de la lista, nunca un dominio
    nuevo ni quita señales. Etiqueta: igualdad exacta. Palabra: al principio de
    una palabra del objetivo o de los criterios, sin tildes ni mayúsculas.
-   Ruta: glob sobre los dos nombres de cada renombrado.
+   Ruta: glob sobre los dos nombres de cada renombrado, **sin distinguir
+   mayúsculas** (patrón y ruta en minúsculas): en Windows y macOS
+   `.Claude/settings.json` es el mismo fichero que `.claude/settings.json`.
 
    **Texto de la tarea: no confiable, solo sube.** Objetivo, criterios y
    etiquetas los escribe el agente en `tarea.md`, como el `tipo` que F1-10 ya
@@ -498,7 +516,7 @@ selección de cada tarea en curso necesita y no está instalado.
    | Id | Rol | Condición | Acción | Ids del inventario | Qué significa |
    |---|---|---|---|---|---|
    | S01 | `diseno` | `carril=errata` | `sin-plan` | — | sin plan: no se lanza ningún rol |
-   | S02 | `diseno` | `carril!=errata` | `roles=max(roles_min,complejidad)` | `taskcode-plugin:brainstorm-arquitectura`, `taskcode-plugin:brainstorm-riesgos`, `taskcode-plugin:brainstorm-testing`, `taskcode-plugin:brainstorm-dominio` | número de roles = máx(`roles_min` del carril, tabla de complejidad); un agente por rol en el orden arquitectura, riesgos, testing, dominio |
+   | S02 | `diseno` | `siempre` | `roles=max(roles_min,complejidad)` | `taskcode-plugin:brainstorm-arquitectura`, `taskcode-plugin:brainstorm-riesgos`, `taskcode-plugin:brainstorm-testing`, `taskcode-plugin:brainstorm-dominio` | número de roles = máx(`roles_min` del carril, tabla de complejidad); un agente por rol en el orden arquitectura, riesgos, testing, dominio (en `errata` no llega: S01 corta el diseño) |
    | S03 | `diseno` | `dominio=puertas-seguridad` | `suelo=2` | `taskcode-plugin:brainstorm-arquitectura`, `taskcode-plugin:brainstorm-riesgos` | suelo de 2 roles: arquitectura y riesgos |
    | S04 | `diseno` | `dominio=rendimiento` | `mas-rol=rendimiento` | `taskcode-plugin:brainstorm-rendimiento` | más el rol de rendimiento |
    | S05 | `diseno` | `roles>=2` | `mas-rol=unificador` | `taskcode-plugin:brainstorm-unificador` | con dos o más roles, más el unificador |

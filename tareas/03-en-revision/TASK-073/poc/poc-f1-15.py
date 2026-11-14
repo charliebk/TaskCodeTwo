@@ -93,6 +93,12 @@ ATOMOS = [r"siempre", r"carril=(errata|fix|funcionalidad|riesgo-alto)", r"carril
           r"dominio=(puertas-seguridad|rendimiento)", r"roles>=(\d)", r"ronda>=(\d)", r"hay-skill-diseno-del-dominio",
           r"hay-skill-ejecucion-con-solape", r"rutas-casan-entre-1-y-umbral", r"rutas-no-casan-o-pasan-umbral",
           r"dominio-con-revisora", r"dominio-sin-revisora", r"hay-no-instalado", r"modelo-no-permitido"]
+# Una accion que necesita candidatos exige su atomo de condicion (MEN-9 de la revision 2)
+EXIGE = {"skills-diseno-del-dominio": "hay-skill-diseno-del-dominio",
+         "skill-ejecucion=": "hay-skill-ejecucion-con-solape",
+         "revisoras-de-rutas": "rutas-casan-entre-1-y-umbral", "revisora-del-dominio": "dominio-con-revisora",
+         "aviso=dominio-sin-revisora": "dominio-sin-revisora", "quitar-no-instalado": "hay-no-instalado",
+         "restringir-modelo": "modelo-no-permitido"}
 ACCIONES = [r"sin-plan", r"roles=max\(roles_min,complejidad\)", r"suelo=(\d)", r"mas-rol=(rendimiento|unificador)",
             r"skills-diseno-del-dominio", r"skill-ejecucion=solape,prioridad,id", r"revisoras-de-rutas\+generica-si-sueltas",
             r"generica-del-plugin", r"revisora-del-dominio", r"aviso=dominio-sin-revisora", r"lanzador",
@@ -228,7 +234,7 @@ def dominios(t, cambios, tabla_dom, cfg):
         elif tipo == "palabra":
             ok = re.search(r"\b" + re.escape(normalizar(valor)), texto) is not None
         else:
-            ok = any(casa(valor, r) for r in rutas)
+            ok = any(casa(valor.lower(), r.lower()) for r in rutas)   # sin mayusculas (Windows y macOS, MEN-10)
         if ok:
             vistos.setdefault(d, set()).add(f"{tipo}:{valor}")
     return [(d, tuple(sorted(vistos[d]))) for d in DOMINIOS if d in vistos]
@@ -263,6 +269,9 @@ def parsear_regla(i, cond, accion):
         atomos.append((neg, a2))
     if len(accion) != 1 or not any(re.fullmatch(p, accion[0]) for p in ACCIONES):
         raise ErrorTabla(f"tabla-seleccion {i}: acción desconocida: {accion}")
+    for pref, atomo in EXIGE.items():
+        if accion[0].startswith(pref) and (False, atomo) not in atomos:
+            raise ErrorTabla(f"tabla-seleccion {i}: la acción {accion[0]} exige el átomo {atomo}")
     return atomos, accion[0]
 
 
@@ -804,7 +813,7 @@ def coste_diseno(texto):
     return None, None
 
 
-def seccion_r(repo, h):
+def seccion_r(repo, h, tablas):
     sep("R: retrospectiva de las 15 tareas de la Fase 1 (roles, heuristica, IMPORTANTES por clase, revisor)")
     textos, ids, revs = informes_fase1(repo)
     ctexto = open(CLASIF, encoding="utf-8").read()
@@ -866,15 +875,17 @@ def seccion_r(repo, h):
     print(f"revisor usado: {sorted({x for r in retro.values() for x in r['revisor']})} en las 15")
     con_pal = [t for t, r in retro.items() if r["pal016"]]
     print(f"tareas con alguna palabra de riesgo de la 0.16 en objetivo o criterios: {len(con_pal)} "
-          f"({' '.join(t + ':' + ','.join(retro[t]['pal016']) for t in con_pal)}) ; la lista de la 0.16 no tiene ninguna de las "
-          f"palabras de puertas de tabla-dominios: "
-          f"{not any(normalizar(w) in [normalizar(x) for x in h['palabras']] for w in ['puerta', 'check', 'ruleset', 'permiso', 'identidad', 'firma', 'token', 'secreto', 'aprobacion', 'carril', 'merge', 'workflow', 'runner', 'amenaza'])}")
+          f"({' '.join(t + ':' + ','.join(retro[t]['pal016']) for t in con_pal)})")
+    pal_puertas = sorted({normalizar(v) for _i, d, sen, v in tablas["dominios"] if d == "puertas-seguridad" and sen == "palabra"})
+    comunes = sorted(set(pal_puertas) & {normalizar(x) for x in h["palabras"]})
+    print(f"palabras de riesgo de la 0.16 (scripts/heuristica-complejidad.yml del plugin 0.16.1): {len(h['palabras'])} ; "
+          f"palabras de puertas-seguridad en tabla-dominios: {len(pal_puertas)} ; en las dos listas: {comunes}")
     impl = [t for t, r in retro.items() if r["impl_agente"]]
     print(f"tareas con fila `implementacion | agente:` en ## Coste (la implementacion la hizo un subagente): {len(impl)} de 15")
     cifras = {"imp": sum(tot_c.values()), "por": tot_c, "ps": ps, "ps1": ps1, "con_ps": con_ps, "escapados": sin_riesgos,
               "nuevos": len(nuevos), "nuevos_ps": len(nuevos_ps), "niveles": niveles,
               "simples": niveles["simple"], "un_rol": sum(1 for r in retro.values() if len(r["roles"]) == 1),
-              "con_pal": len(con_pal), "impl": len(impl)}
+              "con_pal": len(con_pal), "impl": len(impl), "comunes": comunes}
     return retro, cifras
 
 
@@ -1192,7 +1203,7 @@ def _t(obj, etq=(), aprobado=None):
     return t
 
 
-def _correr(casos, tablas, ids, cat):
+def _correr(casos, tablas, ids, cat, salidas=None):
     """casos: (nombre, rol, t, carril, cx, cambios, extra{inv,cat,cfg,ronda}, comprobar(s) -> bool, que). Pura."""
     err, vistas, lin = [], set(), []
     for nombre, rol, t, carril, cx, cambios, ex, comprobar, que in casos:
@@ -1203,6 +1214,8 @@ def _correr(casos, tablas, ids, cat):
             err.append(f"caso {nombre}: {e}")
             continue
         vistas.update(s["reglas"])
+        if salidas is not None:
+            salidas[nombre] = s
         ok = comprobar(s)
         lin.append(f"  {nombre}: {'bien' if ok else 'MAL'} ({que}) -> agentes={[corto(a) for a in s['agentes']]} "
                    f"skills={[corto(k) for k in s['skills']]} modelo={s['modelo']} reglas={s['reglas']} avisos={s['avisos']}")
@@ -1211,7 +1224,7 @@ def _correr(casos, tablas, ids, cat):
     return err, vistas, lin
 
 
-def controles_reglas(tablas, ids, cat):
+def controles_reglas(tablas, ids, cat, salidas=None):
     """Un caso por fila de tabla-seleccion (y cuatro de S13). Pura: la usa S y la usa G con las tablas de cada copia
     mutada del ADR. Devuelve (errores, reglas vistas, lineas)."""
     src, txt, doc = [("M", ["src/x.rs"])], [("M", ["src/x.txt"])], [("M", ["docs/a.md"])]
@@ -1249,13 +1262,16 @@ def controles_reglas(tablas, ids, cat):
         ("S13 ronda 2 sin dominio baja", "revision", _t("Pantalla nueva"), "funcionalidad", "media", txt, {"ronda": 2},
          lambda s: s["modelo"] == "sonnet" and "S13" in s["reglas"], "opus -> sonnet, S13"),
         ("S13 ronda 2 en riesgo-alto no baja", "revision", _t("Pantalla nueva"), "riesgo-alto", "media",
-         [("M", [".taskcode/config.yml"])], {"ronda": 2},
+         txt, {"ronda": 2},
          lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
         ("S13 ronda 2 con puertas por texto no baja", "revision", _t(PUERTAS), "funcionalidad", "media", txt, {"ronda": 2},
          lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
         ("S13 ronda 2 con puertas por ruta no baja", "revision", _t("Ajuste de la sesion"), "funcionalidad", "media",
          [("M", [".claude/settings.json"])], {"ronda": 2},
          lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
+        ("S13 ronda 2 con puertas por ruta en mayusculas no baja", "revision", _t("Ajuste de la sesion"),
+         "funcionalidad", "media", [("M", [".Claude/settings.json"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus: .Claude/ es .claude/"),
         ("S14 no instalado", "revision", _t("x"), "funcionalidad", "simple", txt, {"inv": [i for i in ids if i != cq]},
          lambda s: f"no-instalado:{cq}" in s["avisos"] and cq not in s["skills"] and "S14" in s["reglas"],
          "se quita con aviso, S14"),
@@ -1263,14 +1279,38 @@ def controles_reglas(tablas, ids, cat):
          {"cfg": {"modelos_permitidos": ["haiku", "sonnet"]}},
          lambda s: s["modelo"] == "sonnet" and "S15" in s["reglas"], "opus -> sonnet, S15"),
     ]
-    err, vistas, lin = _correr(casos, tablas, ids, cat)
+    # Por carril (MEN-9): las filas de implementacion, revision y todos no dependen del carril salvo S13 en
+    # riesgo-alto; un caso por carril hace que anadir «y no carril=X» a cualquiera de ellas cambie un resultado.
+    for c in ORDEN:
+        m_rev, _f = modelo_de(c, "simple", "revision", tablas["modelo"])
+        casos += [
+            (f"S07 en {c}", "implementacion", _t("x", ["planificacion"]), c, "simple", src, {},
+             lambda s: s["skills"] == ["taskcode-plugin:task-workflow"], "task-workflow"),
+            (f"S08 en {c}", "revision", _t("x"), c, "simple", src + doc, {},
+             lambda s: s["skills"] == ["taskcode-plugin:rust-wasm-reviewer", cq], "rust-wasm y generica"),
+            (f"S09 y S12 en {c}", "revision", _t("x"), c, "simple", txt, {},
+             lambda s: s["skills"] == [cq] and s["agentes"] == ["general-purpose"], "generica y general-purpose"),
+            (f"S10 en {c}", "revision", _t(PUERTAS), c, "simple", txt, {"cat": cat + [zr], "inv": ids + [zr["id"]]},
+             lambda s: zr["id"] in s["skills"], "zz-revisora-puertas"),
+            (f"S11 en {c}", "revision", _t(PUERTAS), c, "simple", txt, {},
+             lambda s: "dominio-sin-revisora:puertas-seguridad" in s["avisos"], "aviso"),
+            (f"S14 en {c}", "revision", _t("x"), c, "simple", txt, {"inv": [i for i in ids if i != cq]},
+             lambda s: f"no-instalado:{cq}" in s["avisos"], "aviso no-instalado"),
+            (f"S15 en {c}", "revision", _t("x"), c, "simple", txt, {"cfg": {"modelos_permitidos": ["haiku"]}},
+             lambda s: s["modelo"] == "haiku" and "S15" in s["reglas"], "restringido a haiku"),
+        ]
+        if c != "riesgo-alto" and m_rev:
+            baja = ESCALA[max(0, ESCALA.index(m_rev) - 1)]
+            casos.append((f"S13 en {c}", "revision", _t("x"), c, "simple", txt, {"ronda": 2},
+                          lambda s, b=baja: s["modelo"] == b and "S13" in s["reglas"], f"{m_rev} -> {baja}"))
+    err, vistas, lin = _correr(casos, tablas, ids, cat, salidas)
     for i in tablas["seleccion"]:
         if i not in vistas:
             err.append(f"la fila {i} de tabla-seleccion no tiene ningun caso que la ejercite")
     return err, vistas, lin
 
 
-def caso_vocabulario(tablas, ids, cat):
+def caso_vocabulario(tablas, ids, cat, salidas=None):
     """IMP-3: el mismo trabajo con otro vocabulario. Dice que contiene la defensa y que no (lo esperado esta fijado)."""
     aprobado = {"objetivo": PUERTAS, "criterios": ["criterio"], "etiquetas": []}
     roles = lambda s: [corto(a) for a in s["agentes"] if corto(a) != "unificador"]
@@ -1284,6 +1324,11 @@ def caso_vocabulario(tablas, ids, cat):
          "funcionalidad", "media", [("M", ["src/x.rs"])], {"ronda": 2},
          lambda s: s["modelo"] == "opus" and "dominio-sin-revisora:puertas-seguridad" in s["avisos"],
          "contenido: el texto aprobado suma; sigue opus y el aviso"),
+        ("3b revision ronda 2, etiqueta `puertas` aprobada y quitada del texto vivo", "revision",
+         _t(EVASIVO, aprobado={"objetivo": EVASIVO, "criterios": ["criterio"], "etiquetas": ["puertas"]}),
+         "funcionalidad", "media", [("M", ["src/x.rs"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "dominio-sin-revisora:puertas-seguridad" in s["avisos"],
+         "contenido: la etiqueta aprobada suma"),
         ("4 revision ronda 2, otro vocabulario y diff en .claude/", "revision", _t(EVASIVO), "funcionalidad", "media",
          [("M", [".claude/settings.json"])], {"ronda": 2},
          lambda s: s["modelo"] == "opus" and "dominio-sin-revisora:puertas-seguridad" in s["avisos"],
@@ -1293,10 +1338,10 @@ def caso_vocabulario(tablas, ids, cat):
          lambda s: s["modelo"] == "sonnet" and not s["avisos"],
          "NO contenido: sin dominio, sin aviso y S13 baja; riesgo aceptado"),
     ]
-    return _correr(casos, tablas, ids, cat)
+    return _correr(casos, tablas, ids, cat, salidas)
 
 
-def caso_catalogo_pr(tablas, ids, cat):
+def caso_catalogo_pr(tablas, ids, cat, salidas=None):
     """MEN-4: un PR que anade a su arbol una generica y una revisora propias. Pura."""
     aaa = {"id": "aaa-generica", "tipo": "skill", "rol": "revisor", "fallback": True, "umbral": 9, "patrones": [],
            "dominios": []}
@@ -1313,7 +1358,56 @@ def caso_catalogo_pr(tablas, ids, cat):
          [("M", ["src/x.rs"])], pr, lambda s: zzz["id"] in s["skills"],
          "la funcion NO lo contiene: entra la revisora del PR; por eso el catalogo se lee de la base"),
     ]
-    return _correr(casos, tablas, ids, cat)
+    return _correr(casos, tablas, ids, cat, salidas)
+
+
+def huella(tablas, ids, cat, filas):
+    """Todo lo que la PoC calcula con unas tablas: casos de control, evasion, catalogo del PR y la muestra."""
+    sal = {}
+    controles_reglas(tablas, ids, cat, sal)
+    caso_vocabulario(tablas, ids, cat, sal)
+    caso_catalogo_pr(tablas, ids, cat, sal)
+    for r in filas:
+        for rol in ROL_COL:
+            sal[f"{r['repo']}/{r['id']}/{rol}"] = seleccionar(rol, r["t"], r["efectivo"], r["cx"], r["cambios"], ids, cat,
+                                                              {}, tablas)
+    return h12(sal)
+
+
+def cobertura_atomos(tablas, ids, cat, filas):
+    """MEN-9: quitar cada atomo de cada fila (o dejar `siempre`) y anadir «no carril=X» a las filas de implementacion,
+    revision y todos tiene que cambiar algun resultado o romper la lectura de la tabla. Devuelve (errores, cuentas)."""
+    base = huella(tablas, ids, cat, filas)
+    err, cuenta = [], [0, 0]
+
+    def prueba(i, cond, que):
+        cuenta[1] += 1
+        t2 = dict(tablas)
+        t2["seleccion"] = {k: (dict(v, cond=cond) if k == i else v) for k, v in tablas["seleccion"].items()}
+        try:
+            parsear_regla(i, cond, tablas["seleccion"][i]["accion"])
+            h = huella(t2, ids, cat, filas)
+        except (ErrorTabla, ErrorConfig, IndexError, KeyError):
+            cuenta[0] += 1
+            return
+        if h == base:
+            err.append(f"{i}: {que} no cambia ningun resultado (atomo sin caso que lo acote)")
+        else:
+            cuenta[0] += 1
+
+    for i, f in tablas["seleccion"].items():
+        cond = f["cond"]
+        for k, a in enumerate(cond):
+            if a == "siempre":
+                continue
+            resto = cond[:k] + cond[k + 1:]
+            prueba(i, resto or ["siempre"], f"quitar «{a}»")
+        if f["rol"] in ("implementacion", "revision", "todos"):
+            for c in ORDEN:
+                if any(x.endswith(f"carril={c}") for x in cond):
+                    continue
+                prueba(i, [x for x in cond if x != "siempre"] + [f"no carril={c}"], f"anadir «no carril={c}»")
+    return err, tuple(cuenta)
 
 
 def seccion_s(filas, ids, cat, tablas):
@@ -1428,6 +1522,11 @@ def seccion_s(filas, ids, cat, tablas):
     e, _v, lin = caso_vocabulario(tablas, ids, cat)
     for l in lin:
         print(l)
+    for x in e:
+        falla("S", x)
+    e, (n_ok, n) = cobertura_atomos(tablas, ids, cat, filas)
+    print(f"cobertura por atomo (MEN-9): {n_ok} de {n} variaciones de condicion (quitar cada atomo; anadir «no carril=X» "
+          f"en implementacion, revision y todos) cambian algun resultado o rompen la tabla")
     for x in e:
         falla("S", x)
     print("catalogo del arbol del PR frente al de la base (MEN-4)")
@@ -1604,6 +1703,9 @@ def mutaciones(adr, ct, muestra_ids):
         ("no-verificado-sin-vocabulario", re.sub(r"(^## No verificado\s*$)(.*?)(?=^## |\Z)",
                                                  lambda x: x.group(1) + x.group(2).replace("vocabulario", "texto"), adr,
                                                  flags=re.S | re.M), "«No verificado» no nombra «vocabulario»"),
+        ("s09-no-en-fix", adr.replace(s09, s09.replace("| `rutas-no-casan-o-pasan-umbral` |",
+                                                       "| `rutas-no-casan-o-pasan-umbral` y no `carril=fix` |", 1)),
+         "control de reglas: caso S09 y S12 en fix"),
         ("s13-siempre", adr.replace(s13, re.sub(r"\| `ronda>=2`[^|]*\|", "| `siempre` |", s13, count=1)),
          "control de reglas: caso S13 ronda 2 en riesgo-alto no baja"),
         ("s03-suelo-3", adr.replace(s03, s03.replace("`suelo=2`", "`suelo=3`", 1)),
@@ -1660,6 +1762,7 @@ def frases(cr, cd, cs):
         f"{rec} y precisión {cd['tp']}/{cd['tp'] + cd['fp']}",
         f"el suelo subiría de 1 a 2 roles en {cd['suelo']} de 15 tareas",
         f"{cr['con_pal']} de las 15 tareas de la Fase 1 contiene alguna palabra de riesgo de la 0.16",
+        "ninguna palabra de puertas salvo `" + "`, `".join(cr["comunes"]) + "`",
         f"{cr['impl']} de las 15 tareas de la Fase 1 tienen una fila de implementación hecha por un subagente",
     ]}
 
@@ -1695,7 +1798,7 @@ def main():
         adr_ruta = os.path.join(repo, ADR_REL)
         adr = open(adr_ruta, encoding="utf-8").read() if os.path.exists(adr_ruta) else ""
         tablas, terr = leer_tablas(adr)
-        retro, cr = seccion_r(repo, h)
+        retro, cr = seccion_r(repo, h, tablas)
         reloj("R terminada")
         if terr:
             for e in terr:
