@@ -1,0 +1,30 @@
+{
+ "caso": "sin-cambios",
+ "descripcion": "PR o MR ya mergeado",
+ "origen": "fixture inventado con los nombres de campo observados (ver observado.json); lo no observado se marca en la PoC",
+ "politica": {
+  "exigir_impuestas": []
+ },
+ "respuestas": {
+  "/repos/o/r/pulls/12": {
+   "cuerpo": {
+    "base": {
+     "ref": "develop"
+    },
+    "head": {
+     "ref": "feature/task-012-ejemplo",
+     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "mergeable_state": "clean",
+    "merged": true,
+    "number": 12,
+    "state": "closed",
+    "user": {
+     "id": 2001,
+     "type": "Bot"
+    }
+   },
+   "estado": 200
+  }
+ }
+}

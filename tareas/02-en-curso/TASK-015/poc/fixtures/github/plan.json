@@ -1,0 +1,82 @@
+{
+ "caso": "plan",
+ "descripcion": "el plan no impone aprobaciones y la politica exige G03 impuesta",
+ "origen": "fixture inventado con los nombres de campo observados (ver observado.json); lo no observado se marca en la PoC",
+ "politica": {
+  "exigir_impuestas": [
+   "G03"
+  ]
+ },
+ "respuestas": {
+  "/repos/o/r/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs": {
+   "cuerpo": {
+    "check_runs": [
+     {
+      "app": {
+       "id": 15368
+      },
+      "conclusion": "success",
+      "name": "verificacion",
+      "status": "completed"
+     },
+     {
+      "app": {
+       "id": 15368
+      },
+      "conclusion": "success",
+      "name": "carril",
+      "status": "completed"
+     },
+     {
+      "app": {
+       "id": 99001
+      },
+      "conclusion": "success",
+      "name": "revision-ia",
+      "status": "completed"
+     }
+    ],
+    "total_count": 3
+   },
+   "estado": 200
+  },
+  "/repos/o/r/pulls/12": {
+   "cuerpo": {
+    "base": {
+     "ref": "develop"
+    },
+    "head": {
+     "ref": "feature/task-012-ejemplo",
+     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "mergeable_state": "clean",
+    "merged": false,
+    "number": 12,
+    "state": "open",
+    "user": {
+     "id": 2001,
+     "type": "Bot"
+    }
+   },
+   "estado": 200
+  },
+  "/repos/o/r/pulls/12/reviews": {
+   "cuerpo": [
+    {
+     "state": "APPROVED",
+     "user": {
+      "id": 1001,
+      "type": "User"
+     }
+    }
+   ],
+   "estado": 200
+  },
+  "/repos/o/r/rules/branches/develop": {
+   "cuerpo": {
+    "message": "Upgrade to GitHub Pro or make this repository public to enable this feature."
+   },
+   "estado": 403
+  }
+ }
+}
