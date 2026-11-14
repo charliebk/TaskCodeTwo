@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 416216
 tokens_implementacion: 5655771
-tokens_revision: 1771088
+tokens_revision: 5220538
 creado: 2026-11-14
 actualizado: 2026-11-14
 dependencias: [TASK-004]
@@ -50,8 +50,14 @@ Tarea F1-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-14T05:59:01Z | implementacion | sesion:f7ef1603-d233-4a21-a36b-4afb2c4b0c0e | 8 | 9390 | 988704 | 2229 | 0 | 1000331 | - | - |
 | 2026-11-14T05:59:01Z | implementacion | agente:a47add20da8cde43c | 68 | 179766 | 4428518 | 47088 | 15 | 4655440 | - | - |
 | 2026-11-14T06:04:46Z | revision | agente:a8a9fe6f70978482f | 30 | 147481 | 1601377 | 22200 | 10 | 1771088 | 1 | - |
+| 2026-11-14T06:17:16Z | revision | agente:acab03903595e6d25 | 54 | 170742 | 3237833 | 40821 | 11 | 3449450 | 2 | - |
 
 ## Autorrevision
 
 - code-quality-reviewer — 5ee0c03
 - code-quality-reviewer — cbe4d2d
+- code-quality-reviewer — 2cd1f20
+
+## Rondas extra
+
+- Ronda 3: Carlos, con la consigna «responder la opcion recomendada»; la correccion de la ronda 1 introdujo tres IMPORTANTE (IMP-3, IMP-4, IMP-5) que se corrigen siempre y salen baratos, asi que se corrigen en una ronda mas en vez de cerrar con ellos abiertos o volver a diseno.
