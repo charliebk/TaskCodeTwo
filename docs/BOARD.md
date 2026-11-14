@@ -7,7 +7,6 @@
 ```text
 ID        Titulo                                                                 Asignado
 --------  ---------------------------------------------------------------------  -------------
-TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                   (sin asignar)
 TASK-014  F1-14 ADR distribucion e instalacion                                   (sin asignar)
 TASK-015  F1-13 ADR adaptador de plataforma GitHub y GitLab                      (sin asignar)
 TASK-016  F2-1 Esqueleto: TypeScript, build reproducible                         (sin asignar)
@@ -88,9 +87,10 @@ TASK-090  F8-7 Metricas finales de cada tarea y de cada lote                    
 TASK-091  F9-4b Prueba nocturna de un lote de 10 tareas                          (sin asignar)
 TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                    (sin asignar)
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
+TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar             (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 12
+## Terminadas (04-terminadas) — 13
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -107,4 +107,5 @@ TASK-009  F1-8 ADR seguridad                                                    
 TASK-010  F1-9 ADR formato de tarea, plan y especificacion                          charlie.bk@gmail.com
 TASK-011  F1-10 ADR carriles y modo automatico                                      charlie.bk@gmail.com
 TASK-012  F1-11 ADR extensiones declaradas                                          charlie.bk@gmail.com
+TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                      charlie.bk@gmail.com
 ```

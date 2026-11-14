@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-013 (feature) — F1-12 ADR actualizacion de proyectos entre versiones (2026-11-14)
 - TASK-012 (feature) — F1-11 ADR extensiones declaradas (2026-11-14)
 - TASK-011 (feature) — F1-10 ADR carriles y modo automatico (2026-11-14)
 - TASK-010 (feature) — F1-9 ADR formato de tarea, plan y especificacion (2026-11-14)

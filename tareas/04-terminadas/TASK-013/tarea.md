@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-013-f1-12-adr-actualizacion-de-proyectos-ent
 asignado_a: charlie.bk@gmail.com
@@ -46,6 +46,7 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | 2026-11-14T15:07:32Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T15:57:40Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T16:07:58Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T16:15:44Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -83,3 +84,10 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 - **No verificado**: choque de `tc` con iproute2 (sin distro WSL con iproute2), `--deshacer` despues del push, que `verificar.bat` de OpenDockTrading funcione tras quitar sus 15 lineas (la PoC no aplica la retirada, solo calcula su alcance), GitHub real, macOS y Linux; npm, Homebrew y winget dependen de la red.
 - **Revision**: ronda 1 cambios (IMP-1 la PoC fallaba al reejecutarla por el tiempo de reloj en la tabla; MEN-1..6), todo corregido en 3c44c18; ronda 2 cambios (IMP-2 introducido: aprobacion de nombres sin evidencia en el repo; MEN-7, MEN-8), corregido en d4799bc; ronda extra 3 aprobada; MEN-9 y MEN-10 corregidos en 1f1e433 (`verificar-menores` no reconoce MEN-9 por vivir en `poc/`, ver `revision/menores-pendientes.md`).
 - Implementacion por un agente implementador; revision por tres agentes independientes. `taskctl doctor` con 0 errores. OpenDockTrading y ToolsaWeb solo leidos. Temporales borrados.
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 165 min
+- Paso de la hora: 165 min reales frente a 150 estimados
+- Cierre (finish): 9 s, de 2026-11-14T16:15:35Z a 2026-11-14T16:15:44Z
