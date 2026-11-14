@@ -1,0 +1,75 @@
+
+=== A. Estado real en GitHub (solo GET) ===
+gh version 2.95.0 (2026-06-17)
+--- charliebk/taskcodetwo-poc-f1-1
+visibilidad: PRIVATE
+rulesets:                        HTTP 403 {"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-all-repository-rulesets","status":"403"}
+rules/branches/develop:          HTTP 403 {"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules#get-rules-for-a-branch","status":"403"}
+branches/develop/protection:     HTTP 403 {"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/branches/branch-protection#get-branch-protection","status":"
+--- charliebk/TaskCodeTwo
+visibilidad: PUBLIC
+rulesets:                        HTTP 200 []
+rules/branches/develop:          HTTP 200 []
+branches/develop/protection:     HTTP 404 {"message":"Branch not protected","documentation_url":"https://docs.github.com/rest/branches/branch-protection#get-branch-protection","status":"404"}
+TaskCodeTwo codeowners/errors:   HTTP 404 {"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/repos#list-codeowners-errors","status":"404"}
+apps/github-actions:             HTTP 200 {"id":15368,"client_id":"Iv1.05...
+id de la App GitHub Actions: 15368
+
+=== B. Esquema OpenAPI de rulesets (descarga a carpeta vacia propia) ===
+commit de github/rest-api-description: 2a33d9cc5d1dc6ca603b908e0796454af88c1999 2026-11-14T00:44:38Z
+descargado: 14274027 bytes ; sha256 f7a3de68869181d3
+
+=== C. Modelo neutral -> rulesets de GitHub -> validacion contra el esquema ===
+OpenAPI 3.0.3 version 1.1.4
+rules[].type admitidos (25): creation update deletion required_linear_history merge_queue required_deployments required_signatures pull_request required_status_checks non_fast_forward commit_message_pattern commit_author_email_pattern committer_email_pattern branch_name_pattern tag_name_pattern workflows code_scanning code_quality code_coverage copilot_code_review license_compliance_scanning file_path_restriction max_file_path_length file_extension_restriction max_file_size
+allowed_merge_methods: ['merge', 'squash', 'rebase']
+status check: {'context': 'string', 'integration_id': 'integer'} required ['context']
+additionalProperties en el cuerpo: (no declarado)
+develop            branch refs/heads/develop                               reglas=deletion,non_fast_forward,pull_request,required_status_checks checks=verificacion@15368,revision-ia@0,carril@15368 -> VALIDO
+main               branch refs/heads/main                                  reglas=deletion,non_fast_forward,pull_request,required_status_checks checks=verificacion@15368,carril@15368 -> VALIDO
+ramas-de-tarea     branch refs/heads/feature/**,refs/heads/fix/**,refs/heads/hotfix/** reglas=deletion,non_fast_forward checks=- -> VALIDO
+taskcode-tareas    branch refs/heads/taskcode/tareas                       reglas=deletion,non_fast_forward checks=- -> VALIDO
+tags-version       tag    refs/tags/v*                                     reglas=deletion,update checks=- -> VALIDO
+develop-cola-org   branch refs/heads/develop                               reglas=deletion,non_fast_forward,pull_request,required_status_checks,merge_queue checks=verificacion@15368,revision-ia@0,carril@15368 -> VALIDO
+-- controles negativos (el validador tiene que rechazarlos)
+  rules[].type inventado (required_approvals)                  -> rechazado: neg.rules[4]: oneOf casa con 0 variantes
+  allowed_merge_methods fast-forward                           -> rechazado: neg.rules[2]: oneOf casa con 0 variantes
+  integration_id como texto                                    -> rechazado: neg.rules[3]: oneOf casa con 0 variantes
+  clave desconocida en pull_request (required_reviewers_count) -> rechazado: neg.rules[2]: oneOf casa con 0 variantes
+  clave desconocida en la raiz (lane)                          -> rechazado: neg: clave desconocida lane
+  falta strict_required_status_checks_policy                   -> rechazado: neg.rules[3]: oneOf casa con 0 variantes
+  enforcement inventado (required)                             -> rechazado: neg.enforcement: 'required' fuera del enum ['disabled', 'active', 'evaluate']
+RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno)
+artefactos copiados: develop-cola-org.json develop.json main.json ramas-de-tarea.json tags-version.json taskcode-tareas.json 
+
+=== D. Tabla carril -> checks -> quien aprueba del ADR frente a los JSON ===
+errata         base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
+fix            base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
+funcionalidad  base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (la persona aprueba el plan y el PR) bypass_actors=[]
+riesgo alto    base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (2 aprobaciones de persona: con una sola persona, la del plan y la del PR (D4a)) bypass_actors=[]
+release        base=main     tabla=carril,verificacion                  ruleset+carril=carril,verificacion                  checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
+hotfix         base=main     tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
+-- controles negativos (tablas alteradas que la comprobacion tiene que detectar)
+  release con revision-ia              -> detectado (1 fallos)
+  fix sin carril                       -> detectado (1 fallos)
+  errata aprobada por el revisor IA    -> detectado (1 fallos)
+RESULTADO D filas=6 fallos=0 ; negativos detectados=3/3
+RESULTADO A+B llamadas gh api con GET=10 ; gh api con otro metodo=0 ; gh repo view=2
+
+=== Resumen ===
+RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno)
+RESULTADO D filas=6 fallos=0 ; negativos detectados=3/3
+RESULTADO A+B llamadas gh api con GET=10 ; gh api con otro metodo=0 ; gh repo view=2
+llamadas a GitHub registradas:
+  $ gh repo view charliebk/taskcodetwo-poc-f1-1 --json visibility
+  $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/rulesets
+  $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/rules/branches/develop
+  $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/branches/develop/protection
+  $ gh repo view charliebk/TaskCodeTwo --json visibility
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/rulesets
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/rules/branches/develop
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/branches/develop/protection
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/codeowners/errors
+  $ gh api --method GET apps/github-actions
+  $ gh api --method GET apps/github-actions -q .id
+  $ gh api --method GET repos/github/rest-api-description/commits/main
