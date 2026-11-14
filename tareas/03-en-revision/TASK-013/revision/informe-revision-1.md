@@ -10,13 +10,13 @@ Pase generico (el diff es documentacion de decision y una PoC en Python; ningun 
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | docs/adr/F1-12-actualizacion-entre-versiones.md:277 | implementacion |
-| MEN-1 | MENOR | abierto | docs/adr/F1-12-actualizacion-entre-versiones.md:441 | implementacion |
-| MEN-2 | MENOR | abierto | docs/adr/F1-12-actualizacion-entre-versiones.md:389 | implementacion |
-| MEN-3 | MENOR | abierto | docs/adr/F1-12-actualizacion-entre-versiones.md:536 | implementacion |
-| MEN-4 | MENOR | abierto | tareas/03-en-revision/TASK-013/poc/poc-f1-12.py:22 | implementacion |
-| MEN-5 | MENOR | abierto | tareas/03-en-revision/TASK-013/poc/poc-f1-12.py:1330 | implementacion |
-| MEN-6 | MENOR | abierto | docs/adr/F1-12-actualizacion-entre-versiones.md:640 | implementacion |
+| IMP-1 | IMPORTANTE | corregido | docs/adr/F1-12-actualizacion-entre-versiones.md:277 | implementacion |
+| MEN-1 | MENOR | corregido | docs/adr/F1-12-actualizacion-entre-versiones.md:441 | implementacion |
+| MEN-2 | MENOR | corregido | docs/adr/F1-12-actualizacion-entre-versiones.md:389 | implementacion |
+| MEN-3 | MENOR | corregido | docs/adr/F1-12-actualizacion-entre-versiones.md:536 | implementacion |
+| MEN-4 | MENOR | corregido | tareas/03-en-revision/TASK-013/poc/poc-f1-12.py:22 | implementacion |
+| MEN-5 | MENOR | corregido | tareas/03-en-revision/TASK-013/poc/poc-f1-12.py:1330 | implementacion |
+| MEN-6 | MENOR | corregido | docs/adr/F1-12-actualizacion-entre-versiones.md:640 | implementacion |
 
 ### IMPORTANTE-1 — La PoC no es reproducible: la cifra del tiempo del `subtree split` esta en el borde del cubo y mi ejecucion sale con 1
 - Donde: docs/adr/F1-12-actualizacion-entre-versiones.md:277 (y :128-132, :222-225); guion en tareas/03-en-revision/TASK-013/poc/poc-f1-12.py:848-853
