@@ -47,6 +47,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | 2026-11-14T20:49:09Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-14T20:49:11Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T21:24:48Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T22:07:30Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
