@@ -1,0 +1,194 @@
+PoC F1-12 ; OpenDockTrading 8141a08a7 ; Python 3.12.10 ; PyYAML 6.0.3 ; git version 2.56.0.windows.4 ; node v22.23.4
+
+=== N: nombres (PATH de Windows y Linux, npm, Homebrew, winget) ===
+PATH Windows (where tc): ninguna
+PATH Windows (where tc2): ninguna
+PATH Windows (where tctwo): ninguna
+PATH Windows (where taskcodetwo): ninguna
+PATH Windows (where taskctl): 2 (bin/ del plugin 0.16.1)
+PATH Linux, WSL docker-desktop (command -v tc): ninguna
+PATH Linux, WSL docker-desktop (command -v tc2): ninguna
+PATH Linux, WSL docker-desktop (command -v tctwo): ninguna
+PATH Linux, WSL docker-desktop (command -v taskcodetwo): ninguna
+PATH Linux, WSL docker-desktop (command -v taskctl): existe (PATH de Windows por la interoperabilidad de WSL)
+tc: npm=ocupado (bin tc) ; Homebrew=libre ; winget=libre
+tc2: npm=ocupado (sin bin) ; Homebrew=libre ; winget=libre
+tctwo: npm=libre ; Homebrew=libre ; winget=libre
+taskcodetwo: npm=libre ; Homebrew=libre ; winget=libre
+RESULTADO N: CLI elegido tc2 sin ruta en Windows; taskctl en 2 (bin/ del plugin 0.16.1); paquete npm previsto taskcodetwo con bin tc2
+
+=== M: migracion de una copia de OpenDockTrading (commit fijo) ===
+commit fijo 8141a08a7: 96 tareas ; por carpeta 00-planificadas / 01-en-diseno / 02-en-curso / 03-en-revision / 04-terminadas / 05-archivadas: 50 / 0 / 0 / 0 / 44 / 2
+commits de develop que tocan tareas/: 1151
+--simular: hash del plan 2de4ef89612357d9 ; segunda llamada igual ; ficheros cambiados en la copia (con .git): 0
+plan: pasos=8 ; tareas a mover=96 ; a descartada=2 (TASK-015, TASK-068) ; con motivo de ## Descartada=2 ; claves retiradas=192 ; estado del frontmatter corregido=2 (TASK-015, TASK-068)
+precondiciones: tareas activas=0 ; arbol limpio=True
+actualizar sin capacidad tareas-json: codigo 5 ; huecos bloqueantes: scripts/lector-tareas.py (1-44) sin tareas-json; scripts/comprobar-modulos.py (_cargar_grafo 87-92, tareas_vivas 95-105) sin tareas-json; scripts/comprobar-fallos.py (_cargar_grafo 51-56, tareas_vivas 302-310) sin tareas-json
+   ficheros cambiados por la negativa (con .git): 0
+actualizar (huecos forzados en la PoC): codigo 0 ; rama de estado calculada 3471bf334
+subtree split: 1151 commits ; rama de estado tras aplanar y formato 2: 1153 commits (el tiempo de reloj va a stderr: no es una cifra comprobada)
+criterio: tareas 96 de 96 ; frontmatter no YAML 0 ; con formato 2 96 ; diferencias 0 ; roadmap iguales (94 filas) ; merge-base ninguna
+historia por tarea: commits por ruta >= develop 96/96 ; git log --follow >= el de develop 96/96 [] ; --follow ya roto en develop (la 0.16 mueve y reescribe en el mismo commit): 3 ['TASK-019 1 de 11', 'TASK-020 1 de 11', 'TASK-080 5 de 6']
+remoto: refs antes del push 1 ; tras el push 3
+tareas/ montada: 96 carpetas TASK-NNN ; otras entradas: ['.git', 'ROADMAP.md']
+ficheros de codigo cambiados por la migracion (fuera de tareas/): ['.gitignore', '.taskcode/config.yml']
+lector-tareas.py de OpenDockTrading tras migrar: ve 0 de 94 ; con el glob de la carpeta fija (TASK-*/tarea.md): 96 de 94 ; descartadas que no reconoce (su parser no quita las comillas de las listas del formato 2): ['TASK-015', 'TASK-068']
+segunda pasada: formato de origen 2 ; pasos 0 ; codigo 0 ; ficheros cambiados 0
+
+=== M2: vuelta atras automatica con el criterio roto (copia que reanuda una migracion a medias) ===
+estado real recalculado: {"marcador": true, "rama_estado": true, "rama_estado_reutilizable": true}
+actualizar con una dependencia borrada en TASK-002: codigo 6 ; diferencias ['TASK-002: dependencias'] ; roadmap distinto: [('TASK-002', ((), 'terminada')), ('TASK-002', (('
+tras la vuelta atras: rama develop ; HEAD = SHA previo ; refs nuevas [] ; worktrees 1 ; git status limpio ; arbol de trabajo identico ; .git/taskcodetwo no existe ; remoto sin cambios
+plan recalculado tras la vuelta atras: igual al inicial
+
+=== C: convivencia, la 0.16 sobre la copia migrada ===
+-- config formato 2, variante B: con '---' en la primera linea (la que escribe la migracion)
+   board: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 0
+      No hay tareas que coincidan (o no hay ninguna tarea todavia).
+   doctor: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 1
+      [ERROR]   tareas-carpetas: a tareas/ le faltan: 00-planificadas, 01-en-diseno, 02-en-curso, 03-en-revision, 04
+      doctor: comprobaciones en error ['config', 'rama-principal', 'tareas-carpetas'] ; avisos 0
+   estado --stdin: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Nada en marcha.
+   roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> Linea de config inv
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
+   new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      [ERROR] <copia> Linea de config invalida (falta ":"): "---"
+   hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Merge bloqueado: entraria en "develop" y la configuracion del repositorio no se puede leer: <copia> Linea de c
+   hook pre-tool-lectura: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook stop-verificacion: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook coste-turno: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+-- config formato 2, variante A: control: la misma sin '---'
+   board: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 0
+      No hay tareas que coincidan (o no hay ninguna tarea todavia).
+   doctor: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 1
+      [ERROR]   tareas-carpetas: a tareas/ le faltan: 00-planificadas, 01-en-diseno, 02-en-curso, 03-en-revision, 04
+      doctor: comprobaciones en error ['rama-principal', 'tareas-carpetas'] ; avisos 18
+   estado --stdin: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Nada en marcha.
+   roadmap --escribir: codigo 0 ; escribe en el proyecto: tareas/ROADMAP.md ; en .git: ninguno
+      Regenerado tareas/ROADMAP.md (sin commitear: revisalo y commitealo).
+      filas de tarea en tareas/ROADMAP.md: 94 -> 0
+   new: codigo 1 ; escribe en el proyecto: tareas/00-planificadas/TASK-001/tarea.md ; en .git: ninguno
+      [ERROR] taskctl escribio los ficheros de la tarea pero no pudo preparar "tareas/00-planificadas/TASK-001" para
+      new crea ['tareas/00-planificadas/TASK-001'] ; ID que ya existe en la carpeta fija: 1
+   hook pre-tool-merge: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook pre-tool-lectura: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook stop-verificacion: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook coste-turno: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+-- config formato 2, variante C: listas en bloque, sin '---'
+   board: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 0
+      No hay tareas que coincidan (o no hay ninguna tarea todavia).
+   doctor: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 1
+      [ERROR]   tareas-carpetas: a tareas/ le faltan: 00-planificadas, 01-en-diseno, 02-en-curso, 03-en-revision, 04
+      doctor: comprobaciones en error ['config', 'rama-principal', 'tareas-carpetas'] ; avisos 0
+   estado --stdin: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Nada en marcha.
+   roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> Linea de config inv
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
+   new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      [ERROR] <copia> Linea de config invalida (falta ":"): "    - 'Cargo.lock'"
+   hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Merge bloqueado: entraria en "develop" y la configuracion del repositorio no se puede leer: <copia> Linea de c
+   hook pre-tool-lectura: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook stop-verificacion: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook coste-turno: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+-- config formato 2, variante D: modo_flujo entre comillas simples, sin '---'
+   board: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 0
+      No hay tareas que coincidan (o no hay ninguna tarea todavia).
+   doctor: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno ; TASK distintas en la salida: 1
+      [ERROR]   tareas-carpetas: a tareas/ le faltan: 00-planificadas, 01-en-diseno, 02-en-curso, 03-en-revision, 04
+      doctor: comprobaciones en error ['config', 'rama-principal', 'tareas-carpetas'] ; avisos 0
+   estado --stdin: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Nada en marcha.
+   roadmap --escribir: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      No se ha escrito tareas/ROADMAP.md: tareas/ROADMAP.md no se ha regenerado: [ERROR] <copia> modo_flujo "'automa
+      filas de tarea en tareas/ROADMAP.md: 94 -> 94
+   new: codigo 1 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      [ERROR] <copia> modo_flujo "'automatico'" no es valido. ¿Querias decir "automatico"?
+   hook pre-tool-merge: codigo 2 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      Merge bloqueado: entraria en "develop" y la configuracion del repositorio no se puede leer: <copia> modo_flujo
+   hook pre-tool-lectura: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook stop-verificacion: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+   hook coste-turno: codigo 0 ; escribe en el proyecto: ninguno ; en .git: ninguno
+      (sin salida)
+.git/taskcode tras la convivencia: [] ; .git/taskcodetwo: ['actualizar'] ; compartidos: 0
+D2, variante B: ordenes de escritura de la 0.16 cerradas=True ; hooks que dejan pasar: ['hook stop-verificacion']
+D2, variante A: ordenes de escritura de la 0.16 cerradas=False ; hooks que dejan pasar: ['hook pre-tool-merge', 'hook stop-verificacion']
+D2, variante C: ordenes de escritura de la 0.16 cerradas=True ; hooks que dejan pasar: ['hook stop-verificacion']
+D2, variante D: ordenes de escritura de la 0.16 cerradas=True ; hooks que dejan pasar: ['hook stop-verificacion']
+
+=== A: informe de adopcion de OpenDockTrading (lo que mostraria actualizar --simular) ===
+uso de los campos (tareas con valor distinto del defecto de la 0.16; `rama` no se mide aqui):
+   actualizado=36 ; agente_revisor=0 ; asignado_a=44 ; complejidad=0 ; creado=96 ; dependencias=89 ; estado=44 ; etiquetas=96 ; id=96 ; modelo_sugerido=0 ; plan_aprobado=44 ; regla_seleccion_skill=0 ; revision_codex=0 ; skills_recomendados=0 ; sprint=68 ; tipo=0 ; titulo=96 ; tokens_diseno=44 ; tokens_implementacion=42 ; tokens_revision=44 ; ultimo_commit_revisado=0
+   campos sin uso: ['agente_revisor', 'complejidad', 'modelo_sugerido', 'regla_seleccion_skill', 'revision_codex', 'skills_recomendados', 'tipo', 'ultimo_commit_revisado']
+-- hecho a mano, sin 2.0 (capacidades de la PoC)
+   parche  scripts/lector-tareas.py:1-44 (44 de 44) ; cubierto_por=tareas-json ; queda: hueco bloqueante
+   parche  scripts/comprobar-modulos.py:_cargar_grafo 87-92, tareas_vivas 95-105 (17 de 458) ; cubierto_por=tareas-json ; queda: hueco bloqueante
+   parche  scripts/comprobar-fallos.py:_cargar_grafo 51-56, tareas_vivas 302-310 (15 de 470) ; cubierto_por=tareas-json ; queda: hueco bloqueante
+   parche  scripts/verificar.bat:3-5 (3 de 92) ; cubierto_por=puertas-en-ci ; queda: hueco
+   parche  scripts/verificar.bat:16-18, 35-37, 44-47 (10 de 92) ; cubierto_por=puertas-en-ci ; queda: hueco
+   parche  scripts/verificar.bat:25 (1 de 92) ; cubierto_por=cli-2 ; queda: hueco
+   parche  scripts/verificar.bat:59 (1 de 92) ; cubierto_por=roadmap-nativo ; queda: hueco
+   propio  scripts/comprobar-fallos.py:el resto (455 de 470) ; cubierto_por=None ; queda: propio
+   propio  scripts/comprobar-modulos.py:el resto (441 de 458) ; cubierto_por=None ; queda: propio
+   propio  scripts/verificar.bat:el resto (77 de 92) ; cubierto_por=None ; queda: propio
+   lineas que se retiran=0 (solas=0, con sustitucion=0) ; que se quedan=1064 (propias=973, huecos bloqueantes=76)
+-- hecho a mano, con la 2.0.0 prevista
+   parche  scripts/lector-tareas.py:1-44 (44 de 44) ; cubierto_por=tareas-json ; retirar con sustitucion
+   parche  scripts/comprobar-modulos.py:_cargar_grafo 87-92, tareas_vivas 95-105 (17 de 458) ; cubierto_por=tareas-json ; retirar con sustitucion
+   parche  scripts/comprobar-fallos.py:_cargar_grafo 51-56, tareas_vivas 302-310 (15 de 470) ; cubierto_por=tareas-json ; retirar con sustitucion
+   parche  scripts/verificar.bat:3-5 (3 de 92) ; cubierto_por=puertas-en-ci ; retirar
+   parche  scripts/verificar.bat:16-18, 35-37, 44-47 (10 de 92) ; cubierto_por=puertas-en-ci ; retirar
+   parche  scripts/verificar.bat:25 (1 de 92) ; cubierto_por=cli-2 ; retirar
+   parche  scripts/verificar.bat:59 (1 de 92) ; cubierto_por=roadmap-nativo ; retirar
+   propio  scripts/comprobar-fallos.py:el resto (455 de 470) ; cubierto_por=None ; queda: propio
+   propio  scripts/comprobar-modulos.py:el resto (441 de 458) ; cubierto_por=None ; queda: propio
+   propio  scripts/verificar.bat:el resto (77 de 92) ; cubierto_por=None ; queda: propio
+   lineas que se retiran=91 (solas=15, con sustitucion=76) ; que se quedan=973 (propias=973, huecos bloqueantes=0)
+-- ficheros fuera de tareas/ que nombran taskctl o TaskCode: 18 ; sin clasificar en F1-11: 15
+   CHANGELOG.md: 2 lineas (3, 16)
+   CLAUDE.md: 3 lineas (9, 18, 29)
+   README.md: 7 lineas (11, 20, 22, 23, 30, 34...)
+   docs/ADR-001-stack-tecnologico.md: 1 lineas (354)
+   docs/BOARD.md: 2 lineas (3, 80)
+   docs/INDEX.md: 2 lineas (4, 20)
+   docs/estudio/fallos-opentrading.md: 1 lineas (171)
+   docs/estudio/vias-de-ganancia.md: 1 lineas (15)
+   docs/planificacion/diagnostico-opentrading.md: 1 lineas (113)
+   evidencias/TASK-069/instalar-herramientas-1-instala-jq.txt: 1 lineas (20)
+   evidencias/TASK-069/instalar-herramientas-2-sin-pendientes.txt: 1 lineas (9)
+   scripts/comprobar-entorno.py: 6 lineas (35, 48, 49, 229, 272, 275)
+   scripts/comprobar-secretos.py: 1 lineas (35)
+   scripts/resumen-verificacion.py: 1 lineas (136)
+   tools/odt-arquitectura/tests/verificar.rs: 3 lineas (3, 25, 69)
+
+=== G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control ===
+cifras en la tabla del ADR: 111 ; medidas: 111
+IDs citados: requisitos 5 ; tareas del plan 27 ; auditoria 0 ; enlaces: 6
+errores del ADR: 0
+  mutacion cifra-cambiada: falla como se espera (subtree split: commits de la rama de estado: el ADR dice '1150' y lo medido es '1151')
+  mutacion fila-borrada: falla como se espera (cifra medida que falta en la tabla: subtree split: commits de la rama de estado = 1151)
+  mutacion fila-sin-medida: falla como se espera (fila de la tabla sin medida: cifra inventada)
+  mutacion tiempo-de-reloj-en-la-tabla: falla como se espera (fila de la tabla sin medida: subtree split: tiempo en OpenDockTrading)
+  mutacion resumen-inventado: falla como se espera (el resumen cita '9999', que no es un valor de la tabla)
+  mutacion enlace-a-tareas: falla como se espera (enlaces prohibidos ['../../tareas/x.md'])
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## No verificado'])
+
+RESULTADO: todo como se espera
