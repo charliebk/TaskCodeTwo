@@ -509,6 +509,10 @@ como el clasificador escribe la completa con plan por grupos desde TASK-344.)
   `realpath`) es la misma que para las uniones, que sí se prueban (T11), pero
   este Windows no deja crear enlaces simbólicos sin privilegios (WinError
   1314): no verificado en Windows sin privilegios ni en Linux o macOS.
+  Tampoco está probado que un derivado **cree** un enlace o una unión dentro
+  de `tareas/` durante su propia ejecución: la comprobación prevista es
+  recorrer lo escrito después de ejecutarlo y rechazar la transición si
+  aparece un enlace o una unión nuevos (nota de la revisión 3).
 - **El check `estado` real**: la PoC lo hace con una copia de `git archive`
   de la base en local; en GitHub, el checkout de la base y del PR en el mismo
   job es de F5-1.
