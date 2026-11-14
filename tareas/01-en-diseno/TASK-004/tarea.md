@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-004-f1-3-adr-flujo-de-ramas-develop-main-ram
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 565895
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F1-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T03:58:59Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T04:02:50Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-14T04:02:49Z | diseno | agente:ab0cf0508f7832d0e | 26 | 65103 | 488333 | 12433 | 25 | 565895 | - | - |
