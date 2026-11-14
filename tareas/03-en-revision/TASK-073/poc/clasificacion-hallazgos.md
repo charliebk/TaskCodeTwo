@@ -52,7 +52,7 @@ lista (la que pide el rol que lo habría visto antes):
 | TASK-009 | IMP-4 | 2 | puerta-seguridad | «declara sin salvedad lo que depende del token de la persona» | dice mal qué permite una identidad |
 | TASK-011 | IMP-1 | 1 | puerta-seguridad | «`tipo` (texto de `tarea.md`, no confiable) elige la fila y puede bajar la puerta» | un dato no confiable baja la puerta |
 | TASK-011 | IMP-2 | 3 | puerta-seguridad | «deja fuera la politica de configuracion del carril» | la unión de puertas pierde lo que la config endurece |
-| TASK-012 | IMP-1 | 1 | correccion | «Las traducciones de los pilotos no son funcionales con las reglas del propio ADR» | lo diseñado no funciona en los pilotos |
+| TASK-012 | IMP-1 | 1 | puerta-seguridad | «Las traducciones de los pilotos no son funcionales con las reglas del propio ADR» | caso límite: además de no funcionar, el `comprueba` pasa de bloquear a avisar (punto 3): baja una puerta y gana por precedencia |
 | TASK-012 | IMP-2 | 1 | puerta-seguridad | «se salta con rutas triviales y con ficheros ya modificados» | un derivado cambia estado o aprobación sin aviso |
 | TASK-012 | IMP-3 | 1 | fidelidad-evidencia | «`taskctl tareas --json` no sostienen lo que los pilotos necesitan» | la cifra no sostiene la conclusión |
 | TASK-012 | IMP-4 | 1 | fidelidad-evidencia | «La ventaja en claves y en prácticas mide anidación, no esfuerzo ni cobertura real» | la medida no mide lo que dice |
@@ -68,3 +68,13 @@ lista (la que pide el rol que lo habría visto antes):
 <!-- clasificacion:fin -->
 
 Las tareas TASK-002, TASK-003 y TASK-010 no tienen ningún IMPORTANTE.
+
+Caso límite anotado (MEN-6 de la revisión 1): TASK-012 IMP-1 se clasificó primero
+como «correccion» (las traducciones de los pilotos no funcionan); su punto 3 dice
+que el `comprueba` pasa de bloquear a avisar sin parar la transición, que es bajar
+una puerta, así que por la precedencia de esta lista es «puerta-seguridad».
+
+La PoC identifica los hallazgos por su ID dentro de cada tarea: no puede detectar
+un ID reutilizado para otro hallazgo en una ronda posterior. Se comprobó a mano
+leyendo los informes de las 12 tareas con IMPORTANTES (los IDs nuevos de cada
+ronda van marcados «nuevo» en el informe).

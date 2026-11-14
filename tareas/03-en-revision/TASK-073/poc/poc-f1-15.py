@@ -20,8 +20,10 @@ red ni con ningun modelo.
 (T) Las 10 tareas reales con el muestreo estratificado fijado en el ADR: carril
     efectivo (funcion de F1-10), complejidad (heuristica de la 0.16), propuesta
     de `seleccionar` por rol, lo que uso la 0.16 y la columna «comprobado a mano
-    (Carlos)», que queda «pendiente de Carlos».
-(S) `seleccionar` determinista: mismo hash en dos ejecuciones, inventario y
+    (Carlos)»: «coincide (Carlos, 2026-11-14)» (tarea.md, commit 5768e3c).
+(S) `seleccionar` interpreta `tabla-seleccion` del ADR (vocabulario cerrado de condiciones y acciones) y tiene
+    un caso de control por fila (S01..S15, cuatro de S13); evasion por vocabulario (IMP-3) y catalogo del PR
+    (MEN-4) con lo que contiene la defensa y lo que no. Determinista: mismo hash en dos ejecuciones, inventario y
     catalogo permutados dan lo mismo, quitar una skill la saca con aviso,
     empate por id lexicografico, el modelo cambia con carril y complejidad en
     filas reales, sin camino a la red ni a un modelo (grep del fuente y guardia
@@ -81,10 +83,20 @@ SENALES = ["etiqueta", "palabra", "ruta"]
 ROLES_ORDEN = ["arquitectura", "riesgos", "testing", "dominio"]
 ROLES_MIN = {"errata": 0, "fix": 1, "funcionalidad": 1, "riesgo-alto": 4}   # tabla-politica de F1-10
 NCX = {"trivial": 0, "simple": 1, "media": 2, "alta": 3, "critica": 4}        # tabla de la 0.16 (agentes_brainstorm_*)
-SUELO_DOMINIO = {"puertas-seguridad": 2}
 INTEGRADOS = ["general-purpose"]                         # agente integrado de Claude Code (lanza cada revisora)
+PREFIJOS_PLUGIN = ("taskcode-plugin:", "taskcodetwo:")   # la generica solo puede ser la del plugin (MEN-4)
 ROL_COL = {"diseno": 0, "implementacion": 1, "revision": 2}
-MANO = "pendiente de Carlos"
+MANO = "coincide (Carlos, 2026-11-14)"                   # tarea.md, «Decisiones de la persona», commit 5768e3c
+# Vocabulario cerrado de tabla-seleccion (IMP-2 de la revision 1): la columna «Condición» es una lista de atomos
+# unidos por « y » (cada uno puede ir precedido de «no »); «Acción» es un solo token. Lo que no casa es error.
+ATOMOS = [r"siempre", r"carril=(errata|fix|funcionalidad|riesgo-alto)", r"carril!=(errata|fix|funcionalidad|riesgo-alto)",
+          r"dominio=(puertas-seguridad|rendimiento)", r"roles>=(\d)", r"ronda>=(\d)", r"hay-skill-diseno-del-dominio",
+          r"hay-skill-ejecucion-con-solape", r"rutas-casan-entre-1-y-umbral", r"rutas-no-casan-o-pasan-umbral",
+          r"dominio-con-revisora", r"dominio-sin-revisora", r"hay-no-instalado", r"modelo-no-permitido"]
+ACCIONES = [r"sin-plan", r"roles=max\(roles_min,complejidad\)", r"suelo=(\d)", r"mas-rol=(rendimiento|unificador)",
+            r"skills-diseno-del-dominio", r"skill-ejecucion=solape,prioridad,id", r"revisoras-de-rutas\+generica-si-sueltas",
+            r"generica-del-plugin", r"revisora-del-dominio", r"aviso=dominio-sin-revisora", r"lanzador",
+            r"modelo-baja=(\d)", r"quitar-no-instalado", r"restringir-modelo"]
 
 FALLOS = []
 T0 = time.time()
@@ -197,8 +209,12 @@ def dominios(t, cambios, tabla_dom, cfg):
     """[(dominio, (senales...))] ordenado. Senales: etiqueta exacta, palabra al inicio de palabra en objetivo y
     criterios (sin tildes ni mayusculas), ruta con glob sobre los dos nombres de cada renombrado."""
     validar_cfg(cfg)
-    texto = normalizar("\n".join([t["objetivo"], *t["criterios"]]))
-    etiquetas = {normalizar(e) for e in t["etiquetas"]}
+    # El texto de tarea.md lo escribe el agente: no confiable (IMP-3). Si la tarea tiene un texto aprobado (el del
+    # commit firmado de `approve`, t["aprobado"]), sus senales se suman a las del texto vivo: reescribir el texto
+    # despues de aprobar solo puede anadir dominios, nunca quitarlos (como el carril de F1-10, solo sube).
+    fuentes = [t] + ([t["aprobado"]] if t.get("aprobado") else [])
+    texto = normalizar("\n".join(x for f in fuentes for x in [f["objetivo"], *f["criterios"]]))
+    etiquetas = {normalizar(e) for f in fuentes for e in f["etiquetas"]}
     rutas = [r for _e, rs in cambios for r in rs]
     filas = list(tabla_dom)
     for d, sen in sorted(cfg.get("dominios_extra", {}).items()):
@@ -235,8 +251,50 @@ def restringir(modelo, cfg):
     return nuevo, f"modelo-restringido:{modelo}->{nuevo}"
 
 
+def parsear_regla(i, cond, accion):
+    """Condicion y accion de una fila de tabla-seleccion en el vocabulario cerrado. ErrorTabla si no casan."""
+    atomos = []
+    for a in cond:
+        neg = a.startswith("no ")
+        a2 = a[3:] if neg else a
+        m = next((re.fullmatch(p, a2) for p in ATOMOS if re.fullmatch(p, a2)), None)
+        if not m:
+            raise ErrorTabla(f"tabla-seleccion {i}: condición desconocida: {a}")
+        atomos.append((neg, a2))
+    if len(accion) != 1 or not any(re.fullmatch(p, accion[0]) for p in ACCIONES):
+        raise ErrorTabla(f"tabla-seleccion {i}: acción desconocida: {accion}")
+    return atomos, accion[0]
+
+
+def _cumple(atomos, ctx, dom=None):
+    for neg, a in atomos:
+        if a == "siempre":
+            v = True
+        elif a.startswith("carril!="):
+            v = ctx["carril"] != a.split("=")[1]
+        elif a.startswith("carril="):
+            v = ctx["carril"] == a.split("=")[1]
+        elif a.startswith("dominio="):
+            v = a.split("=")[1] in ctx["nd"]
+        elif a.startswith("roles>="):
+            v = len(ctx["roles"]()) >= int(a.split("=")[1])
+        elif a.startswith("ronda>="):
+            v = ctx["ronda"] >= int(a.split("=")[1])
+        elif a == "dominio-con-revisora":
+            v = dom is not None and bool(ctx["rev_dom"](dom))
+        elif a == "dominio-sin-revisora":
+            v = dom is not None and not ctx["rev_dom"](dom)
+        else:
+            v = ctx["hechos"][a]()
+        if v == neg:
+            return False
+    return True
+
+
 def seleccionar(rol, t, carril, cx, cambios, inv, cat, cfg, tablas, ronda=1):
-    """Funcion pura. inv: ids instalados; cat: entradas con metadatos. Nunca llama a un modelo ni a la red."""
+    """Funcion pura que INTERPRETA tabla-seleccion del ADR fila a fila, en su orden (IMP-2). inv: ids instalados;
+    cat: entradas con metadatos. Nunca llama a un modelo ni a la red. Una fila se anota si su condicion se cumple y
+    su accion cambia algo."""
     if rol not in ROL_COL or carril not in ORDEN or cx not in NIVELES:
         raise ErrorTabla(f"entrada no valida: {rol} {carril} {cx}")
     reglas, avisos = set(), set()
@@ -245,92 +303,116 @@ def seleccionar(rol, t, carril, cx, cambios, inv, cat, cfg, tablas, ronda=1):
     modelo, fila_m = modelo_de(carril, cx, rol, tablas["modelo"])
     reglas.add(fila_m)
     cat_ord = sorted(cat, key=lambda e: (e["id"], e["tipo"]))
-    agentes, skills = [], []
-    if rol == "diseno":
-        if carril == "errata":
-            reglas.add("S01")
-        else:
-            reglas.add("S02")
-            n = 4 if carril == "riesgo-alto" else max(ROLES_MIN[carril], NCX[cx] if carril == "funcionalidad" else 0)
-            suelo = max([SUELO_DOMINIO.get(d, 0) for d in nd] or [0])
-            if suelo > n:
-                n = suelo
-                reglas.add("S03")
-            roles = ROLES_ORDEN[:n]
-            if "rendimiento" in nd:
-                roles = roles + ["rendimiento"]
-                reglas.add("S04")
-            if len(roles) >= 2:
-                roles = roles + ["unificador"]
-                reglas.add("S05")
-            for r in roles:
-                c = [e["id"] for e in cat_ord if e["tipo"] == "agente" and e.get("rol") == "diseno"
-                     and e.get("rol_diseno") == r]
-                if c:
-                    agentes.append(c[0])
-                else:
-                    avisos.add(f"rol-sin-agente:{r}")
-            for e in cat_ord:
-                if e["tipo"] == "skill" and e.get("rol") == "diseno" and set(e.get("dominios", [])) & nd:
-                    skills.append(e["id"])
-                    reglas.add("S06")
-    elif rol == "implementacion":
-        etq = {normalizar(x) for x in t["etiquetas"]}
-        cands = []
+    instalados = set(inv)
+    est = {"n": 0, "extra": [], "plan": True, "agentes": [], "skills": [], "modelo": modelo}
+    rutas = [r for _e, rs in cambios for r in rs]
+    revs = [e for e in cat_ord if e["tipo"] == "skill" and e.get("rol") == "revisor"]
+    gen = [e for e in revs if e.get("fallback") and e["id"].startswith(PREFIJOS_PLUGIN)]
+    umbral = gen[0].get("umbral", 3) if gen else 3
+    casadas = [e["id"] for e in revs if e.get("patrones") and any(casa(p, r) for p in e["patrones"] for r in rutas)]
+    etq = {normalizar(x) for x in t["etiquetas"]}
+
+    def cands_ejecucion():
+        out = []
         for e in cat_ord:
             if e["tipo"] == "skill" and e.get("rol") == "ejecucion":
-                solape = len({normalizar(x) for x in e.get("etiquetas", [])} & etq) + len(set(e.get("dominios", [])) & nd)
-                if solape > 0:
-                    cands.append((-solape, -e.get("prioridad", 0), e["id"]))
-        if cands:
-            cands.sort()
-            emp = [c[2] for c in cands if c[:2] == cands[0][:2]]
-            if len(emp) > 1:
-                avisos.add("empate-por-id:" + ",".join(emp))
-            skills.append(cands[0][2])
-            reglas.add("S07")
-    else:
-        rutas = [r for _e, rs in cambios for r in rs]
-        revs = [e for e in cat_ord if e["tipo"] == "skill" and e.get("rol") == "revisor"]
-        gen = [e for e in revs if e.get("fallback")]
-        umbral = gen[0].get("umbral", 3) if gen else 3
-        casadas = [e["id"] for e in revs if e.get("patrones") and any(casa(p, r) for p in e["patrones"] for r in rutas)]
-        if not casadas or len(casadas) > umbral:
-            if gen:
-                skills.append(gen[0]["id"])
-            reglas.add("S09")
-        else:
-            skills += casadas
-            reglas.add("S08")
-            sueltas = [r for r in rutas if not any(casa(p, r) for e in revs for p in e.get("patrones", []))]
-            if sueltas and gen:
-                skills.append(gen[0]["id"])
-        for d in sorted(nd):
-            c = [e["id"] for e in revs if d in e.get("dominios", [])]
+                s = len({normalizar(x) for x in e.get("etiquetas", [])} & etq) + len(set(e.get("dominios", [])) & nd)
+                if s > 0:
+                    out.append((-s, -e.get("prioridad", 0), e["id"]))
+        return sorted(out)
+
+    skills_dis = [e["id"] for e in cat_ord if e["tipo"] == "skill" and e.get("rol") == "diseno"
+                  and set(e.get("dominios", [])) & nd]
+    ctx = {"carril": carril, "nd": nd, "ronda": ronda,
+           "roles": lambda: (ROLES_ORDEN[:est["n"]] + est["extra"]) if est["plan"] else [],
+           "rev_dom": lambda d: [e["id"] for e in revs if d in e.get("dominios", [])],
+           "hechos": {"hay-skill-diseno-del-dominio": lambda: bool(skills_dis),
+                      "hay-skill-ejecucion-con-solape": lambda: bool(cands_ejecucion()),
+                      "rutas-casan-entre-1-y-umbral": lambda: 1 <= len(casadas) <= umbral,
+                      "rutas-no-casan-o-pasan-umbral": lambda: not casadas or len(casadas) > umbral,
+                      "hay-no-instalado": lambda: any(x not in instalados for x in est["agentes"] + est["skills"]),
+                      "modelo-no-permitido": lambda: restringir(est["modelo"], cfg)[1] is not None}}
+
+    def materializar_diseno():
+        if rol != "diseno" or est.get("hecho"):
+            return
+        est["hecho"] = True
+        for r in ctx["roles"]():
+            c = [e["id"] for e in cat_ord if e["tipo"] == "agente" and e.get("rol") == "diseno" and e.get("rol_diseno") == r]
             if c:
-                skills.append(c[0])
-                reglas.add("S10")
+                est["agentes"].append(c[0])
             else:
-                avisos.add(f"dominio-sin-revisora:{d}")
-                reglas.add("S11")
-        lanz = [e["id"] for e in cat_ord if e["tipo"] == "agente" and e.get("rol") == "lanzador-revision"]
-        if lanz:
-            agentes.append(lanz[0])
-            reglas.add("S12")
-        if ronda >= 2 and carril != "riesgo-alto" and "puertas-seguridad" not in nd and modelo:
-            modelo = ESCALA[max(0, ESCALA.index(modelo) - 1)]
-            reglas.add("S13")
-    instalados = set(inv)
-    fuera = [x for x in agentes + skills if x not in instalados]
-    for x in fuera:
-        avisos.add(f"no-instalado:{x}")
-        reglas.add("S14")
-    modelo, av = restringir(modelo, cfg)
-    if av:
-        avisos.add(av)
-        reglas.add("S15")
-    unico = lambda xs: [x for i, x in enumerate(xs) if x in instalados and x not in xs[:i]]
-    return {"agentes": unico(agentes), "skills": unico(skills), "modelo": modelo,
+                avisos.add(f"rol-sin-agente:{r}")
+
+    for i, fila in tablas["seleccion"].items():
+        if fila["rol"] not in (rol, "todos"):
+            continue
+        if fila["rol"] == "todos":
+            materializar_diseno()
+        elif rol == "diseno" and not est["plan"]:
+            continue
+        atomos, acc = parsear_regla(i, fila["cond"], fila["accion"])
+        por_dominio = any(a in ("dominio-con-revisora", "dominio-sin-revisora") for _n, a in atomos)
+        doms_fila = sorted(nd) if por_dominio else [None]
+        for dom in doms_fila:
+            if not _cumple(atomos, ctx, dom):
+                continue
+            antes = json.dumps([est["n"], est["extra"], est["plan"], est["agentes"], est["skills"], est["modelo"],
+                                sorted(avisos)])
+            if acc == "sin-plan":
+                est["plan"] = False
+                reglas.add(i)
+                continue
+            if acc.startswith("roles=max"):
+                est["n"] = 4 if carril == "riesgo-alto" else max(ROLES_MIN[carril], NCX[cx] if carril == "funcionalidad" else 0)
+                reglas.add(i)
+                continue
+            if acc.startswith("suelo="):
+                est["n"] = max(est["n"], int(acc.split("=")[1]))
+            elif acc.startswith("mas-rol="):
+                r = acc.split("=")[1]
+                if r not in est["extra"]:
+                    est["extra"].append(r)
+            elif acc == "skills-diseno-del-dominio":
+                est["skills"] += skills_dis
+            elif acc.startswith("skill-ejecucion="):
+                c = cands_ejecucion()
+                emp = [x[2] for x in c if x[:2] == c[0][:2]]
+                if len(emp) > 1:
+                    avisos.add("empate-por-id:" + ",".join(emp))
+                est["skills"].append(c[0][2])
+            elif acc.startswith("revisoras-de-rutas"):
+                est["skills"] += casadas
+                sueltas = [r for r in rutas if not any(casa(p, r) for e in revs for p in e.get("patrones", []))]
+                if sueltas and gen:
+                    est["skills"].append(gen[0]["id"])
+            elif acc == "generica-del-plugin":
+                if gen:
+                    est["skills"].append(gen[0]["id"])
+            elif acc == "revisora-del-dominio":
+                est["skills"].append(ctx["rev_dom"](dom)[0])
+            elif acc == "aviso=dominio-sin-revisora":
+                avisos.add(f"dominio-sin-revisora:{dom}")
+            elif acc == "lanzador":
+                lanz = [e["id"] for e in cat_ord if e["tipo"] == "agente" and e.get("rol") == "lanzador-revision"]
+                est["agentes"] += lanz[:1]
+            elif acc.startswith("modelo-baja="):
+                if est["modelo"]:
+                    est["modelo"] = ESCALA[max(0, ESCALA.index(est["modelo"]) - int(acc.split("=")[1]))]
+            elif acc == "quitar-no-instalado":
+                for x in est["agentes"] + est["skills"]:
+                    if x not in instalados:
+                        avisos.add(f"no-instalado:{x}")
+            elif acc == "restringir-modelo":
+                est["modelo"], av = restringir(est["modelo"], cfg)
+                avisos.add(av)
+            despues = json.dumps([est["n"], est["extra"], est["plan"], est["agentes"], est["skills"], est["modelo"],
+                                  sorted(avisos)])
+            if despues != antes:
+                reglas.add(i)
+    materializar_diseno()
+    unico = lambda xs: [x for k, x in enumerate(xs) if x in instalados and x not in xs[:k]]
+    return {"agentes": unico(est["agentes"]), "skills": unico(est["skills"]), "modelo": est["modelo"],
             "reglas": sorted(reglas), "avisos": sorted(avisos),
             "senales": [f"{d}:{s[0]}" for d, s in doms]}
 
@@ -597,7 +679,7 @@ def leer_tablas(adr):
         err.append("el ADR no tiene el bloque tabla-seleccion")
     else:
         for f in filas_tabla(b):
-            if len(f) != 5:
+            if len(f) != 6:
                 err.append(f"tabla-seleccion: fila con {len(f)} columnas: {f[:1]}")
                 continue
             i = f[0]
@@ -607,7 +689,15 @@ def leer_tablas(adr):
                 err.append(f"id repetido en tabla-seleccion: {i}")
             if f[1].strip("`") not in ("diseno", "implementacion", "revision", "todos"):
                 err.append(f"tabla-seleccion {i}: rol desconocido {f[1]}")
-            sel[i] = {"rol": f[1].strip("`"), "ids": bt(f[4])}
+            cond = [x.strip() for x in re.split(r"\s+y\s+", f[2].strip())]
+            cond = [x.strip("`") if x.startswith("`") else x for x in cond]
+            cond = [("no " + x[4:].strip("`")) if x.startswith("no `") else x for x in cond]
+            fila = {"rol": f[1].strip("`"), "cond": cond, "accion": bt(f[3]), "ids": bt(f[4])}
+            try:
+                parsear_regla(i, fila["cond"], fila["accion"])
+            except ErrorTabla as e:
+                err.append(str(e))
+            sel[i] = fila
     return {"dominios": dom, "modelo": mod, "seleccion": sel}, err
 
 
@@ -748,7 +838,11 @@ def seccion_r(repo, h):
         mios = [clase[k] for k in sorted(clase) if k[0] == t]
         por = {c: sum(1 for f in mios if f["clase"] == c) for c in CLASES}
         tot, nag = coste_diseno(open(os.path.join(repo, "tareas", "04-terminadas", t, "tarea.md"), encoding="utf-8").read())
-        retro[t] = {"tarea": tt, "roles": roles, "puntos": p, "nivel": nivel(p, h), "imp": len(mios), "por": por,
+        txt_t = open(os.path.join(repo, "tareas", "04-terminadas", t, "tarea.md"), encoding="utf-8").read()
+        pal016 = [w for w in h["palabras"] if normalizar(w) in normalizar("\n".join([tt["objetivo"], *tt["criterios"]]))]
+        impl_ag = bool(re.search(r"^\| [^|]+ \| implementacion \| agente:", txt_t, re.M))
+        retro[t] = {"pal016": pal016, "impl_agente": impl_ag,
+                    "tarea": tt, "roles": roles, "puntos": p, "nivel": nivel(p, h), "imp": len(mios), "por": por,
                     "revisor": sorted(revs[t]), "coste": tot, "agentes": nag,
                     "nuevos_r2": [f for f in mios if f["ronda"] != "1"]}
         print(f"{t}  {ADR_DE[t]:5}  {str(len(roles)) + ' (' + ', '.join(roles) + ')':24} {p:3}  {nivel(p, h):8} "
@@ -770,9 +864,17 @@ def seccion_r(repo, h):
           f"{len(nuevos_ps)}")
     print("nivel de la heuristica: " + " ; ".join(f"{n}={niveles[n]}" for n in NIVELES))
     print(f"revisor usado: {sorted({x for r in retro.values() for x in r['revisor']})} en las 15")
+    con_pal = [t for t, r in retro.items() if r["pal016"]]
+    print(f"tareas con alguna palabra de riesgo de la 0.16 en objetivo o criterios: {len(con_pal)} "
+          f"({' '.join(t + ':' + ','.join(retro[t]['pal016']) for t in con_pal)}) ; la lista de la 0.16 no tiene ninguna de las "
+          f"palabras de puertas de tabla-dominios: "
+          f"{not any(normalizar(w) in [normalizar(x) for x in h['palabras']] for w in ['puerta', 'check', 'ruleset', 'permiso', 'identidad', 'firma', 'token', 'secreto', 'aprobacion', 'carril', 'merge', 'workflow', 'runner', 'amenaza'])}")
+    impl = [t for t, r in retro.items() if r["impl_agente"]]
+    print(f"tareas con fila `implementacion | agente:` en ## Coste (la implementacion la hizo un subagente): {len(impl)} de 15")
     cifras = {"imp": sum(tot_c.values()), "por": tot_c, "ps": ps, "ps1": ps1, "con_ps": con_ps, "escapados": sin_riesgos,
               "nuevos": len(nuevos), "nuevos_ps": len(nuevos_ps), "niveles": niveles,
-              "simples": niveles["simple"], "un_rol": sum(1 for r in retro.values() if len(r["roles"]) == 1)}
+              "simples": niveles["simple"], "un_rol": sum(1 for r in retro.values() if len(r["roles"]) == 1),
+              "con_pal": len(con_pal), "impl": len(impl)}
     return retro, cifras
 
 
@@ -784,6 +886,14 @@ def fila_retro(t, r):
 
 
 # =========================================================================== D
+
+def suelo_de(tablas, dom):
+    """El suelo de roles que tabla-seleccion da a un dominio (fila con `dominio=<dom>` y `suelo=n`)."""
+    for f in tablas["seleccion"].values():
+        if f"dominio={dom}" in f["cond"] and f["accion"] and f["accion"][0].startswith("suelo="):
+            return int(f["accion"][0].split("=")[1])
+    return 0
+
 
 def seccion_d(repo, retro, tablas):
     sep("D: detector dominios() con la tabla-dominios del ADR sobre las 15 tareas de la Fase 1")
@@ -802,7 +912,7 @@ def seccion_d(repo, retro, tablas):
         tn += not pos and not det
         if det:
             dispara.append(t)
-            if len(r["roles"]) < SUELO_DOMINIO["puertas-seguridad"]:
+            if len(r["roles"]) < suelo_de(tablas, "puertas-seguridad"):
                 suelo.append(t)
         sen = "; ".join(f"{d}: {', '.join(s[:4])}{' …' if len(s) > 4 else ''}" for d, s in doms) or "—"
         rutas = sorted({x.split("/")[0] for _e, rs in cambios.get(t, []) for x in rs})
@@ -1001,8 +1111,8 @@ def celda_revision(s):
     return txt + (f"; aviso: {', '.join(avisos)} sin revisora" if avisos else "")
 
 
-def fila_muestra(r):
-    s = r["sel"]
+def fila_muestra(r, sel=None):
+    s = sel or r["sel"]
     m = " / ".join(s[k]["modelo"] or "—" for k in ("diseno", "implementacion", "revision"))
     reglas = " · ".join(" ".join(s[k]["reglas"]) for k in ("diseno", "implementacion", "revision"))
     doms = ", ".join(x.replace(":", " (", 1) + ")" for x in s["diseno"]["senales"]) or "—"
@@ -1071,6 +1181,141 @@ def todas(filas, ids, cat, tablas, cfg=None):
     return out
 
 
+PUERTAS = "Puerta del check obligatorio: token de operador y aprobacion de la persona"
+EVASIVO = "Validacion obligatoria: credencial del operador y conformidad de la persona"
+
+
+def _t(obj, etq=(), aprobado=None):
+    t = {"objetivo": obj, "criterios": ["criterio"], "etiquetas": list(etq), "tipo": "feature"}
+    if aprobado:
+        t["aprobado"] = aprobado
+    return t
+
+
+def _correr(casos, tablas, ids, cat):
+    """casos: (nombre, rol, t, carril, cx, cambios, extra{inv,cat,cfg,ronda}, comprobar(s) -> bool, que). Pura."""
+    err, vistas, lin = [], set(), []
+    for nombre, rol, t, carril, cx, cambios, ex, comprobar, que in casos:
+        try:
+            s = seleccionar(rol, t, carril, cx, cambios, ex.get("inv", ids), ex.get("cat", cat), ex.get("cfg", {}), tablas,
+                            ronda=ex.get("ronda", 1))
+        except (ErrorTabla, ErrorConfig) as e:
+            err.append(f"caso {nombre}: {e}")
+            continue
+        vistas.update(s["reglas"])
+        ok = comprobar(s)
+        lin.append(f"  {nombre}: {'bien' if ok else 'MAL'} ({que}) -> agentes={[corto(a) for a in s['agentes']]} "
+                   f"skills={[corto(k) for k in s['skills']]} modelo={s['modelo']} reglas={s['reglas']} avisos={s['avisos']}")
+        if not ok:
+            err.append(f"caso {nombre}: no da lo esperado ({que})")
+    return err, vistas, lin
+
+
+def controles_reglas(tablas, ids, cat):
+    """Un caso por fila de tabla-seleccion (y cuatro de S13). Pura: la usa S y la usa G con las tablas de cada copia
+    mutada del ADR. Devuelve (errores, reglas vistas, lineas)."""
+    src, txt, doc = [("M", ["src/x.rs"])], [("M", ["src/x.txt"])], [("M", ["docs/a.md"])]
+    roles = lambda s: [corto(a) for a in s["agentes"] if corto(a) != "unificador"]
+    zd = {"id": "zz-diseno-puertas", "tipo": "skill", "rol": "diseno", "dominios": ["puertas-seguridad"]}
+    zr = {"id": "zz-revisora-puertas", "tipo": "skill", "rol": "revisor", "dominios": ["puertas-seguridad"], "patrones": []}
+    cq = "taskcode-plugin:code-quality-reviewer"
+    casos = [
+        ("S01 errata sin plan", "diseno", _t("Errata en la guia"), "errata", "simple", doc, {},
+         lambda s: s["agentes"] == [] and "S01" in s["reglas"] and "S02" not in s["reglas"], "0 agentes, S01"),
+        ("S02 fix con un rol", "diseno", _t("Arreglo"), "fix", "simple", src, {},
+         lambda s: roles(s) == ["arquitectura"] and "S02" in s["reglas"], "arquitectura, S02"),
+        ("S03 suelo por puertas", "diseno", _t(PUERTAS), "funcionalidad", "simple", src, {},
+         lambda s: roles(s) == ["arquitectura", "riesgos"] and "S03" in s["reglas"], "arquitectura y riesgos, S03"),
+        ("S04 rendimiento", "diseno", _t("Malla grande", ["wasm"]), "funcionalidad", "simple", src, {},
+         lambda s: "rendimiento" in [corto(a) for a in s["agentes"]] and {"S04", "S05"} <= set(s["reglas"]),
+         "rol de rendimiento y unificador, S04 y S05"),
+        ("S06 skill de diseno del dominio", "diseno", _t(PUERTAS), "funcionalidad", "simple", src,
+         {"cat": cat + [zd], "inv": ids + [zd["id"]]},
+         lambda s: zd["id"] in s["skills"] and "S06" in s["reglas"], "zz-diseno-puertas, S06"),
+        ("S07 skill de ejecucion", "implementacion", _t("x", ["planificacion"]), "funcionalidad", "simple", src, {},
+         lambda s: s["skills"] == ["taskcode-plugin:task-workflow"] and "S07" in s["reglas"], "task-workflow, S07"),
+        ("S08 revisoras por rutas", "revision", _t("x"), "funcionalidad", "simple", src + doc, {},
+         lambda s: s["skills"] == ["taskcode-plugin:rust-wasm-reviewer", cq] and "S08" in s["reglas"],
+         "rust-wasm y generica, S08"),
+        ("S09 y S12 generica y lanzador", "revision", _t("x"), "funcionalidad", "simple", txt, {},
+         lambda s: s["skills"] == [cq] and s["agentes"] == ["general-purpose"] and {"S09", "S12"} <= set(s["reglas"]),
+         "generica y general-purpose, S09 y S12"),
+        ("S10 revisora declarada del dominio", "revision", _t(PUERTAS), "funcionalidad", "simple", txt,
+         {"cat": cat + [zr], "inv": ids + [zr["id"]]},
+         lambda s: zr["id"] in s["skills"] and "S10" in s["reglas"] and "S11" not in s["reglas"],
+         "zz-revisora-puertas sin aviso, S10"),
+        ("S11 dominio sin revisora", "revision", _t(PUERTAS), "funcionalidad", "simple", txt, {},
+         lambda s: "dominio-sin-revisora:puertas-seguridad" in s["avisos"] and "S11" in s["reglas"], "aviso, S11"),
+        ("S13 ronda 2 sin dominio baja", "revision", _t("Pantalla nueva"), "funcionalidad", "media", txt, {"ronda": 2},
+         lambda s: s["modelo"] == "sonnet" and "S13" in s["reglas"], "opus -> sonnet, S13"),
+        ("S13 ronda 2 en riesgo-alto no baja", "revision", _t("Pantalla nueva"), "riesgo-alto", "media",
+         [("M", [".taskcode/config.yml"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
+        ("S13 ronda 2 con puertas por texto no baja", "revision", _t(PUERTAS), "funcionalidad", "media", txt, {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
+        ("S13 ronda 2 con puertas por ruta no baja", "revision", _t("Ajuste de la sesion"), "funcionalidad", "media",
+         [("M", [".claude/settings.json"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "S13" not in s["reglas"], "sigue opus"),
+        ("S14 no instalado", "revision", _t("x"), "funcionalidad", "simple", txt, {"inv": [i for i in ids if i != cq]},
+         lambda s: f"no-instalado:{cq}" in s["avisos"] and cq not in s["skills"] and "S14" in s["reglas"],
+         "se quita con aviso, S14"),
+        ("S15 modelos_permitidos", "diseno", _t("x"), "funcionalidad", "media", src,
+         {"cfg": {"modelos_permitidos": ["haiku", "sonnet"]}},
+         lambda s: s["modelo"] == "sonnet" and "S15" in s["reglas"], "opus -> sonnet, S15"),
+    ]
+    err, vistas, lin = _correr(casos, tablas, ids, cat)
+    for i in tablas["seleccion"]:
+        if i not in vistas:
+            err.append(f"la fila {i} de tabla-seleccion no tiene ningun caso que la ejercite")
+    return err, vistas, lin
+
+
+def caso_vocabulario(tablas, ids, cat):
+    """IMP-3: el mismo trabajo con otro vocabulario. Dice que contiene la defensa y que no (lo esperado esta fijado)."""
+    aprobado = {"objetivo": PUERTAS, "criterios": ["criterio"], "etiquetas": []}
+    roles = lambda s: [corto(a) for a in s["agentes"] if corto(a) != "unificador"]
+    casos = [
+        ("1 plan, texto con puertas", "diseno", _t(PUERTAS), "funcionalidad", "simple", [("M", ["src/x.rs"])], {},
+         lambda s: len(roles(s)) == 2, "contenido: suelo de 2 roles"),
+        ("2 plan, mismo trabajo con otro vocabulario", "diseno", _t(EVASIVO), "funcionalidad", "simple",
+         [("M", ["src/x.rs"])], {}, lambda s: len(roles(s)) == 1,
+         "NO lo contiene el binario: 1 rol; solo la persona en approve, que ve «dominios: ninguno»"),
+        ("3 revision ronda 2, aprobado con puertas y texto vivo reescrito", "revision", _t(EVASIVO, aprobado=aprobado),
+         "funcionalidad", "media", [("M", ["src/x.rs"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "dominio-sin-revisora:puertas-seguridad" in s["avisos"],
+         "contenido: el texto aprobado suma; sigue opus y el aviso"),
+        ("4 revision ronda 2, otro vocabulario y diff en .claude/", "revision", _t(EVASIVO), "funcionalidad", "media",
+         [("M", [".claude/settings.json"])], {"ronda": 2},
+         lambda s: s["modelo"] == "opus" and "dominio-sin-revisora:puertas-seguridad" in s["avisos"],
+         "contenido: la ruta del diff con la config de la base"),
+        ("5 fix sin approve, otro vocabulario y diff solo en src/", "revision", _t(EVASIVO), "fix", "media",
+         [("M", ["src/auth/x.rs"])], {"ronda": 2},
+         lambda s: s["modelo"] == "sonnet" and not s["avisos"],
+         "NO contenido: sin dominio, sin aviso y S13 baja; riesgo aceptado"),
+    ]
+    return _correr(casos, tablas, ids, cat)
+
+
+def caso_catalogo_pr(tablas, ids, cat):
+    """MEN-4: un PR que anade a su arbol una generica y una revisora propias. Pura."""
+    aaa = {"id": "aaa-generica", "tipo": "skill", "rol": "revisor", "fallback": True, "umbral": 9, "patrones": [],
+           "dominios": []}
+    zzz = {"id": "zzz-revisora-rs", "tipo": "skill", "rol": "revisor", "patrones": ["**/*.rs"], "dominios": []}
+    cq = "taskcode-plugin:code-quality-reviewer"
+    pr = {"cat": cat + [aaa, zzz], "inv": ids + [aaa["id"], zzz["id"]]}
+    casos = [
+        ("catalogo de la base, diff .txt", "revision", _t("x"), "funcionalidad", "simple", [("M", ["src/x.txt"])], {},
+         lambda s: s["skills"] == [cq], "generica del plugin"),
+        ("catalogo del PR con otra generica, diff .txt", "revision", _t("x"), "funcionalidad", "simple",
+         [("M", ["src/x.txt"])], pr, lambda s: s["skills"] == [cq],
+         "contenido por la funcion: la generica solo puede ser la del plugin"),
+        ("catalogo del PR con una revisora propia, diff .rs", "revision", _t("x"), "funcionalidad", "simple",
+         [("M", ["src/x.rs"])], pr, lambda s: zzz["id"] in s["skills"],
+         "la funcion NO lo contiene: entra la revisora del PR; por eso el catalogo se lee de la base"),
+    ]
+    return _correr(casos, tablas, ids, cat)
+
+
 def seccion_s(filas, ids, cat, tablas):
     sep("S: seleccionar determinista, sin red ni modelo")
     a = h12(todas(filas, ids, cat, tablas))
@@ -1119,8 +1364,8 @@ def seccion_s(filas, ids, cat, tablas):
           f"{len(GUARDIA['eventos'])} eventos")
     if GUARDIA["eventos"]:
         falla("S", f"seleccionar intento salir: {GUARDIA['eventos']}")
-    fuente = "".join(inspect.getsource(f) for f in (seleccionar, dominios, modelo_de, restringir, casa, normalizar,
-                                                     validar_cfg))
+    fuente = "".join(inspect.getsource(f) for f in (seleccionar, parsear_regla, _cumple, dominios, modelo_de, restringir,
+                                                     casa, normalizar, validar_cfg))
     prohibido = re.findall(r"\b(subprocess|urllib|socket|http|requests|anthropic|openai|open\(|os\.)", fuente)
     print(f"grep del fuente de seleccionar y sus funciones: llamadas a red, procesos, ficheros o modelos: {len(prohibido)}")
     if prohibido:
@@ -1170,8 +1415,27 @@ def seccion_s(filas, ids, cat, tablas):
              {f["id"] for f in tablas["modelo"]}]
     if fuera:
         falla("S", f"reglas emitidas que no estan en las tablas del ADR: {fuera}")
-    nunca = sorted(set(tablas["seleccion"]) - set(usadas) - {"S13", "S14", "S15"})
-    print(f"filas de tabla-seleccion que no salen en las 10 reales (las S13-S15 se ejercitan arriba): {nunca}")
+    print(f"filas de tabla-seleccion que no salen en las 10 reales: {sorted(set(tablas['seleccion']) - set(usadas))}")
+    print("controles: un caso por fila de tabla-seleccion, interpretada desde el ADR (y cuatro de S13)")
+    e, vistas, lin = controles_reglas(tablas, ids, cat)
+    for l in lin:
+        print(l)
+    for x in e:
+        falla("S", x)
+    print(f"filas de tabla-seleccion ejercitadas por los controles: {len(set(tablas['seleccion']) & vistas)} de "
+          f"{len(tablas['seleccion'])}")
+    print("evasion por vocabulario (IMP-3): el mismo trabajo con otro texto; que contiene la defensa y que no")
+    e, _v, lin = caso_vocabulario(tablas, ids, cat)
+    for l in lin:
+        print(l)
+    for x in e:
+        falla("S", x)
+    print("catalogo del arbol del PR frente al de la base (MEN-4)")
+    e, _v, lin = caso_catalogo_pr(tablas, ids, cat)
+    for l in lin:
+        print(l)
+    for x in e:
+        falla("S", x)
     return {"hash": a, "quitada": quitar, "afectadas": len(afect), "distintos": distintos}
 
 
@@ -1181,9 +1445,9 @@ SECCIONES = ["## Contexto", "## Alternativas", "## Pruebas de concepto", "## Có
              "## Decisión", "## Divergencias con el plan", "## Requisitos y evidencia", "## Consecuencias",
              "## Fuera de alcance", "## No verificado"]
 FRASES_OBLIGATORIAS = ["`seleccionar`", "`dominios`", "`tc2 doctor --recursos`", "`taskcodetwo`", "roles.<rol>",
-                       "pendiente de Carlos", "configuración de la base"]
-DIVERGENCIAS = ["F1-9", "F1-11", "F1-10", "F5-4", "desempate", "puerta-seguridad"]
-NO_VERIFICADO = ["a mano", "modelo", "Linux"]
+                       "Coincide las 10", "configuración de la base"]
+DIVERGENCIAS = ["F1-9", "F1-11", "F1-10", "F1-14", "F5-4", "desempate", "puerta-seguridad"]
+NO_VERIFICADO = ["vocabulario", "modelo", "Linux"]
 
 
 def errores_prosa(adr, ct):
@@ -1205,8 +1469,16 @@ def errores_prosa(adr, ct):
     return err
 
 
-def errores_adr(adr, ruta, repo, ct, ids, filas_m, retro, con_indice=True):
+def errores_adr(adr, ruta, repo, ct, ids, cat, filas_m, retro, con_indice=True):
     tablas, err = leer_tablas(adr)
+    try:
+        e_ctl, _v, _l = controles_reglas(tablas, ids, cat)
+        err += [f"control de reglas: {x}" for x in e_ctl]
+        sels = {r["id"] + r["repo"]: {rol: seleccionar(rol, r["t"], r["efectivo"], r["cx"], r["cambios"], ids, cat, {}, tablas)
+                                     for rol in ROL_COL} for r in filas_m}
+    except (ErrorTabla, ErrorConfig, KeyError, IndexError) as e:
+        err.append(f"las tablas del ADR no se pueden aplicar: {e}")
+        sels = {r["id"] + r["repo"]: r["sel"] for r in filas_m}
     inst = set(ids)
     for i, f in tablas["seleccion"].items():
         for x in f["ids"]:
@@ -1217,7 +1489,7 @@ def errores_adr(adr, ruta, repo, ct, ids, filas_m, retro, con_indice=True):
         err.append("el ADR no tiene el bloque tabla-muestra")
     else:
         leidas = filas_tabla(b)
-        esperadas = {fila_muestra(r)[0]: fila_muestra(r) for r in filas_m}
+        esperadas = {fila_muestra(r)[0]: fila_muestra(r, sels[r["id"] + r["repo"]]) for r in filas_m}
         if len(leidas) != 10:
             err.append(f"la muestra tiene {len(leidas)} filas y son 10")
         vistas = set()
@@ -1231,7 +1503,8 @@ def errores_adr(adr, ruta, repo, ct, ids, filas_m, retro, con_indice=True):
             elif f[:11] != esperadas[f[0]]:
                 dif = [i for i in range(11) if f[i] != esperadas[f[0]][i]]
                 err.append(f"tabla-muestra {f[0]}: fila distinta de lo calculado (columnas {dif})")
-            if f[11] != MANO and not re.fullmatch(r"(sí|no|en parte)[^|]*\(Carlos, \d{4}-\d{2}-\d{2}\)", f[11]):
+            if f[11] != "cambiada tras la marca de Carlos" and not re.fullmatch(
+                    r"(coincide|no coincide|en parte)[^|]*\(Carlos, \d{4}-\d{2}-\d{2}\)", f[11]):
                 err.append(f"tabla-muestra {f[0]}: comprobado a mano sin persona y fecha: «{f[11]}»")
         for k in sorted(set(esperadas) - vistas):
             err.append(f"tabla-muestra: falta {k}")
@@ -1294,12 +1567,15 @@ def _fila(adr, ide):
 def mutaciones(adr, ct, muestra_ids):
     m04, s09, d01, m1 = _fila(adr, "M04"), _fila(adr, "S09"), _fila(adr, "D01"), _fila(adr, muestra_ids[0])
     r002 = _fila(adr, "TASK-006")
+    s03, s10, s13 = _fila(adr, "S03"), _fila(adr, "S10"), _fila(adr, "S13")
     return [
         ("fila-modelo-duplicada", adr.replace(m04, m04 + "\n" + m04), "id repetido en tabla-modelo: M04"),
         ("modelo-fuera-de-escala", adr.replace(m04, m04.replace("`sonnet`", "`gpt-x`", 1)), "modelo fuera de la escala: gpt-x"),
         ("dos-filas-para-un-caso", adr.replace(m04, m04 + "\n" + m04.replace("| M04 |", "| M98 |", 1)),
          "tabla-modelo: 2 filas para funcionalidad/"),
-        ("regla-no-instalada", adr.replace(s09, s09.rstrip("|").rstrip() + ", `taskcode-plugin:no-existe` |"),
+        ("regla-no-instalada", adr.replace(s09, s09.replace("`taskcode-plugin:code-quality-reviewer` |",
+                                                            "`taskcode-plugin:code-quality-reviewer`, "
+                                                            "`taskcode-plugin:no-existe` |", 1)),
          "S09: taskcode-plugin:no-existe no está en el inventario"),
         ("dominio-desconocido", adr.replace(d01, d01.replace("| `puertas-seguridad` |", "| `datos` |", 1)),
          "dominio fuera de la lista cerrada: datos"),
@@ -1325,22 +1601,32 @@ def mutaciones(adr, ct, muestra_ids):
         ("divergencia-sin-f1-9", re.sub(r"(^## Divergencias con el plan\s*$)(.*?)(?=^## )",
                                         lambda x: x.group(1) + x.group(2).replace("F1-9", "F1-x"), adr, flags=re.S | re.M),
          "«Divergencias con el plan» no trata F1-9"),
-        ("no-verificado-sin-a-mano", re.sub(r"(^## No verificado\s*$)(.*?)(?=^## |\Z)",
-                                            lambda x: x.group(1) + x.group(2).replace("a mano", "por Carlos"), adr,
-                                            flags=re.S | re.M), "«No verificado» no nombra «a mano»"),
+        ("no-verificado-sin-vocabulario", re.sub(r"(^## No verificado\s*$)(.*?)(?=^## |\Z)",
+                                                 lambda x: x.group(1) + x.group(2).replace("vocabulario", "texto"), adr,
+                                                 flags=re.S | re.M), "«No verificado» no nombra «vocabulario»"),
+        ("s13-siempre", adr.replace(s13, re.sub(r"\| `ronda>=2`[^|]*\|", "| `siempre` |", s13, count=1)),
+         "control de reglas: caso S13 ronda 2 en riesgo-alto no baja"),
+        ("s03-suelo-3", adr.replace(s03, s03.replace("`suelo=2`", "`suelo=3`", 1)),
+         "control de reglas: caso S03 suelo por puertas"),
+        ("s10-da-la-generica", adr.replace(s10, s10.replace("`revisora-del-dominio`", "`generica-del-plugin`", 1)),
+         "control de reglas: caso S10 revisora declarada del dominio"),
+        ("condicion-desconocida", adr.replace(s10, s10.replace("`dominio-con-revisora`", "`nunca`", 1)),
+         "condición desconocida: nunca"),
+        ("muestra-con-suelo-3", adr.replace(s03, s03.replace("`suelo=2`", "`suelo=3`", 1)),
+         "tabla-muestra OpenDockTrading/TASK-096: fila distinta de lo calculado"),
         ("sin-config-de-la-base", adr.replace("configuración de la base", "configuración del PR"),
          "falta la regla: configuración de la base"),
     ]
 
 
-def seccion_g(repo, ct, ids, filas_m, retro):
+def seccion_g(repo, ct, ids, cat, filas_m, retro):
     sep("G: el ADR (tablas, muestra, retrospectiva, IDs, enlaces, prosa) y sus mutaciones de control")
     ruta = os.path.join(repo, ADR_REL)
     if not os.path.exists(ruta):
         falla("G", "no existe el ADR")
         return
     adr = open(ruta, encoding="utf-8").read()
-    err = errores_adr(adr, ruta, repo, ct, ids, filas_m, retro)
+    err = errores_adr(adr, ruta, repo, ct, ids, cat, filas_m, retro)
     for e in err:
         falla("G", e)
     print(f"errores del ADR: {len(err)}")
@@ -1354,7 +1640,7 @@ def seccion_g(repo, ct, ids, filas_m, retro):
         if mut == adr:
             falla("G", f"la mutacion {nombre} no cambia nada")
             continue
-        errs = errores_adr(mut, ruta, repo, ct, ids, filas_m, retro)
+        errs = errores_adr(mut, ruta, repo, ct, ids, cat, filas_m, retro)
         ok = any(esperado in e for e in errs)
         print(f"  mutacion {nombre}: {'falla como se espera' if ok else 'NO FALLA'} "
               f"({str(next((e for e in errs if esperado in e), errs[:1]))[:100]})")
@@ -1373,6 +1659,8 @@ def frases(cr, cd, cs):
         f"{cr['nuevos_ps']} de puerta-seguridad",
         f"{rec} y precisión {cd['tp']}/{cd['tp'] + cd['fp']}",
         f"el suelo subiría de 1 a 2 roles en {cd['suelo']} de 15 tareas",
+        f"{cr['con_pal']} de las 15 tareas de la Fase 1 contiene alguna palabra de riesgo de la 0.16",
+        f"{cr['impl']} de las 15 tareas de la Fase 1 tienen una fila de implementación hecha por un subagente",
     ]}
 
 
@@ -1431,7 +1719,7 @@ def main():
         reloj("T terminada")
         cs = seccion_s(filas, ids, cat, tablas)
         ct = frases(cr, cd, cs)
-        seccion_g(repo, ct, ids, filas, retro)
+        seccion_g(repo, ct, ids, cat, filas, retro)
         print()
         print("tabla-retro calculada:")
         for t in FASE1:

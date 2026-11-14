@@ -18,17 +18,19 @@ TASK-008  F1-7   1 (arquitectura)           1  simple              1    2       
 TASK-009  F1-8   2 (arquitectura, riesgos)   4  media               4    4       4      0      0      0      0  code-quality-reviewer   192848
 TASK-010  F1-9   1 (arquitectura)           1  simple              1    0       0      0      0      0      0  code-quality-reviewer   1050188
 TASK-011  F1-10  1 (arquitectura)           1  simple              1    2       2      0      0      0      0  code-quality-reviewer   461024
-TASK-012  F1-11  1 (arquitectura)           2  simple              2    5       2      0      1      2      0  code-quality-reviewer   2006835
+TASK-012  F1-11  1 (arquitectura)           2  simple              2    5       3      0      0      2      0  code-quality-reviewer   2006835
 TASK-013  F1-12  1 (arquitectura)           2  simple              2    2       0      0      0      1      1  code-quality-reviewer   1028522
 TASK-014  F1-14  1 (arquitectura)           1  simple              1    1       0      0      0      0      1  code-quality-reviewer   941903
 TASK-015  F1-13  1 (arquitectura)           1  simple              1    2       1      0      0      1      0  code-quality-reviewer   473765
 TASK-094  F1-18  1 (arquitectura)           2  simple              2    3       1      1      1      0      0  code-quality-reviewer   1163455
 heuristica reimplementada frente a la que anoto la 0.16 en la peticion de plan: 15/15 iguales
-IMPORTANTES por clase: puerta-seguridad=16 ; contrato=3 ; correccion=6 ; fidelidad-evidencia=6 ; reproducibilidad=2 ; total=33
-puerta-seguridad: 16 de 33 ; en planes de un solo rol: 12 ; en planes sin rol de riesgos (escapados): 12 ; tareas con al menos uno: 8 (TASK-006 TASK-007 TASK-008 TASK-009 TASK-011 TASK-012 TASK-015 TASK-094)
+IMPORTANTES por clase: puerta-seguridad=17 ; contrato=3 ; correccion=5 ; fidelidad-evidencia=6 ; reproducibilidad=2 ; total=33
+puerta-seguridad: 17 de 33 ; en planes de un solo rol: 13 ; en planes sin rol de riesgos (escapados): 13 ; tareas con al menos uno: 8 (TASK-006 TASK-007 TASK-008 TASK-009 TASK-011 TASK-012 TASK-015 TASK-094)
 IMPORTANTES que aparecen en una ronda de verificacion (2 o mas): 7 ; de ellos puerta-seguridad: 5
 nivel de la heuristica: trivial=0 ; simple=14 ; media=1 ; alta=0 ; critica=0
 revisor usado: ['code-quality-reviewer'] en las 15
+tareas con alguna palabra de riesgo de la 0.16 en objetivo o criterios: 1 (TASK-009:seguridad) ; la lista de la 0.16 no tiene ninguna de las palabras de puertas de tabla-dominios: True
+tareas con fila `implementacion | agente:` en ## Coste (la implementacion la hizo un subagente): 14 de 15
 
 === D: detector dominios() con la tabla-dominios del ADR sobre las 15 tareas de la Fase 1 ===
 TASK-002  positivo=no  detecta=no  rutas=['docs']  senales=—
@@ -106,16 +108,16 @@ instalado sin metadatos de seleccion (no declarado): 86 ; entre ellos con «secu
 
 | Tarea | Estrato | Carril (declarado → efectivo) | Complejidad | Dominios (señal) | Diseño | Implementación | Revisión | Modelo D / I / R | Reglas D · I · R | Lo que usó la 0.16 | Comprobado a mano (Carlos) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ToolsaWeb/TASK-306 | skills-016 | funcionalidad → funcionalidad | media (3 p) | — | 2: arquitectura, riesgos + unificador | task-workflow | rust-wasm-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 S07 · M05 S08 S12 | roles 2 (arquitectura, riesgos); rev rust-wasm-reviewer; modelo sonnet; skills task-workflow | pendiente de Carlos |
-| ToolsaWeb/TASK-399 | fix | fix → fix | simple (1 p) | — | 1: arquitectura | — | rust-wasm-reviewer, code-quality-reviewer | sonnet / sonnet / sonnet | M02 S02 · M02 · M02 S08 S12 | roles 1 (arquitectura); rev code-quality-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| ToolsaWeb/TASK-403 | riesgo-alto | funcionalidad → riesgo-alto | media (3 p) | puertas-seguridad (palabra:puerta) | 4: arquitectura, riesgos, testing, dominio + unificador | — | code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / opus / opus | M07 S02 S05 · M07 · M07 S09 S11 S12 | roles 2 (arquitectura, riesgos); rev code-quality-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| ToolsaWeb/TASK-299 | solo-docs | funcionalidad → funcionalidad | media (3 p) | — | 2: arquitectura, riesgos + unificador | task-workflow | code-quality-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 S07 · M05 S09 S12 | roles 2 (arquitectura, riesgos); rev code-quality-reviewer; modelo sonnet; skills task-workflow | pendiente de Carlos |
-| ToolsaWeb/TASK-402 | multidominio | funcionalidad → funcionalidad | media (5 p) | puertas-seguridad (palabra:firma) | 2: arquitectura, riesgos + unificador | — | angular-vue-reviewer, rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S08 S11 S12 | roles 2 (arquitectura, riesgos); rev angular-vue-reviewer, code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| OpenDockTrading/TASK-063 | seguridad | funcionalidad → funcionalidad | media (5 p) | puertas-seguridad (etiqueta:seguridad) | 2: arquitectura, riesgos + unificador | — | angular-vue-reviewer, rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S08 S11 S12 | roles 2 (arquitectura, riesgos); rev angular-vue-reviewer, code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| OpenDockTrading/TASK-014 | riesgo-alto | funcionalidad → riesgo-alto | alta (6 p) | puertas-seguridad (palabra:check) | 4: arquitectura, riesgos, testing, dominio + unificador | — | rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / opus / opus | M07 S02 S05 · M07 · M07 S08 S11 S12 | roles 3 (arquitectura, riesgos, testing); rev code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| OpenDockTrading/TASK-067 | solo-docs | funcionalidad → funcionalidad | media (4 p) | — | 2: arquitectura, riesgos + unificador | — | code-quality-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S09 S12 | roles 2 (arquitectura, riesgos); rev general-purpose; modelo sonnet; skills — | pendiente de Carlos |
-| OpenDockTrading/TASK-069 | multidominio | funcionalidad → funcionalidad | simple (1 p) | — | 1: arquitectura | — | rust-wasm-reviewer, code-quality-reviewer | sonnet / sonnet / sonnet | M04 S02 · M04 · M04 S08 S12 | roles 1 (arquitectura); rev code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | pendiente de Carlos |
-| OpenDockTrading/TASK-096 | un-dominio | funcionalidad → funcionalidad | simple (3 p) | puertas-seguridad (palabra:check) | 2: arquitectura, riesgos + unificador | — | code-quality-reviewer; aviso: puertas-seguridad sin revisora | sonnet / sonnet / sonnet | M04 S02 S03 S05 · M04 · M04 S09 S11 S12 | roles 1 (arquitectura); rev code-quality-reviewer; modelo sonnet; skills — | pendiente de Carlos |
+| ToolsaWeb/TASK-306 | skills-016 | funcionalidad → funcionalidad | media (3 p) | — | 2: arquitectura, riesgos + unificador | task-workflow | rust-wasm-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 S07 · M05 S08 S12 | roles 2 (arquitectura, riesgos); rev rust-wasm-reviewer; modelo sonnet; skills task-workflow | coincide (Carlos, 2026-11-14) |
+| ToolsaWeb/TASK-399 | fix | fix → fix | simple (1 p) | — | 1: arquitectura | — | rust-wasm-reviewer, code-quality-reviewer | sonnet / sonnet / sonnet | M02 S02 · M02 · M02 S08 S12 | roles 1 (arquitectura); rev code-quality-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| ToolsaWeb/TASK-403 | riesgo-alto | funcionalidad → riesgo-alto | media (3 p) | puertas-seguridad (palabra:puerta) | 4: arquitectura, riesgos, testing, dominio + unificador | — | code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / opus / opus | M07 S02 S05 · M07 · M07 S09 S11 S12 | roles 2 (arquitectura, riesgos); rev code-quality-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| ToolsaWeb/TASK-299 | solo-docs | funcionalidad → funcionalidad | media (3 p) | — | 2: arquitectura, riesgos + unificador | task-workflow | code-quality-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 S07 · M05 S09 S12 | roles 2 (arquitectura, riesgos); rev code-quality-reviewer; modelo sonnet; skills task-workflow | coincide (Carlos, 2026-11-14) |
+| ToolsaWeb/TASK-402 | multidominio | funcionalidad → funcionalidad | media (5 p) | puertas-seguridad (palabra:firma) | 2: arquitectura, riesgos + unificador | — | angular-vue-reviewer, rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S08 S11 S12 | roles 2 (arquitectura, riesgos); rev angular-vue-reviewer, code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| OpenDockTrading/TASK-063 | seguridad | funcionalidad → funcionalidad | media (5 p) | puertas-seguridad (etiqueta:seguridad) | 2: arquitectura, riesgos + unificador | — | angular-vue-reviewer, rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S08 S11 S12 | roles 2 (arquitectura, riesgos); rev angular-vue-reviewer, code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| OpenDockTrading/TASK-014 | riesgo-alto | funcionalidad → riesgo-alto | alta (6 p) | puertas-seguridad (palabra:check) | 4: arquitectura, riesgos, testing, dominio + unificador | — | rust-wasm-reviewer, code-quality-reviewer; aviso: puertas-seguridad sin revisora | opus / opus / opus | M07 S02 S05 · M07 · M07 S08 S11 S12 | roles 3 (arquitectura, riesgos, testing); rev code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| OpenDockTrading/TASK-067 | solo-docs | funcionalidad → funcionalidad | media (4 p) | — | 2: arquitectura, riesgos + unificador | — | code-quality-reviewer | opus / sonnet / opus | M05 S02 S05 · M05 · M05 S09 S12 | roles 2 (arquitectura, riesgos); rev general-purpose; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| OpenDockTrading/TASK-069 | multidominio | funcionalidad → funcionalidad | simple (1 p) | — | 1: arquitectura | — | rust-wasm-reviewer, code-quality-reviewer | sonnet / sonnet / sonnet | M04 S02 · M04 · M04 S08 S12 | roles 1 (arquitectura); rev code-quality-reviewer, rust-wasm-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
+| OpenDockTrading/TASK-096 | un-dominio | funcionalidad → funcionalidad | simple (3 p) | puertas-seguridad (palabra:check) | 2: arquitectura, riesgos + unificador | — | code-quality-reviewer; aviso: puertas-seguridad sin revisora | sonnet / sonnet / sonnet | M04 S02 S03 S05 · M04 · M04 S09 S11 S12 | roles 1 (arquitectura); rev code-quality-reviewer; modelo sonnet; skills — | coincide (Carlos, 2026-11-14) |
 
 === S: seleccionar determinista, sin red ni modelo ===
 dos ejecuciones sobre las 10 tareas x 3 roles: 539d5857d7cd y 539d5857d7cd -> iguales
@@ -134,19 +136,47 @@ combinaciones carril/complejidad en las 10: [('fix', 'simple'), ('funcionalidad'
   mismo nivel, distinto carril, distinto modelo: [(('funcionalidad', 'media'), ('riesgo-alto', 'media'))]
   mismo carril, distinto nivel, distinto modelo: [(('funcionalidad', 'simple'), ('funcionalidad', 'media'))]
 reglas emitidas en las 10 tareas reales: ['M02', 'M04', 'M05', 'M07', 'S02', 'S03', 'S05', 'S07', 'S08', 'S09', 'S11', 'S12']
-filas de tabla-seleccion que no salen en las 10 reales (las S13-S15 se ejercitan arriba): ['S01', 'S04', 'S06', 'S10']
+filas de tabla-seleccion que no salen en las 10 reales: ['S01', 'S04', 'S06', 'S10', 'S13', 'S14', 'S15']
+controles: un caso por fila de tabla-seleccion, interpretada desde el ADR (y cuatro de S13)
+  S01 errata sin plan: bien (0 agentes, S01) -> agentes=[] skills=[] modelo=None reglas=['M01', 'S01'] avisos=[]
+  S02 fix con un rol: bien (arquitectura, S02) -> agentes=['arquitectura'] skills=[] modelo=sonnet reglas=['M02', 'S02'] avisos=[]
+  S03 suelo por puertas: bien (arquitectura y riesgos, S03) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=[] modelo=sonnet reglas=['M04', 'S02', 'S03', 'S05'] avisos=[]
+  S04 rendimiento: bien (rol de rendimiento y unificador, S04 y S05) -> agentes=['arquitectura', 'rendimiento', 'unificador'] skills=[] modelo=sonnet reglas=['M04', 'S02', 'S04', 'S05'] avisos=[]
+  S06 skill de diseno del dominio: bien (zz-diseno-puertas, S06) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=['zz-diseno-puertas'] modelo=sonnet reglas=['M04', 'S02', 'S03', 'S05', 'S06'] avisos=[]
+  S07 skill de ejecucion: bien (task-workflow, S07) -> agentes=[] skills=['task-workflow'] modelo=sonnet reglas=['M04', 'S07'] avisos=[]
+  S08 revisoras por rutas: bien (rust-wasm y generica, S08) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S08', 'S12'] avisos=[]
+  S09 y S12 generica y lanzador: bien (generica y general-purpose, S09 y S12) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
+  S10 revisora declarada del dominio: bien (zz-revisora-puertas sin aviso, S10) -> agentes=['general-purpose'] skills=['code-quality-reviewer', 'zz-revisora-puertas'] modelo=sonnet reglas=['M04', 'S09', 'S10', 'S12'] avisos=[]
+  S11 dominio sin revisora: bien (aviso, S11) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S13 ronda 2 sin dominio baja: bien (opus -> sonnet, S13) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M05', 'S09', 'S12', 'S13'] avisos=[]
+  S13 ronda 2 en riesgo-alto no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M07', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S13 ronda 2 con puertas por texto no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S13 ronda 2 con puertas por ruta no baja: bien (sigue opus) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  S14 no instalado: bien (se quita con aviso, S14) -> agentes=['general-purpose'] skills=[] modelo=sonnet reglas=['M04', 'S09', 'S12', 'S14'] avisos=['no-instalado:taskcode-plugin:code-quality-reviewer']
+  S15 modelos_permitidos: bien (opus -> sonnet, S15) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=[] modelo=sonnet reglas=['M05', 'S02', 'S05', 'S15'] avisos=['modelo-restringido:opus->sonnet']
+filas de tabla-seleccion ejercitadas por los controles: 15 de 15
+evasion por vocabulario (IMP-3): el mismo trabajo con otro texto; que contiene la defensa y que no
+  1 plan, texto con puertas: bien (contenido: suelo de 2 roles) -> agentes=['arquitectura', 'riesgos', 'unificador'] skills=[] modelo=sonnet reglas=['M04', 'S02', 'S03', 'S05'] avisos=[]
+  2 plan, mismo trabajo con otro vocabulario: bien (NO lo contiene el binario: 1 rol; solo la persona en approve, que ve «dominios: ninguno») -> agentes=['arquitectura'] skills=[] modelo=sonnet reglas=['M04', 'S02'] avisos=[]
+  3 revision ronda 2, aprobado con puertas y texto vivo reescrito: bien (contenido: el texto aprobado suma; sigue opus y el aviso) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer'] modelo=opus reglas=['M05', 'S08', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  4 revision ronda 2, otro vocabulario y diff en .claude/: bien (contenido: la ruta del diff con la config de la base) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=opus reglas=['M05', 'S09', 'S11', 'S12'] avisos=['dominio-sin-revisora:puertas-seguridad']
+  5 fix sin approve, otro vocabulario y diff solo en src/: bien (NO contenido: sin dominio, sin aviso y S13 baja; riesgo aceptado) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer'] modelo=sonnet reglas=['M03', 'S08', 'S12', 'S13'] avisos=[]
+catalogo del arbol del PR frente al de la base (MEN-4)
+  catalogo de la base, diff .txt: bien (generica del plugin) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
+  catalogo del PR con otra generica, diff .txt: bien (contenido por la funcion: la generica solo puede ser la del plugin) -> agentes=['general-purpose'] skills=['code-quality-reviewer'] modelo=sonnet reglas=['M04', 'S09', 'S12'] avisos=[]
+  catalogo del PR con una revisora propia, diff .rs: bien (la funcion NO lo contiene: entra la revisora del PR; por eso el catalogo se lee de la base) -> agentes=['general-purpose'] skills=['rust-wasm-reviewer', 'zzz-revisora-rs'] modelo=sonnet reglas=['M04', 'S08', 'S12'] avisos=[]
 
 === G: el ADR (tablas, muestra, retrospectiva, IDs, enlaces, prosa) y sus mutaciones de control ===
 errores del ADR: 0
 filas: tabla-dominios=26 tabla-modelo=7 tabla-seleccion=15 ; ids del inventario citados en tabla-seleccion: 13
-filas de la muestra con «pendiente de Carlos»: 10 de 10
+filas de la muestra con «coincide (Carlos, 2026-11-14)»: 10 de 10
   mutacion fila-modelo-duplicada: falla como se espera (id repetido en tabla-modelo: M04)
   mutacion modelo-fuera-de-escala: falla como se espera (tabla-modelo M04: modelo fuera de la escala: gpt-x)
   mutacion dos-filas-para-un-caso: falla como se espera (tabla-modelo: 2 filas para funcionalidad/trivial (['M04', 'M98']))
   mutacion regla-no-instalada: falla como se espera (tabla-seleccion S09: taskcode-plugin:no-existe no está en el inventario)
   mutacion dominio-desconocido: falla como se espera (tabla-dominios D01: dominio fuera de la lista cerrada: datos)
   mutacion dominio-id-repetido: falla como se espera (id repetido en tabla-dominios: D01)
-  mutacion seleccion-sin-id: falla como se espera (tabla-seleccion: fila sin id: ['', '`revision`', 'ninguna revisora casa, o casan más de `umbral_domi)
+  mutacion seleccion-sin-id: falla como se espera (tabla-seleccion: fila sin id: ['', '`revision`', '`rutas-no-casan-o-pasan-umbral`', '`generica-del-p)
   mutacion muestra-cambiada: falla como se espera (tabla-muestra ToolsaWeb/TASK-306: fila distinta de lo calculado (columnas [2]))
   mutacion muestra-con-9: falla como se espera (la muestra tiene 9 filas y son 10)
   mutacion a-mano-sin-persona: falla como se espera (tabla-muestra ToolsaWeb/TASK-306: comprobado a mano sin persona y fecha: «sí»)
@@ -158,7 +188,12 @@ filas de la muestra con «pendiente de Carlos»: 10 de 10
   mutacion seccion-borrada: falla como se espera (faltan secciones ['## Cómo se ve en la tarea y en GitHub'])
   mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
   mutacion divergencia-sin-f1-9: falla como se espera («Divergencias con el plan» no trata F1-9)
-  mutacion no-verificado-sin-a-mano: falla como se espera («No verificado» no nombra «a mano»)
+  mutacion no-verificado-sin-vocabulario: falla como se espera («No verificado» no nombra «vocabulario»)
+  mutacion s13-siempre: falla como se espera (control de reglas: caso S13 ronda 2 en riesgo-alto no baja: no da lo esperado (sigue opus))
+  mutacion s03-suelo-3: falla como se espera (control de reglas: caso S03 suelo por puertas: no da lo esperado (arquitectura y riesgos, S03))
+  mutacion s10-da-la-generica: falla como se espera (control de reglas: caso S10 revisora declarada del dominio: no da lo esperado (zz-revisora-puertas s)
+  mutacion condicion-desconocida: falla como se espera (tabla-seleccion S10: condición desconocida: nunca)
+  mutacion muestra-con-suelo-3: falla como se espera (tabla-muestra OpenDockTrading/TASK-096: fila distinta de lo calculado (columnas [5]))
   mutacion sin-config-de-la-base: falla como se espera (falta la regla: configuración de la base)
 
 tabla-retro calculada:
@@ -172,7 +207,7 @@ tabla-retro calculada:
 | TASK-009 | F1-8 | 2 (arquitectura, riesgos) | 4 (media) | 4 | 4 | 0 | 0 | 0 | 0 | `code-quality-reviewer` |
 | TASK-010 | F1-9 | 1 (arquitectura) | 1 (simple) | 0 | 0 | 0 | 0 | 0 | 0 | `code-quality-reviewer` |
 | TASK-011 | F1-10 | 1 (arquitectura) | 1 (simple) | 2 | 2 | 0 | 0 | 0 | 0 | `code-quality-reviewer` |
-| TASK-012 | F1-11 | 1 (arquitectura) | 2 (simple) | 5 | 2 | 0 | 1 | 2 | 0 | `code-quality-reviewer` |
+| TASK-012 | F1-11 | 1 (arquitectura) | 2 (simple) | 5 | 3 | 0 | 0 | 2 | 0 | `code-quality-reviewer` |
 | TASK-013 | F1-12 | 1 (arquitectura) | 2 (simple) | 2 | 0 | 0 | 0 | 1 | 1 | `code-quality-reviewer` |
 | TASK-014 | F1-14 | 1 (arquitectura) | 1 (simple) | 1 | 0 | 0 | 0 | 0 | 1 | `code-quality-reviewer` |
 | TASK-015 | F1-13 | 1 (arquitectura) | 1 (simple) | 2 | 1 | 0 | 0 | 1 | 0 | `code-quality-reviewer` |
