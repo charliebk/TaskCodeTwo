@@ -7,18 +7,25 @@
 #     de develop en main). Distinto en un PR desactualizado; tras actualizar
 #     la rama, otro arbol nuevo; un hotfix sin volver a develop cambia el de
 #     la release.
-# (B) Simulacion de la busqueda por padres (decision 3 del ADR): un check
-#     `verificacion` verde de la App 15368 en el commit verificado, sus padres
-#     o los padres de estos, con `arbol=`, `perfil=` y `clave=` iguales en el
-#     resumen, es acierto. Casos de acierto y fallo y controles negativos
-#     (otro perfil, otra huella, otra version del workflow, check en rojo,
-#     otra App, otro nombre, sin arbol= en el resumen, tres niveles).
+# (B) Simulacion de la busqueda por padres (decisiones 2 a 4 del ADR): `buscar`
+#     (Linux) toma los checks `verificacion` verdes de la App 15368 en el commit
+#     verificado, sus padres o los padres de estos con `arbol=`, `perfil=`,
+#     `runner=` y `clave=` (perfil, runner, huella del arbol, version) iguales
+#     en una linea del resumen; el job del runner del perfil solo da acierto si
+#     su huella local coincide con `local=`. Cada perfil que exige el evento se
+#     busca con su clave (release: completa y pesada). Casos de acierto y fallo
+#     y controles negativos (pesada sin correr en la release, otro perfil, otra
+#     huella del arbol, otra huella local, huella local sin calcular, otro
+#     runner, otra version, rojo, otra App, otro nombre, sin arbol=, tres
+#     niveles).
 # (C) Coste: entradas leidas del ADR entre los marcadores `entradas-coste`;
-#     cada una se comprueba contra su fuente (fichero:linea de ToolsaWeb u
+#     cada una se comprueba contra su fuente (cifra en su contexto en la
+#     linea citada de ToolsaWeb u
 #     OpenDockTrading, recuento de tareas, o pagina publica de precios de
 #     GitHub descargada con GET); la tabla se calcula desde ellas y se compara
-#     con la del ADR (marcadores `tabla-coste`). Copias mutadas del ADR: tienen
-#     que fallar. Ademas, en la descripcion OpenAPI publica de GitHub
+#     con la del ADR (marcadores `tabla-coste`), igual que las cifras de su
+#     lectura (`lectura-coste`). Copias mutadas del ADR: tienen que fallar por
+#     el error esperado. Ademas, en la descripcion OpenAPI publica de GitHub
 #     (commit fijado, carpeta vacia propia): filtros check_name/app_id/filter
 #     de GET /commits/{ref}/check-runs, output.summary, app.id, tree y parents.
 #
@@ -99,7 +106,7 @@ echo "RESULTADO A casos=$ok/$n como se esperaba" | tee -a "$base/resultados.txt"
 [ "$ok" -eq "$n" ] || falla "A"
 
 ######################################################################
-sep "B. Simulacion de la busqueda por padres (decision 3)"
+sep "B. Simulacion de la busqueda por padres, por perfil y con huella local (decisiones 2 a 4)"
 "$PY" -I - "$RAIZ/b" <<'EOF' | tee "$base/b.txt"
 import subprocess, hashlib, os, sys
 sys.stdout.reconfigure(encoding='utf-8', newline='\n')
@@ -116,12 +123,19 @@ parents = lambda s: g('rev-list', '--parents', '-n1', s).split()[1:]
 def merge_ref(base, head):   # refs/pull/N/merge: commit con padres base y head
     return g('commit-tree', g('merge-tree', '--write-tree', base, head).splitlines()[0], '-p', base, '-p', head, '-m', 'merge ref')
 ACTIONS = 15368
-clave = lambda perfil, huella, version: hashlib.sha256(('%s|%s|%s' % (perfil, huella, version)).encode()).hexdigest()[:16]
+RUNNERS = {'completa': 'github-windows', 'pesada': 'self-hosted-windows', 'rapida': 'github-windows'}
+h = lambda *x: hashlib.sha256('|'.join(map(str, x)).encode()).hexdigest()[:16]
+# clave (la calcula `buscar`, en Linux) = perfil | runner declarado | huella del arbol | version del workflow;
+# la huella local (local=) solo la calcula el job `verificacion` en el runner del perfil.
+clave = lambda perfil, runner, harbol, version: h(perfil, runner, harbol, version)
 checks = {}   # sha -> check-runs publicados en ese commit
-def publicar(sha, arbol, perfil='completa', huella='H1', version='v1', app=ACTIONS, nombre='verificacion',
-             concl='success', con_arbol=True):
-    s = ('arbol=%s ' % arbol if con_arbol else '') + 'perfil=%s clave=%s' % (perfil, clave(perfil, huella, version))
-    checks.setdefault(sha, []).append(dict(name=nombre, app_id=app, conclusion=concl, summary=s))
+def publicar(sha, arbol, perfiles=('completa',), runners=None, harbol='HA1', hlocal='HL1', version='v1',
+             app=ACTIONS, nombre='verificacion', concl='success', con_arbol=True):
+    rs = dict(RUNNERS, **(runners or {})); lineas = []
+    for p in perfiles:   # una linea del resumen por perfil
+        lineas.append(('arbol=%s ' % arbol if con_arbol else '') + 'perfil=%s runner=%s clave=%s local=%s origen=%s'
+                      % (p, rs[p], clave(p, rs[p], harbol, version), h(hlocal), sha[:10]))
+    checks.setdefault(sha, []).append(dict(name=nombre, app_id=app, conclusion=concl, summary='\n'.join(lineas)))
 def candidatos(v):            # el verificado, sus padres y los padres de estos (dos niveles)
     out = [v]
     for p in parents(v):
@@ -129,22 +143,36 @@ def candidatos(v):            # el verificado, sus padres y los padres de estos 
     for p in parents(v):
         out += [q for q in parents(p) if q not in out]
     return out
-def buscar(v, perfil='completa', huella='H1', version='v1'):
-    arbol, k = tree(v), clave(perfil, huella, version)
+def buscar(v, perfil, runner, harbol, version):
+    """Job `buscar` (Linux): candidatos con el mismo arbol, perfil, runner, huella del arbol y version."""
+    arbol, k, out = tree(v), clave(perfil, runner, harbol, version), []
     for c in candidatos(v):
         # = GET /repos/{o}/{r}/commits/{c}/check-runs?check_name=verificacion&app_id=15368&filter=latest
         for ch in [x for x in checks.get(c, []) if x['name'] == 'verificacion' and x['app_id'] == ACTIONS]:
-            campos = dict(x.split('=', 1) for x in ch['summary'].split() if '=' in x)
-            if ch['conclusion'] == 'success' and campos.get('arbol') == arbol and \
-               campos.get('perfil') == perfil and campos.get('clave') == k:
-                return c
+            if ch['conclusion'] != 'success': continue
+            for linea in ch['summary'].split('\n'):
+                campos = dict(x.split('=', 1) for x in linea.split() if '=' in x)
+                if campos.get('arbol') == arbol and campos.get('perfil') == perfil and \
+                   campos.get('runner') == runner and campos.get('clave') == k:
+                    out.append((c, campos.get('local')))
+    return out
+def en_runner(cands, hlocal):
+    """Job `verificacion` en el runner del perfil: calcula la huella local; sin ella, no hay acierto."""
+    if hlocal is None: return None
+    for c, local in cands:
+        if local == h(hlocal): return c
     return None
+def evento(v, perfiles, runners, harbol, hlocal, version):
+    """Cada perfil que exige el evento se busca con su propia clave: un acierto solo exime de ese perfil."""
+    rs = dict(RUNNERS, **(runners or {}))
+    return {p: en_runner(buscar(v, p, rs[p], harbol, version), hlocal) for p in perfiles}
 res = []
-def caso(tipo, desc, v, esperado, **kw):
-    r = buscar(v, **kw); obs = 'acierto' if r else 'fallo'
+def caso(tipo, desc, v, esperado, perfiles=('completa',), runners=None, harbol='HA1', hlocal='HL1', version='v1'):
+    r = evento(v, perfiles, runners, harbol, hlocal, version)
+    obs = 'acierto' if all(r.values()) else 'fallo'
     res.append((tipo, obs == esperado))
-    print('  %-4s %-8s %-8s %s%s' % ('ok' if obs == esperado else 'MAL', tipo, obs, desc,
-                                    (' (reutilizado de %s)' % r[:10]) if r else ''))
+    det = '; '.join('%s %s' % (p, ('reutilizada de %s' % o[:10]) if o else 'se ejecuta') for p, o in r.items())
+    print('  %-4s %-5s %-8s %s [%s]' % ('ok' if obs == esperado else 'MAL', tipo, obs, desc, det))
 g('init', '-q', '-b', 'main'); d0 = commit('base', 'f.txt', 'base'); g('branch', 'develop')
 # tarea 1: PR al dia
 g('switch', '-q', '-c', 'feature/t1', 'develop'); f1 = commit('tarea 1', 't1.txt', '1')
@@ -155,12 +183,15 @@ f1b = commit('commit vacio en la rama')
 caso('caso', 'commit vacio en la rama: el check del head anterior (abuelo del merge ref)', merge_ref(d0, f1b), 'acierto')
 publicar(f1b, tree(merge_ref(d0, f1b)))
 g('switch', '-q', 'develop'); g('merge', '-q', '--no-ff', '-m', 'merge t1', 'feature/t1'); m1 = g('rev-parse', 'HEAD')
-caso('caso', 'push del merge commit en develop: su padre (head del PR) tiene el arbol', m1, 'acierto')
+caso('caso', 'consulta tras el push del merge commit en develop: su padre (head del PR) tiene el arbol', m1, 'acierto')
 mrel = merge_ref(d0, m1)     # PR de release develop -> main (main todavia en d0)
-caso('caso', 'PR de release develop->main: abuelo (head del PR de la tarea) con el mismo arbol', mrel, 'acierto')
+caso('caso', 'PR de release, solo el perfil completa: abuelo (head del PR de la tarea) con el mismo arbol', mrel, 'acierto')
+caso('neg', 'PR de release (completa + pesada): la completa acierta, la pesada no corrio nunca: no hay verde sin ejecutarla',
+     mrel, 'fallo', perfiles=('completa', 'pesada'))
+publicar(m1, tree(mrel), perfiles=('completa', 'pesada'))   # check del PR de release, en su head (develop), tras correr la pesada
+caso('caso', 're-ejecucion del PR de release: completa y pesada reutilizadas', mrel, 'acierto', perfiles=('completa', 'pesada'))
 g('switch', '-q', 'main'); g('merge', '-q', '--no-ff', '-m', 'release 1', 'develop'); r1 = g('rev-parse', 'HEAD')
-publicar(m1, tree(mrel))     # check del PR de release, en su head (develop)
-caso('caso', 'push del merge de la release en main', r1, 'acierto')
+caso('caso', 'consulta tras el push del merge de la release en main (completa y pesada)', r1, 'acierto', perfiles=('completa', 'pesada'))
 # tarea 2: PR desactualizado y actualizar-rama
 g('switch', '-q', '-c', 'feature/t2', 'develop'); f2 = commit('tarea 2', 't2.txt', '2')
 g('switch', '-q', 'develop'); d2 = commit('otra tarea integrada', 'd2.txt', 'd')
@@ -179,15 +210,19 @@ c4 = commit('c4', 'r.txt', 'b'); c5 = commit('c5', 'r.txt', 'c'); c6 = commit('c
 caso('neg', 'mismo arbol a tres niveles: no se busca (limite conservador)', c6, 'fallo')
 # controles negativos sobre un commit nuevo con un unico check en su padre
 def nuevo(msg, **kw):
-    p = commit(msg, 'n.txt', msg); h = commit(msg + ' vacio'); publicar(p, tree(p), **kw); return h
-caso('neg', 'check verde de otro perfil (rapida)', nuevo('n1', perfil='rapida'), 'fallo')
-caso('neg', 'otra huella del entorno', nuevo('n2', huella='H2'), 'fallo')
-caso('neg', 'otra version del workflow', nuevo('n3', version='v2'), 'fallo')
-caso('neg', 'check en rojo', nuevo('n4', concl='failure'), 'fallo')
-caso('neg', 'check verde de otra App con el mismo nombre', nuevo('n5', app=99999), 'fallo')
-caso('neg', 'check verde con otro nombre', nuevo('n6', nombre='verificacion-falsa'), 'fallo')
-caso('neg', 'check verde sin arbol= en el resumen', nuevo('n7', con_arbol=False), 'fallo')
-caso('caso', 'control positivo: mismo montaje con todo igual', nuevo('n8'), 'acierto')
+    p = commit(msg, 'n.txt', msg); hh = commit(msg + ' vacio'); publicar(p, tree(p), **kw); return hh
+caso('neg', 'check verde de otro perfil (rapida)', nuevo('n1', perfiles=('rapida',)), 'fallo')
+caso('neg', 'otra huella del arbol (lockfile o toolchain fijado)', nuevo('n2', harbol='HA2'), 'fallo')
+caso('neg', 'misma huella del arbol, otra huella local en el runner (otro rustc, otros datos)', nuevo('n3', hlocal='HL2'), 'fallo')
+caso('neg', 'huella local sin calcular en el runner del perfil', nuevo('n4'), 'fallo', hlocal=None)
+caso('neg', 'verde de otro runner (self-hosted) para la completa declarada en runner de GitHub',
+     nuevo('n5', runners={'completa': 'self-hosted-windows'}), 'fallo')
+caso('neg', 'otra version del workflow', nuevo('n6', version='v2'), 'fallo')
+caso('neg', 'check en rojo', nuevo('n7', concl='failure'), 'fallo')
+caso('neg', 'check verde de otra App con el mismo nombre', nuevo('n8', app=99999), 'fallo')
+caso('neg', 'check verde con otro nombre', nuevo('n9', nombre='verificacion-falsa'), 'fallo')
+caso('neg', 'check verde sin arbol= en el resumen', nuevo('n10', con_arbol=False), 'fallo')
+caso('caso', 'control positivo: mismo montaje con todo igual', nuevo('n11'), 'acierto')
 nc = sum(1 for t, _ in res if t == 'caso'); nn = sum(1 for t, _ in res if t == 'neg')
 okc = sum(1 for t, o in res if t == 'caso' and o); okn = sum(1 for t, o in res if t == 'neg' and o)
 print('RESULTADO B casos=%d/%d ; controles negativos=%d/%d' % (okc, nc, okn, nn))
@@ -282,6 +317,16 @@ PAGINA = {'E7': ('precios', r'Windows 2-core \(x64\) actions_windows %s'),
           'E9': ('producto', r'remains free independently and does not reduce the included compute usage:[^.]*\.[^.]*\. %s'),
           'E10': ('precios', r'GitHub %s'),
           'E11': ('producto', r'GitHub Free 500 MB %s')}
+# Contexto de cada entrada en su linea (revision 1, MEN-2): no basta con que la
+# cifra aparezca; tiene que estar en su sitio (la linea de E4 trae tambien la
+# medida en caliente, y la de E3 el promedio anterior).
+ANCLA = {'E1': r'primera tras el cambio[^|]*\| %s \|',
+         'E2': r'\| %s \(TASK-284',
+         'E3': r'rondas de [\d,]+ a %s\b',
+         'E4': r'%s en fr[ií]o'}
+def es(x, d=2):   # formato del ADR: coma decimal y espacio de miles
+    s = '{:,.{}f}'.format(x, d).replace(',', ' ').replace('.', ',')
+    return s
 def evaluar(adr, personal, paginas):
     txt = open(adr, encoding='utf-8').read(); errores, E, ventanas = [], {}, {}
     for c in bloque(txt, 'entradas-coste'):
@@ -296,8 +341,10 @@ def evaluar(adr, personal, paginas):
             f = os.path.join(personal, loc.group(1)); n = int(loc.group(2))
             lineas = open(f, encoding='utf-8').read().split('\n') if os.path.isfile(f) else []
             linea = lineas[n - 1] if 0 < n <= len(lineas) else ''
-            estado = 'en %s:%d' % (loc.group(1), n) if v in linea else 'NO ESTA en %s:%d' % (loc.group(1), n)
-            if v not in linea: errores.append('%s: %r no esta en %s:%d' % (ident, v, loc.group(1), n))
+            if ident not in ANCLA: errores.append('%s sin contexto declarado en la PoC' % ident)
+            ok = ident in ANCLA and re.search(ANCLA[ident] % re.escape(v), linea) is not None
+            estado = ('en su contexto en %s:%d' if ok else 'NO ESTA en su contexto en %s:%d') % (loc.group(1), n)
+            if not ok: errores.append('%s: %r no esta en su contexto en %s:%d' % (ident, v, loc.group(1), n))
         elif dirs:
             real = contar(personal, dirs.group(1), dirs.group(2), dirs.group(3)); ventanas[ident] = (dirs.group(2), dirs.group(3))
             estado = 'recuento %d con creado en [%s, %s]' % (real, dirs.group(2), dirs.group(3))
@@ -311,12 +358,12 @@ def evaluar(adr, personal, paginas):
         else:
             estado = 'SIN FUENTE'; errores.append('%s sin fuente comprobable' % ident)
         print('  %-4s %-28s %s' % (ident, v[:28], estado))
-    falta = [k for k in 'E1 E2 E3 E4 E5 E6 E7 E8 E9 E10 E11 S1 S2 S3'.split() if k not in E]
+    falta = [k for k in 'E1 E2 E3 E4 E5 E6 E7 E8 E9 E10 E11 S1 S2 S3 S4'.split() if k not in E]
     if falta: errores.append('faltan entradas: %s' % ' '.join(falta)); return errores, {}
     def mes(ident):
         d1, d2 = (datetime.date.fromisoformat(x) for x in ventanas.get(ident, ('2000-01-01', '2000-01-30')))
         return round(int(E[ident]) * 30 / ((d2 - d1).days + 1))
-    ej = num(E['E3']) + num(E['S1']); fact = num(E['S2'])
+    ej = num(E['E3']) * num(E['S4']) + num(E['S1']); fact = num(E['S2'])
     precio = {'win': num(E['E7']), 'linux': num(E['E8']), 'self': 0.0}
     receta = {'C1': ('E5', minutos(E['E1']), 'win'), 'C2': ('E5', minutos(E['E2']), 'self'),
               'C3': ('E5', num(E['S3']), 'linux'), 'C4': ('E6', minutos(E['E4']), 'win'),
@@ -345,6 +392,16 @@ def evaluar(adr, personal, paginas):
               f(v[4], 3), f(v[5], 2), ' | '.join(celdas)))
     for fila in adr_t:
         if fila not in calc: errores.append('fila %s del ADR sin receta' % fila)
+    # Cifras de la «Lectura» de la tabla (revision 1, MEN-2), entre marcadores lectura-coste.
+    m = re.search(r'<!-- lectura-coste:inicio -->(.*?)<!-- lectura-coste:fin -->', txt, re.S)
+    lect = re.sub(r'\s+', ' ', m.group(1)) if m else ''
+    if not m: errores.append('lectura: faltan los marcadores lectura-coste')
+    for frase in ('%s $ de %s $' % (es(calc['C1'][5]), es(calc['T1'][5])),
+                  'unas %d horas' % round(calc['C2'][3] / 60), '(%s min)' % es(calc['C2'][3], 0),
+                  'unos %d $' % round(calc['C4'][5])):
+        ok = frase in lect
+        print('  lectura %-26s %s' % (frase, 'en el ADR' if ok else 'NO ESTA en el ADR'))
+        if not ok: errores.append('lectura: falta %r' % frase)
     return errores, calc
 EOF
 "$PY" -I - "$RAIZ/py" "$ADR" "$PERSONAL" "$RAIZ/precios" "$RAIZ/mutaciones" <<'EOF' | tee "$base/c2.txt"
@@ -358,20 +415,33 @@ print('-- ADR real')
 errs, calc = coste.evaluar(adr, personal, paginas)
 for e in errs: print('  ERROR', e)
 txt = open(adr, encoding='utf-8').read()
-MUT = [('M1 entrada E1 cambiada (22 min 22 s -> 32 min 22 s)', '`22 min 22 s`', '`32 min 22 s`'),
-       ('M2 celda $/mes de C4 cambiada', '| 45,15 |', '| 40,15 |'),
-       ('M3 linea de la fuente de E4 cambiada (:8 -> :9)', 'config.yml:8`', 'config.yml:9`'),
-       ('M4 supuesto S1 cambiado (0,5 -> 1,0)', '| `S1` | Actualizaciones de rama por tarea (`strict`) | `0,5` |',
-        '| `S1` | Actualizaciones de rama por tarea (`strict`) | `1,0` |'),
-       ('M5 precio Windows cambiado en las entradas', '`$0.010`', '`$0.008`')]
+# Cada mutacion: descripcion, sustituciones (todas tienen que aplicarse una vez) y el
+# error que la tiene que detectar (prefijo), no uno cualquiera.
+C4 = '| `C4` | OpenDockTrading | completa (E4) | GitHub Windows | 258 | 3,5 | 5 | 4 515 | 0,010 | 45,15 |'
+T1 = '| 19 362 | — | 175,69 |'
+T2 = '| 14 714 | — | 42,06 |'
+MUT = [('M1 entrada E1 cambiada (22 min 22 s -> 32 min 22 s)', [('`22 min 22 s`', '`32 min 22 s`')], 'E1:'),
+       ('M2 celda $/mes de C4 cambiada', [('| 45,15 |', '| 40,15 |')], 'C4 col 6'),
+       ('M3 linea de la fuente de E4 cambiada (:8 -> :9)', [('config.yml:8`', 'config.yml:9`')], 'E4:'),
+       ('M4 supuesto S1 cambiado (0,5 -> 1,0)', [('| `S1` | Actualizaciones de rama por tarea (`strict`) | `0,5` |',
+        '| `S1` | Actualizaciones de rama por tarea (`strict`) | `1,0` |')], 'C1 col 2'),
+       ('M5 precio Windows cambiado en las entradas', [('`$0.010`', '`$0.008`')], 'E7:'),
+       ('M6 E4 por la medida en caliente de la misma linea (1 min 56 s) y C4, T1 y T2 recalculados a mano',
+        [('`4 min 11 s`', '`1 min 56 s`'), (C4, C4.replace('| 5 | 4 515 | 0,010 | 45,15 |', '| 2 | 1 806 | 0,010 | 18,06 |')),
+         (T1, '| 16 653 | — | 148,60 |'), (T2, '| 12 005 | — | 14,97 |')], 'E4:'),
+       ('M7 cifras de la lectura cambiadas (145 -> 99 horas)', [('unas 145 horas', 'unas 99 horas')], 'lectura'),
+       ('M8 E3 por el promedio anterior de la misma linea (3,0 -> 2,2)', [('| `3,0` |', '| `2,2` |')], 'E3:')]
 det = noap = 0
-for i, (desc, a, b) in enumerate(MUT):
-    if txt.count(a) != 1: print('  MAL  %s: no se aplica (%d apariciones)' % (desc, txt.count(a))); noap += 1; continue
-    f = os.path.join(mut, 'adr-m%d.md' % (i + 1)); open(f, 'w', encoding='utf-8').write(txt.replace(a, b))
+for i, (desc, subs, espera) in enumerate(MUT):
+    t2, malo = txt, [a for a, _ in subs if txt.count(a) != 1]
+    if malo: print('  MAL  %s: no se aplica (%s)' % (desc, malo)); noap += 1; continue
+    for a, b in subs: t2 = t2.replace(a, b)
+    f = os.path.join(mut, 'adr-m%d.md' % (i + 1)); open(f, 'w', encoding='utf-8').write(t2)
     print('-- %s' % desc)
     e, _ = coste.evaluar(f, personal, paginas)
-    if e: det += 1
-    print('  %-4s detectada con %d error(es): %s' % ('ok' if e else 'MAL', len(e), '; '.join(e)[:160]))
+    ok = any(x.startswith(espera) for x in e)
+    if ok: det += 1
+    print('  %-4s detectada por %r con %d error(es): %s' % ('ok' if ok else 'MAL', espera, len(e), '; '.join(e)[:200]))
 print('RESULTADO C2 errores ADR real=%d ; mutaciones detectadas=%d/%d ; no aplicadas=%d' % (len(errs), det, len(MUT), noap))
 sys.exit(0 if not errs and det == len(MUT) and noap == 0 else 1)
 EOF

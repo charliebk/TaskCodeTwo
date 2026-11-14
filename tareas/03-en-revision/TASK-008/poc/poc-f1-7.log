@@ -1,4 +1,4 @@
-fecha: 2026-11-14T07:25:49Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10
+fecha: 2026-11-14T07:38:17Z ; git version 2.56.0.windows.4 ; gh version 2.95.0 (2026-06-17) ; Python 3.12.10
 
 === A. Arboles: PR al dia, merge en develop, release en main (git local) ===
 PR al dia:      head=7925f8be5871 merge-ref=7925f8be5871 develop=7925f8be5871 main=7925f8be5871
@@ -15,26 +15,31 @@ PR desactualizado: head=02b44951a23f merge-ref=5acc500aaddc
   ok   release 2 (merge --no-ff) = develop
 RESULTADO A casos=10/10 como se esperaba
 
-=== B. Simulacion de la busqueda por padres (decision 3) ===
-  ok   caso     fallo    primera verificacion del PR (merge ref nuevo): se verifica
-  ok   caso     acierto  commit vacio en la rama: el check del head anterior (abuelo del merge ref) (reutilizado de 385be9db8a)
-  ok   caso     acierto  push del merge commit en develop: su padre (head del PR) tiene el arbol (reutilizado de d6f17d2706)
-  ok   caso     acierto  PR de release develop->main: abuelo (head del PR de la tarea) con el mismo arbol (reutilizado de d6f17d2706)
-  ok   caso     acierto  push del merge de la release en main (reutilizado de be71fd7e52)
-  ok   caso     fallo    PR desactualizado: el merge ref es un arbol nuevo
-  ok   caso     acierto  tras actualizar-rama (strict): el arbol del head = merge ref verificado antes (reutilizado de 37e816b267)
-  ok   caso     fallo    develop avanzo y se actualiza la rama otra vez: arbol nuevo
-  ok   caso     acierto  revert al arbol del abuelo (reutilizado de eebf991a4f)
-  ok   neg      fallo    mismo arbol a tres niveles: no se busca (limite conservador)
-  ok   neg      fallo    check verde de otro perfil (rapida)
-  ok   neg      fallo    otra huella del entorno
-  ok   neg      fallo    otra version del workflow
-  ok   neg      fallo    check en rojo
-  ok   neg      fallo    check verde de otra App con el mismo nombre
-  ok   neg      fallo    check verde con otro nombre
-  ok   neg      fallo    check verde sin arbol= en el resumen
-  ok   caso     acierto  control positivo: mismo montaje con todo igual (reutilizado de 93cbe1b3d0)
-RESULTADO B casos=10/10 ; controles negativos=8/8
+=== B. Simulacion de la busqueda por padres, por perfil y con huella local (decisiones 2 a 4) ===
+  ok   caso  fallo    primera verificacion del PR (merge ref nuevo): se verifica [completa se ejecuta]
+  ok   caso  acierto  commit vacio en la rama: el check del head anterior (abuelo del merge ref) [completa reutilizada de 557e256869]
+  ok   caso  acierto  consulta tras el push del merge commit en develop: su padre (head del PR) tiene el arbol [completa reutilizada de bbe1d7d674]
+  ok   caso  acierto  PR de release, solo el perfil completa: abuelo (head del PR de la tarea) con el mismo arbol [completa reutilizada de bbe1d7d674]
+  ok   neg   fallo    PR de release (completa + pesada): la completa acierta, la pesada no corrio nunca: no hay verde sin ejecutarla [completa reutilizada de bbe1d7d674; pesada se ejecuta]
+  ok   caso  acierto  re-ejecucion del PR de release: completa y pesada reutilizadas [completa reutilizada de 361ede6482; pesada reutilizada de 361ede6482]
+  ok   caso  acierto  consulta tras el push del merge de la release en main (completa y pesada) [completa reutilizada de 361ede6482; pesada reutilizada de 361ede6482]
+  ok   caso  fallo    PR desactualizado: el merge ref es un arbol nuevo [completa se ejecuta]
+  ok   caso  acierto  tras actualizar-rama (strict): el arbol del head = merge ref verificado antes [completa reutilizada de d863f0ef21]
+  ok   caso  fallo    develop avanzo y se actualiza la rama otra vez: arbol nuevo [completa se ejecuta]
+  ok   caso  acierto  revert al arbol del abuelo [completa reutilizada de 531a1520cb]
+  ok   neg   fallo    mismo arbol a tres niveles: no se busca (limite conservador) [completa se ejecuta]
+  ok   neg   fallo    check verde de otro perfil (rapida) [completa se ejecuta]
+  ok   neg   fallo    otra huella del arbol (lockfile o toolchain fijado) [completa se ejecuta]
+  ok   neg   fallo    misma huella del arbol, otra huella local en el runner (otro rustc, otros datos) [completa se ejecuta]
+  ok   neg   fallo    huella local sin calcular en el runner del perfil [completa se ejecuta]
+  ok   neg   fallo    verde de otro runner (self-hosted) para la completa declarada en runner de GitHub [completa se ejecuta]
+  ok   neg   fallo    otra version del workflow [completa se ejecuta]
+  ok   neg   fallo    check en rojo [completa se ejecuta]
+  ok   neg   fallo    check verde de otra App con el mismo nombre [completa se ejecuta]
+  ok   neg   fallo    check verde con otro nombre [completa se ejecuta]
+  ok   neg   fallo    check verde sin arbol= en el resumen [completa se ejecuta]
+  ok   caso  acierto  control positivo: mismo montaje con todo igual [completa reutilizada de 39bdac00a2]
+RESULTADO B casos=11/11 ; controles negativos=12/12
 
 === C1. OpenAPI: filtros de check-runs, output.summary, tree y parents ===
 commit de github/rest-api-description: 2a33d9cc5d1dc6ca603b908e0796454af88c1999 2026-11-14T00:44:38Z
@@ -56,10 +61,10 @@ RESULTADO C1 comprobaciones=9/9
   actions-runner-pricing.html: 170288 bytes ; sha256 32e9a02f530df605
   product-billing-github-actions.html: 233690 bytes ; sha256 9d14295efad79c6b
 -- ADR real
-  E1   22 min 22 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   en OpenDockTrading/.taskcode/config.yml:8
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.010                       en la pagina precios
@@ -70,6 +75,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   0,5                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    3.5    23    13363   0.010    133.63   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -78,11 +84,15 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    19362       -    175.69   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    14714       -     42.06   — | — | — | 14 714 | — | 42,06
+  lectura 133,63 $ de 175,69 $       en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 45 $                  en el ADR
 -- M1 entrada E1 cambiada (22 min 22 s -> 32 min 22 s)
-  E1   32 min 22 s                  NO ESTA en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   en OpenDockTrading/.taskcode/config.yml:8
+  E1   32 min 22 s                  NO ESTA en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.010                       en la pagina precios
@@ -93,6 +103,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   0,5                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    3.5    33    19173   0.010    191.73   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -101,12 +112,16 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    25172       -    233.79   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    14714       -     42.06   — | — | — | 14 714 | — | 42,06
-  ok   detectada con 6 error(es): E1: '32 min 22 s' no esta en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263; C1 col 3: ADR 23, calculado 33; C1 col 4: ADR 13 363, calculado 19173; C1
+  lectura 191,73 $ de 233,79 $       NO ESTA en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 45 $                  en el ADR
+  ok   detectada por 'E1:' con 7 error(es): E1: '32 min 22 s' no esta en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263; C1 col 3: ADR 23, calculado 33; C1 col 4: ADR 13 363, calculado 19173; C1 col 6: ADR 133,63, calcu
 -- M2 celda $/mes de C4 cambiada
-  E1   22 min 22 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   en OpenDockTrading/.taskcode/config.yml:8
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.010                       en la pagina precios
@@ -117,6 +132,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   0,5                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    3.5    23    13363   0.010    133.63   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -125,12 +141,16 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    19362       -    175.69   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    14714       -     42.06   — | — | — | 14 714 | — | 42,06
-  ok   detectada con 1 error(es): C4 col 6: ADR 40,15, calculado 45.15
+  lectura 133,63 $ de 175,69 $       en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 45 $                  en el ADR
+  ok   detectada por 'C4 col 6' con 1 error(es): C4 col 6: ADR 40,15, calculado 45.15
 -- M3 linea de la fuente de E4 cambiada (:8 -> :9)
-  E1   22 min 22 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   NO ESTA en OpenDockTrading/.taskcode/config.yml:9
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   NO ESTA en su contexto en OpenDockTrading/.taskcode/config.yml:9
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.010                       en la pagina precios
@@ -141,6 +161,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   0,5                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    3.5    23    13363   0.010    133.63   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -149,12 +170,16 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    19362       -    175.69   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    14714       -     42.06   — | — | — | 14 714 | — | 42,06
-  ok   detectada con 1 error(es): E4: '4 min 11 s' no esta en OpenDockTrading/.taskcode/config.yml:9
+  lectura 133,63 $ de 175,69 $       en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 45 $                  en el ADR
+  ok   detectada por 'E4:' con 1 error(es): E4: '4 min 11 s' no esta en su contexto en OpenDockTrading/.taskcode/config.yml:9
 -- M4 supuesto S1 cambiado (0,5 -> 1,0)
-  E1   22 min 22 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   en OpenDockTrading/.taskcode/config.yml:8
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.010                       en la pagina precios
@@ -165,6 +190,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   1,0                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    4.0    23    15272   0.010    152.72   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    4.0    15     9960   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -173,12 +199,16 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    4.0     1     1032   0.006      6.19   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    22128       -    202.49   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    16816       -     49.77   — | — | — | 14 714 | — | 42,06
-  ok   detectada con 18 error(es): C1 col 2: ADR 3,5, calculado 4.0; C1 col 4: ADR 13 363, calculado 15272; C1 col 6: ADR 133,63, calculado 152.72; C2 col 2: ADR 3,5, calculado 4.0; C2 col 4: ADR
+  lectura 152,72 $ de 202,49 $       NO ESTA en el ADR
+  lectura unas 166 horas             NO ESTA en el ADR
+  lectura (9 960 min)                NO ESTA en el ADR
+  lectura unos 52 $                  NO ESTA en el ADR
+  ok   detectada por 'C1 col 2' con 22 error(es): C1 col 2: ADR 3,5, calculado 4.0; C1 col 4: ADR 13 363, calculado 15272; C1 col 6: ADR 133,63, calculado 152.72; C2 col 2: ADR 3,5, calculado 4.0; C2 col 4: ADR 8 715, calculado 9960; C3 col 2: ADR 3,
 -- M5 precio Windows cambiado en las entradas
-  E1   22 min 22 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
-  E2   14 min 31 s                  en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
-  E3   3,0                          en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
-  E4   4 min 11 s                   en OpenDockTrading/.taskcode/config.yml:8
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
   E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
   E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
   E7   $0.008                       NO ESTA en la pagina precios
@@ -189,6 +219,7 @@ RESULTADO C1 comprobaciones=9/9
   S1   0,5                          supuesto (sin fuente que comprobar)
   S2   1,0                          supuesto (sin fuente que comprobar)
   S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
        tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
   C1       166    3.5    23    13363   0.008    106.90   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
   C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
@@ -197,14 +228,105 @@ RESULTADO C1 comprobaciones=9/9
   C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
   T1         -      -     -    19362       -    139.93   — | — | — | 19 362 | — | 175,69
   T2         -      -     -    14714       -     33.03   — | — | — | 14 714 | — | 42,06
-  ok   detectada con 5 error(es): E7: '$0.008' no esta en la pagina precios; C1 col 6: ADR 133,63, calculado 106.9; C4 col 6: ADR 45,15, calculado 36.12; T1 col 6: ADR 175,69, calculado 139.93; 
-RESULTADO C2 errores ADR real=0 ; mutaciones detectadas=5/5 ; no aplicadas=0
+  lectura 106,90 $ de 139,93 $       NO ESTA en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 36 $                  NO ESTA en el ADR
+  ok   detectada por 'E7:' con 7 error(es): E7: '$0.008' no esta en la pagina precios; C1 col 6: ADR 133,63, calculado 106.9; C4 col 6: ADR 45,15, calculado 36.12; T1 col 6: ADR 175,69, calculado 139.93; T2 col 6: ADR 42,06, calculado 33.03; le
+-- M6 E4 por la medida en caliente de la misma linea (1 min 56 s) y C4, T1 y T2 recalculados a mano
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   1 min 56 s                   NO ESTA en su contexto en OpenDockTrading/.taskcode/config.yml:8
+  E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
+  E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
+  E7   $0.010                       en la pagina precios
+  E8   $0.006                       en la pagina precios
+  E9   Self-hosted runners          en la pagina producto
+  E10  rounds the minutes and parti en la pagina precios
+  E11  $12 USD                      en la pagina producto
+  S1   0,5                          supuesto (sin fuente que comprobar)
+  S2   1,0                          supuesto (sin fuente que comprobar)
+  S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
+       tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
+  C1       166    3.5    23    13363   0.010    133.63   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
+  C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
+  C3       166    3.5     1      581   0.006      3.49   166 | 3,5 | 1 | 581 | 0,006 | 3,49
+  C4       258    3.5     2     1806   0.010     18.06   258 | 3,5 | 2 | 1 806 | 0,010 | 18,06
+  C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
+  T1         -      -     -    16653       -    148.60   — | — | — | 16 653 | — | 148,60
+  T2         -      -     -    12005       -     14.97   — | — | — | 12 005 | — | 14,97
+  lectura 133,63 $ de 148,60 $       NO ESTA en el ADR
+  lectura unas 145 horas             en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 18 $                  NO ESTA en el ADR
+  ok   detectada por 'E4:' con 3 error(es): E4: '1 min 56 s' no esta en su contexto en OpenDockTrading/.taskcode/config.yml:8; lectura: falta '133,63 $ de 148,60 $'; lectura: falta 'unos 18 $'
+-- M7 cifras de la lectura cambiadas (145 -> 99 horas)
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   3,0                          en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
+  E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
+  E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
+  E7   $0.010                       en la pagina precios
+  E8   $0.006                       en la pagina precios
+  E9   Self-hosted runners          en la pagina producto
+  E10  rounds the minutes and parti en la pagina precios
+  E11  $12 USD                      en la pagina producto
+  S1   0,5                          supuesto (sin fuente que comprobar)
+  S2   1,0                          supuesto (sin fuente que comprobar)
+  S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
+       tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
+  C1       166    3.5    23    13363   0.010    133.63   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
+  C2       166    3.5    15     8715   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
+  C3       166    3.5     1      581   0.006      3.49   166 | 3,5 | 1 | 581 | 0,006 | 3,49
+  C4       258    3.5     5     4515   0.010     45.15   258 | 3,5 | 5 | 4 515 | 0,010 | 45,15
+  C5       258    3.5     1      903   0.006      5.42   258 | 3,5 | 1 | 903 | 0,006 | 5,42
+  T1         -      -     -    19362       -    175.69   — | — | — | 19 362 | — | 175,69
+  T2         -      -     -    14714       -     42.06   — | — | — | 14 714 | — | 42,06
+  lectura 133,63 $ de 175,69 $       en el ADR
+  lectura unas 145 horas             NO ESTA en el ADR
+  lectura (8 715 min)                en el ADR
+  lectura unos 45 $                  en el ADR
+  ok   detectada por 'lectura' con 1 error(es): lectura: falta 'unas 145 horas'
+-- M8 E3 por el promedio anterior de la misma linea (3,0 -> 2,2)
+  E1   22 min 22 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:263
+  E2   14 min 31 s                  en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:307
+  E3   2,2                          NO ESTA en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291
+  E4   4 min 11 s                   en su contexto en OpenDockTrading/.taskcode/config.yml:8
+  E5   160                          recuento 160 con creado en [2026-10-16, 2026-11-13]
+  E6   43                           recuento 43 con creado en [2026-11-09, 2026-11-13]
+  E7   $0.010                       en la pagina precios
+  E8   $0.006                       en la pagina precios
+  E9   Self-hosted runners          en la pagina producto
+  E10  rounds the minutes and parti en la pagina precios
+  E11  $12 USD                      en la pagina producto
+  S1   0,5                          supuesto (sin fuente que comprobar)
+  S2   1,0                          supuesto (sin fuente que comprobar)
+  S3   1                            supuesto (sin fuente que comprobar)
+  S4   1                            supuesto (sin fuente que comprobar)
+       tar/mes   ej/t   min  min/mes   $/min     $/mes   ADR
+  C1       166    2.7    23    10309   0.010    103.09   166 | 3,5 | 23 | 13 363 | 0,010 | 133,63
+  C2       166    2.7    15     6723   0.000      0.00   166 | 3,5 | 15 | 8 715 | 0,000 | 0,00
+  C3       166    2.7     1      448   0.006      2.69   166 | 3,5 | 1 | 581 | 0,006 | 3,49
+  C4       258    2.7     5     3483   0.010     34.83   258 | 3,5 | 5 | 4 515 | 0,010 | 45,15
+  C5       258    2.7     1      697   0.006      4.18   258 | 3,5 | 1 | 903 | 0,006 | 5,42
+  T1         -      -     -    14937       -    132.79   — | — | — | 19 362 | — | 175,69
+  T2         -      -     -    11351       -     29.70   — | — | — | 14 714 | — | 42,06
+  lectura 103,09 $ de 132,79 $       NO ESTA en el ADR
+  lectura unas 112 horas             NO ESTA en el ADR
+  lectura (6 723 min)                NO ESTA en el ADR
+  lectura unos 35 $                  NO ESTA en el ADR
+  ok   detectada por 'E3:' con 23 error(es): E3: '2,2' no esta en su contexto en ToolsaWeb/docs/verificacion/flujo-de-verificacion.md:291; C1 col 2: ADR 3,5, calculado 2.7; C1 col 4: ADR 13 363, calculado 10309; C1 col 6: ADR 133,63, calculado 1
+RESULTADO C2 errores ADR real=0 ; mutaciones detectadas=8/8 ; no aplicadas=0
 
 === Resumen ===
 RESULTADO A casos=10/10 como se esperaba
-RESULTADO B casos=10/10 ; controles negativos=8/8
+RESULTADO B casos=11/11 ; controles negativos=12/12
 RESULTADO C1 comprobaciones=9/9
-RESULTADO C2 errores ADR real=0 ; mutaciones detectadas=5/5 ; no aplicadas=0
+RESULTADO C2 errores ADR real=0 ; mutaciones detectadas=8/8 ; no aplicadas=0
 RESULTADO llamadas gh api con GET=1 ; gh api con otro metodo=0 ; descargas GET=3
 llamadas a GitHub y descargas registradas:
   $ gh api --method GET repos/github/rest-api-description/commits/main -q ...
