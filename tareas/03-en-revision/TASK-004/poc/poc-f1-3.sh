@@ -67,15 +67,48 @@ ramas_del_id() { # ramas del remoto con el mismo ID, sin mirar el slug (F2-4b)
   local n=${1#TASK-}
   g -C "$P" ls-remote --heads origin "*/task-$n-*" | awk '{print $2}' | sed 's#^refs/heads/##'
 }
+ramas_locales_del_id() { # las mismas, en el clon (ramas aun sin publicar)
+  local n=${1#TASK-}
+  g -C "$P" branch --list "*/task-$n-*" --format='%(refname:short)'
+}
+asignado_en_origin() { g -C "$P" show "origin/taskcode/tareas:$1/tarea.md" 2>/dev/null | sed -n 's/^asignado: //p'; }
+base_hotfix() { # ultimo tag de main; si main no tiene tags, la punta de origin/main
+  g -C "$P" describe --tags --abbrev=0 origin/main 2>/dev/null || echo origin/main
+}
 cli_start() { # cli_start <id> <tipo> <slug> <base-ref> <quien>
-  local id=$1 tipo=$2 slug=$3 baseref=$4 quien=$5 rama wt otras
-  rama=$(rama_de "$tipo" "$id" "$slug"); wt="$P/.taskcode/worktrees/$id"
+  # Rechazada (3) si la lleva otra persona o si el ID tiene rama y no es de quien lanza;
+  # si ya la lleva quien lanza, reanuda: crea solo lo que falte (rama local, worktree).
+  local id=$1 tipo=$2 slug=$3 baseref=$4 quien=$5 rama wt asig remotas locales hecho=""
+  wt="$P/.taskcode/worktrees/$id"
   g -C "$P" fetch -q origin --tags || return 4
-  otras=$(ramas_del_id "$id")
-  if [ -n "$otras" ]; then echo "[start] $id Rechazada: el ID ya tiene rama en el remoto: $otras"; return 3; fi
-  cli_estado "$P" "$id" en-curso "$quien" || return $?        # primero el asignado publicado (F1-2)
-  g -C "$P" worktree add -q --no-track -b "$rama" "$wt" "$baseref" || return 1
-  echo "[start] $id: rama $rama desde $baseref; worktree ${wt#"$RAIZ"/}"
+  if ! g -C "$P" rev-parse -q --verify "$baseref^{commit}" >/dev/null; then   # base valida ANTES de escribir estado
+    echo "[start] $id Rechazada: la base '$baseref' no existe; no se escribe estado"; return 3
+  fi
+  asig=$(asignado_en_origin "$id")
+  remotas=$(ramas_del_id "$id" | xargs); locales=$(ramas_locales_del_id "$id" | xargs)
+  if [ "$asig" != "$quien" ]; then
+    if [ -n "$remotas$locales" ]; then
+      local lleva="no la lleva nadie"; [ -n "$asig" ] && lleva="la lleva $asig"
+      echo "[start] $id Rechazada: el ID ya tiene rama (remoto: ${remotas:-ninguna}; local: ${locales:-ninguna}) y $lleva"; return 3
+    fi
+    if [ -n "$asig" ]; then echo "[start] $id Rechazada: la lleva $asig"; return 3; fi
+    cli_estado "$P" "$id" en-curso "$quien" || return $?        # primero el asignado publicado (F1-2)
+    rama=$(rama_de "$tipo" "$id" "$slug")
+    g -C "$P" worktree add -q --no-track -b "$rama" "$wt" "$baseref" || return 1
+    echo "[start] $id: rama $rama desde $baseref; worktree ${wt#"$RAIZ"/}"; return 0
+  fi
+  # ya la lleva quien lanza: reanudar sin escribir estado
+  rama=$(echo "$locales $remotas" | awk '{print $1}')
+  if [ -z "$rama" ]; then                                         # murio entre el push del estado y la rama
+    rama=$(rama_de "$tipo" "$id" "$slug")
+    g -C "$P" branch --no-track "$rama" "$baseref" && hecho="rama desde $baseref"
+  elif ! g -C "$P" show-ref -q --verify "refs/heads/$rama"; then  # solo en el remoto
+    g -C "$P" branch -q --track "$rama" "origin/$rama" && hecho="rama local desde origin/$rama"
+  fi
+  if [ ! -d "$wt" ]; then
+    g -C "$P" worktree add -q "$wt" "$rama" || return 1; hecho="${hecho:+$hecho, }worktree"
+  fi
+  echo "[start] $id: ya la lleva $quien; ${hecho:-sin cambios} (rama $rama)"
 }
 cli_review() { # cli_review <id>: push de la rama; el PR contra su base lo abre la plataforma
   local wt="$P/.taskcode/worktrees/$1" rama
@@ -138,9 +171,9 @@ printf 'linea 1\nlinea 2\nlinea 3\n' > "$P/app.txt"
 g -C "$P" add .gitignore app.txt && g -C "$P" commit -q -m "inicial"
 g -C "$P" branch main && g -C "$P" push -q origin develop main
 g -C "$P" worktree add -q --orphan -b taskcode/tareas "$P/tareas"
-for id in TASK-007 TASK-008 TASK-009 TASK-010; do tarea "$P/tareas" "$id" planificada ""; done
+for id in TASK-007 TASK-008 TASK-009 TASK-010 TASK-011 TASK-012 TASK-013; do tarea "$P/tareas" "$id" planificada ""; done
 roadmap "$P/tareas"
-g -C "$P/tareas" add -A . && g -C "$P/tareas" commit -q -m "estado: altas TASK-007..010" && g -C "$P/tareas" push -q -u origin taskcode/tareas
+g -C "$P/tareas" add -A . && g -C "$P/tareas" commit -q -m "estado: altas TASK-007..013" && g -C "$P/tareas" push -q -u origin taskcode/tareas
 g clone -q "$ORIGIN" "$PL" 2>/dev/null
 echo "git: $(git --version)"
 echo "remoto: $ORIGIN ; receive.denyNonFastForwards=$(g -C "$ORIGIN" config receive.denyNonFastForwards)"
@@ -182,6 +215,56 @@ cli_start TASK-007 feature otro-slug origin/develop carla; rc=$?
 echo "start de feature/task-007-otro-slug: codigo $rc ; existe la rama en local: $(g -C "$P" branch --list 'feature/task-007-otro-slug' | wc -l)"
 resultado "1d: feature/task-007-otro-slug detectada como el mismo ID por ls-remote '*/task-007-*' -> Rechazada (codigo $rc), sin rama ni worktree"
 
+sep "1e. Patron de unicidad: '*/task-007-*' no casa task-0070-* (remoto aparte)"
+PAT="$RAIZ/patron"; g init -q --bare "$PAT.git"; g clone -q "$PAT.git" "$PAT" 2>/dev/null
+g -C "$PAT" commit -q --allow-empty -m x
+g -C "$PAT" push -q origin HEAD:refs/heads/feature/task-007-login HEAD:refs/heads/feature/task-0070-x
+lr() { g -C "$PAT" ls-remote --heads origin "$1" | sed 's#.*refs/heads/##' | tr '\n' ' '; }
+p1=$(lr '*/task-007-*'); p2=$(lr '*/task-007*'); p3=$(lr '*/task-0070-*')
+echo "ramas en el remoto aparte: $(lr '*')"
+echo "ls-remote '*/task-007-*' : $p1"
+echo "ls-remote '*/task-007*'  : $p2 (mutacion sin el guion final)"
+echo "ls-remote '*/task-0070-*': $p3"
+resultado "1e: '*/task-007-*' casa solo feature/task-007-login=$([ "$p1" = 'feature/task-007-login ' ] && echo si || echo NO); sin el guion final tambien casaria task-0070-x=$(case $p2 in *task-0070-x*) echo si;; *) echo NO;; esac)"
+
+sep "1f. start repetido: antes de review, tras review con el worktree perdido, otra persona, rama solo local"
+g -C "$P" fetch -q origin; n0=$(g -C "$P" rev-list --count origin/taskcode/tareas)
+cli_start TASK-011 feature exportar origin/develop carla; rcA1=$?
+h11=$(g -C "$P" rev-parse feature/task-011-exportar)
+echo "-- carla repite start de TASK-011 antes de review"
+cli_start TASK-011 feature exportar origin/develop carla; rcA2=$?
+g -C "$P" fetch -q origin; n1=$(g -C "$P" rev-list --count origin/taskcode/tareas)
+echo "codigos: $rcA1 y $rcA2 ; commits de estado del segundo start: $((n1 - n0 - 1)) ; rama igual: $([ "$h11" = "$(g -C "$P" rev-parse feature/task-011-exportar)" ] && echo si || echo NO)"
+resultado "1f: repetir start antes de review -> codigo $rcA2, sin cambios (commits de estado nuevos: $((n1 - n0 - 1)))"
+echo "-- TASK-007 tras review: se pierden su worktree y su rama local (git clean, clon nuevo)"
+g -C "$P" worktree remove --force "$W7"; g -C "$P" branch -q -D feature/task-007-login
+echo "worktree de TASK-007: $([ -d "$W7" ] && echo existe || echo no existe) ; rama local: $(g -C "$P" branch --list feature/task-007-login | wc -l) ; rama en el remoto: $(ramas_del_id TASK-007)"
+cli_start TASK-007 feature login origin/develop ana; rcB=$?
+igual=$([ "$(g -C "$W7" rev-parse HEAD)" = "$(g -C "$P" rev-parse origin/feature/task-007-login)" ] && echo si || echo NO)
+echo "worktree recreado: $([ -d "$W7" ] && echo si || echo NO) ; HEAD igual a origin/feature/task-007-login: $igual ; estado en origin: $(estado_en_origin TASK-007) (sin reescribir)"
+cli_start TASK-007 feature login origin/develop carla; rcC=$?
+resultado "1f: start del dueno tras review con la rama solo en el remoto -> codigo $rcB, reanuda (worktree recreado desde origin, HEAD igual=$igual); otra persona -> codigo $rcC"
+echo "-- TASK-012: una rama del ID solo en local, sin publicar y sin asignado"
+g -C "$P" branch --no-track feature/task-012-a-mano origin/develop
+cli_start TASK-012 feature otro origin/develop dani; rcD=$?
+echo "ramas locales del ID 012: $(ramas_locales_del_id TASK-012 | tr '\n' ' ') ; asignado en origin: '$(asignado_en_origin TASK-012)'"
+resultado "1f: ID con rama solo local (git branch --list '*/task-012-*') -> codigo $rcD, sin estado ni segunda rama"
+g -C "$P" branch -q -D feature/task-012-a-mano
+g -C "$P" worktree remove "$P/.taskcode/worktrees/TASK-011" && g -C "$P" branch -q -D feature/task-011-exportar
+cli_estado "$P" TASK-011 planificada "" >/dev/null && echo "(limpieza: TASK-011 liberada, sin worktree ni rama)"
+
+sep "1g. Hotfix con main sin tags: la base es la punta de main; una base invalida se rechaza antes de escribir estado"
+echo "tags: $(g -C "$P" tag -l | wc -l) ; base del hotfix: $(base_hotfix)"
+g -C "$P" fetch -q origin; n0=$(g -C "$P" rev-list --count origin/taskcode/tareas)
+cli_start TASK-013 hotfix base-mala no-existe beto; rcE=$?
+g -C "$P" fetch -q origin; n1=$(g -C "$P" rev-list --count origin/taskcode/tareas)
+echo "commits de estado: $((n1 - n0)) ; asignado en origin: '$(asignado_en_origin TASK-013)' ; ramas del ID: '$(ramas_locales_del_id TASK-013)'"
+cli_start TASK-013 hotfix sin-tags "$(base_hotfix)" beto; rcF=$?
+bt=$([ "$(g -C "$P" rev-parse hotfix/task-013-sin-tags)" = "$(g -C "$P" rev-parse origin/main)" ] && echo si || echo NO)
+resultado "1g: base invalida -> codigo $rcE sin escribir estado ($((n1 - n0)) commits); main sin tags -> start codigo $rcF desde origin/main=$bt"
+g -C "$P" worktree remove "$P/.taskcode/worktrees/TASK-013" && g -C "$P" branch -q -D hotfix/task-013-sin-tags
+cli_estado "$P" TASK-013 planificada "" >/dev/null && echo "(limpieza: TASK-013 liberada, sin worktree ni rama)"
+
 ######################## 2. ciclo completo y release v0.1.0 ########################
 sep "2a. finish de TASK-007 y TASK-008: merge del PR sin fast-forward en develop, worktree fuera, rama conservada"
 pr_merge develop feature/task-007-login "TASK-007 login"
@@ -212,8 +295,8 @@ pr_merge develop feature/task-010-informes "TASK-010 informes"
 cli_finish TASK-010
 
 sep "3b. hotfix TASK-009 desde el ultimo tag de main, PR a main, tag v0.1.1 y PR automatico contra develop"
-tag_base=$(g -C "$P" describe --tags --abbrev=0 origin/main)
-echo "ultimo tag de main: $tag_base"
+tag_base=$(base_hotfix)
+echo "base del hotfix (ultimo tag de main): $tag_base"
 cli_start TASK-009 hotfix corrupcion-al-exportar "$tag_base" beto
 W9="$P/.taskcode/worktrees/TASK-009"
 sed -i 's/linea 1/linea 1 (exportar sin corromper)/' "$W9/app.txt"; g -C "$W9" add app.txt && g -C "$W9" commit -q -m "fix(TASK-009): corrupcion al exportar"
