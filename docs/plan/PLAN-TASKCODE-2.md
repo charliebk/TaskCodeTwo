@@ -43,7 +43,7 @@ Detalle en [REQUISITOS-FUNCIONALES.md §0](REQUISITOS-FUNCIONALES.md).
 | RR-15 | GitHub y GitLab desde la 2.0 | Adaptador de plataforma con las dos implementaciones y la misma batería E2E (P11) |
 | RR-16 | Instalación fácil en cualquier ordenador | Repo público que es su propio marketplace de Claude Code, como TaskCode; ejecutable e instalador de una línea como complemento (P12); desinstalación limpia (F2-14, F9-10) |
 | RR-17 | Skills, agentes y modelo adecuados a cada tarea | Selección determinista entre lo instalado, anotada en la tarea y medida (F1-15, F3-9, F4-6, F8-6) |
-| RR-18 | Lotes desatendidos con revisión humana al final | `taskctl lote`: rama de lote, sin preguntas, un único PR final (F1-16, F4-7, F4-8, F9-4b) |
+| RR-18 | Lotes desatendidos con revisión humana al final | `taskctl lote`: rama de lote, sin preguntas, un único PR final (P13; F1-16, F4-7, F4-8, F9-4b) |
 | RR-19 | Progreso en vivo: fases que faltan y tiempo estimado | Estimación por fase, status line y `status --seguir`, métricas finales (F1-17, F3-12, F3-13, F4-9, F8-7) |
 
 ## 3. Qué existe y qué aprendemos
@@ -192,6 +192,36 @@ aportación de TaskCodeTwo.
   (RR-13).
 - Decidido (Carlos, 2026-11-13): **repo público**, así que el marketplace y
   las releases se descargan sin credenciales.
+
+### P13 — Lotes desatendidos con revisión humana al final (RR-18)
+
+Hoy se hace en ToolsaWeb, OpenDockTrading y TaskCode como instrucción al
+agente: «arrancar consecutivamente TASK-xxx a TASK-yyy, sin trocear y
+aceptando las recomendaciones en todas las preguntas». Sirve cuando una lista
+de tareas es de documentación o de programación que no necesita revisión
+humana hasta el final, o para dejar una batería de trabajo por la noche.
+Diseño propuesto, a confirmar en la ADR F1-16:
+
+- **Rama de lote**: el lote trabaja sobre `lote/<nombre>` creada desde
+  `develop`. Cada tarea va en su rama, pasa sus puertas automáticas
+  (verificación en CI y revisión IA sin bloqueantes) y **se integra en la rama
+  del lote**, no en `develop`, así que la siguiente tarea ya ve el código de la
+  anterior. Al final, **un único PR del lote contra `develop`** que la persona
+  revisa y aprueba: la puerta humana de siempre, una sola vez.
+- **Política**: solo los carriles permitidos para lote (por ejemplo,
+  documentación y programación sin riesgo alto); una tarea de riesgo alto o
+  con un `[DECIDE CARLOS]` abierto no entra, o para el lote.
+- **Ante un fallo**: un CRÍTICO o IMPORTANTE que no se resuelve en el tope de
+  rondas, o una verificación en rojo, aparta esa tarea (y las que dependen de
+  ella) y el lote sigue con las independientes; nunca integra algo en rojo.
+- **Presupuesto** de tiempo y de tokens para todo el lote; al agotarse, para
+  limpio.
+- **Reanudable**: si se corta (apagado, error), `taskctl lote --reanudar`
+  sigue donde iba sin repetir lo hecho.
+- **Informe de la mañana**: qué se terminó, qué se apartó y por qué, hallazgos
+  sin corregir, tokens y tiempo; enlazado desde el PR del lote.
+- **Nada de esto lo decide el agente**: el lote, su política y sus paradas los
+  ejecuta el CLI de forma determinista (P5).
 
 ### P10 — El plugin es un producto
 
