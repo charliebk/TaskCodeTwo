@@ -121,8 +121,8 @@ borrarlo a mano.
 2. Todo vive en la rama **huérfana** `taskcode/tareas`, que el CLI crea y
    monta como worktree en `tareas/` del worktree principal. `tareas/` va en el
    `.gitignore` de las ramas de código. Versión mínima de Git: 2.42 (por
-   `worktree add --orphan`; con una anterior el CLI la crea con
-   `switch --orphan` en un clon temporal).
+   `worktree add --orphan`; con una anterior, la alternativa prevista, no probada aqui y a verificar en F2-3, es crearla con
+   `switch --orphan` en un clon temporal y montarla despues).
 3. **Contenido del `ROADMAP.md`** (en la raíz de la rama de estado):
    - cabecera `formato N` y zona manual `<!-- manual:inicio/fin -->` de la 0.16;
    - en curso (con quién la lleva), en revisión, planificadas por hito con sus
