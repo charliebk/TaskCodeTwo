@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-002-f1-1-adr-carpeta-fija-por-tarea-y-rama-d
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T02:48:25Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T02:53:41Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T02:53:58Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
