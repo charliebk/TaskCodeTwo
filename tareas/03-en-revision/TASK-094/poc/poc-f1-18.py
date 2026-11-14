@@ -18,9 +18,12 @@ de F1-12 se recalculen con el mismo codigo.
     informe ampliado (bloques de F1-12 recalculados y uso medido),
     `proponer_hito` (un elemento por hueco, bloqueantes aparte) con
     presupuesto, y hash de la copia igual antes y despues.
-(R) Registro `hito-decisiones.yml` en una rama de estado de prueba:
-    `hito_estado` en ausente, abierto, cerrado y no-necesario, mas registros
-    rotos que tienen que salir abierto (falla cerrado).
+(R) Registro `hito-decisiones.yml` en ramas de estado de prueba, con la
+    firma de persona como identidad del autor del commit: `hito_estado` en
+    ausente, abierto, cerrado y no-necesario; ediciones validas sin firma,
+    firmas que no cierran y registros rotos que salen abierto; el flujo de
+    `actualizar` en OpenDockTrading de principio a fin; y mutaciones de
+    control de `hito_estado` que algun caso tiene que delatar.
 (P) Puerta simulada: parada local en `start` (carril declarado) y check
     `estado` del PR (carril por ficheros, F1-10) sobre tareas reales de
     TaskCodeTwo y de OpenDockTrading; determinista en dos llamadas.
@@ -29,7 +32,8 @@ de F1-12 se recalculen con el mismo codigo.
 
 Uso: python -I -B poc-f1-18.py <trabajo> <repo-TaskCodeTwo> <carpeta-Personal>
 Sale con 0 solo si todo sale como se espera. El log (stdout) es determinista;
-los tiempos de reloj van a stderr.
+los tiempos de reloj van a stderr. La carpeta de trabajo se borra al empezar
+y al terminar.
 """
 import hashlib
 import importlib.util
@@ -46,7 +50,7 @@ FIJO_TC2 = "0cc5bc3533e343c1444a4ab232a5fa75d449fe03"   # rama de TASK-094 al em
 H_TAREAS = [f"TASK-{n:03d}" for n in range(2, 14)]      # ADR F1-1..F1-12
 RAMA_ESTADO = "taskcodetwo/tareas"
 FIN = ("terminada", "descartada")
-COD_PRECONDICION = 4                                    # el de F1-12 (F1-4 deja los numeros a F2)
+COD_RECHAZADA = 3          # `rechazada` del contrato de salida de F1-4 (4 es `sinred` en F1-2 y F1-4); lo fija F2-3
 AREAS_INIT = ("pila", "verificacion", "ramas y puertas", "seguridad", "equipo", "plataforma")
 FALLOS = []
 MEDIDO = {}
@@ -403,18 +407,28 @@ def seccion_a(personal, trabajo, h):
 
 
 # ---------------------------------------------------------------------------
-# R: registro hito-decisiones.yml y hito_estado
+# R: registro hito-decisiones.yml, firma de persona y hito_estado
 # ---------------------------------------------------------------------------
+# La firma de una persona es el commit de la rama de estado que escribe el registro con su identidad
+# (mismo mecanismo que `approve`, F1-6 y F2-13). En la PoC la identidad es el correo del autor del commit:
+# PERSONAS lo son; AGENTE no. Que esa identidad sea de verdad una persona no lo comprueba la PoC (F2-13).
+
+PERSONA = ("carlos", "carlos@persona.invalid")
+AGENTE = ("agente", "agente@agente.invalid")
+PERSONAS = frozenset({PERSONA[1]})
+COMPROBACIONES = ("firma", "marca", "descartes", "por")      # las desactivan las mutaciones de control
+
 
 def q(v):
     return F12.q(v)
 
 
-def registro_yml(origen, informe_hash, tareas, no_necesario=None):
+def registro_yml(origen, informe_hash, tareas, descartadas=None, no_necesario=None):
     nn = "null" if no_necesario is None else \
         "{" + ", ".join(f"{k}: {q(no_necesario[k])}" for k in ("por", "fecha", "motivo") if k in no_necesario) + "}"
+    ds = "{" + ", ".join(f"{q(k)}: {q(v)}" for k, v in sorted((descartadas or {}).items())) + "}"
     return (f"formato: 2\norigen: {q(origen)}\ninforme_hash: {q(informe_hash)}\n"
-            f"tareas: [{', '.join(q(t) for t in tareas)}]\nno_necesario: {nn}\n")
+            f"tareas: [{', '.join(q(t) for t in tareas)}]\ndescartadas: {ds}\nno_necesario: {nn}\n")
 
 
 def leer_en(repo, ref, ruta):
@@ -422,62 +436,121 @@ def leer_en(repo, ref, ruta):
     return r.stdout.decode("utf-8") if r.returncode == 0 else None
 
 
-def hito_estado(repo, ref=RAMA_ESTADO):
-    """(estado, motivo). El estado se calcula, no se guarda. Un registro roto sale `abierto` (falla cerrado)."""
-    texto = leer_en(repo, ref, "hito-decisiones.yml")
-    if texto is None:
-        return "ausente", "no hay hito-decisiones.yml"
+def validar_registro(texto):
+    """(registro, None) o (None, motivo) para un texto de hito-decisiones.yml."""
     try:
         reg = yaml.safe_load(texto)
     except yaml.YAMLError:
-        return "abierto", "registro ilegible"
+        return None, "registro ilegible"
     if not isinstance(reg, dict) or reg.get("formato") != 2 or reg.get("origen") not in ("init", "actualizar"):
-        return "abierto", "registro sin formato 2 u origen"
+        return None, "registro sin formato 2 u origen"
+    if not isinstance(reg.get("informe_hash"), str) or not reg["informe_hash"].strip():
+        return None, "registro sin informe_hash"
     tareas = reg.get("tareas")
     if not isinstance(tareas, list) or not all(isinstance(t, str) and re.fullmatch(r"TASK-\d+[a-z]?", t) for t in tareas):
-        return "abierto", "lista de tareas invalida"
+        return None, "lista de tareas invalida"
+    ds = reg.get("descartadas") or {}
+    if not isinstance(ds, dict) or not all(isinstance(v, str) and v.strip() for v in ds.values()):
+        return None, "descartadas sin motivo"
     nn = reg.get("no_necesario")
-    if nn is not None:
-        if (isinstance(nn, dict) and all(isinstance(nn.get(k), str) and nn[k].strip() for k in ("por", "fecha", "motivo"))
-                and isinstance(reg.get("informe_hash"), str) and reg["informe_hash"].strip()):
-            return "no-necesario", f"firmado por {nn['por']}"
-        return "abierto", "no_necesario sin por, fecha, motivo o informe_hash"
-    if not tareas:
-        return "abierto", "lista vacia sin firma de no necesario"
-    pendientes = []
+    if nn is not None and not (isinstance(nn, dict)
+                               and all(isinstance(nn.get(k), str) and nn[k].strip() for k in ("por", "fecha", "motivo"))):
+        return None, "no_necesario sin por, fecha o motivo"
+    reg["descartadas"] = ds
+    return reg, None
+
+
+def version_firmada(repo, ref, personas):
+    """(sha, autor, texto) del ultimo commit de `ref` que escribe el registro con identidad de persona, o None."""
+    out = F12.git(repo, "log", "--format=%H%x09%ae", ref, "--", "hito-decisiones.yml")
+    for l in out.splitlines():
+        sha, autor = l.split("\t")
+        if autor in personas:
+            return sha, autor, leer_en(repo, sha, "hito-decisiones.yml")
+    return None
+
+
+def hito_estado(repo, ref=RAMA_ESTADO, personas=PERSONAS, desactivar=()):
+    """(estado, motivo, tareas_del_hito). Se calcula, no se guarda; todo lo que no es cerrado o no-necesario
+    sale abierto (falla cerrado). `tareas_del_hito` sale siempre de la version firmada."""
+    texto = leer_en(repo, ref, "hito-decisiones.yml")
+    if texto is None:
+        return "ausente", "no hay hito-decisiones.yml", []
+    reg, mal = validar_registro(texto)
+    if reg is None:
+        return "abierto", mal, []
+    if "firma" not in desactivar:
+        vf = version_firmada(repo, ref, personas)
+        if vf is None:
+            return "abierto", "registro sin firma de persona", []
+        sha, autor, texto_f = vf
+        reg_f, mal_f = validar_registro(texto_f) if texto_f is not None else (None, "borrado")
+        if reg_f is None:
+            return "abierto", f"version firmada invalida: {mal_f}", []
+    else:
+        sha, autor, reg_f = None, None, reg
+    tareas = reg_f["tareas"]
+    marcadas = []
     for t in tareas:
         md = leer_en(repo, ref, f"{t}/tarea.md")
-        if md is None:
-            pendientes.append(f"{t} no existe")
-            continue
         try:
-            est = yaml.safe_load(F12.partir(md)[0]).get("estado")
-        except Exception:      # noqa: BLE001 - frontmatter roto cuenta como pendiente
-            est = None
-        if est not in FIN:
-            pendientes.append(f"{t} {est}")
+            fm = yaml.safe_load(F12.partir(md)[0]) if md else None
+        except Exception:      # noqa: BLE001 - frontmatter roto: no cuenta como tarea del hito
+            fm = None
+        if fm is not None and (fm.get("hito") is True or "marca" in desactivar):
+            marcadas.append((t, fm))
+    validas = [t for t, _ in marcadas]
+    if reg != reg_f:
+        return "abierto", f"registro distinto de la version firmada ({sha[:12]})", validas
+    nn = reg_f.get("no_necesario")
+    if nn is not None:
+        if "por" not in desactivar and nn["por"] != autor:
+            return "abierto", "no_necesario firmado por otra identidad que la del commit", validas
+        return "no-necesario", f"firmado por {nn['por']}", validas
+    if not tareas:
+        return "abierto", "lista vacia sin firma de no necesario", validas
+    pendientes = [f"{t} no es tarea del hito" for t in tareas if t not in validas]
+    for t, fm in marcadas:
+        est = fm.get("estado")
+        if est == "terminada":
+            continue
+        if est == "descartada" and ("descartes" in desactivar or t in reg_f["descartadas"]):
+            continue
+        pendientes.append(f"{t} descartada sin motivo firmado" if est == "descartada" else f"{t} {est}")
     if pendientes:
-        return "abierto", f"{len(tareas) - len(pendientes)} de {len(tareas)} terminadas o descartadas"
-    return "cerrado", f"{len(tareas)} de {len(tareas)} terminadas o descartadas"
+        return "abierto", f"{len(tareas) - len(pendientes)} de {len(tareas)} cerradas; {pendientes[0]}", validas
+    return "cerrado", f"{len(tareas)} de {len(tareas)} terminadas o descartadas con motivo firmado", validas
 
 
-def tarea_f2(tid, titulo, estado, carril=None):
-    return (f"---\nformato: 2\nid: {q(tid)}\ntitulo: {q(titulo)}\ncarril: {q(carril)}\nestado: {q(estado)}\n---\n"
-            f"## Objetivo\n\nTarea sintetica de la PoC de F1-18.\n")
+def tarea_f2(tid, titulo, estado, hito=False, carril=None):
+    return (f"---\nformato: 2\nid: {q(tid)}\ntitulo: {q(titulo)}\ncarril: {q(carril)}\nestado: {q(estado)}\n"
+            f"hito: {'true' if hito else 'false'}\n---\n## Objetivo\n\nTarea sintetica de la PoC de F1-18.\n")
 
 
-def commit_estado(repo, ficheros, borrar=()):
-    """Escribe y borra ficheros en la rama de estado de prueba y hace un commit. Devuelve el SHA."""
+def commit_estado(repo, ficheros, autor, mensaje="poc: estado de prueba"):
+    """Escribe ficheros en la rama de estado de prueba y hace un commit con la identidad `autor`."""
     for ruta, texto in ficheros.items():
         p = os.path.join(repo, ruta)
         os.makedirs(os.path.dirname(p) or repo, exist_ok=True)
         with open(p, "w", encoding="utf-8", newline="\n") as f:
             f.write(texto)
-    for ruta in borrar:
-        F12.git(repo, "rm", "-q", "--ignore-unmatch", ruta)
     F12.git(repo, "add", "-A")
-    F12.git(repo, "commit", "-q", "--allow-empty", "-m", "poc: estado de prueba")
+    e = F12.env_git()
+    e.update({"GIT_AUTHOR_NAME": autor[0], "GIT_AUTHOR_EMAIL": autor[1],
+              "GIT_COMMITTER_NAME": autor[0], "GIT_COMMITTER_EMAIL": autor[1]})
+    F12.run(["git", "-C", repo, "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", "commit", "-q",
+             "--allow-empty", "-m", mensaje], env=e)
     return F12.git(repo, "rev-parse", "HEAD").strip()
+
+
+def nueva_rama_estado(trabajo, nombre, tareas, hito_ids=()):
+    """Repo de prueba con la rama `taskcodetwo/tareas` y las tareas aplanadas (estado de su carpeta)."""
+    repo = os.path.join(trabajo, nombre)
+    F12.run(["git", "init", "-q", repo])
+    F12.git(repo, "symbolic-ref", "HEAD", f"refs/heads/{RAMA_ESTADO}")
+    fich = {f"{tid}/tarea.md": tarea_f2(tid, t["fm"].get("titulo"), F12.CARPETA_ESTADO[t["carpeta"]], tid in hito_ids)
+            for tid, t in sorted(tareas.items())}
+    return repo, commit_estado(repo, fich, AGENTE, "poc: tareas migradas (actualizar, identidad del agente)")
 
 
 def hito_tc2(tareas):
@@ -485,53 +558,165 @@ def hito_tc2(tareas):
     return sorted(tid for tid, t in tareas.items() if re.match(r"F1-\d+ ADR", str(t["fm"].get("titulo"))))
 
 
-def seccion_r(trabajo, tareas_tc2, ih_odt):
-    sep("R: registro hito-decisiones.yml en una rama de estado de prueba y hito_estado")
-    repo = os.path.join(trabajo, "estado-prueba")
-    F12.run(["git", "init", "-q", repo])
-    F12.git(repo, "symbolic-ref", "HEAD", f"refs/heads/{RAMA_ESTADO}")
-    # las tareas reales de TaskCodeTwo en el commit fijo, aplanadas, con el estado de su carpeta
-    fich = {f"{tid}/tarea.md": tarea_f2(tid, t["fm"].get("titulo"), F12.CARPETA_ESTADO[t["carpeta"]])
-            for tid, t in sorted(tareas_tc2.items())}
+def comprobar_caso(repo, sha, esperado, desc, casos_r):
+    e1 = hito_estado(repo, sha)
+    e2 = hito_estado(repo, sha)
+    ok = e1[0] == esperado and e1 == e2
+    print(f"{desc}: {e1[0]} ({e1[1]}) ; tareas del hito {len(e1[2])} ; segunda llamada "
+          f"{'igual' if e1 == e2 else 'DISTINTA'}{'' if ok else ' ; FALLO: se esperaba ' + esperado}")
+    if not ok:
+        falla("R", f"{desc}: {e1[0]}, se esperaba {esperado}")
+    casos_r.append((repo, sha, esperado, desc))
+    return e1
+
+
+def start_en(repo, sha, estado, validas):
+    """La parada de `start` sobre las tareas planificadas y en curso de la rama de estado de prueba."""
+    pasa = niega = 0
+    for l in F12.git(repo, "ls-tree", "--name-only", sha).splitlines():
+        md = leer_en(repo, sha, f"{l}/tarea.md")
+        if not md:
+            continue
+        fm = yaml.safe_load(F12.partir(md)[0])
+        if fm.get("estado") not in ("planificada", "en-curso"):
+            continue
+        if puerta(fm["id"], fm.get("carril"), estado, validas)[0] == 0:
+            pasa += 1
+        else:
+            niega += 1
+    return f"{pasa} / {niega}"
+
+
+def seccion_r(trabajo, tareas_tc2, tareas_odt, props_odt, ih_odt):
+    sep("R: registro hito-decisiones.yml, firma de persona y hito_estado (ramas de estado de prueba)")
+    casos_r = []
+    firma_nn = {"por": PERSONA[1], "fecha": "2026-11-14", "motivo": "proyecto sin decisiones pendientes"}
+
+    # R1: TaskCodeTwo, relevo (F4-5): `tc2 hito abrir --tareas <las 18 ADR>` lo lanza la persona
+    print("-- R1: TaskCodeTwo (tareas reales en 0cc5bc3; hito = las ADR de la Fase 1)")
     hito = hito_tc2(tareas_tc2)
     term = [t for t in hito if F12.CARPETA_ESTADO[tareas_tc2[t]["carpeta"]] in FIN]
-    casos = []
-    sha = commit_estado(repo, fich)
-    casos.append(("ausente", "sin registro", sha))
-    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml("init", "sin-informe", hito)})
-    casos.append(("abierto", f"TaskCodeTwo real: las {len(hito)} ADR de la Fase 1", sha))
-    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml("init", "sin-informe", term)})
-    casos.append(("cerrado", f"solo las {len(term)} ADR terminadas", sha))
-    firma = {"por": "carlos (persona)", "fecha": "2026-11-14", "motivo": "proyecto sin decisiones pendientes"}
-    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml("actualizar", ih_odt, [], firma)})
-    casos.append(("no-necesario", "lista vacia, firmado con motivo e informe_hash", sha))
-    # registros rotos o editados a mano: tienen que salir abierto
+    repo, sha = nueva_rama_estado(trabajo, "estado-tc2", tareas_tc2)
+    comprobar_caso(repo, sha, "ausente", "sin registro", casos_r)
+    marcas = {f"{t}/tarea.md": tarea_f2(t, tareas_tc2[t]["fm"].get("titulo"),
+                                        F12.CARPETA_ESTADO[tareas_tc2[t]["carpeta"]], True) for t in hito}
+    firmado = commit_estado(repo, dict(marcas, **{"hito-decisiones.yml": registro_yml("init", "fase-1", hito)}),
+                            PERSONA, "tc2 hito abrir --tareas (persona)")
+    e = comprobar_caso(repo, firmado, "abierto", f"TaskCodeTwo real: las {len(hito)} ADR de la Fase 1", casos_r)
+    MEDIDO[f"hito_estado: TaskCodeTwo real: las {len(hito)} ADR de la Fase 1"] = f"{e[0]} ({e[1].split(';')[0]})"
+    hito_valido_tc2 = e[2]
+    # ediciones maliciosas validas, con la identidad del agente, sobre el registro firmado
+    malas = [
+        ("lista cambiada a TASK-001 solo", {"hito-decisiones.yml": registro_yml("init", "fase-1", ["TASK-001"])}),
+        ("ID de codigo anadido a la lista (TASK-016)",
+         {"hito-decisiones.yml": registro_yml("init", "fase-1", hito + ["TASK-016"])}),
+        ("lista reducida a las 12 terminadas", {"hito-decisiones.yml": registro_yml("init", "fase-1", term)}),
+        ("no_necesario escrito por el agente",
+         {"hito-decisiones.yml": registro_yml("init", "fase-1", hito, no_necesario=firma_nn)}),
+        ("todas las pendientes descartadas en su tarea.md",
+         {f"{t}/tarea.md": tarea_f2(t, tareas_tc2[t]["fm"].get("titulo"), "descartada", True)
+          for t in hito if t not in term}),
+    ]
+    abiertas = 0
+    for desc, fich in malas:
+        F12.git(repo, "reset", "-q", "--hard", firmado)
+        sha = commit_estado(repo, fich, AGENTE, f"agente: {desc}")
+        e = comprobar_caso(repo, sha, "abierto", f"edicion valida sin firma: {desc}", casos_r)
+        abiertas += e[0] == "abierto"
+        if e[2] != hito_valido_tc2:
+            falla("R", f"{desc}: las tareas del hito no son las de la version firmada")
+        if desc.startswith("ID de codigo") and puerta("TASK-016", None, e[0], e[2])[0] == 0:
+            falla("R", "el ID de codigo metido sin firma pasa la puerta")
+    MEDIDO["hito_estado: ediciones validas sin firma de persona que salen abierto"] = f"{abiertas}/{len(malas)}"
+    # firmado por la persona pero que no cierra
+    F12.git(repo, "reset", "-q", "--hard", firmado)
+    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml("init", "fase-1", ["TASK-001"])}, PERSONA,
+                        "persona firma una lista con una tarea que no es del hito")
+    e = comprobar_caso(repo, sha, "abierto", "firmado: lista con TASK-001 (sin hito: true)", casos_r)
+    MEDIDO["hito_estado: firmado, lista con TASK-001 (sin hito: true)"] = f"{e[0]} ({e[1].split('; ')[1]})"
+    F12.git(repo, "reset", "-q", "--hard", firmado)
+    pend = [t for t in hito if t not in term]
+    commit_estado(repo, {f"{t}/tarea.md": tarea_f2(t, tareas_tc2[t]["fm"].get("titulo"), "descartada", True)
+                         for t in pend}, AGENTE, "agente: descarta las pendientes")
+    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml(
+        "init", "fase-1", hito, {t: "decision tomada en otro ADR" for t in pend})}, PERSONA,
+        "tc2 hito descartar (persona, con motivo)")
+    e = comprobar_caso(repo, sha, "cerrado", "firmado: pendientes descartadas con motivo firmado", casos_r)
+    MEDIDO["hito_estado: firmado, pendientes descartadas con motivo firmado"] = e[0]
+    F12.git(repo, "reset", "-q", "--hard", firmado)
+    sha = commit_estado(repo, {"hito-decisiones.yml": registro_yml("init", "fase-1", hito, no_necesario=dict(
+        firma_nn, por="otra@persona.invalid"))}, PERSONA, "persona firma no_necesario a nombre de otro")
+    e = comprobar_caso(repo, sha, "abierto", "firmado: no_necesario a nombre de otra identidad", casos_r)
+    # registros rotos: abierto
     rotos = [
-        ("firma sin motivo", registro_yml("actualizar", ih_odt, [], {"por": "carlos", "fecha": "2026-11-14"})),
-        ("firma sin informe_hash", registro_yml("actualizar", "", [], firma)),
+        ("firma sin motivo", registro_yml("actualizar", ih_odt, [], no_necesario={"por": PERSONA[1], "fecha": "x"})),
+        ("sin informe_hash", registro_yml("actualizar", "", [], no_necesario=firma_nn)),
         ("lista vacia sin firma", registro_yml("init", "x", [])),
-        ("tarea que no existe", registro_yml("init", "x", term + ["TASK-999"])),
+        ("tarea que no existe", registro_yml("init", "fase-1", term + ["TASK-999"])),
         ("YAML ilegible", "formato: 2\ntareas: [\n"),
         ("sin formato 2", registro_yml("init", "x", term).replace("formato: 2", "formato: 1")),
     ]
-    for nombre, texto in rotos:
-        sha = commit_estado(repo, {"hito-decisiones.yml": texto})
-        casos.append(("abierto", f"roto: {nombre}", sha))
-    res = {}
-    for esperado, desc, sha in casos:
-        e1, m1 = hito_estado(repo, sha)
-        e2, m2 = hito_estado(repo, sha)
-        ok = e1 == esperado and (e1, m1) == (e2, m2)
-        print(f"{desc}: {e1} ({m1}) ; segunda llamada {'igual' if (e1, m1) == (e2, m2) else 'DISTINTA'}"
-              f"{'' if ok else ' ; FALLO: se esperaba ' + esperado}")
-        if not ok:
-            falla("R", f"{desc}: {e1}, se esperaba {esperado}")
-        res[desc] = (e1, m1, sha)
-        if not desc.startswith("roto"):
-            MEDIDO[f"hito_estado: {desc}"] = f"{e1} ({m1})"
-    MEDIDO["hito_estado: registros rotos que salen abierto"] = \
-        f"{sum(1 for d, v in res.items() if d.startswith('roto') and v[0] == 'abierto')}/{len(rotos)}"
-    return repo, res, hito, term
+    n_rotos = 0
+    for desc, texto in rotos:
+        F12.git(repo, "reset", "-q", "--hard", firmado)
+        sha = commit_estado(repo, {"hito-decisiones.yml": texto}, PERSONA, f"roto: {desc}")
+        n_rotos += comprobar_caso(repo, sha, "abierto", f"roto (firmado): {desc}", casos_r)[0] == "abierto"
+    MEDIDO["hito_estado: registros rotos que salen abierto"] = f"{n_rotos}/{len(rotos)}"
+    F12.git(repo, "reset", "-q", "--hard", firmado)
+    sha = commit_estado(repo, {f"{t}/tarea.md": tarea_f2(t, tareas_tc2[t]["fm"].get("titulo"), "terminada", True)
+                               for t in pend}, AGENTE, "agente: transiciones a terminada")
+    e = comprobar_caso(repo, sha, "cerrado", "transiciones del agente: las 18 terminadas", casos_r)
+    MEDIDO["hito_estado: TaskCodeTwo con las 18 ADR terminadas (lista firmada sin cambios)"] = f"{e[0]} ({e[1]})"
+
+    # R2: flujo de `actualizar` en OpenDockTrading, de principio a fin
+    print("-- R2: OpenDockTrading tras `tc2 actualizar` (tareas reales en 8141a08) y propuesta con la 2.0.0 prevista")
+    prop = props_odt["2.0.0 prevista"]
+    nuevos = [x["id"] for x in prop["elementos"]]
+    repo, sha = nueva_rama_estado(trabajo, "estado-odt", tareas_odt)
+    flujo = []
+    e = comprobar_caso(repo, sha, "ausente", "1. migrado, sin registro", casos_r)
+    flujo.append(("1. migrado (actualizar no escribe el registro)", e, start_en(repo, sha, e[0], e[2])))
+    # agente intenta abrir o declarar no necesario: queda sin firma
+    sha_ag = commit_estado(repo, {"hito-decisiones.yml": registro_yml("actualizar", prop["informe_hash"], [],
+                                                                      no_necesario=dict(firma_nn, por=AGENTE[1]))},
+                           AGENTE, "agente: tc2 hito no-necesario (rechazado)")
+    e = comprobar_caso(repo, sha_ag, "abierto", "1b. no-necesario escrito por el agente", casos_r)
+    flujo.append(("1b. el agente escribe no-necesario", e, start_en(repo, sha_ag, e[0], e[2])))
+    F12.git(repo, "reset", "-q", "--hard", sha)
+    alta = {f"{x['id']}/tarea.md": tarea_f2(x["id"], x["titulo"], "planificada", True) for x in prop["elementos"]}
+    alta["hito-decisiones.yml"] = registro_yml("actualizar", prop["informe_hash"], nuevos)
+    sha2 = commit_estado(repo, alta, PERSONA, "tc2 hito abrir --desde <propuesta> (persona)")
+    e = comprobar_caso(repo, sha2, "abierto", f"2. tc2 hito abrir --desde la propuesta ({len(nuevos)} elementos)", casos_r)
+    flujo.append(("2. la persona abre el hito con la propuesta", e, start_en(repo, sha2, e[0], e[2])))
+    hito_valido_odt = e[2]
+    titulos = {x["id"]: x["titulo"] for x in prop["elementos"]}
+    sha3 = commit_estado(repo, {f"{t}/tarea.md": tarea_f2(t, titulos[t], "terminada", True) for t in nuevos},
+                         AGENTE, "agente: transiciones a terminada")
+    e = comprobar_caso(repo, sha3, "cerrado", "3. tareas del hito terminadas", casos_r)
+    flujo.append(("3. el agente termina las tareas del hito", e, start_en(repo, sha3, e[0], e[2])))
+    F12.git(repo, "reset", "-q", "--hard", sha)
+    sha4 = commit_estado(repo, {"hito-decisiones.yml": registro_yml("actualizar", prop["informe_hash"], [],
+                                                                    no_necesario=firma_nn)},
+                         PERSONA, "tc2 hito no-necesario --desde <informe> (persona, sin registro previo)")
+    e = comprobar_caso(repo, sha4, "no-necesario", "2'. tc2 hito no-necesario sobre un registro ausente", casos_r)
+    flujo.append(("2'. la persona firma no-necesario sin registro previo", e, start_en(repo, sha4, e[0], e[2])))
+    for desc, e, st in flujo:
+        print(f"   {desc}: {e[0]} ; start pasa / se niega {st}")
+        MEDIDO[f"flujo actualizar OpenDockTrading: {desc}"] = f"{e[0]} ; start {st}"
+
+    # mutaciones de control de hito_estado: cada comprobacion desactivada la tiene que delatar algun caso
+    print("-- mutaciones de control de hito_estado")
+    detectadas = 0
+    for c in COMPROBACIONES:
+        delatan = [d for r, s, esp, d in casos_r if hito_estado(r, s, desactivar=(c,))[0] != esp]
+        print(f"   sin la comprobacion «{c}»: {'detectada por ' + str(len(delatan)) + ' casos' if delatan else 'NO DETECTADA'}"
+              f"{' (' + delatan[0] + ')' if delatan else ''}")
+        detectadas += bool(delatan)
+        if not delatan:
+            falla("R", f"la mutacion sin «{c}» no la detecta ningun caso")
+    MEDIDO["hito_estado: mutaciones de control detectadas"] = f"{detectadas}/{len(COMPROBACIONES)}"
+    MEDIDO["hito_estado: casos comprobados"] = str(len(casos_r))
+    return hito_valido_tc2, hito_valido_odt
 
 
 # ---------------------------------------------------------------------------
@@ -539,14 +724,15 @@ def seccion_r(trabajo, tareas_tc2, ih_odt):
 # ---------------------------------------------------------------------------
 
 def puerta(tid, carril, estado, tareas_hito):
-    """(codigo, motivo) de la puerta: parada de `tc2 start` o check `estado` (misma funcion pura)."""
+    """(codigo, linea) de la puerta: parada de `tc2 start` o check `estado` (misma funcion pura).
+    `tareas_hito` es la lista de la version firmada (hito_estado)."""
     if estado in ("cerrado", "no-necesario"):
-        return 0, f"hito {estado}"
+        return 0, f"start ok id={tid} hito={estado}"
     if tid in tareas_hito:
-        return 0, "tarea del hito"
+        return 0, f"start ok id={tid} hito={estado} tarea-del-hito=si"
     if carril == "errata":
-        return 0, "carril errata"
-    return COD_PRECONDICION, f"hito de decisiones {estado}: cierralo o firma `tc2 hito no-necesario` (ver `tc2 hito estado`)"
+        return 0, f"start ok id={tid} hito={estado} carril=errata"
+    return COD_RECHAZADA, f"start rechazada id={tid} motivo=hito-{estado}"
 
 
 def carril_por_ficheros(repo, merge):
@@ -573,7 +759,7 @@ def merges_de_tarea(repo, rev):
     return sorted(res)
 
 
-def simular(repo_tareas, tareas, merges, estado, tareas_hito, repo_merges):
+def simular(tareas, merges, estado, tareas_hito, repo_merges):
     """Una pasada de la puerta: `start` sobre planificadas y en curso, check `estado` sobre los PR ya mergeados."""
     start = {}
     for tid, t in sorted(tareas.items()):
@@ -596,23 +782,24 @@ def resumen_puerta(start, check):
     return s_pasa, s_neg, c_err, c_pasa, c_rojo
 
 
-def seccion_p(repo_tc2, tareas_tc2, hito_tc2_ids, copia_odt, props_odt):
+def seccion_p(repo_tc2, tareas_tc2, hito_tc2_ids, copia_odt, tareas_odt, hito_odt):
     sep("P: puerta simulada (parada local en start y check estado del PR) sobre tareas reales")
-    tareas_odt = F12.tareas_016(copia_odt, F12.FIJO_ODT)
     merges_tc2 = merges_de_tarea(repo_tc2, FIJO_TC2)
     merges_odt = merges_de_tarea(copia_odt, F12.FIJO_ODT)
-    hito_odt = [e["id"] for e in props_odt["sin 2.0"]["elementos"]]
     declaradas = sum(1 for t in list(tareas_tc2.values()) + list(tareas_odt.values()) if t["fm"].get("carril"))
     print(f"tareas con carril declarado (la 0.16 no tiene el campo): {declaradas}")
     MEDIDO["P: tareas con carril declarado en TaskCodeTwo y OpenDockTrading"] = str(declaradas)
+    print(f"codigo de la negativa: {COD_RECHAZADA} (`rechazada` del contrato de F1-4) ; linea: "
+          f"{puerta('TASK-016', None, 'abierto', [])[1]}")
+    MEDIDO["P: codigo y linea de la negativa"] = f"{COD_RECHAZADA}, {puerta('TASK-016', None, 'abierto', [])[1]}"
     for proyecto, repo, tareas, merges, hito in (
             ("TaskCodeTwo", repo_tc2, tareas_tc2, merges_tc2, hito_tc2_ids),
             ("OpenDockTrading", copia_odt, tareas_odt, merges_odt, hito_odt)):
-        print(f"-- {proyecto}: tareas del hito {len(hito)} ; PR de tarea mergeados {len(merges)}")
+        print(f"-- {proyecto}: tareas del hito (version firmada) {len(hito)} ; PR de tarea mergeados {len(merges)}")
         for estado in ("ausente", "abierto", "cerrado", "no-necesario"):
             h_ef = [] if estado == "ausente" else hito      # sin registro no hay tareas del hito
-            r1 = simular(repo, tareas, merges, estado, h_ef, repo)
-            r2 = simular(repo, tareas, merges, estado, h_ef, repo)
+            r1 = simular(tareas, merges, estado, h_ef, repo)
+            r2 = simular(tareas, merges, estado, h_ef, repo)
             if r1 != r2:
                 falla("P", f"{proyecto} {estado}: dos llamadas distintas")
             s_pasa, s_neg, c_err, c_pasa, c_rojo = resumen_puerta(*r1)
@@ -623,13 +810,12 @@ def seccion_p(repo_tc2, tareas_tc2, hito_tc2_ids, copia_odt, props_odt):
             MEDIDO[f"P {proyecto}, hito {estado}: start pasa / se niega"] = f"{len(s_pasa)} / {len(s_neg)}"
             MEDIDO[f"P {proyecto}, hito {estado}: check estado verde / rojo"] = f"{len(c_pasa)} / {len(c_rojo)}"
             if estado in ("abierto", "ausente"):
-                # comprobaciones: abierto o ausente niega toda tarea de codigo y deja pasar hito y errata
                 malos = [t for t, v in r1[0].items() if (v[0] == 0) != (t in h_ef)]
                 malos += [t for t, v in r1[1].items() if (v[1] == 0) != (t in h_ef or v[0] == "errata")]
                 if malos:
                     falla("P", f"{proyecto} {estado}: puerta incoherente en {malos[:5]}")
-                if {v[0] for v in r1[0].values() if v[0]} - {COD_PRECONDICION}:
-                    falla("P", f"{proyecto}: codigo distinto de {COD_PRECONDICION}")
+                if set(codigos) - {0, COD_RECHAZADA}:
+                    falla("P", f"{proyecto}: codigo distinto de 0 y {COD_RECHAZADA}")
             if estado == "abierto":
                 print(f"      start pasa: {', '.join(s_pasa) or 'ninguna'}")
                 print(f"      PR errata (solo docs/): {', '.join(c_err) or 'ninguno'}")
@@ -649,6 +835,10 @@ SECCIONES = ["## Contexto", "## Alternativas", "## Pruebas de concepto", "## Có
              "## Requisitos y evidencia", "## Consecuencias", "## Fuera de alcance", "## Divergencias con el plan",
              "## Preguntas abiertas", "## No verificado"]
 ID_PROPIO = "F1-18"
+
+
+FRASES_OBLIGATORIAS = ("la lista `tareas` la fija una persona", "código `rechazada` (3) del contrato de F1-4")
+FRASES_PROHIBIDAS = ("4, el de F1-12",)
 
 
 def errores_adr(adr, ruta, repo_tc2, medido, con_indice=True):
@@ -684,6 +874,12 @@ def errores_adr(adr, ruta, repo_tc2, medido, con_indice=True):
         err.append(f"faltan secciones {faltan}")
     if not re.search(r"^- Estado: \*\*aceptada\*\*", adr, re.M):
         err.append("el estado no es aceptada")
+    for frase in FRASES_OBLIGATORIAS:
+        if frase not in re.sub(r"\s+", " ", adr):
+            err.append(f"falta la regla: {frase}")
+    for frase in FRASES_PROHIBIDAS:
+        if frase in re.sub(r"\s+", " ", adr):
+            err.append(f"afirmacion sin fuente: {frase}")
     req = open(os.path.join(repo_tc2, "docs", "plan", "REQUISITOS-FUNCIONALES.md"), encoding="utf-8").read()
     plan = open(os.path.join(repo_tc2, "docs", "plan", "PLAN-TASKCODE-2.md"), encoding="utf-8").read()
     ids_r = sorted(set(re.findall(r"\b(R[RFN]-\d+)\b", adr)))
@@ -733,6 +929,13 @@ def mutaciones(adr):
         ("sin-fila-f1-18-propuesta", re.sub(r"^(\s*)\| F1-18 \|", r"\1| F1-18bis |", adr, flags=re.M),
          "F1-18 no esta en el plan"),
         ("estado-propuesta", adr.replace("- Estado: **aceptada**", "- Estado: **propuesta**"), "el estado no es aceptada"),
+        ("sin-regla-de-firma", re.sub(r"la lista\s+`tareas`\s+la\s+fija\s+una\s+persona", "la lista `tareas` la escribe cualquiera",
+                                      adr), "falta la regla: la lista `tareas` la fija una persona"),
+        ("codigo-4-de-f1-12", adr.replace("## Contexto", "## Contexto\n\nCódigo 4, el de F1-12.", 1),
+         "afirmacion sin fuente: 4, el de F1-12"),
+        ("cifra-firma-cambiada", re.sub(r"(\| hito_estado: ediciones validas sin firma de persona que salen abierto \| `)(\d+)",
+                                        lambda m: m.group(1) + str(int(m.group(2)) - 1), adr),
+         "hito_estado: ediciones validas sin firma de persona que salen abierto: el ADR dice"),
     ]
 
 
@@ -780,18 +983,26 @@ def main():
     open(os.path.join(trabajo, MARCA), "w", encoding="utf-8").write("carpeta de trabajo de poc-f1-18.py\n")
     print(f"PoC F1-18 ; TaskCodeTwo {FIJO_TC2[:7]} ; OpenDockTrading {F12.FIJO_ODT[:9]} ; Python {sys.version.split()[0]} ; "
           f"PyYAML {yaml.__version__} ; {F12.git(trabajo, 'version').strip()}")
-    h, tareas_tc2 = seccion_h(repo_tc2)
-    tiempo("H")
-    copia, inf, ih, props = seccion_a(personal, trabajo, h)
-    tiempo("A")
-    _, _, hito, _ = seccion_r(trabajo, tareas_tc2, ih)
-    tiempo("R")
-    seccion_p(repo_tc2, tareas_tc2, hito, copia, props)
-    tiempo("P")
-    seccion_g(repo_tc2)
-    if F12.FALLOS:
-        for f in F12.FALLOS:
-            falla("F1-12", f)
+    try:
+        h, tareas_tc2 = seccion_h(repo_tc2)
+        tiempo("H")
+        copia, inf, ih, props = seccion_a(personal, trabajo, h)
+        tareas_odt = F12.tareas_016(copia, F12.FIJO_ODT)
+        tiempo("A")
+        hito_tc2_ids, hito_odt = seccion_r(trabajo, tareas_tc2, tareas_odt, props, ih)
+        tiempo("R")
+        seccion_p(repo_tc2, tareas_tc2, hito_tc2_ids, copia, tareas_odt, hito_odt)
+        tiempo("P")
+        seccion_g(repo_tc2)
+        if F12.FALLOS:
+            for f in F12.FALLOS:
+                falla("F1-12", f)
+    finally:
+        F12.borrar(trabajo)         # la carpeta de trabajo se borra al terminar, tambien si algo falla
+    print()
+    print(f"carpeta de trabajo borrada al terminar: {'no' if os.path.lexists(trabajo) else 'si'}")
+    if os.path.lexists(trabajo):
+        falla("main", "la carpeta de trabajo sigue existiendo")
     print()
     if FALLOS:
         print(f"RESULTADO: {len(FALLOS)} fallos")
