@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-006-f1-5-adr-puertas-en-github
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F1-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T05:45:04Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T05:48:33Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T05:48:34Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
