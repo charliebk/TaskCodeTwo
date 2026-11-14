@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
 
-## Planificadas (00-planificadas) — 89
+## Planificadas (00-planificadas) — 88
 
 ```text
 ID        Titulo                                                                 Asignado
 --------  ---------------------------------------------------------------------  -------------
-TASK-005  F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato    (sin asignar)
 TASK-006  F1-5 ADR puertas en GitHub                                             (sin asignar)
 TASK-007  F1-6 ADR identidades del agente, del revisor y de la persona           (sin asignar)
 TASK-008  F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners         (sin asignar)
@@ -98,7 +97,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 4
+## Terminadas (04-terminadas) — 5
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -107,4 +106,5 @@ TASK-001  F1-0 Crear TaskCodeTwo                                                
 TASK-002  F1-1 ADR carpeta fija por tarea y rama de estado                          charlie.bk@gmail.com
 TASK-003  F1-2 ADR escrituras atomicas, reserva de IDs y toma de tareas             charlie.bk@gmail.com
 TASK-004  F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release  charlie.bk@gmail.com
+TASK-005  F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato       charlie.bk@gmail.com
 ```
