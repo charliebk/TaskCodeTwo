@@ -221,6 +221,20 @@ quien la recibe reintenta. En el uso real, una ráfaga de altas de un clon es
 un `import` (una sola operación), no N transacciones. El valor por defecto se
 revisa con el CLI real (F2-3) y contra la plataforma (F9-4).
 
+La muestra es pequeña (3 rondas por valor, 36 altas): la diferencia entre
+0,5 s y 2 s no es concluyente (en la repetición de la revisión, 2 s dio 0
+agotadas, 0,5 s 3 y 0,1 s 4), y está calibrada contra el guion (~2,5 s por
+transacción), no contra el CLI. Coste de esperar tanto: con 5 intentos y
+base 2 s, la espera acumulada antes de `Agotada` llega a
+2·(1+2+4+8) = 30 s, más la duración de las transacciones.
+
+**D1a también sustituye el rebase de P2 y de F1-1.** P2 dice que el roadmap
+«se regenera tras el rebase» y el ADR F1-1 lo repite (Decisión 3 y su PoC
+A.5, que termina con `pull --rebase`). Con D1a no hay rebase: tras un
+rechazo se descarta el commit local y se re-ejecuta la operación, que
+regenera el `ROADMAP.md` sobre el estado nuevo. Lo de F1-1 sigue valiendo
+para la forma (el ROADMAP se regenera y no se mergea), no para el mecanismo.
+
 ### No verificado
 
 - **Pushes simultáneos contra GitHub o GitLab.** El bare local rechaza el
@@ -348,7 +362,10 @@ resuelven en F2-3 y F3-10 salvo que se diga otra cosa:
   fallo de `fetch` como `SinRed`. F2-3 tiene que distinguir red caída,
   credenciales y remoto inexistente, y dar un código propio al segundo.
 - **Hook o regla de la plataforma que rechaza el push** por otro motivo que
-  non-fast-forward: hoy cae en «sin red»; debe ser un error propio.
+  non-fast-forward: hoy la PoC lo cuenta como contención (su `grep` casa
+  `rejected`) y acaba en `Agotada`, que mandaría reintentar sin fin ante un
+  rechazo permanente; F2-3 tiene que separar non-fast-forward de cualquier
+  otro rechazo del remoto, con un código propio.
 - **Proceso que muere entre el push de `start` y la creación de la rama**:
   solo lo cubre la idempotencia (repetir `start` crea lo que falte).
 - **Cerrojo local huérfano** (proceso muerto con el cerrojo tomado): falta la
