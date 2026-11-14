@@ -59,3 +59,7 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 - code-quality-reviewer — 7f431ff
 - code-quality-reviewer — 3c44c18
 - code-quality-reviewer — d4799bc
+
+## Rondas extra
+
+- Ronda 3: Carlos (consigna «opcion recomendada» y fidelidad sobre coste); la ronda 2 encontro un IMPORTANTE introducido por la correccion (IMP-2), ya corregido en d4799bc.
