@@ -29,5 +29,5 @@ dependencias: [TASK-018, TASK-063]
 Tarea F9-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F9-1, F2-3.
 
 ## Criterios de aceptacion
-- [ ] Copia de ToolsaWeb migrada: 403 tareas, mismas dependencias, roadmap igual
+- [ ] Copia de ToolsaWeb migrada: 404 tareas, mismas dependencias, roadmap igual
 - [ ] Cumple lo que pide la tarea F9-2 del plan y los requisitos que cita

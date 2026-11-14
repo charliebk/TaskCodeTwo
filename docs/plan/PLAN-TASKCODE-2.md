@@ -367,7 +367,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F4-2 | `approve` con la identidad de la persona; el agente no puede aprobar (RR-04) | Sin identidad de persona → rechazo; test | F1-6, F4-1 |
 | F4-3 | Aprobación de un hito en lote | Diez planes aprobados de una vez, con nombre y fecha | F4-2 |
 | F4-4 | Orquestador del modo automático: encadena plan → start → implementación → review → correcciones y para en las puertas del carril (RF-21) | Una tarea fix va de planificada a PR listo sin intervención | F3-6, F4-2, F6-2, F4-6 |
-| F4-5 | Punto de relevo: TaskCodeTwo pasa a desarrollarse con la 2.0 | Las tareas pendientes de TaskCodeTwo, migradas con `actualizar` y trabajadas con la 2.0 | F4-4, F9-2 |
+| F4-5 | Punto de relevo: TaskCodeTwo pasa a desarrollarse con la 2.0 | Las tareas pendientes de TaskCodeTwo, migradas con `actualizar` y trabajadas con la 2.0 | F4-4, F9-2, F9-7 |
 | F4-6 | `plan` propone skills, agentes y modelo para diseño, implementación y revisión; se anotan en la tarea; el orquestador y la revisión los usan (RF-12, RF-13) | En 10 tareas reales la propuesta coincide con la que haría una persona; el modelo cambia según complejidad y carril | F4-1, F3-9, F6-3 |
 | F4-7 | `taskctl lote TASK-a..TASK-b` (o lista): secuencia sin preguntas, sin trocear, aceptando recomendaciones, integración en la rama del lote y PR final contra `develop` (RF-27, RR-18) | Un lote de 5 tareas termina sin intervención y deja un único PR para la persona | F4-4, F4-6, F1-16 |
 | F4-8 | Fallos, presupuesto, `--reanudar` e informe del lote | Un lote cortado se reanuda sin repetir; una tarea en rojo se aparta con sus dependientes y el resto sigue; informe completo | F4-7, F8-1 |
@@ -422,14 +422,14 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | ID | Tarea | Criterio de aceptación | Dep. |
 |---|---|---|---|
 | F9-1 | `taskctl actualizar --simular`: informe de lo que cambiaría al pasar un proyecto de la 0.16 a la 2.0 | Sobre copias de ToolsaWeb y OpenDockTrading, sin tocar nada | F1-12, F2-5 |
-| F9-2 | `taskctl actualizar`: lleva `tareas/` a la rama de estado aplanando las carpetas por estado (una carpeta fija por tarea) y conservando historial, migra la config, conserva IDs, dependencias e hitos; vuelta atrás con un comando | Copia de ToolsaWeb migrada: 403 tareas, mismas dependencias, roadmap igual | F9-1, F2-3 |
+| F9-2 | `taskctl actualizar`: lleva `tareas/` a la rama de estado aplanando las carpetas por estado (una carpeta fija por tarea) y conservando historial, migra la config, conserva IDs, dependencias e hitos; vuelta atrás con un comando | Copia de ToolsaWeb migrada: 404 tareas, mismas dependencias, roadmap igual | F9-1, F2-3 |
 | F9-3 | Actualizaciones entre versiones de la 2.x (migraciones encadenadas) | 2.0 → 2.1 de prueba sin intervención | F9-2 |
 | F9-4 | Suite E2E del flujo con **tres** personas a la vez: altas simultáneas, toma de la misma tarea, tareas que tocan los mismos ficheros, una tarea abandonada y reasignada (RR-12) | Ningún ID, rama ni tarea pisada; tablero correcto; todos ven lo mismo; merge solo con puertas | F7-*, F3-6, F2-4b, F2-13, F3-10, F3-11 |
 | F9-4b | Prueba nocturna: lote de 10 tareas reales desatendido en un repo de pruebas (RR-18) | Por la mañana: PR del lote, informe y ninguna integración en rojo | F4-8, F9-4 |
 | F9-5 | Prueba de seguridad (PR malicioso, config hostil, inyección en tareas) | Ninguno ejecuta código ni salta una puerta | F6-7 |
 | F9-6 | Auditoría externa repetida con el mismo encargo | Las tres preguntas responden «sí» | F9-4, F9-5 |
-| F9-7 | Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0 | Métricas frente a la 0.16 | F9-2, F9-6 |
-| F9-8 | ToolsaWeb actualizado y 10 tareas con la 2.0 | Minutos de verificación repetidos ≈ 0 | F9-7 |
+| F9-7 | Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0 | Métricas frente a la 0.16 | F9-2 |
+| F9-8 | ToolsaWeb actualizado y 10 tareas con la 2.0 | Minutos de verificación repetidos ≈ 0 | F9-7, F4-5 |
 | F9-8b | Piloto final: TaskCodeTwo actualizado a la 2.0 completa con `taskctl actualizar` y 10 tareas suyas trabajadas con ella, incluida al menos una en paralelo por dos personas o agentes | Sin pérdida de tareas ni historial; métricas frente a ToolsaWeb y OpenDockTrading; lo que falle bloquea la 2.0.0 | F9-8, F4-5 |
 | F9-9a | Prueba de instalación en máquinas limpias (Windows, macOS, Linux) por ejecutable, por la línea de internet y por el marketplace | Primera tarea hecha en 15 min desde cero en cada sistema | F2-11, F8-5 |
 | F9-9 | Publicar 2.0.0 (ejecutables, instaladores y plugin en el marketplace) | Changelog, guía de actualización y release | F9-6..8, F9-8b, F9-9a, F9-10 |
