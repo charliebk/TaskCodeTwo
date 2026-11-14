@@ -9,6 +9,7 @@ directo a la tabla de la Fase 1 y a su tarea.
 | ADR | Tema | Tarea | Estado |
 |---|---|---|---|
 | [F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) | Carpeta fija por tarea y rama de estado `taskcode/tareas` | TASK-002 | aceptada |
+| [F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) | Escrituras atómicas en la rama de estado, reserva de IDs y toma de tareas | TASK-003 | aceptada |
 
 ## Plantilla
 
