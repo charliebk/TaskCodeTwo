@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-003-f1-2-adr-escrituras-atomicas-reserva-de
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T03:06:51Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T03:10:31Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T03:10:40Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
