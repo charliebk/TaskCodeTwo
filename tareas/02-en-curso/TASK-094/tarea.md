@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-094-f1-18-adr-hito-de-decisiones-adr-en-init
 asignado_a: charlie.bk@gmail.com
@@ -37,6 +37,7 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 |---|---|---|---|---|
 | 2026-11-14T16:16:49Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T16:22:46Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T16:22:54Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
