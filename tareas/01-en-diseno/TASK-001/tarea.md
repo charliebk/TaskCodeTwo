@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-001-f1-0-crear-taskcodetwo
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -32,3 +32,9 @@ Tarea F1-0 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: —
 - [ ] `taskctl doctor` en verde
 - [ ] las tareas F1..F9 planificadas con dependencias
 - [ ] Cumple lo que pide la tarea F1-0 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T01:58:40Z | plan | automatico | persona | 0.16.1 |

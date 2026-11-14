@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-001
+- **En marcha:** TASK-001 (en diseño)
+- **Listas para empezar:** ninguna
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -48,7 +48,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 1 | TASK-001 | F1-0 Crear TaskCodeTwo | — | — | lista para empezar |
+| 1 | TASK-001 | F1-0 Crear TaskCodeTwo | — | — | ▶ en diseño |
 | 2 | TASK-002 | F1-1 ADR carpeta fija por tarea y rama de estado | — | TASK-001 | espera a TASK-001 |
 | 3 | TASK-003 | F1-2 ADR escrituras atomicas, reserva de IDs y toma de tareas | — | TASK-002 | espera a TASK-002 |
 | 4 | TASK-004 | F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release | — | TASK-001 | espera a TASK-001 |
