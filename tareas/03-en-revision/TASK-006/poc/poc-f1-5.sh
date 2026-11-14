@@ -16,7 +16,11 @@
 #     (claves desconocidas = fallo; enums de rules[].type,
 #     allowed_merge_methods, integration_id entero). Controles negativos.
 # (D) La tabla carril -> checks -> quien aprueba del ADR (leida del propio ADR)
-#     coincide con los checks de los JSON, y ninguna fila aprueba con IA.
+#     coincide con los checks y el numero de aprobaciones de los JSON y del
+#     check carril, y ninguna fila aprueba con IA.
+# (E) Por que main va sin strict: ancestria tras una release (git local).
+# (F) Carril no falsificable: campos de firma del esquema, firma real de un
+#     commit (GET) y simulacion de la regla del check carril.
 #
 # Uso: poc-f1-5.sh <carpeta-de-trabajo> <ruta-del-ADR> <carpeta-artefactos-json>
 # Ningun POST/PUT/PATCH/DELETE: todas las llamadas pasan por gh_get.
@@ -79,9 +83,9 @@ echo "descargado: $(wc -c < "$base/esquema/api.github.com.json") bytes ; sha256 
 
 ######################################################################
 sep "C. Modelo neutral -> rulesets de GitHub -> validacion contra el esquema"
-"$PY" -I - "$RAIZ/esquema/api.github.com.json" "$RAIZ/rulesets" "$ACTIONS_ID" "$APP_REVISOR_ID" <<'EOF' | tee "$base/c.txt"
+"$PY" -I - "$RAIZ/esquema/api.github.com.json" "$RAIZ/rulesets" "$ACTIONS_ID" "$APP_REVISOR_ID" "$ART" <<'EOF' | tee "$base/c.txt"
 import json, sys, os, copy
-esq, salida, actions_id, revisor_id = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+esq, salida, actions_id, revisor_id, art = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
 doc = json.load(open(esq, encoding='utf-8'))
 print('OpenAPI', doc['openapi'], 'version', doc['info']['version'])
 cuerpo = doc['paths']['/repos/{owner}/{repo}/rulesets']['post']['requestBody']['content']['application/json']['schema']
@@ -137,8 +141,10 @@ modelo = [
   dict(nombre='develop', tipo='rama', patrones=['develop'], sin_borrado=True, sin_forzar=True,
        solo_pr=APROBACION, al_dia=True,
        checks=[('verificacion', 'actions'), ('revision-ia', 'app-revisor'), ('carril', 'actions')]),
+  # main sin rama al dia (strict=False): con releases por merge commit, main deja de ser
+  # ancestro de develop y el PR develop->main saldria siempre desactualizado (seccion E).
   dict(nombre='main', tipo='rama', patrones=['main'], sin_borrado=True, sin_forzar=True,
-       solo_pr=APROBACION, al_dia=True,
+       solo_pr=APROBACION, al_dia=False,
        checks=[('verificacion', 'actions'), ('carril', 'actions')]),
   dict(nombre='ramas-de-tarea', tipo='rama', patrones=['feature/**', 'fix/**', 'hotfix/**'],
        sin_borrado=True, sin_forzar=True),
@@ -203,8 +209,19 @@ for k, v in negativos.items():
     e = []; valida(v, cuerpo, 'neg', e)
     rech += bool(e)
     print('  %-60s -> %s' % (k, 'rechazado: ' + e[0] if e else 'ACEPTADO (fallo del validador)'))
-print('RESULTADO C rulesets=%d errores=%d ; negativos rechazados=%d/%d ; integration_id actions=%d revisor=%d (relleno)'
-      % (len(rulesets), total_err, rech, len(negativos), actions_id, revisor_id))
+print('-- JSON versionados en la carpeta de artefactos (antes de sobrescribirlos): validacion y comparacion')
+ver_ok = ver_igual = 0
+for nombre, rs in rulesets:
+    ruta = os.path.join(art, nombre + '.json')
+    if not os.path.exists(ruta): print('  %-18s FALTA' % nombre); continue
+    try: v = json.load(open(ruta, encoding='utf-8'))
+    except ValueError as ex: print('  %-18s JSON ilegible: %s' % (nombre, ex)); continue
+    e = []; valida(v, cuerpo, nombre, e)
+    ver_ok += not e; ver_igual += (v == rs)
+    print('  %-18s %s ; %s' % (nombre, 'VALIDO' if not e else 'INVALIDO: ' + e[0],
+          'igual al generado' if v == rs else 'DISTINTO del generado (se sobrescribe)'))
+print('RESULTADO C rulesets=%d errores=%d ; negativos rechazados=%d/%d ; integration_id actions=%d revisor=%d (relleno) ; versionados validos=%d/%d iguales=%d/%d'
+      % (len(rulesets), total_err, rech, len(negativos), actions_id, revisor_id, ver_ok, len(rulesets), ver_igual, len(rulesets)))
 EOF
 grep '^RESULTADO' "$base/c.txt" >> "$base/resultados.txt"
 cp "$base/rulesets/"*.json "$ART/" && echo "artefactos copiados: $(ls "$ART" | tr '\n' ' ')"
@@ -221,6 +238,12 @@ def checks_de(nombre):
             for c in r['parameters']['required_status_checks']}
 def bypass(nombre):
     return json.load(open(os.path.join(rdir, nombre + '.json'), encoding='utf-8'))['bypass_actors']
+def aprobaciones_pr(nombre):
+    rs = json.load(open(os.path.join(rdir, nombre + '.json'), encoding='utf-8'))
+    return sum(r['parameters']['required_approving_review_count'] for r in rs['rules'] if r['type'] == 'pull_request')
+# Aprobacion del plan (commit firmado de approve) que exige el check carril, y minimo total (D4a)
+PLAN_CARRIL = {'funcionalidad': 1, 'riesgo alto': 1}
+MIN_TOTAL = {'riesgo alto': 2}
 # Lo que el check `carril` impone ademas del ruleset de la base (decision del ADR)
 EXTRA_CARRIL = {'hotfix': {'revision-ia'}}
 IA = re.compile(r'\b(IA|agente|revisor|bot|app|copilot|claude)\b', re.I)
@@ -235,19 +258,26 @@ def comprobar(texto, ver):
         tabla = set(re.findall(r'`([a-z-]+)`', checks))
         esperado = checks_de(base) | EXTRA_CARRIL.get(carril, set())
         ok_checks = tabla == esperado and 'carril' in checks_de(base)
-        ok_aprueba = bool(re.search(r'persona', aprueba)) and not IA.search(aprueba)
+        num = re.search(r'\d+', aprueba)
+        total = aprobaciones_pr(base) + PLAN_CARRIL.get(carril, 0)
+        ok_num = (num is not None and int(num.group()) == total and total >= MIN_TOTAL.get(carril, 1)
+                  and (('plan' in aprueba) == bool(PLAN_CARRIL.get(carril))))
+        ok_aprueba = bool(re.search(r'persona', aprueba)) and not IA.search(aprueba) and ok_num
         ok_bypass = bypass(base) == []
         fallos += (not ok_checks) + (not ok_aprueba) + (not ok_bypass)
         if ver:
-            print('%-14s base=%-8s tabla=%-36s ruleset+carril=%-36s checks:%s aprueba:%s (%s) bypass_actors=%s'
+            print('%-14s base=%-8s tabla=%-36s ruleset+carril=%-36s checks:%s aprobaciones=%d (PR %d + plan %d) aprueba:%s bypass_actors=%s'
                   % (carril, base, ','.join(sorted(tabla)), ','.join(sorted(esperado)), 'si' if ok_checks else 'NO',
-                     'persona, sin IA' if ok_aprueba else 'NO', aprueba, bypass(base)))
+                     total, aprobaciones_pr(base), PLAN_CARRIL.get(carril, 0),
+                     'persona, sin IA, numero cuadra' if ok_aprueba else 'NO', bypass(base)))
     return len(filas), fallos
 nfil, fallos = comprobar(txt, True)
 print('-- controles negativos (tablas alteradas que la comprobacion tiene que detectar)')
 neg = {
   'release con revision-ia': txt.replace('| release | `main` | `verificacion` (perfil completo), `carril`', '| release | `main` | `verificacion`, `revision-ia`, `carril`'),
   'fix sin carril': txt.replace('| fix | `develop` | `verificacion`, `revision-ia`, `carril`', '| fix | `develop` | `verificacion`, `revision-ia`'),
+  'riesgo alto con 1 persona': re.sub(r'(\| riesgo alto \|[^|]*\|[^|]*\|)[^|]*\|', r'\1 1 persona en el PR |', txt),
+  'funcionalidad sin aprobacion del plan': re.sub(r'(\| funcionalidad \|[^|]*\|[^|]*\|)[^|]*\|', r'\1 1 persona en el PR |', txt),
   'errata aprobada por el revisor IA': txt.replace('| errata | `develop` | `verificacion`, `revision-ia` (perfil rápido, D5a), `carril` | 1 persona en el PR', '| errata | `develop` | `verificacion`, `revision-ia` (perfil rápido, D5a), `carril` | el revisor IA'),
 }
 detect = 0
@@ -255,11 +285,87 @@ for k, t in neg.items():
     cambiado = t != txt
     _, f = comprobar(t, False)
     detect += (cambiado and f > 0)
-    print('  %-36s -> %s' % (k, ('detectado (%d fallos)' % f) if cambiado and f else ('NO detectado' if cambiado else 'NO APLICADO (texto no encontrado)')))
+    print('  %-40s -> %s' % (k, ('detectado (%d fallos)' % f) if cambiado and f else ('NO detectado' if cambiado else 'NO APLICADO (texto no encontrado)')))
 print('RESULTADO D filas=%d fallos=%d ; negativos detectados=%d/%d' % (nfil, fallos, detect, len(neg)))
 EOF
 
 grep '^RESULTADO' "$base/d.txt" >> "$base/resultados.txt"
+
+######################################################################
+sep "E. Por que main va sin strict: ancestria tras una release por merge commit (git local)"
+g() { git -c core.autocrlf=false -c init.defaultBranch=develop -c advice.detachedHead=false "$@"; }
+export GIT_AUTHOR_NAME=poc GIT_AUTHOR_EMAIL=poc@local GIT_COMMITTER_NAME=poc GIT_COMMITTER_EMAIL=poc@local
+export GIT_AUTHOR_DATE="2026-11-14T10:00:00Z" GIT_COMMITTER_DATE="2026-11-14T10:00:00Z"
+mkdir -p "$base/e" && cd "$base/e" && g init -q . && echo 0 > a && g add a && g commit -qm inicial && g branch main
+anc() { if g merge-base --is-ancestor main develop; then echo "main ES ancestro de develop"; else echo "main NO es ancestro de develop"; fi; }
+echo "develop y main iguales: $(anc)"
+echo 1 > a && g commit -qam d1
+g switch -q main && g merge -q --no-ff -m "Merge pull request #1 from develop (release v0.1.0)" develop && g switch -q develop
+echo "tras la release 1 (merge commit en main): $(anc)"
+echo 2 > a && g commit -qam d2
+echo "tras d2 en develop: $(anc) -> con strict, el PR develop->main de la release 2 saldria desactualizado"
+cd "$base" || exit 2
+resultado "E main ancestro de develop tras release por merge commit: $(g -C "$base/e" merge-base --is-ancestor main develop && echo si || echo no)"
+
+######################################################################
+sep "F. Carril no falsificable por el agente: firma verificada del approve y carril minimo por ficheros"
+printf '%-40s ' "commit de develop en TaskCodeTwo:"
+gh api --method GET repos/charliebk/TaskCodeTwo/commits/develop \
+  -q '"sha=\(.sha[0:12]) verified=\(.commit.verification.verified) reason=\(.commit.verification.reason) committer=\(.committer.login // "null") commit.committer=\(.commit.committer.name)"'
+echo "\$ gh api --method GET repos/charliebk/TaskCodeTwo/commits/develop" >> "$base/llamadas.txt"
+"$PY" -I - "$RAIZ/esquema/api.github.com.json" <<'EOF' | tee "$base/f.txt"
+import json, sys
+doc = json.load(open(sys.argv[1], encoding='utf-8'))
+comp = doc['components']['schemas']
+def res(s):
+    while '$ref' in s: s = comp[s['$ref'].split('/')[-1]]
+    return s
+r = doc['paths']['/repos/{owner}/{repo}/commits/{ref}']['get']['responses']['200']['content']['application/json']['schema']
+c = res(r)
+ver = res(res(c['properties']['commit'])['properties']['verification'])
+print('GET /repos/{o}/{r}/commits/{ref}: commit.verification =', sorted(ver['properties']), 'required', ver.get('required'))
+print('  campos de primer nivel con la cuenta de GitHub:', [k for k in ('author', 'committer') if k in c['properties']])
+# --- Regla de la decision 4 (simulada): aprobacion del plan ---
+PERSONAS = {'charliebk'}          # identidades de persona del proyecto (F1-6)
+def plan_aprobado(commit):
+    return bool(commit['verified']) and commit['committer'] in PERSONAS
+casos = [
+  ('approve firmado y verificado, committer persona', dict(verified=True, committer='charliebk'), True),
+  ('approve sin firma (lo escribe el agente)',          dict(verified=False, committer='charliebk'), False),
+  ('approve verificado pero de la App del agente',      dict(verified=True, committer='taskcode-agente[bot]'), False),
+  ('approve verificado por GitHub (web-flow, por API)', dict(verified=True, committer='web-flow'), False),
+]
+ok_plan = 0
+for nombre, cm, esperado in casos:
+    r_ = plan_aprobado(cm); ok_plan += (r_ == esperado)
+    print('  plan: %-50s -> %s %s' % (nombre, 'cuenta' if r_ else 'no cuenta', '' if r_ == esperado else '(INESPERADO)'))
+# --- Carril efectivo = max(declarado, minimo por ficheros). Regla de derivacion: EJEMPLO, la fija F1-10 ---
+ORDEN = ['errata', 'fix', 'funcionalidad', 'riesgo alto']
+def minimo(ficheros):
+    if any(f.startswith(('.github/', '.taskcode/')) or f.endswith('CODEOWNERS') for f in ficheros): return 'riesgo alto'
+    if all(f.startswith('docs/') or f.endswith('.md') for f in ficheros): return 'errata'
+    return 'fix'
+def efectivo(declarado, ficheros):
+    m = minimo(ficheros)
+    if declarado is None:                       # PR sin tarea
+        return 'errata' if m == 'errata' else 'FALLA (necesita tarea de carril >= %s)' % m
+    return max(declarado, m, key=ORDEN.index)
+casos = [
+  ('errata', ['docs/guia.md'], 'errata'),
+  ('errata', ['src/main.rs'], 'fix'),
+  ('fix', ['.github/workflows/carril.yml'], 'riesgo alto'),
+  ('riesgo alto', ['docs/guia.md'], 'riesgo alto'),
+  (None, ['README.md'], 'errata'),
+  (None, ['src/main.rs'], 'FALLA (necesita tarea de carril >= fix)'),
+]
+ok_car = 0
+for d, fs, esperado in casos:
+    r_ = efectivo(d, fs); ok_car += (r_ == esperado)
+    print('  carril: declarado=%-12s ficheros=%-32s -> %s %s' % (d, ','.join(fs), r_, '' if r_ == esperado else '(INESPERADO)'))
+print('RESULTADO F esquema verification=%s ; plan %d/4 casos ; carril efectivo %d/6 casos (el agente solo puede subirlo)'
+      % ('si' if 'verified' in ver['properties'] else 'NO', ok_plan, ok_car))
+EOF
+grep '^RESULTADO' "$base/f.txt" >> "$base/resultados.txt"
 
 metodos=$(grep -c -- 'gh api --method GET' "$base/llamadas.txt")
 otros=$(grep 'gh api' "$base/llamadas.txt" | grep -vc -- 'gh api --method GET')

@@ -39,27 +39,60 @@ develop-cola-org   branch refs/heads/develop                               regla
   clave desconocida en la raiz (lane)                          -> rechazado: neg: clave desconocida lane
   falta strict_required_status_checks_policy                   -> rechazado: neg.rules[3]: oneOf casa con 0 variantes
   enforcement inventado (required)                             -> rechazado: neg.enforcement: 'required' fuera del enum ['disabled', 'active', 'evaluate']
-RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno)
+-- JSON versionados en la carpeta de artefactos (antes de sobrescribirlos): validacion y comparacion
+  develop            VALIDO ; igual al generado
+  main               VALIDO ; igual al generado
+  ramas-de-tarea     VALIDO ; igual al generado
+  taskcode-tareas    VALIDO ; igual al generado
+  tags-version       VALIDO ; igual al generado
+  develop-cola-org   VALIDO ; igual al generado
+RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno) ; versionados validos=6/6 iguales=6/6
 artefactos copiados: develop-cola-org.json develop.json main.json ramas-de-tarea.json tags-version.json taskcode-tareas.json 
 
 === D. Tabla carril -> checks -> quien aprueba del ADR frente a los JSON ===
-errata         base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
-fix            base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
-funcionalidad  base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (la persona aprueba el plan y el PR) bypass_actors=[]
-riesgo alto    base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (2 aprobaciones de persona: con una sola persona, la del plan y la del PR (D4a)) bypass_actors=[]
-release        base=main     tabla=carril,verificacion                  ruleset+carril=carril,verificacion                  checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
-hotfix         base=main     tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprueba:persona, sin IA (1 persona en el PR) bypass_actors=[]
+errata         base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprobaciones=1 (PR 1 + plan 0) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
+fix            base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprobaciones=1 (PR 1 + plan 0) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
+funcionalidad  base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprobaciones=2 (PR 1 + plan 1) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
+riesgo alto    base=develop  tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprobaciones=2 (PR 1 + plan 1) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
+release        base=main     tabla=carril,verificacion                  ruleset+carril=carril,verificacion                  checks:si aprobaciones=1 (PR 1 + plan 0) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
+hotfix         base=main     tabla=carril,revision-ia,verificacion      ruleset+carril=carril,revision-ia,verificacion      checks:si aprobaciones=1 (PR 1 + plan 0) aprueba:persona, sin IA, numero cuadra bypass_actors=[]
 -- controles negativos (tablas alteradas que la comprobacion tiene que detectar)
-  release con revision-ia              -> detectado (1 fallos)
-  fix sin carril                       -> detectado (1 fallos)
-  errata aprobada por el revisor IA    -> detectado (1 fallos)
-RESULTADO D filas=6 fallos=0 ; negativos detectados=3/3
-RESULTADO A+B llamadas gh api con GET=10 ; gh api con otro metodo=0 ; gh repo view=2
+  release con revision-ia                  -> detectado (1 fallos)
+  fix sin carril                           -> detectado (1 fallos)
+  riesgo alto con 1 persona                -> detectado (1 fallos)
+  funcionalidad sin aprobacion del plan    -> detectado (1 fallos)
+  errata aprobada por el revisor IA        -> detectado (1 fallos)
+RESULTADO D filas=6 fallos=0 ; negativos detectados=5/5
+
+=== E. Por que main va sin strict: ancestria tras una release por merge commit (git local) ===
+develop y main iguales: main ES ancestro de develop
+tras la release 1 (merge commit en main): main NO es ancestro de develop
+tras d2 en develop: main NO es ancestro de develop -> con strict, el PR develop->main de la release 2 saldria desactualizado
+RESULTADO E main ancestro de develop tras release por merge commit: no
+
+=== F. Carril no falsificable por el agente: firma verificada del approve y carril minimo por ficheros ===
+commit de develop en TaskCodeTwo:        sha=e8ee970802d9 verified=false reason=unsigned committer=charliebk commit.committer=carlos gallardo
+GET /repos/{o}/{r}/commits/{ref}: commit.verification = ['payload', 'reason', 'signature', 'verified', 'verified_at'] required ['verified', 'reason', 'payload', 'signature', 'verified_at']
+  campos de primer nivel con la cuenta de GitHub: ['author', 'committer']
+  plan: approve firmado y verificado, committer persona    -> cuenta 
+  plan: approve sin firma (lo escribe el agente)           -> no cuenta 
+  plan: approve verificado pero de la App del agente       -> no cuenta 
+  plan: approve verificado por GitHub (web-flow, por API)  -> no cuenta 
+  carril: declarado=errata       ficheros=docs/guia.md                     -> errata 
+  carril: declarado=errata       ficheros=src/main.rs                      -> fix 
+  carril: declarado=fix          ficheros=.github/workflows/carril.yml     -> riesgo alto 
+  carril: declarado=riesgo alto  ficheros=docs/guia.md                     -> riesgo alto 
+  carril: declarado=None         ficheros=README.md                        -> errata 
+  carril: declarado=None         ficheros=src/main.rs                      -> FALLA (necesita tarea de carril >= fix) 
+RESULTADO F esquema verification=si ; plan 4/4 casos ; carril efectivo 6/6 casos (el agente solo puede subirlo)
+RESULTADO A+B llamadas gh api con GET=11 ; gh api con otro metodo=0 ; gh repo view=2
 
 === Resumen ===
-RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno)
-RESULTADO D filas=6 fallos=0 ; negativos detectados=3/3
-RESULTADO A+B llamadas gh api con GET=10 ; gh api con otro metodo=0 ; gh repo view=2
+RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno) ; versionados validos=6/6 iguales=6/6
+RESULTADO D filas=6 fallos=0 ; negativos detectados=5/5
+RESULTADO E main ancestro de develop tras release por merge commit: no
+RESULTADO F esquema verification=si ; plan 4/4 casos ; carril efectivo 6/6 casos (el agente solo puede subirlo)
+RESULTADO A+B llamadas gh api con GET=11 ; gh api con otro metodo=0 ; gh repo view=2
 llamadas a GitHub registradas:
   $ gh repo view charliebk/taskcodetwo-poc-f1-1 --json visibility
   $ gh api --method GET repos/charliebk/taskcodetwo-poc-f1-1/rulesets
@@ -73,3 +106,4 @@ llamadas a GitHub registradas:
   $ gh api --method GET apps/github-actions
   $ gh api --method GET apps/github-actions -q .id
   $ gh api --method GET repos/github/rest-api-description/commits/main
+  $ gh api --method GET repos/charliebk/TaskCodeTwo/commits/develop
