@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-094-f1-18-adr-hito-de-decisiones-adr-en-init
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -30,3 +30,9 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 - [ ] [ ] Contrato del hito en `init` y en `actualizar` (entradas, salidas, cuando se considera cerrado) con un ejemplo medido sobre OpenDockTrading
 - [ ] [ ] Regla de proporcionalidad con cifras del H1 (tokens y tiempo por ADR) y comando que lo exige antes de `start` en tareas de codigo
 - [ ] [ ] Cumple RR-13 y lo que deciden F1-11 (inventario parche/propio) y F1-12 (actualizacion)
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T16:16:49Z | plan | automatico | persona | 0.16.1 |
