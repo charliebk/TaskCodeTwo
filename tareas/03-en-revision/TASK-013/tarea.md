@@ -64,3 +64,7 @@ Tarea F1-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 ## Rondas extra
 
 - Ronda 3: Carlos (consigna «opcion recomendada» y fidelidad sobre coste); la ronda 2 encontro un IMPORTANTE introducido por la correccion (IMP-2), ya corregido en d4799bc.
+
+## Verificacion ligera
+
+- 2026-11-14T16:14:38Z: ronda 3; commit revisado 3b62dcff555fdf7c29e9f5763c0a4d8693e905be; commit verificado 1f1e433977d5c11db4c0ab67107f0f8e7fbcd1a7; ficheros: docs/adr/F1-12-actualizacion-entre-versiones.md; corregidos: MEN-10; pendientes: MEN-9
