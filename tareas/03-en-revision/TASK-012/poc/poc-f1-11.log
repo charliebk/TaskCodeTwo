@@ -1,5 +1,5 @@
 python 3.12.10 (-I: True, -B: True) ; git version 2.56.0.windows.4 ; PyYAML 6.0.3
-ADR: F1-11-extensiones-declaradas.md ; trabajo: .../taskcodetwo/task-012-c1/poc ; plugin: taskcode-plugin/0.16.1
+ADR: F1-11-extensiones-declaradas.md ; trabajo: .../taskcodetwo/task-012-c2/poc ; plugin: taskcode-plugin/0.16.1
 repo ToolsaWeb: commit cb46c0f1b (2026-11-14)
 repo OpenDockTrading: commit f8a9b5f27 (2026-11-14)
 
@@ -136,6 +136,10 @@ merge-base develop taskcode/tareas: NINGUNA (huerfana)
       aviso: derivados[1] fallo (codigo 1: citadas en el codigo y sin tarea: TASK-404); la transicion sigue; arreglalo y ejecuta `taskctl derivados`
   check estado en el PR con ese codigo: ROJO (bloquea): derivados[1] codigo 1: citadas en el codigo y sin tarea: TASK-404
   check estado sin la cita rota: verde
+-- PR que cita TASK-404 y ademas cambia el comprobador y la config de derivados para ponerse en verde
+  ficheros del PR: ['.taskcode/config.yml', 'scripts/comprueba.py', 'src/nuevo.txt'] ; toca .taskcode/ -> riesgo alto por ruta (F1-10): True
+  check estado con config y comprobadores de la base: ROJO (bloquea): derivados[1] codigo 1: citadas en el codigo y sin tarea: TASK-404
+  lo vulnerable, con los del PR (revision 2, IMP-5): verde
 -- hostiles en ejecucion (lo escrito se compara por contenido)
   T7 pausa TASK-003, derivado que escribe en codigo    commit=['TASK-003/tarea.md'] ; grafo regenerado=False
       aviso: derivados[0] escribio fuera de `escribe` (['codigo:src/intruso.txt']): descartado; la transicion sigue
@@ -146,10 +150,13 @@ merge-base develop taskcode/tareas: NINGUNA (huerfana)
       aviso: derivados[0] escribio fuera de `escribe` (['codigo:.estado/x.txt']): descartado; la transicion sigue
   T10 review TASK-003, escribe una ruta ignorada del estado commit=['TASK-003/tarea.md'] ; grafo regenerado=False
       aviso: derivados[0] escribe una ruta ignorada en la rama de estado (['tareas/borrador.tmp']): no se commitearia; no se ejecuta
+  T11 plan TASK-003, escribe a traves de una union     commit=['TASK-003/tarea.md'] ; grafo regenerado=False
+      aviso: derivados[0] escribe a traves de un enlace o fuera de tareas/ (['tareas/enlace/x.md']): no se ejecuta
+  enlaces simbolicos en este sistema: no verificado (sin privilegios: WinError 1314); la comprobacion es la misma (islink y realpath)
 arbol de develop antes=8f4565fa2d86 despues=8f4565fa2d86 identico=True ; commits en develop 1->1 ; status limpio, tambien lo ignorado=True
-commits en taskcode/tareas: 11 (alta + 10 transiciones, uno por transicion)
+commits en taskcode/tareas: 12 (alta + 11 transiciones, uno por transicion)
 grafo-hitos.md final: TASK-001 fuera (terminada)=True ; TASK-003 en H2=True
-RESULTADO C transiciones=10 ; como se espera=10/10 ; develop identico=True
+RESULTADO C transiciones=11 ; como se espera=11/11 ; develop identico=True
 
 === C2: hitos de ToolsaWeb, hoy y con la disposicion nueva (script real copiado) ===
 -- hoy (0.16, hitos.md en docs/): transicion simulada = finish de TASK-011 (lista para empezar)
@@ -214,8 +221,11 @@ RESULTADO E grupos iguales=True ; cambia solo=['aviso_pesada', 'ficheros', 'mues
   ordenes de la traduccion que no existen hoy                                          ADR='1'              medido='1' medido OK
   arbol de develop tras las transiciones                                               ADR='identico'       medido='identico' medido OK
   check estado con un comprueba en rojo                                                ADR='rojo (bloquea)' medido='rojo (bloquea)' medido OK
-  hostiles en ejecucion descartados                                                    ADR='4/4'            medido='4/4' medido OK
-  transiciones con derivados en la rama de estado                                      ADR='10'             medido='10' medido OK
+  check estado de un PR que cambia el comprobador                                      ADR='rojo (bloquea)' medido='rojo (bloquea)' medido OK
+  enlaces simbolicos en escribe                                                        ADR='no verificado (sin privilegios: WinError 1314)' medido='no verificado (sin privilegios: WinError 1314)' medido OK
+  escribe a traves de una union de Windows                                             ADR='rechazado'      medido='rechazado' medido OK
+  hostiles en ejecucion descartados                                                    ADR='5/5'            medido='5/5' medido OK
+  transiciones con derivados en la rama de estado                                      ADR='11'             medido='11' medido OK
   comprobar de ToolsaWeb tras una transicion, hitos en docs (hoy)                      ADR='codigo 1'       medido='codigo 1' medido OK
   comprueba de ToolsaWeb tras una transicion, disposicion nueva                        ADR='0 errores'      medido='0 errores' medido OK
   lineas generadas que salen de docs/planificacion/hitos.md                            ADR='1554 de 1779'   medido='1554 de 1779' medido OK

@@ -1010,10 +1010,24 @@ def restaurar(base, antes, rutas, versionados=frozenset()):
             open(q, "wb").write(v)
 
 
-def lanzar(raiz, tareas, d):
-    env = dict(os.environ, TASKCODE_TAREAS=tareas, TASKCODE_CODIGO=raiz)
+def lanzar(raiz, tareas, d, codigo=None):
+    """Lanza la orden con cwd=raiz (de donde salen los scripts); TASKCODE_CODIGO es el arbol que se comprueba."""
+    env = dict(os.environ, TASKCODE_TAREAS=tareas, TASKCODE_CODIGO=codigo or raiz)
     return subprocess.run(["cmd", "/d", "/c", d["comando"]], cwd=raiz, env=env, capture_output=True,
                           stdin=subprocess.DEVNULL, timeout=d.get("timeout", 60))
+
+
+def sale_de_tareas(tareas, ruta):
+    """True si algun componente de la ruta (bajo tareas/) es un enlace simbolico o una union de Windows, o si
+    su destino real sale de tareas/ (revision 2, nota del revisor)."""
+    base = os.path.realpath(tareas)
+    actual = tareas
+    for c in ruta[len("tareas/"):].split("/"):
+        actual = os.path.join(actual, c)
+        if os.path.lexists(actual) and (os.path.islink(actual) or os.path.isjunction(actual)):
+            return True
+    real = os.path.realpath(actual)
+    return os.path.commonpath([os.path.normcase(base), os.path.normcase(real)]) != os.path.normcase(base)
 
 
 def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
@@ -1039,6 +1053,10 @@ def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
             avisos.append(f"{clave} {st}: no se ejecuta; revisa la orden y `taskctl confiar {clave}`")
             continue
         escribe = [normalizar_escribe(e)[0] for e in d.get("escribe", [])]
+        enlaces = [e for e in escribe if sale_de_tareas(tareas, e)]
+        if enlaces:
+            avisos.append(f"{clave} escribe a traves de un enlace o fuera de tareas/ ({enlaces}): no se ejecuta")
+            continue
         ignoradas = [e for e in escribe
                      if git(tareas, "check-ignore", "-q", e[len("tareas/"):], check=False).returncode == 0]
         if ignoradas:
@@ -1067,13 +1085,24 @@ def transicion(raiz, cfg, alm, tid, fase, estado, deps=None, derivados=None):
     return avisos, ficheros
 
 
-def check_estado(raiz, cfg):
-    """El check `estado` del PR: ejecuta los `comprueba` de la configuracion DE LA BASE contra el arbol del PR
-    y la rama de estado; no se cachea; rojo (bloquea) si alguno sale distinto de 0."""
+def check_estado(raiz, pr, trabajo, base="develop", de_la_base=True):
+    """El check `estado` del PR (revision 2, IMP-5): la config `derivados` y los scripts `comprueba` salen DE LA
+    RAMA BASE (una copia de `git archive <base>`), nunca del arbol del PR; se ejecutan contra el arbol del PR
+    (TASKCODE_CODIGO) y la rama de estado; no se cachea; rojo (bloquea) si alguno sale distinto de 0.
+    Con de_la_base=False hace lo vulnerable (config y scripts del PR), solo para contrastar."""
+    if de_la_base:
+        origen = os.path.join(trabajo, "c", f"base-{git(raiz, 'rev-parse', '--short=12', base).strip()}")
+        if not os.path.isdir(origen):
+            os.makedirs(origen)
+            with tarfile.open(fileobj=io.BytesIO(git(raiz, "archive", "--format=tar", base, binario=True))) as tf:
+                tf.extractall(origen, filter="data")
+    else:
+        origen = pr
+    cfg = cargar(open(os.path.join(origen, ".taskcode", "config.yml"), encoding="utf-8").read())
     rojos = []
-    for i, d in enumerate(cfg["derivados"]):
+    for i, d in enumerate(cfg.get("derivados", [])):
         if d["tipo"] == "comprueba":
-            r = lanzar(raiz, os.path.join(raiz, "tareas"), d)
+            r = lanzar(origen, os.path.join(raiz, "tareas"), d, codigo=pr)
             if r.returncode != 0:
                 rojos.append(f"derivados[{i}] codigo {r.returncode}: "
                              f"{' '.join(r.stderr.decode('utf-8', 'replace').strip().splitlines()[-1:])}")
@@ -1096,7 +1125,7 @@ def seccion_c(trabajo):
     git(raiz, "commit", "-q", "-m", "codigo")
     git(raiz, "worktree", "add", "-q", "--orphan", "-b", "taskcode/tareas", "tareas")
     tareas = os.path.join(raiz, "tareas")
-    open(os.path.join(tareas, ".gitignore"), "w", newline="\n").write("*.tmp\n")
+    open(os.path.join(tareas, ".gitignore"), "w", newline="\n").write("*.tmp\nenlace\n")
     for tid, s, deps in (("TASK-001", 1, []), ("TASK-002", 1, ["TASK-001"]), ("TASK-003", 2, ["TASK-002"])):
         os.makedirs(os.path.join(tareas, tid))
         open(os.path.join(tareas, tid, "tarea.md"), "w", newline="\n").write(tarea_md(tid, "planificada", s, deps))
@@ -1149,13 +1178,33 @@ def seccion_c(trabajo):
     print("-- un comprueba en rojo: la transicion avisa; el check `estado` del PR bloquea")
     open(os.path.join(raiz, "src", "nuevo.txt"), "w").write("usa TASK-404\n")
     av, gen = paso("T6 finish TASK-002, codigo cita TASK-404", "TASK-002", "finish", "terminada")
-    rojo = check_estado(raiz, cfg)
+    rojo = check_estado(raiz, raiz, trabajo)
     print(f"  check estado en el PR con ese codigo: {'ROJO (bloquea): ' + '; '.join(rojo) if rojo else 'verde'}")
     os.remove(os.path.join(raiz, "src", "nuevo.txt"))
-    verde = check_estado(raiz, cfg)
+    verde = check_estado(raiz, raiz, trabajo)
     print(f"  check estado sin la cita rota: {'ROJO' if verde else 'verde'}")
     ok.append(any("derivados[1] fallo" in x and "TASK-404" in x for x in av) and bool(rojo) and not verde)
     MEDIDO["check estado con un comprueba en rojo"] = "rojo (bloquea)" if rojo else "verde"
+    print("-- PR que cita TASK-404 y ademas cambia el comprobador y la config de derivados para ponerse en verde")
+    pr = os.path.join(trabajo, "c", "pr")
+    git(raiz, "worktree", "add", "-q", "-b", "feature/pr", pr, "develop")
+    open(os.path.join(pr, "src", "nuevo.txt"), "w").write("usa TASK-404\n")
+    open(os.path.join(pr, "scripts", "comprueba.py"), "w", newline="\n").write("import sys\nsys.exit(0)\n")
+    cfg_pr = CFG_C.split("  - comando: 'python -I -B scripts/comprueba.py'")[0]
+    open(os.path.join(pr, ".taskcode", "config.yml"), "w", newline="\n").write(cfg_pr)
+    git(pr, "add", "-A")
+    git(pr, "commit", "-q", "-m", "pr que se pone en verde")
+    tocados = git(raiz, "diff", "--name-only", "develop...feature/pr").split()
+    con_base = check_estado(raiz, pr, trabajo)
+    con_pr = check_estado(raiz, pr, trabajo, de_la_base=False)
+    riesgo = any(t.split("/")[0] == ".taskcode" for t in tocados)
+    print(f"  ficheros del PR: {tocados} ; toca .taskcode/ -> riesgo alto por ruta (F1-10): {riesgo}")
+    print(f"  check estado con config y comprobadores de la base: "
+          f"{'ROJO (bloquea): ' + '; '.join(con_base) if con_base else 'verde'}")
+    print(f"  lo vulnerable, con los del PR (revision 2, IMP-5): {'ROJO' if con_pr else 'verde'}")
+    if not (con_base and not con_pr and riesgo):
+        falla("C", "el check estado no lee los comprobadores de la base")
+    MEDIDO["check estado de un PR que cambia el comprobador"] = "rojo (bloquea)" if con_base else "verde"
     print("-- hostiles en ejecucion (lo escrito se compara por contenido)")
     av, gen = paso("T7 pausa TASK-003, derivado que escribe en codigo", "TASK-003", "pausa", "pausa",
                    derivados=hostil("codigo"))
@@ -1171,6 +1220,26 @@ def seccion_c(trabajo):
     av, gen = paso("T10 review TASK-003, escribe una ruta ignorada del estado", "TASK-003", "review", "en-revision",
                    derivados=hostil("", escribe=("tareas/borrador.tmp",), comando="python -I -B scripts/grafo.py"))
     ok.append(any("ruta ignorada" in x for x in av))
+    enlace = os.path.join(tareas, "enlace")
+    subprocess.run(["cmd", "/d", "/c", "mklink", "/J", enlace, os.path.join(raiz, "src")], capture_output=True,
+                   stdin=subprocess.DEVNULL)
+    if os.path.isjunction(enlace):
+        av, gen = paso("T11 plan TASK-003, escribe a traves de una union", "TASK-003", "plan", "en-diseno",
+                       derivados=hostil("", escribe=("tareas/enlace/x.md",), comando="python -I -B scripts/grafo.py"))
+        ok.append(any("a traves de un enlace" in x for x in av) and not os.path.exists(os.path.join(raiz, "src", "x.md")))
+        os.rmdir(enlace)
+        MEDIDO["escribe a traves de una union de Windows"] = "rechazado"
+    else:
+        print("  T11 sin hacer: el sistema no deja crear la union")
+        MEDIDO["escribe a traves de una union de Windows"] = "no verificado"
+    try:
+        os.symlink(os.path.join(raiz, "src"), os.path.join(trabajo, "c", "prueba-enlace"), target_is_directory=True)
+        os.remove(os.path.join(trabajo, "c", "prueba-enlace"))
+        simbolico = "se pueden crear"
+    except OSError as e:
+        simbolico = f"no verificado (sin privilegios: WinError {getattr(e, 'winerror', '?')})"
+    print(f"  enlaces simbolicos en este sistema: {simbolico}; la comprobacion es la misma (islink y realpath)")
+    MEDIDO["enlaces simbolicos en escribe"] = simbolico
     arbol1 = git(raiz, "rev-parse", "develop^{tree}").strip()
     ncod1 = git(raiz, "rev-list", "--count", "develop").strip()
     limpio = git(raiz, "status", "--porcelain", "--untracked-files=all", "--ignored").strip() == "!! tareas/"
