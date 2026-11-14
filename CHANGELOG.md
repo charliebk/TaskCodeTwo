@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-007 (feature) — F1-6 ADR identidades del agente, del revisor y de la persona (2026-11-14)
 - TASK-006 (feature) — F1-5 ADR puertas en GitHub (2026-11-14)
 - TASK-005 (feature) — F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato (2026-11-14)
 - TASK-004 (feature) — F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release (2026-11-14)
