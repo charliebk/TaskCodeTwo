@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-006 — F1-5 ADR puertas en GitHub · etiquetas: (sin etiquetas) · rama feature/task-006-f1-5-adr-puertas-en-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-006/
 - TASK-005 — F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato · etiquetas: (sin etiquetas) · rama feature/task-005-f1-4-adr-capa-de-operaciones-git-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-005/
 - TASK-004 — F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release · etiquetas: (sin etiquetas) · rama feature/task-004-f1-3-adr-flujo-de-ramas-develop-main-ram · terminada 2026-11-14 · tareas/04-terminadas/TASK-004/
 - TASK-003 — F1-2 ADR escrituras atomicas, reserva de IDs y toma de tareas · etiquetas: (sin etiquetas) · rama feature/task-003-f1-2-adr-escrituras-atomicas-reserva-de · terminada 2026-11-14 · tareas/04-terminadas/TASK-003/
