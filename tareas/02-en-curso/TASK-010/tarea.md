@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-010-f1-9-adr-formato-de-tarea-plan-y-especif
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-9 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T08:37:44Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T08:41:37Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T08:41:38Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
