@@ -1,0 +1,137 @@
+PoC F1-18 ; TaskCodeTwo 0cc5bc3 ; OpenDockTrading 8141a08a7 ; Python 3.12.10 ; PyYAML 6.0.3 ; git version 2.56.0.windows.4
+
+=== H: minutos y tokens por ADR de TaskCodeTwo (TASK-002..TASK-013, commit 0cc5bc3) ===
+tarea     estimada  real  rondas  diseno?  total_tokens  salida  diseno_total
+TASK-002        60    12       1       si       4646117   37863        226256
+TASK-003        45    48       1       si       9911010   81213        242980
+TASK-004        55    48       2       si      11055998  112184        565895
+TASK-005        55    50       2       si      15472549  144274        682282
+TASK-006        60    38       3       si      14339573  167471        416216
+TASK-007        60    36       2       si      13545320  150357        461783
+TASK-008        60    31       2       si      13010706  142972       1298087
+TASK-009        60    43       3       si      19081290  215013        578544
+TASK-010        45    27       1       si      12342704  100077       1050188
+TASK-011        75   147       4       si      22453984  204929        461024
+TASK-012       170    94       3       si      34572887  269547       2006835
+TASK-013       150   165       3       si      66834095  318235       1028522
+minutos Real: suma 739 ; mediana 45.5 ; p75 50 ; de 12 a 165 (excluyen el diseno: «Real» va de la rama abierta al merge)
+tokens total (incluye la fila de diseno de ## Coste): mediana 13942446.5 ; p75 19081290 ; sin diseno: mediana 13503447 ; p75 18502746
+tokens salida: mediana 147315.5 ; p75 204929
+
+=== A: estudio de adopcion de una copia de OpenDockTrading (commit fijo) ===
+commit fijo 8141a08a7 (develop de OpenDockTrading el 2026-11-14; F1-12 midio el mismo)
+tareas por carpeta 00..05: 50 / 0 / 0 / 0 / 44 / 2 ; total 96
+-- hecho a mano, sin 2.0: se retiran / se quedan 0 / 1064 ; solas / con sustitucion 0 / 0 ; lineas en huecos bloqueantes 76
+-- hecho a mano, 2.0.0 prevista: se retiran / se quedan 91 / 973 ; solas / con sustitucion 15 / 76 ; lineas en huecos bloqueantes 0
+-- sin clasificar: ficheros que nombran TaskCode fuera de tareas/ 18 ; sin clasificar 15
+-- uso medido: tareas con ## Coste 44/96 ; con minutos Real 34/96
+   tokens por fase (total / salida): diseno 57760762 / 1332563 ; implementacion 528147546 / 2689016 ; revision 457621183 / 5046536
+   tokens por tarea: mediana 19383656.5 ; p75 27935332
+   rondas de revision por tarea (rondas: tareas): 1: 1, 2: 21, 3: 16, 4: 4, 5: 1, 15: 1
+   minutos Real: suma 2965 ; mediana 56 ; p75 77
+   verificacion: tareas con ## Verificacion ligera 3 ; registro de verificacion por tarea: no medido (la 0.16 no lo guarda en tarea.md)
+-- ADR propios de OpenDockTrading: TASK-006, TASK-007, TASK-008, TASK-009, TASK-067 ; con ## Coste 5 ; con minutos Real 3
+   TASK-006: Real None min ; tokens total 13990532 ; rondas 3
+   TASK-007: Real 40 min ; tokens total 16478511 ; rondas 3
+   TASK-008: Real None min ; tokens total 46495955 ; rondas 15
+   TASK-009: Real 299 min ; tokens total 20577242 ; rondas 4
+   TASK-067: Real 15 min ; tokens total 7523701 ; rondas 3
+   minutos Real: suma 354 ; mediana 40 ; p75 299
+   tokens total por ADR: mediana 16478511 ; p75 20577242 ; rondas (rondas: ADR) 3: 3, 4: 1, 15: 1
+-- proponer_hito, sin 2.0: 9 elementos ; bloqueantes 3 ; tareas 7 ; ADR 2
+   TASK-097 tarea BLOQUEANTE antes de migrar (tarea de la 0.16): scripts/lector-tareas.py: leer la carpeta fija o tc2 tareas --json
+   TASK-098 tarea BLOQUEANTE antes de migrar (tarea de la 0.16): scripts/comprobar-modulos.py: leer la carpeta fija o tc2 tareas --json
+   TASK-099 tarea BLOQUEANTE antes de migrar (tarea de la 0.16): scripts/comprobar-fallos.py: leer la carpeta fija o tc2 tareas --json
+   TASK-100 tarea tras migrar (tc2 import): scripts/verificar.bat (3-5): hueco sin puertas-en-ci
+   TASK-101 tarea tras migrar (tc2 import): scripts/verificar.bat (16-18, 35-37, 44-47): hueco sin puertas-en-ci
+   TASK-102 tarea tras migrar (tc2 import): scripts/verificar.bat (25): hueco sin cli-2
+   TASK-103 tarea tras migrar (tc2 import): scripts/verificar.bat (59): hueco sin roadmap-nativo
+   TASK-104 ADR   tras migrar (tc2 import): clasificar lo que nombra TaskCode (codigo: 4 ficheros)
+   TASK-105 ADR   tras migrar (tc2 import): clasificar lo que nombra TaskCode (documentacion: 11 ficheros)
+   presupuesto ADR (min / tokens, mediana-p75 de H): 91-100 / 27884893-38162580 ; tareas (mediana-p75 del propio proyecto): 392-539 / 135685595.5-195547324
+-- proponer_hito, 2.0.0 prevista: 5 elementos ; bloqueantes 0 ; tareas 3 ; ADR 2
+   TASK-097 tarea tras migrar (tc2 import): scripts/lector-tareas.py (1-44): sustituir por tareas-json
+   TASK-098 tarea tras migrar (tc2 import): scripts/comprobar-modulos.py (_cargar_grafo 87-92, tareas_vivas 95-105): sustituir por tareas-json
+   TASK-099 tarea tras migrar (tc2 import): scripts/comprobar-fallos.py (_cargar_grafo 51-56, tareas_vivas 302-310): sustituir por tareas-json
+   TASK-100 ADR   tras migrar (tc2 import): clasificar lo que nombra TaskCode (codigo: 4 ficheros)
+   TASK-101 ADR   tras migrar (tc2 import): clasificar lo que nombra TaskCode (documentacion: 11 ficheros)
+   presupuesto ADR (min / tokens, mediana-p75 de H): 91-100 / 27884893-38162580 ; tareas (mediana-p75 del propio proyecto): 168-231 / 58150969.5-83805996
+hash de la copia (con .git) antes y despues del estudio: igual ; ficheros cambiados 0
+
+=== R: registro hito-decisiones.yml, firma de persona y hito_estado (ramas de estado de prueba) ===
+-- R1: TaskCodeTwo (tareas reales en 0cc5bc3; hito = las ADR de la Fase 1)
+sin registro: ausente (no hay hito-decisiones.yml) ; tareas del hito 0 ; segunda llamada igual
+TaskCodeTwo real: las 18 ADR de la Fase 1: abierto (12 de 18 cerradas; TASK-014 planificada) ; tareas del hito 18 ; segunda llamada igual
+edicion valida sin firma: lista cambiada a TASK-001 solo: abierto (registro distinto de la version firmada (5587bb46e292)) ; tareas del hito 18 ; segunda llamada igual
+edicion valida sin firma: ID de codigo anadido a la lista (TASK-016): abierto (registro distinto de la version firmada (5587bb46e292)) ; tareas del hito 18 ; segunda llamada igual
+edicion valida sin firma: lista reducida a las 12 terminadas: abierto (registro distinto de la version firmada (5587bb46e292)) ; tareas del hito 18 ; segunda llamada igual
+edicion valida sin firma: no_necesario escrito por el agente: abierto (registro distinto de la version firmada (5587bb46e292)) ; tareas del hito 18 ; segunda llamada igual
+edicion valida sin firma: todas las pendientes descartadas en su tarea.md: abierto (12 de 18 cerradas; TASK-014 descartada sin motivo firmado) ; tareas del hito 18 ; segunda llamada igual
+firmado: lista con TASK-001 (sin hito: true): abierto (0 de 1 cerradas; TASK-001 no es tarea del hito) ; tareas del hito 0 ; segunda llamada igual
+firmado: pendientes descartadas con motivo firmado: cerrado (18 de 18 terminadas o descartadas con motivo firmado) ; tareas del hito 18 ; segunda llamada igual
+firmado: no_necesario a nombre de otra identidad: abierto (no_necesario firmado por otra identidad que la del commit) ; tareas del hito 18 ; segunda llamada igual
+roto (firmado): firma sin motivo: abierto (no_necesario sin por, fecha o motivo) ; tareas del hito 0 ; segunda llamada igual
+roto (firmado): sin informe_hash: abierto (registro sin informe_hash) ; tareas del hito 0 ; segunda llamada igual
+roto (firmado): lista vacia sin firma: abierto (lista vacia sin firma de no necesario) ; tareas del hito 0 ; segunda llamada igual
+roto (firmado): tarea que no existe: abierto (12 de 13 cerradas; TASK-999 no es tarea del hito) ; tareas del hito 12 ; segunda llamada igual
+roto (firmado): YAML ilegible: abierto (registro ilegible) ; tareas del hito 0 ; segunda llamada igual
+roto (firmado): sin formato 2: abierto (registro sin formato 2 u origen) ; tareas del hito 0 ; segunda llamada igual
+transiciones del agente: las 18 terminadas: cerrado (18 de 18 terminadas o descartadas con motivo firmado) ; tareas del hito 18 ; segunda llamada igual
+-- R2: OpenDockTrading tras `tc2 actualizar` (tareas reales en 8141a08) y propuesta con la 2.0.0 prevista
+1. migrado, sin registro: ausente (no hay hito-decisiones.yml) ; tareas del hito 0 ; segunda llamada igual
+1b. no-necesario escrito por el agente: abierto (registro sin firma de persona) ; tareas del hito 0 ; segunda llamada igual
+2. tc2 hito abrir --desde la propuesta (5 elementos): abierto (0 de 5 cerradas; TASK-097 planificada) ; tareas del hito 5 ; segunda llamada igual
+3. tareas del hito terminadas: cerrado (5 de 5 terminadas o descartadas con motivo firmado) ; tareas del hito 5 ; segunda llamada igual
+2'. tc2 hito no-necesario sobre un registro ausente: no-necesario (firmado por carlos@persona.invalid) ; tareas del hito 0 ; segunda llamada igual
+   1. migrado (actualizar no escribe el registro): ausente ; start pasa / se niega 0 / 50
+   1b. el agente escribe no-necesario: abierto ; start pasa / se niega 0 / 50
+   2. la persona abre el hito con la propuesta: abierto ; start pasa / se niega 5 / 50
+   3. el agente termina las tareas del hito: cerrado ; start pasa / se niega 50 / 0
+   2'. la persona firma no-necesario sin registro previo: no-necesario ; start pasa / se niega 50 / 0
+-- mutaciones de control de hito_estado
+   sin la comprobacion «firma»: detectada por 2 casos (edicion valida sin firma: lista reducida a las 12 terminadas)
+   sin la comprobacion «marca»: detectada por 1 casos (firmado: lista con TASK-001 (sin hito: true))
+   sin la comprobacion «descartes»: detectada por 1 casos (edicion valida sin firma: todas las pendientes descartadas en su tarea.md)
+   sin la comprobacion «por»: detectada por 1 casos (firmado: no_necesario a nombre de otra identidad)
+
+=== P: puerta simulada (parada local en start y check estado del PR) sobre tareas reales ===
+tareas con carril declarado (la 0.16 no tiene el campo): 0
+codigo de la negativa: 3 (`rechazada` del contrato de F1-4) ; linea: start rechazada id=TASK-016 motivo=hito-abierto
+-- TaskCodeTwo: tareas del hito (version firmada) 18 ; PR de tarea mergeados 13
+   hito ausente: start pasa 0 / se niega 81 ; check estado: errata 12, verde 12, rojo 1 ; codigos [0, 3] ; dos llamadas iguales
+   hito abierto: start pasa 6 / se niega 75 ; check estado: errata 12, verde 12, rojo 1 ; codigos [0, 3] ; dos llamadas iguales
+      start pasa: TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-094
+      PR errata (solo docs/): TASK-002, TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-013
+      PR en rojo: TASK-001
+   hito cerrado: start pasa 81 / se niega 0 ; check estado: errata 12, verde 13, rojo 0 ; codigos [0] ; dos llamadas iguales
+   hito no-necesario: start pasa 81 / se niega 0 ; check estado: errata 12, verde 13, rojo 0 ; codigos [0] ; dos llamadas iguales
+-- OpenDockTrading: tareas del hito (version firmada) 5 ; PR de tarea mergeados 44
+   hito ausente: start pasa 0 / se niega 50 ; check estado: errata 1, verde 1, rojo 43 ; codigos [0, 3] ; dos llamadas iguales
+   hito abierto: start pasa 0 / se niega 50 ; check estado: errata 1, verde 1, rojo 43 ; codigos [0, 3] ; dos llamadas iguales
+      start pasa: ninguna
+      PR errata (solo docs/): TASK-067
+      PR en rojo: TASK-001, TASK-002, TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-016, TASK-017, TASK-018, TASK-019, TASK-020, TASK-045, TASK-046, TASK-053, TASK-059, TASK-061, TASK-062, TASK-063, TASK-064, TASK-069, TASK-076, TASK-077, TASK-078, TASK-081, TASK-082, TASK-083, TASK-087, TASK-088, TASK-089, TASK-090, TASK-092, TASK-093, TASK-094, TASK-095, TASK-096
+   hito cerrado: start pasa 50 / se niega 0 ; check estado: errata 1, verde 44, rojo 0 ; codigos [0] ; dos llamadas iguales
+   hito no-necesario: start pasa 50 / se niega 0 ; check estado: errata 1, verde 44, rojo 0 ; codigos [0] ; dos llamadas iguales
+
+=== G: el ADR (cifras, resumen, secciones, IDs, enlaces e indice) y sus mutaciones de control ===
+cifras en la tabla del ADR: 78 ; medidas: 78
+errores del ADR: 0
+  mutacion cifra-cambiada: falla como se espera (H: minutos Real: suma / mediana / p75: el ADR dice '739 / 45.5 / 500' y lo medido es '739 / 45.5 / 50')
+  mutacion fila-borrada: falla como se espera (cifra medida que falta en la tabla: H: minutos Real: suma / mediana / p75 = 739 / 45.5 / 50)
+  mutacion fila-sin-medida: falla como se espera (fila de la tabla sin medida: cifra inventada)
+  mutacion tiempo-de-reloj-en-la-tabla: falla como se espera (fila de la tabla sin medida: PoC: segundos de reloj)
+  mutacion resumen-inventado: falla como se espera (el resumen cita '9999', que no es un valor de la tabla)
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion enlace-a-tareas: falla como se espera (enlaces prohibidos ['../../tareas/x.md'])
+  mutacion enlace-roto: falla como se espera (enlace que no resuelve: F1-99-no-existe.md)
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## No verificado'])
+  mutacion sin-fila-f1-18-propuesta: falla como se espera (F1-18 no esta en el plan y «Divergencias con el plan» no propone su fila)
+  mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
+  mutacion sin-regla-de-firma: falla como se espera (falta la regla: la lista `tareas` la fija una persona)
+  mutacion codigo-4-de-f1-12: falla como se espera (afirmacion sin fuente: 4, el de F1-12)
+  mutacion cifra-firma-cambiada: falla como se espera (hito_estado: ediciones validas sin firma de persona que salen abierto: el ADR dice '4/5' y lo medido es '5/5')
+
+carpeta de trabajo borrada al terminar: si
+
+RESULTADO: todo como se espera
