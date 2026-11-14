@@ -55,3 +55,4 @@ Tarea F1-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 ## Autorrevision
 
 - code-quality-reviewer — 10027fd
+- code-quality-reviewer — 4456a70
