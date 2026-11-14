@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-005-f1-4-adr-capa-de-operaciones-git-github
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -32,3 +32,9 @@ Tarea F1-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - [ ] Lista cerrada de operaciones
 - [ ] objetivo de tokens por tarea
 - [ ] Cumple lo que pide la tarea F1-4 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T04:50:35Z | plan | automatico | persona | 0.16.1 |
