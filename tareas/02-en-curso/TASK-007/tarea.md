@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-007-f1-6-adr-identidades-del-agente-del-revi
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F1-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T06:26:21Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T06:29:57Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T06:29:58Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
