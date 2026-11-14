@@ -2,6 +2,6 @@
 # automatico: las preguntas se hacen en plan; el resto se encadena hasta finish.
 modo_flujo: automatico
 
-# Mientras no haya codigo (Fase 1 son decisiones), todo es documentacion y no
-# hay comando de verificacion. Se declara con la primera tarea de codigo (F2-1).
-rutas_documentacion: [docs/**, "*.md"]
+# Mientras no haya codigo (la Fase 1 son decisiones) no hay comando de
+# verificacion. Se declara con la primera tarea de codigo (F2-1), junto con
+# rutas_documentacion.
