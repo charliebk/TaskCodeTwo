@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-008-f1-7-adr-verificacion-en-ci-perfiles-cac
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F1-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-14T07:06:31Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T07:12:24Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T07:12:25Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
