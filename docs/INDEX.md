@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-008 — F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners · etiquetas: (sin etiquetas) · rama feature/task-008-f1-7-adr-verificacion-en-ci-perfiles-cac · terminada 2026-11-14 · tareas/04-terminadas/TASK-008/
 - TASK-007 — F1-6 ADR identidades del agente, del revisor y de la persona · etiquetas: (sin etiquetas) · rama feature/task-007-f1-6-adr-identidades-del-agente-del-revi · terminada 2026-11-14 · tareas/04-terminadas/TASK-007/
 - TASK-006 — F1-5 ADR puertas en GitHub · etiquetas: (sin etiquetas) · rama feature/task-006-f1-5-adr-puertas-en-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-006/
 - TASK-005 — F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato · etiquetas: (sin etiquetas) · rama feature/task-005-f1-4-adr-capa-de-operaciones-git-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-005/
