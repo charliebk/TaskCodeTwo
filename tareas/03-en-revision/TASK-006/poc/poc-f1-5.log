@@ -74,24 +74,30 @@ RESULTADO E main ancestro de develop tras release por merge commit: no
 commit de develop en TaskCodeTwo:        sha=e8ee970802d9 verified=false reason=unsigned committer=charliebk commit.committer=carlos gallardo
 GET /repos/{o}/{r}/commits/{ref}: commit.verification = ['payload', 'reason', 'signature', 'verified', 'verified_at'] required ['verified', 'reason', 'payload', 'signature', 'verified_at']
   campos de primer nivel con la cuenta de GitHub: ['author', 'committer']
-  plan: approve firmado y verificado, committer persona    -> cuenta 
-  plan: approve sin firma (lo escribe el agente)           -> no cuenta 
-  plan: approve verificado pero de la App del agente       -> no cuenta 
-  plan: approve verificado por GitHub (web-flow, por API)  -> no cuenta 
-  carril: declarado=errata       ficheros=docs/guia.md                     -> errata 
+  blob de plan-final.md: v1=44121046fc34 v2=ec2837e49822
+  plan: firmado, persona, blob = plan actual             -> cuenta 
+  plan: sin firma (lo escribe el agente)                 -> no cuenta 
+  plan: verificado pero de la App del agente             -> no cuenta 
+  plan: verificado por GitHub (web-flow, por API)        -> no cuenta 
+  plan: firmado, pero el agente cambio el plan despues   -> no cuenta 
+  plan: firmado, sin blob registrado                     -> no cuenta 
+  plan: firmado de nuevo sobre el plan cambiado          -> cuenta 
+  carril: declarado=errata       ficheros=docs/a.md                        -> errata 
+  carril: declarado=errata       ficheros=src/x.md                         -> fix 
+  carril: declarado=errata       ficheros=CLAUDE.md                        -> fix 
   carril: declarado=errata       ficheros=src/main.rs                      -> fix 
   carril: declarado=fix          ficheros=.github/workflows/carril.yml     -> riesgo alto 
   carril: declarado=riesgo alto  ficheros=docs/guia.md                     -> riesgo alto 
-  carril: declarado=None         ficheros=README.md                        -> errata 
-  carril: declarado=None         ficheros=src/main.rs                      -> FALLA (necesita tarea de carril >= fix) 
-RESULTADO F esquema verification=si ; plan 4/4 casos ; carril efectivo 6/6 casos (el agente solo puede subirlo)
+  carril: declarado=None         ficheros=docs/a.md                        -> FALLA (PR sin tarea) 
+  carril: declarado=None         ficheros=src/main.rs                      -> FALLA (PR sin tarea) 
+RESULTADO F esquema verification=si ; plan 7/7 casos ; carril efectivo 8/8 casos (el agente solo puede subirlo)
 RESULTADO A+B llamadas gh api con GET=11 ; gh api con otro metodo=0 ; gh repo view=2
 
 === Resumen ===
 RESULTADO C rulesets=6 errores=0 ; negativos rechazados=7/7 ; integration_id actions=15368 revisor=0 (relleno) ; versionados validos=6/6 iguales=6/6
 RESULTADO D filas=6 fallos=0 ; negativos detectados=5/5
 RESULTADO E main ancestro de develop tras release por merge commit: no
-RESULTADO F esquema verification=si ; plan 4/4 casos ; carril efectivo 6/6 casos (el agente solo puede subirlo)
+RESULTADO F esquema verification=si ; plan 7/7 casos ; carril efectivo 8/8 casos (el agente solo puede subirlo)
 RESULTADO A+B llamadas gh api con GET=11 ; gh api con otro metodo=0 ; gh repo view=2
 llamadas a GitHub registradas:
   $ gh repo view charliebk/taskcodetwo-poc-f1-1 --json visibility

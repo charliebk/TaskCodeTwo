@@ -325,45 +325,59 @@ c = res(r)
 ver = res(res(c['properties']['commit'])['properties']['verification'])
 print('GET /repos/{o}/{r}/commits/{ref}: commit.verification =', sorted(ver['properties']), 'required', ver.get('required'))
 print('  campos de primer nivel con la cuenta de GitHub:', [k for k in ('author', 'committer') if k in c['properties']])
-# --- Regla de la decision 4 (simulada): aprobacion del plan ---
+# --- Regla 1 de la decision 4 (simulada): aprobacion del plan atada a firma y a contenido ---
+import hashlib
+def blob(texto):                  # sha de blob de git: sha1("blob <n>\0" + contenido)
+    b_ = texto.encode('utf-8'); return hashlib.sha1(b'blob %d\0' % len(b_) + b_).hexdigest()
+PLAN_V1 = '# Plan\n\nEnfoque aprobado por la persona.\n'
+PLAN_V2 = '# Plan\n\nEnfoque cambiado por el agente despues del approve.\n'
+print('  blob de plan-final.md: v1=%s v2=%s' % (blob(PLAN_V1)[:12], blob(PLAN_V2)[:12]))
 PERSONAS = {'charliebk'}          # identidades de persona del proyecto (F1-6)
-def plan_aprobado(commit):
-    return bool(commit['verified']) and commit['committer'] in PERSONAS
+def plan_aprobado(approve, plan_actual):
+    # el commit firmado de approve registra el blob aprobado (p. ej. trailer "Plan-Blob: <sha>")
+    return (bool(approve['verified']) and approve['committer'] in PERSONAS
+            and approve.get('plan_blob') is not None and approve['plan_blob'] == blob(plan_actual))
 casos = [
-  ('approve firmado y verificado, committer persona', dict(verified=True, committer='charliebk'), True),
-  ('approve sin firma (lo escribe el agente)',          dict(verified=False, committer='charliebk'), False),
-  ('approve verificado pero de la App del agente',      dict(verified=True, committer='taskcode-agente[bot]'), False),
-  ('approve verificado por GitHub (web-flow, por API)', dict(verified=True, committer='web-flow'), False),
+  ('firmado, persona, blob = plan actual',         dict(verified=True, committer='charliebk', plan_blob=blob(PLAN_V1)), PLAN_V1, True),
+  ('sin firma (lo escribe el agente)',             dict(verified=False, committer='charliebk', plan_blob=blob(PLAN_V1)), PLAN_V1, False),
+  ('verificado pero de la App del agente',         dict(verified=True, committer='taskcode-agente[bot]', plan_blob=blob(PLAN_V1)), PLAN_V1, False),
+  ('verificado por GitHub (web-flow, por API)',    dict(verified=True, committer='web-flow', plan_blob=blob(PLAN_V1)), PLAN_V1, False),
+  ('firmado, pero el agente cambio el plan despues', dict(verified=True, committer='charliebk', plan_blob=blob(PLAN_V1)), PLAN_V2, False),
+  ('firmado, sin blob registrado',                 dict(verified=True, committer='charliebk'), PLAN_V1, False),
+  ('firmado de nuevo sobre el plan cambiado',      dict(verified=True, committer='charliebk', plan_blob=blob(PLAN_V2)), PLAN_V2, True),
 ]
 ok_plan = 0
-for nombre, cm, esperado in casos:
-    r_ = plan_aprobado(cm); ok_plan += (r_ == esperado)
-    print('  plan: %-50s -> %s %s' % (nombre, 'cuenta' if r_ else 'no cuenta', '' if r_ == esperado else '(INESPERADO)'))
-# --- Carril efectivo = max(declarado, minimo por ficheros). Regla de derivacion: EJEMPLO, la fija F1-10 ---
+for nombre, cm, actual, esperado in casos:
+    r_ = plan_aprobado(cm, actual); ok_plan += (r_ == esperado)
+    print('  plan: %-48s -> %s %s' % (nombre, 'cuenta' if r_ else 'no cuenta', '' if r_ == esperado else '(INESPERADO)'))
+n_plan = len(casos)
+# --- Regla 2: carril efectivo = max(declarado, minimo por ficheros). Derivacion: EJEMPLO, la fija F1-10 ---
+# Errata solo si TODOS los ficheros estan bajo docs/. Todo PR necesita tarea (tambien la errata).
 ORDEN = ['errata', 'fix', 'funcionalidad', 'riesgo alto']
 def minimo(ficheros):
-    if any(f.startswith(('.github/', '.taskcode/')) or f.endswith('CODEOWNERS') for f in ficheros): return 'riesgo alto'
-    if all(f.startswith('docs/') or f.endswith('.md') for f in ficheros): return 'errata'
+    if any(f.startswith(('.github/', '.taskcode/')) or f.split('/')[-1] == 'CODEOWNERS' for f in ficheros): return 'riesgo alto'
+    if all(f.startswith('docs/') for f in ficheros): return 'errata'
     return 'fix'
 def efectivo(declarado, ficheros):
-    m = minimo(ficheros)
-    if declarado is None:                       # PR sin tarea
-        return 'errata' if m == 'errata' else 'FALLA (necesita tarea de carril >= %s)' % m
-    return max(declarado, m, key=ORDEN.index)
+    if declarado is None:                       # PR sin tarea: siempre falla cerrado
+        return 'FALLA (PR sin tarea)'
+    return max(declarado, minimo(ficheros), key=ORDEN.index)
 casos = [
-  ('errata', ['docs/guia.md'], 'errata'),
+  ('errata', ['docs/a.md'], 'errata'),
+  ('errata', ['src/x.md'], 'fix'),
+  ('errata', ['CLAUDE.md'], 'fix'),
   ('errata', ['src/main.rs'], 'fix'),
   ('fix', ['.github/workflows/carril.yml'], 'riesgo alto'),
   ('riesgo alto', ['docs/guia.md'], 'riesgo alto'),
-  (None, ['README.md'], 'errata'),
-  (None, ['src/main.rs'], 'FALLA (necesita tarea de carril >= fix)'),
+  (None, ['docs/a.md'], 'FALLA (PR sin tarea)'),
+  (None, ['src/main.rs'], 'FALLA (PR sin tarea)'),
 ]
 ok_car = 0
 for d, fs, esperado in casos:
     r_ = efectivo(d, fs); ok_car += (r_ == esperado)
     print('  carril: declarado=%-12s ficheros=%-32s -> %s %s' % (d, ','.join(fs), r_, '' if r_ == esperado else '(INESPERADO)'))
-print('RESULTADO F esquema verification=%s ; plan %d/4 casos ; carril efectivo %d/6 casos (el agente solo puede subirlo)'
-      % ('si' if 'verified' in ver['properties'] else 'NO', ok_plan, ok_car))
+print('RESULTADO F esquema verification=%s ; plan %d/%d casos ; carril efectivo %d/%d casos (el agente solo puede subirlo)'
+      % ('si' if 'verified' in ver['properties'] else 'NO', ok_plan, n_plan, ok_car, len(casos)))
 EOF
 grep '^RESULTADO' "$base/f.txt" >> "$base/resultados.txt"
 
