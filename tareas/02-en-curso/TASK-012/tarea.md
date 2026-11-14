@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-012-f1-11-adr-extensiones-declaradas
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F1-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 |---|---|---|---|---|
 | 2026-11-14T11:39:46Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-14T11:48:00Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-14T11:48:01Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
