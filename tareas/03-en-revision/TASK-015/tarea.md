@@ -53,3 +53,4 @@ Tarea F1-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 ## Autorrevision
 
 - code-quality-reviewer — b94e6fe
+- code-quality-reviewer — ca2d75f
