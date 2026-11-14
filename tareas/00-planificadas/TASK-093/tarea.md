@@ -28,6 +28,8 @@ Desinstalación limpia de TaskCode 0.16 en la máquina y en los proyectos (plugi
 
 Tarea F9-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F9-2, F1-12.
 
+Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de forma limpia tanto TaskCode (0.16) como TaskCodeTwo, sin dejar rastro en la máquina ni en los proyectos (plugin, CLI, status line, hooks, ficheros de estado, logs, caché del marketplace) y sin perder tareas ni historial salvo confirmación explícita de la persona.
+
 ## Criterios de aceptacion
 - [ ] En una máquina y un proyecto con la 0.16 no queda rastro de ella
 - [ ] las tareas y su historial se conservan

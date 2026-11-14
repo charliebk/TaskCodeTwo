@@ -14,6 +14,9 @@ como plugin del marketplace de Claude Code.
 
 - [Plan](docs/plan/PLAN-TASKCODE-2.md): requisitos rectores, principios,
   fases y tareas.
+- [Ampliación del 2026-11-14](docs/plan/AMPLIACION-2026-11-14.md): skills,
+  agentes y modelo por tarea, lotes desatendidos, equipo garantizado, progreso
+  en vivo, piloto final y desinstalación, con su motivo y diseño propuesto.
 - [Requisitos funcionales](docs/plan/REQUISITOS-FUNCIONALES.md): lo que hace
   TaskCode 0.16, con su uso real en proyectos, y lo que tiene que hacer la 2.0.
 - [Auditoría externa de TaskCode 0.16](docs/auditoria/AUDITORIA-EXTERNA-2026-11-13.md)

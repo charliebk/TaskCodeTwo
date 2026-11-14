@@ -28,6 +28,8 @@ dependencias: [TASK-018, TASK-025, TASK-027]
 
 Tarea F2-14 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-3, F2-10, F2-12.
 
+Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de forma limpia tanto TaskCode (0.16) como TaskCodeTwo, sin dejar rastro en la máquina ni en los proyectos (plugin, CLI, status line, hooks, ficheros de estado, logs, caché del marketplace) y sin perder tareas ni historial salvo confirmación explícita de la persona.
+
 ## Criterios de aceptacion
 - [ ] Tras desinstalar no queda nada de TaskCodeTwo en la máquina ni en el proyecto salvo lo que la persona decide conservar
 - [ ] Cumple lo que pide la tarea F2-14 del plan y los requisitos que cita

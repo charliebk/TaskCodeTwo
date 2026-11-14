@@ -28,6 +28,8 @@ Liberar y reasignar tareas: `taskctl liberar` y `reasignar`, aviso de tareas tom
 
 Tarea F3-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-6.
 
+Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas debe estar garantizado: todos saben qué tarea tiene cada uno y no se pueden pisar ni los nombres ni las tareas. Además de lo ya previsto (IDs por push atómico, toma atómica en start, roadmap con quién lleva cada tarea, status), se cierran los huecos: nombres de rama y títulos únicos, identidad real de la plataforma (no texto libre), liberar y reasignar tareas abandonadas, aviso de solape de ficheros entre tareas en curso y estado siempre fresco con hora de sincronización. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 ter.
+
 ## Criterios de aceptacion
 - [ ] Una tarea abandonada vuelve a «lista para empezar» sin perder su trabajo ni su rama
 - [ ] Cumple lo que pide la tarea F3-10 del plan y los requisitos que cita

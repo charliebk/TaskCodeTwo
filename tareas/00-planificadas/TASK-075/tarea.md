@@ -28,6 +28,8 @@ ADR: progreso en vivo y estimación (RR-19): estimación por fase (carril, compl
 
 Tarea F1-17 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-9, F1-10.
 
+Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo importante no es un porcentaje sino qué fases faltan y el tiempo estimado de cada tarea, como información para el programador, visible en el terminal de trabajo (status line de Claude Code y `taskctl status --seguir`), escrito por el CLI sin gastar tokens; en un lote, además, tareas que faltan y hora estimada de fin. Al cerrar, métricas finales: estimado frente a real por fase, tokens, rondas y hallazgos, con la calibración de la estimación en el informe por versión. Base en la 0.16: `taskctl estado [--seguir]`, la status line (fase, paso, x/N, minutos) y la «Duración estimada» del plan. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 quater.
+
 ## Criterios de aceptacion
 - [ ] Estimación probada contra las tareas terminadas de ToolsaWeb y OpenDockTrading, con su error medio
 - [ ] Cumple lo que pide la tarea F1-17 del plan y los requisitos que cita

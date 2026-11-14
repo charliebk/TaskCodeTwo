@@ -28,6 +28,8 @@ dependencias: [TASK-036, TASK-049, TASK-080]
 
 Tarea F4-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F4-1, F3-9, F6-3.
 
+Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol (diseño, implementación, revisión) hay que elegir las skills y los agentes adecuados y el modelo según complejidad y carril, solo entre lo que está instalado en la máquina y el proyecto, anotar la elección en la tarea y medir si acierta (hallazgos por revisora y coste por modelo). En la 0.16 existe con `catalogo-skills.yml`, `skills_recomendados` y `modelo_sugerido`, pero se usó en 21 / 0 / 2 tareas de ToolsaWeb / OpenDockTrading / TaskCode porque el catálogo apenas se configuró: hoy la elección la hace el agente sin criterio registrado. Nada debe decidirlo el modelo «a ojo»: reglas deterministas. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §1–4.
+
 ## Criterios de aceptacion
 - [ ] En 10 tareas reales la propuesta coincide con la que haría una persona
 - [ ] el modelo cambia según complejidad y carril

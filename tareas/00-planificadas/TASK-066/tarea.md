@@ -28,6 +28,8 @@ Suite E2E del flujo con **tres** personas a la vez: altas simultáneas, toma de 
 
 Tarea F9-4 del plan (docs/plan/PLAN-TASKCODE-2.md), ampliada el 2026-11-14 de dos a tres personas. Dependencias en el plan: F7-*, F3-6, F2-4b, F2-13, F3-10, F3-11.
 
+Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas debe estar garantizado: todos saben qué tarea tiene cada uno y no se pueden pisar ni los nombres ni las tareas. Además de lo ya previsto (IDs por push atómico, toma atómica en start, roadmap con quién lleva cada tarea, status), se cierran los huecos: nombres de rama y títulos únicos, identidad real de la plataforma (no texto libre), liberar y reasignar tareas abandonadas, aviso de solape de ficheros entre tareas en curso y estado siempre fresco con hora de sincronización. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 ter.
+
 ## Criterios de aceptacion
 - [ ] Ningún ID, rama ni tarea pisada
 - [ ] Tablero correcto y todos ven lo mismo
