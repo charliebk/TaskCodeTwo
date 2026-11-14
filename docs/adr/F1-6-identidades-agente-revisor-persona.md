@@ -128,16 +128,25 @@ crear repos); «no alcanza» es firme, porque ninguno de sus permisos aparece
 para ese endpoint. Cada operación de la decisión 1 tiene en el guion sus
 endpoints (las de Git, por su equivalente REST: `push` → `POST`/`PATCH
 /git/refs`, `fetch` → `GET /git/matching-refs` y `/commits`). El guion
-comprueba, para cada fila: que cada App asignada alcanza todos sus
-endpoints; que las de solo persona (`approve`, `merge-pr`, `tag-anotado`,
+comprueba, para cada operación de cada fila (cada nombre entre comillas
+de la columna Operación antes del paréntesis; la primera fila son tres:
+`fetch`, `comprobar-id` y `actualizar-principal`): que cada App asignada
+alcanza todos sus endpoints; que las que el CLI corre con el agente
+(lectura del remoto, `push`, `actualizar-rama`, `commit-estado`, `abrir-pr`)
+lo tienen asignado; que las de solo persona (`approve`, `merge-pr`, `tag-anotado`,
 `aplicar-puertas`, `leer-permisos-actions`) no están asignadas a una App;
 que `aplicar-puertas` y `leer-permisos-actions` no las alcanza ninguna App;
-que cada permiso se usa; y los invariantes de la decisión 4.
+que cada permiso se usa; y los invariantes de la decisión 4. **El guion
+sale con código distinto de 0** si alguna sección falla, si hay una llamada
+de otro método o si una mutación no se aplica o no se detecta (revisión 2,
+MEN-7 y MEN-8).
 
 ```text
-decision 1 extraida del ADR: 13 operaciones
+decision 1 extraida del ADR: 15 operaciones
 -- tabla fpt-2022-11-28: 940 endpoints server-to-server
   fetch                  identidad=agente           agente=si revisor=si  exige=contents:read + contents:read
+  comprobar-id           identidad=agente           agente=si revisor=si  exige=contents:read
+  actualizar-principal   identidad=agente           agente=si revisor=si  exige=contents:read + contents:read
   push                   identidad=agente           agente=si revisor=no  exige=contents:write/workflows:write + ...
   commit-estado          identidad=agente           agente=si revisor=no  exige=contents:write/workflows:write
   approve                identidad=persona          agente=si revisor=no  exige=contents:write/workflows:write
@@ -173,8 +182,16 @@ las 2 versiones dan el mismo resultado: si
   leer-permisos-actions-del-agente   -> detectada: leer-permisos-actions asignada a agente (solo persona) (+1)
   agente-con-administration          -> detectada: agente alcanza aplicar-puertas (exige administration) (+4)
   revisor-sin-fila-de-operacion      -> detectada: tablas ilegibles: fila sin operacion entre comillas: check revision
-RESULTADO B operaciones=13 x versiones=2 fallos=0 ; versiones iguales=si ; escrituras agente=77 revisor=10 ; mutaciones del ADR detectadas=6/6
+  comprobar-id-solo-persona          -> detectada: comprobar-id sin la identidad del agente (+1)
+RESULTADO B operaciones=15 x versiones=2 fallos=0 ; versiones iguales=si ; escrituras agente=77 revisor=10 ; mutaciones del ADR detectadas=7/7
+mutaciones no aplicadas: 0
+...
+PoC sin fallos        (código de salida 0)
 ```
+
+Control del código de salida: con una copia del ADR que da
+`workflows:write` al agente, el guion informa `fallos=2`, una mutación «NO
+APLICADA», `PoC con fallos en: B` y sale con código 1.
 
 Lectura:
 
@@ -203,7 +220,8 @@ Lectura:
 - **Las tablas del ADR son las que se prueban**: una copia del ADR con el
   revisor con `pull_requests:write` y `contents:write`, con `merge-pr` o
   `leer-permisos-actions` asignadas al agente, con el agente sin
-  `checks:read` o con `administration:write`, o con una fila ilegible, falla.
+  `checks:read` o con `administration:write`, con una fila ilegible, o con
+  `comprobar-id` y `actualizar-principal` pasadas a la persona, falla.
 - La descripción de `pull_requests` en el esquema habla de «merges», pero la
   tabla exige `contents:write` (y solo ese) para `PUT /pulls/{n}/merge`.
 
@@ -267,7 +285,7 @@ Un repo local hace de `taskcode/tareas`: el agente escribe
 con su clave SSH y el trailer `Plan-Blob: <sha del blob>`.
 
 ```text
-commit de approve f3770a0 ; firma=G ; trailer Plan-Blob=1608d7cd2379f7dcb0576f1981d650e21d2304e6
+commit de approve 0262215 ; firma=G ; trailer Plan-Blob=1608d7cd2379f7dcb0576f1981d650e21d2304e6
 verify-commit approve, allowed_signers bueno:            ok
 verify-commit approve, allowed_signers con otra clave:  falla
 plan aprobado (firma ok y Plan-Blob = blob actual):     cuenta
@@ -344,6 +362,10 @@ Lectura:
     (MEN-1, MEN-2), regla de reviews en el contrato (MEN-3), lectura del
     remoto con identidad (MEN-4), fila F6-1 y caja de merge (MEN-5) y lista
     de personas con `id` numérico (MEN-6).
+12. **Menores de la revisión 2**: el guion evalúa cada operación de cada
+    fila de la decisión 1 (MEN-7), sale con código distinto de 0 si algo
+    falla o una mutación no se aplica (MEN-8), y `doctor` sin el token de la
+    persona informa «no comprobado» (MEN-9).
 
 ### No verificado
 
@@ -418,7 +440,7 @@ se ha creado ninguna App):
    | `tag-anotado` (y su push) | `release`, `finish` de `hotfix` | persona | publicar una versión es de la persona (quién lanza la release: F1-10) |
    | `aplicar-puertas` | `init` | persona | exige `administration`, que ninguna IA tiene |
    | `leer-puertas` (rulesets y reglas de rama) | `doctor`, `review` | agente, persona | lectura con `metadata:read` |
-   | `leer-permisos-actions` (nueva: `can_approve_pull_request_reviews`) | `doctor`, `init` | persona | exige `administration:read`, que ninguna IA tiene |
+   | `leer-permisos-actions` (nueva: `can_approve_pull_request_reviews`) | `doctor`, `init`, **solo con el token de la persona** | persona | exige `administration:read`, que ninguna IA tiene; un `doctor` lanzado sin el token de la persona (p. ej. con el del agente) no la intenta ni la omite en silencio: informa «`can_approve_pull_request_reviews`: no comprobado (falta la identidad de persona)» (no verificado: F3-8) |
    | check `revision-ia` | workflow del revisor (F6) | revisor | su `app_id` es el `integration_id` de `revision-ia` |
    <!-- tabla-identidades:fin -->
 
@@ -492,7 +514,9 @@ se ha creado ninguna App):
    Además, `doctor` e `init`, con el token de la persona, comprueban con
    `leer-permisos-actions` que `can_approve_pull_request_reviews` siga en
    `false` (PoC C): si no, un workflow con `GITHUB_TOKEN` podría aprobar. No
-   lo hace `review` ni ninguna App: exige `administration:read` (PoC B).
+   lo hace `review` ni ninguna App: exige `administration:read` (PoC B). Sin
+   el token de la persona, `doctor` informa «no comprobado»; nunca la da por
+   buena ni la calla.
 
    **Límite explícito (D3a).** GitHub no separa empujar de mergear:
    `contents:write`, que el agente necesita para empujar ramas y

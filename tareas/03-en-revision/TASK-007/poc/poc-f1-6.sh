@@ -30,6 +30,8 @@
 #     frase de paso sin agente ni TTY, y soporte de claves FIDO (-sk).
 #
 # Uso: poc-f1-6.sh <carpeta-de-trabajo> <ruta-del-ADR>
+# Sale con 0 solo si todas las secciones salen como se espera (A..E, sin
+# llamadas de otro metodo y todas las mutaciones aplicadas y detectadas).
 # Ningun POST/PUT/PATCH/DELETE: todas las llamadas a la API pasan por gh_get.
 set -u
 [ $# -eq 2 ] || { echo "uso: $0 <trabajo> <adr>"; exit 2; }
@@ -50,6 +52,8 @@ USUARIOS="charliebk web-flow github-actions[bot]"
 SCHEMA_REPO=github/rest-api-description
 DOCS_REPO=github/docs
 sep() { echo; echo "=== $* ==="; }
+FALLOS=""
+falla() { FALLOS="$FALLOS $1"; echo "FALLO en $1"; }
 
 # Unica puerta a la API: siempre GET. Imprime "HTTP <codigo> <cuerpo recortado>".
 gh_get() {
@@ -92,12 +96,14 @@ def permisos(txt):
             ids[ident] = dict(re.findall(r'`([a-z_]+):([a-z]+)`', c[2]))
     return ids
 def operaciones(txt):
-    """decision 1 -> [(operacion, [identidades])]; la operacion es el primer `...` de la fila."""
+    """decision 1 -> [(operacion, [identidades])]: cada `...` de la columna Operacion
+    antes del primer parentesis (el parentesis es explicacion) es una operacion."""
     ops = []
     for c in bloque(txt, 'tabla-identidades'):
-        m = re.search(r'`([^`]+)`', c[0])
-        if not m: raise ValueError('fila sin operacion entre comillas: %s' % c[0])
-        ops.append((m.group(1), re.findall(r'\b(agente|revisor|persona)\b', c[2])))
+        nombres = re.findall(r'`([^`]+)`', c[0].split('(')[0])
+        if not nombres: raise ValueError('fila sin operacion entre comillas: %s' % c[0])
+        idents = re.findall(r'\b(agente|revisor|persona)\b', c[2])
+        ops += [(n, idents) for n in nombres]
     return ops
 def indice(fich):
     d = json.load(open(fich, encoding='utf-8'))
@@ -116,6 +122,8 @@ def alcanza(perms, idx, verbo, ruta):
 # Endpoints de cada operacion del puerto (equivalencia REST de las de Git).
 EP_OP = {
   'fetch':                 [('GET', R + '/git/matching-refs/{ref}'), ('GET', R + '/commits/{ref}')],
+  'comprobar-id':          [('GET', R + '/git/matching-refs/{ref}')],
+  'actualizar-principal':  [('GET', R + '/git/matching-refs/{ref}'), ('GET', R + '/commits/{ref}')],
   'push':                  [('POST', R + '/git/refs'), ('PATCH', R + '/git/refs/{ref}')],
   'actualizar-rama':       [('POST', R + '/git/refs'), ('PATCH', R + '/git/refs/{ref}')],
   'commit-estado':         [('PATCH', R + '/git/refs/{ref}')],
@@ -131,6 +139,8 @@ EP_OP = {
   'revision-ia':           [('POST', R + '/check-runs'), ('PATCH', R + '/check-runs/{check_run_id}'),
                             ('GET', R + '/pulls/{pull_number}/files'), ('GET', R + '/contents/{path}')],
 }
+# Las que el CLI corre con el agente (lectura del remoto, pushes por require_last_push_approval, PR para que la persona apruebe)
+CON_AGENTE = {'fetch', 'comprobar-id', 'actualizar-principal', 'push', 'actualizar-rama', 'commit-estado', 'abrir-pr'}
 SOLO_PERSONA = {'approve', 'merge-pr', 'tag-anotado', 'aplicar-puertas', 'leer-permisos-actions'}
 FUERA_DE_APPS = {'aplicar-puertas', 'leer-permisos-actions'}   # ninguna App las alcanza (administration)
 LIMITE = {'merge-pr', 'tag-anotado'}                           # el agente las alcanza: limite escrito (D3a)
@@ -158,6 +168,7 @@ def evalua(txt, idx, ver=False):
     for op, idents in ops:
         if op not in EP_OP: f.append('operacion %s sin endpoints conocidos' % op); continue
         if not idents: f.append('%s sin identidad' % op)
+        if op in CON_AGENTE and 'agente' not in idents: f.append('%s sin la identidad del agente' % op)
         if op in SOLO_PERSONA and idents != ['persona']: f.append('%s asignada a %s (solo persona)' % (op, ','.join(idents)))
         for app in ('agente', 'revisor'):
             res = [alcanza(ids.get(app, {}), idx, v, r) for v, r in EP_OP[op]]
@@ -233,7 +244,9 @@ for k, v in neg.items():
     print('  %-45s -> %s' % (k, 'rechazado: ' + e[0] if e else 'ACEPTADO (fallo del validador)'))
 print('RESULTADO A apps=%d errores=%d ; agente checks/statuses solo lectura=%s ; negativos rechazados=%d/%d'
       % (len(ids), err, 'si' if lect else 'NO', rech, len(neg)))
+sys.exit(0 if (err == 0 and lect and rech == len(neg)) else 1)
 EOF
+[ "${PIPESTATUS[0]}" -eq 0 ] || falla "A"
 grep '^RESULTADO' "$base/a.txt" >> "$base/resultados.txt"
 
 ######################################################################
@@ -276,13 +289,16 @@ MUT = {
   'revisor-pr-y-contents-write': (R2, R2.replace('`contents:read`, `pull_requests:read`', '`contents:write`, `pull_requests:write`')),
   'merge-pr-del-agente': ('| `merge-pr` | `finish`, `release` | persona |', '| `merge-pr` | `finish`, `release` | agente |'),
   'agente-sin-checks-read': ('`checks:read`, `statuses:read`, `metadata:read`', '`statuses:read`, `metadata:read`'),
-  'leer-permisos-actions-del-agente': ('| `doctor`, `init` | persona | exige `administration:read`', '| `doctor`, `init` | agente | exige `administration:read`'),
+  'leer-permisos-actions-del-agente': ('**solo con el token de la persona** | persona | exige `administration:read`', '**solo con el token de la persona** | agente | exige `administration:read`'),
   'agente-con-administration': ('`contents:write`, `pull_requests:write`, `checks:read`', '`contents:write`, `pull_requests:write`, `administration:write`, `checks:read`'),
   'revisor-sin-fila-de-operacion': ('| check `revision-ia` |', '| check revision |'),
+  'comprobar-id-solo-persona': ('| `fetch`, `comprobar-id`, `actualizar-principal` (lectura del remoto) | todo comando que lee el remoto | agente |',
+                                '| `fetch` (lectura del remoto) | todo comando que lee el remoto | agente | x |\n   | `comprobar-id`, `actualizar-principal` | todo comando que lee el remoto | persona |'),
 }
-det = 0
+det = no_aplicadas = 0
 for nombre, (viejo, nuevo) in MUT.items():
-    if adr.count(viejo) != 1: print('  %-34s -> NO APLICADA (texto no encontrado)' % nombre); continue
+    if adr.count(viejo) != 1:
+        no_aplicadas += 1; print('  %-34s -> NO APLICADA (texto no encontrado)' % nombre); continue
     ruta = os.path.join(mdir, 'F1-6-' + nombre + '.md')
     open(ruta, 'w', encoding='utf-8', newline='\n').write(adr.replace(viejo, nuevo))
     f = tablas.evalua(open(ruta, encoding='utf-8').read(), idx)
@@ -291,7 +307,10 @@ for nombre, (viejo, nuevo) in MUT.items():
 print('RESULTADO B operaciones=%d x versiones=%d fallos=%d ; versiones iguales=%s ; escrituras agente=%d revisor=%d ; mutaciones del ADR detectadas=%d/%d'
       % (len(tablas.operaciones(adr)), len(versiones), sum(len(x) for x in fallos.values()), 'si' if iguales else 'NO',
          nesc.get('agente', 0), nesc.get('revisor', 0), det, len(MUT)))
+print('mutaciones no aplicadas: %d' % no_aplicadas)
+sys.exit(0 if (not any(fallos.values()) and iguales and det == len(MUT) and no_aplicadas == 0) else 1)
 EOF
+[ "${PIPESTATUS[0]}" -eq 0 ] || falla "B"
 grep '^RESULTADO' "$base/b.txt" >> "$base/resultados.txt"
 
 ######################################################################
@@ -385,7 +404,9 @@ for nombre, r_, esperado in rcasos:
 print('  nota: web-flow es type=%s; lo excluye la lista y la exclusion explicita, no el type' % cuentas['web-flow'][0])
 print('RESULTADO D approve %d/%d casos ; reviews %d/%d casos ; esquema con id y type=%s'
       % (ok, len(casos), rok, len(rcasos), 'si' if all(('id' in cm, 'type' in cm, 'id' in ru, 'type' in ru)) else 'NO'))
+sys.exit(0 if (ok == len(casos) and rok == len(rcasos) and all(('id' in cm, 'type' in cm, 'id' in ru, 'type' in ru))) else 1)
 EOF
+[ "${PIPESTATUS[0]}" -eq 0 ] || falla "D"
 grep '^RESULTADO' "$base/d.txt" >> "$base/resultados.txt"
 
 ######################################################################
@@ -438,12 +459,18 @@ ESP="ok falla cuenta no_cuenta cuenta falla falla no_firma"
 OBS=$(echo "$E1 $E2 $E3 $E4 $E5 $E6 $E7 $E8" | sed 's/no cuenta/no_cuenta/g; s/no firma/no_firma/')
 nok=0; i=1; for e in $ESP; do [ "$(echo "$OBS" | cut -d' ' -f$i)" = "$e" ] && nok=$((nok+1)); i=$((i+1)); done
 echo "RESULTADO E casos=$nok/8 como se esperaba ; claves FIDO admitidas por OpenSSH=$SK" | tee -a "$base/resultados.txt"
+[ "$nok" -eq 8 ] || falla "E"
 
 ######################################################################
 metodos=$(grep -c -- 'gh api --method GET' "$base/llamadas.txt")
 otros=$(grep 'gh api' "$base/llamadas.txt" | grep -vc -- 'gh api --method GET')
 echo "RESULTADO llamadas gh api con GET=$metodos ; gh api con otro metodo=$otros ; gh repo view=$(grep -c 'repo view' "$base/llamadas.txt") ; descargas GET=$(grep -c '^descarga GET' "$base/llamadas.txt")" >> "$base/resultados.txt"
 
+[ "$otros" -eq 0 ] || falla "llamadas de otro metodo"
+[ "$(grep -c '^false$' "$base/caw.txt")" -eq 2 ] && ! grep -qv '^false$' "$base/caw.txt" || falla "C"
+
 sep "Resumen"
 cat "$base/resultados.txt"
 echo "llamadas a GitHub registradas:"; sed 's/^/  /' "$base/llamadas.txt"
+if [ -n "$FALLOS" ]; then echo "PoC con fallos en:$FALLOS"; exit 1; fi
+echo "PoC sin fallos"
