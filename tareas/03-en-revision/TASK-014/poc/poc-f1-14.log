@@ -26,7 +26,7 @@ Rust con -C link-arg=/Brepro: dos builds en limpio: sha256 igual ; tamano 272076
 artefactos de build dentro del repo: 0
 
 === C: copias de ToolsaWeb y OpenDockTrading en commit fijo (los originales solo se leen) ===
-ToolsaWeb: commit 8bebfd049 ; ficheros (con .git) 4579
+ToolsaWeb: commit 8bebfd049 ; ficheros (con .git) 4599
 OpenDockTrading: commit 8141a08a7 ; ficheros (con .git) 5326
 
 === S: salidas sobre las copias, contraste con PyYAML, clave duplicada y sin node en el PATH ===
@@ -95,7 +95,9 @@ errores del ADR: 0
   mutacion engram-obligatorio: falla como se espera (falta la regla: engram no es obligatorio)
   mutacion ganador-cambiado: falla como se espera (D1: ganador (el 1.o y al menos dos mas): el ADR dice 'TypeScript' y lo medido es 'Rust')
   mutacion sin-macos-en-no-verificado: falla como se espera («No verificado» no nombra Linux y macOS)
-  mutacion prosa-mib: falla como se espera (prosa: «600,3 MiB» no es una cifra medida (1,3, 15,6, 155,7, 2,6, 31,6, 500,3, 5002,8, 83,4))
+  mutacion prosa-mib: falla como se espera (prosa: «600,3 MiB» fuera de una frase que diga a qué corresponde (…ara los 6 targets, 15,6 MiB por versión en )
+  mutacion prosa-mib-otra-medida: falla como se espera (prosa: «83,4 MiB» fuera de una frase que diga a qué corresponde (…ketplace | Descartada: con Rust, 6 targets s)
+  mutacion prosa-mib-intercambio: falla como se espera (prosa: falta la frase con MiB medidos «para los 6 targets, 15,6 MiB por versión en Rust y 500,3 MiB en TypeScr)
   mutacion prosa-veces: falla como se espera (prosa: «3,2 veces» y lo medido es 32,1)
   mutacion prosa-repos: falla como se espera (prosa: «en 2 repos» y se midieron 3)
   mutacion prosa-lineas: falla como se espera (prosa: «147 frente a 115 líneas» y lo medido es 147 frente a 215)
@@ -104,28 +106,28 @@ errores del ADR: 0
   mutacion prosa-duplicada: falla como se espera (prosa: no dice que los dos rechazan la clave duplicada (medido: si / si))
 
 === T: tiempos de reloj (NO deterministas; fuera de la tabla comprobada del ADR) ===
-build en limpio Rust (1.a): 39.6 s
-build en limpio Rust (2.a): 38.2 s
-build en limpio TypeScript (1.a): 16.7 s
-build en limpio TypeScript (2.a): 16.7 s
-build en limpio Rust con /Brepro (1.a): 38.9 s
-build en limpio Rust con /Brepro (2.a): 40.7 s
+build en limpio Rust (1.a): 38.7 s
+build en limpio Rust (2.a): 38.8 s
+build en limpio TypeScript (1.a): 17.3 s
+build en limpio TypeScript (2.a): 19.4 s
+build en limpio Rust con /Brepro (1.a): 50.4 s
+build en limpio Rust con /Brepro (2.a): 59.7 s
 firma Rust: el .exe crece 1832 bytes
 firma TypeScript: el .exe crece 1832 bytes
-Rust sobre repo vacio: frio (1.a ejecucion de copia nueva) 81 ms ; caliente mediana de 20 51 ms (min 48, max 58)
-Rust sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 415 ms ; caliente mediana de 20 369 ms (min 354, max 452)
-Rust sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 159 ms ; caliente mediana de 20 124 ms (min 120, max 146)
-TypeScript sobre repo vacio: frio (1.a ejecucion de copia nueva) 1144 ms ; caliente mediana de 20 135 ms (min 129, max 152)
-TypeScript sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 1717 ms ; caliente mediana de 20 683 ms (min 661, max 825)
-TypeScript sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 1431 ms ; caliente mediana de 20 316 ms (min 297, max 355)
+Rust sobre repo vacio: frio (1.a ejecucion de copia nueva) 114 ms ; caliente mediana de 20 55 ms (min 49, max 62)
+Rust sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 461 ms ; caliente mediana de 20 435 ms (min 400, max 491)
+Rust sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 220 ms ; caliente mediana de 20 161 ms (min 144, max 170)
+TypeScript sobre repo vacio: frio (1.a ejecucion de copia nueva) 1569 ms ; caliente mediana de 20 168 ms (min 157, max 280)
+TypeScript sobre ToolsaWeb: frio (1.a ejecucion de copia nueva) 2425 ms ; caliente mediana de 20 770 ms (min 719, max 968)
+TypeScript sobre OpenDockTrading: frio (1.a ejecucion de copia nueva) 1627 ms ; caliente mediana de 20 345 ms (min 324, max 417)
 Rust con red y sin variables NODE_* (almacen del sistema): red: si
 TypeScript con red y sin variables NODE_* (almacen del sistema): red: si
-lanzador directo + Rust sobre repo vacio: caliente mediana de 20 47 ms (+0 ms sobre el binario directo)
-lanzador tc2.cmd + Rust sobre repo vacio: caliente mediana de 20 94 ms (+47 ms sobre el binario directo)
-lanzador sh tc2 + Rust sobre repo vacio: caliente mediana de 20 103 ms (+56 ms sobre el binario directo)
-lanzador sh tc2-fecha + Rust sobre repo vacio: caliente mediana de 20 142 ms (+95 ms sobre el binario directo)
-lanzador sh tc2-sha256 + Rust sobre repo vacio: caliente mediana de 20 185 ms (+138 ms sobre el binario directo)
-lanzador tc2.ps1 + Rust sobre repo vacio: caliente mediana de 20 364 ms (+317 ms sobre el binario directo)
+lanzador directo + Rust sobre repo vacio: caliente mediana de 20 58 ms (+0 ms sobre el binario directo)
+lanzador tc2.cmd + Rust sobre repo vacio: caliente mediana de 20 105 ms (+46 ms sobre el binario directo)
+lanzador sh tc2 + Rust sobre repo vacio: caliente mediana de 20 114 ms (+56 ms sobre el binario directo)
+lanzador sh tc2-fecha + Rust sobre repo vacio: caliente mediana de 20 168 ms (+109 ms sobre el binario directo)
+lanzador sh tc2-sha256 + Rust sobre repo vacio: caliente mediana de 20 200 ms (+142 ms sobre el binario directo)
+lanzador tc2.ps1 + Rust sobre repo vacio: caliente mediana de 20 418 ms (+360 ms sobre el binario directo)
 
 carpeta de trabajo borrada al terminar: si
 

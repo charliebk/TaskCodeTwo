@@ -110,10 +110,13 @@ python -I -B tareas/<estado>/TASK-014/poc/poc-f1-14.py \
   sección que la mide; también el `resumen`, las secciones, el estado, las
   reglas obligatorias, el ganador de D1 en la decisión, los IDs (en el plan,
   en los requisitos o con ADR propio), los enlaces y la fila del índice, y
-  **las cifras repetidas en la prosa** fuera de la tabla (las «veces», los
-  MiB, «en los 3 repos», las líneas, los bytes, los criterios que gana el
-  ganador de D1 y que los dos rechazan la clave duplicada). Veintiuna copias
-  mutadas del ADR fallan cada una por su motivo.
+  **las cifras repetidas en la prosa** fuera de la tabla (las «veces»; cada
+  MiB dentro de la frase que dice a qué corresponde, Rust o TypeScript, por
+  versión o el `.exe`; «en los 3 repos»; las líneas; los bytes; los
+  criterios que gana el ganador de D1 y que los dos rechazan la clave
+  duplicada). Las cifras de reloj de la prosa no se vigilan: van marcadas
+  «de reloj». Veintitrés copias mutadas del ADR fallan cada una por su
+  motivo.
 - **Tiempos de reloj**: van al log en su sección T y no son cifras
   comprobadas; en la tabla solo entran las relaciones estables («Rust más
   rápido en caliente en los 3 repos»).
@@ -230,7 +233,9 @@ Lectura: son cifras de una pasada y cambian entre ejecuciones (por eso no
 entran en la tabla, y las del log final pueden diferir); lo que se repitió
 en todas las pasadas completas del guion es la relación: Rust más rápido en
 caliente y en frío en los 3 repos. En caliente, sin tareas, la diferencia
-es el arranque de Node (unos 85 ms en esta pasada); con 404 tareas, Rust
+es el arranque de Node (de reloj y sin comprobar: de 83 a 113 ms en las
+pasadas de la entrega, de las rondas de revisión y del log entregado, que es
+la más lenta); con 404 tareas, Rust
 tarda alrededor de la mitad. El frío de TypeScript pasa del segundo en los
 3 repos (copia nueva de un `.exe` de 83 MiB, con el antivirus de por medio).
 
@@ -247,12 +252,14 @@ gana: Rust (el 1.o y al menos dos mas)
 
 ### G — El ADR y sus mutaciones
 
-Las veintiuna copias mutadas (una cifra cambiada, una fila borrada, una
+Las veintitrés copias mutadas (una cifra cambiada, una fila borrada, una
 fila sin medida, un tiempo de reloj en la tabla, una fuente cambiada, un
 número inventado en el resumen, un ID que no existe, un enlace a `tareas/`,
 un enlace roto, una sección borrada, el estado «propuesta», «engram es
 obligatorio», el ganador de D1 cambiado, «No verificado» sin macOS y, en la
-prosa, unos MiB cambiados, las «veces» cambiadas, el número de repos
+prosa, unos MiB cambiados, otra cifra medida (la del `.exe` de TypeScript)
+puesta en lugar de los MiB por versión de Rust, los MiB de Rust y de
+TypeScript intercambiados, las «veces» cambiadas, el número de repos
 cambiado, las líneas de código cambiadas, los bytes de la decisión
 cambiados, los criterios que gana Rust quitados y «rechazan» la clave
 duplicada cambiado a «aceptan») fallan cada una por su motivo (log,
@@ -357,7 +364,9 @@ se ejecutaron, y los importes de Authenticode no se pudieron consultar.
 
 - **Releases** con un binario por target, `SHA256SUMS` y attestation de
   procedencia (`gh attestation verify`); los instaladores de una línea y el
-  lanzador del plugin comprueban el sha256 de `cli.lock` antes de ejecutar.
+  lanzador del plugin comprueban el sha256 de `cli.lock` antes de ejecutar lo
+  descargado (el binario ya en la caché no se recomprueba en cada llamada:
+  «Decisión», punto 4).
 - **Repo del marketplace sin binarios**: el plugin solo lleva el lanzador y
   `cli.lock`; un PR que cambia de versión del CLI cambia una línea por target
   en `cli.lock`, revisable a ojo.
@@ -446,24 +455,37 @@ se ejecutaron, y los importes de Authenticode no se pudieron consultar.
      de su target, comprueba el **sha256 de `cli.lock`** antes de nada, lo
      deja con un renombrado atómico y lo ejecuta. Si el hash no casa, borra
      la descarga y sale con el código de precondición y el arreglo; nunca
-     ejecuta un binario sin comprobar;
+     ejecuta un binario descargado sin comprobar;
    - **binario ya en la caché: no se reverifica en cada llamada.** La caché
      es por versión (`cli/<version>/`), así que un `cli.lock` nuevo apunta a
      otra carpeta y obliga a descargar y comprobar. El sha256 contra
      `cli.lock` se calcula al descargar, en `tc2 doctor --recursos` (que
      borra y vuelve a bajar un binario que no casa) y con
-     `tc2 actualizar --cli`. Motivo, medido en la PoC (sección T, de reloj,
-     una pasada): sobre el binario directo, un lanzador sh mínimo suma unos
-     47 ms; si además compara tamaño y fecha con `stat`, unos 84; si
-     recalcula el sha256 con `sha256sum`, unos 127. Lo que separa a Rust de
-     TypeScript en vacío son unos 85 ms: reverificar en cada llamada desde el
-     lanzador se comería la ventaja que decidió el criterio 1. Y no protege
-     de nada nuevo: quien puede reescribir la caché es un proceso del mismo
-     usuario, que en el modelo de F1-8 (zona Z1) también puede cambiar el
-     lanzador o `cli.lock`. La corrupción accidental la detecta `doctor`;
-   - **coste del lanzador**: la status line y los hooks pasan por él. En la
-     misma pasada, `tc2.cmd` sumó unos 38 ms y `tc2.ps1` unos 304 (arranque
-     de PowerShell). Por eso en Windows el lanzador por defecto es
+     `tc2 actualizar --cli`. **Ese sha256 lo calcula siempre el lanzador o un
+     proceso distinto del binario comprobado, nunca el binario sobre sí
+     mismo**: `doctor --recursos` delega la comprobación de la caché en el
+     lanzador, y `actualizar --cli` la hace el binario nuevo sobre el viejo.
+     Un binario manipulado podría mentir a su propio `doctor`; uno corrupto
+     que no arranca falla a la vista. Motivo de no reverificar en cada
+     llamada, medido en la PoC (sección T; cifras **de reloj, sin comprobar**,
+     rango de cuatro pasadas: dos del guion en la ronda 1 de revisión, la del
+     revisor en la ronda 2 y la del log entregado): sobre el binario directo,
+     un lanzador sh mínimo suma 47 a 56 ms; si además compara tamaño y fecha
+     con `stat`, 84 a 109; si recalcula el sha256 con `sha256sum`, 119 a 142.
+     El lanzador va
+     delante de los dos candidatos (TypeScript con SEA también lo
+     necesitaría), así que no cambia la ventaja relativa del criterio 1; lo
+     que consume es el **presupuesto absoluto** de cada refresco de la status
+     line (RR-19): reverificar en cada llamada le sumaría del orden de lo que
+     separa a Rust de TypeScript en vacío (83 a 113 ms, también de reloj). Y
+     no protege de nada nuevo: quien puede reescribir la caché es un proceso
+     del mismo usuario, que en el modelo de F1-8 (zona Z1) también puede
+     cambiar el lanzador o `cli.lock`. La corrupción accidental la detecta
+     `doctor`;
+   - **coste del lanzador**: la status line y los hooks pasan por él. En las
+     mismas cuatro pasadas (de reloj, sin comprobar), `tc2.cmd` sumó 38 a
+     47 ms y `tc2.ps1` 304 a 360 (arranque de PowerShell). Por eso en Windows el
+     lanzador por defecto es
      `tc2.cmd`, nunca el `.ps1` en el camino caliente, y la status line
      puede apuntar al binario de la caché directamente. Cuánto cuesta en el
      camino real de Claude Code (con qué shell lanza hooks y status line) no
@@ -643,6 +665,15 @@ Este ADR no cambia el plan (D9a); propone estos cambios, para hacerlos con
 - **F3-12**: la status line llama al binario de Rust; el presupuesto de
   tiempo por refresco se mide allí.
 - **F2-14**: la desinstalación borra la caché del lanzador.
+- **F1-8** (propuesta, no se edita aquí): un activo nuevo en su tabla,
+  «binario del CLI en la caché y `cli.lock` del plugin», zona Z1; lo
+  escriben el lanzador (descarga) y el marketplace (plugin), lo ejecutan los
+  hooks y la status line; amenaza: un proceso del mismo usuario los
+  sustituye y el siguiente arranque ejecuta otro binario; mitigación:
+  descarga comprobada contra `cli.lock`, caché por versión y sha256
+  calculado por un proceso distinto del binario comprobado (`doctor
+  --recursos`, `actualizar --cli`); riesgo residual aceptado: el mismo
+  usuario (Z1), igual que en los demás activos de esa zona.
 - **Carlos**: decide cuándo pagar Authenticode (con organización o CA, no
   Azure Artifact Signing como persona) y el Apple Developer Program.
 
@@ -680,6 +711,9 @@ Este ADR no cambia el plan (D9a); propone estos cambios, para hacerlos con
 - **El coste real del lanzador** en el camino de Claude Code (qué shell
   lanza hooks y status line); la PoC solo midió lanzadores mínimos `.cmd`,
   sh y `.ps1` sobre el binario de Rust en esta máquina (sección T, de reloj).
+  Las comprobaciones por llamada (`stat` y `sha256sum`) se midieron solo con
+  el sh de Git for Windows; un `.cmd` que comprobara con `certutil` o
+  PowerShell no se midió.
 - **Node SEA con `useCodeCache` o `useSnapshot`**: el binario de TypeScript
   se midió sin ellos (Rust, en cambio, con LTO y `codegen-units = 1`);
   podrían acortar su arranque, aunque con el margen medido es improbable

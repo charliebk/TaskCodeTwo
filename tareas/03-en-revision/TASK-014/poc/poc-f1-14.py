@@ -861,6 +861,40 @@ def _miles(n):
     return f"{int(n):,}".replace(",", " ") if str(n).isdigit() else str(n)
 
 
+def errores_mib(prosa, v):
+    """Los MiB de la prosa por contexto (MEN-7 de la revision 2): cada cifra en MiB tiene que estar dentro de una
+    frase esperada que dice a que corresponde (Rust o TypeScript, por version o el .exe, o un limite de GitHub),
+    y cada frase esperada tiene que estar. Asi, cambiar 15,6 por otra cifra medida (83,4) tambien falla."""
+    err = []
+    prosa = prosa.replace("**", "")
+    rv = v("M: Rust: por version con 6 targets de P12, estimado con win-x64 (MiB)")
+    tv = v("M: TypeScript: por version con 6 targets de P12, estimado con win-x64 (MiB)")
+    nt = str(len(v("M: targets de P12").split(", ")))
+    tb = v("M: TypeScript: tamano del .exe win-x64 (bytes)")
+    t_entero = str(int(tb) // MIB) if tb.isdigit() else "?"
+    aviso = "por encima" if v("M: TypeScript: .exe frente al aviso de 50 MiB / bloqueo de 100 MiB de GitHub").startswith(
+        "por encima") else "por debajo"
+    esperadas = [
+        f"con Rust, {nt} targets serían {rv} MiB por versión",
+        f"con TypeScript, {tv} MiB por versión y cada `.exe` {aviso} del aviso de 50 MiB de GitHub",
+        f"costaría, estimado, {rv} MiB por versión en Rust y {tv} en TypeScript",
+        f"para los {nt} targets, {rv} MiB por versión en Rust y {tv} MiB en TypeScript",
+        f"un `.exe` de {t_entero} MiB",
+        "aviso a partir de 50 MiB por fichero y bloqueo por encima de 100 MiB",   # documentacion de GitHub
+    ]
+    cubierto = []
+    for frase in esperadas:
+        pos = [m.start() for m in re.finditer(re.escape(frase), prosa)]
+        if not pos:
+            err.append(f"prosa: falta la frase con MiB medidos «{frase}»")
+        cubierto += [(i, i + len(frase)) for i in pos]
+    for m in re.finditer(r"\d+(?:,\d+)? MiB", prosa):
+        if not any(a <= m.start() and m.end() <= b for a, b in cubierto):
+            err.append(f"prosa: «{m.group(0)}» fuera de una frase que diga a qué corresponde "
+                       f"(…{prosa[max(0, m.start() - 50):m.end()]})")
+    return err
+
+
 def errores_prosa(adr, tabla):
     """Las cifras repetidas en la prosa (fuera de la tabla, del resumen ya comprobado y de los extractos del log)
     tienen que ser las medidas: veces, MiB, repos, lineas, bytes, criterios de D1 y la clave duplicada."""
@@ -873,11 +907,7 @@ def errores_prosa(adr, tabla):
     for x in re.findall(r"(\d+,\d+)\** veces", prosa):
         if x != veces:
             err.append(f"prosa: «{x} veces» y lo medido es {veces}")
-    mib_ok = {val for k, (val, _) in tabla.items() if k.endswith("(MiB)")}
-    mib_ok |= {mib(int(val)) for k, (val, _) in tabla.items() if k.endswith("(bytes)") and val.isdigit()}
-    for x in re.findall(r"(\d+,\d+)\** MiB", prosa):
-        if x not in mib_ok:
-            err.append(f"prosa: «{x} MiB» no es una cifra medida ({', '.join(sorted(mib_ok))})")
+    err += errores_mib(prosa, v)
     n_repos = str(sum(1 for k in tabla if k.startswith("S: ") and "salida Rust y TypeScript identica" in k))
     for x in re.findall(r"en (?:los )?(\d+) repos", prosa):
         if x != n_repos:
@@ -936,7 +966,13 @@ def mutaciones(adr):
                                               flags=re.S | re.M), "«No verificado» no nombra Linux y macOS"),
         # Cifras de la prosa (MEN-2 de la revision 1).
         ("prosa-mib", re.sub(r"500,3(\s+)MiB(\s+)en(\s+)TypeScript", r"600,3\1MiB\2en\3TypeScript", adr, count=1),
-         "prosa: «600,3 MiB» no es una cifra medida"),
+         "prosa: «600,3 MiB» fuera de una frase"),
+        # MEN-7 de la revision 2: otra cifra medida en el sitio equivocado tambien falla.
+        ("prosa-mib-otra-medida", re.sub(r"serían(\s+)15,6(\s+)MiB", r"serían\g<1>83,4\2MiB", adr, count=1),
+         "prosa: «83,4 MiB» fuera de una frase"),
+        ("prosa-mib-intercambio", re.sub(r"15,6(\s+)MiB(\s+)por(\s+)versión(\s+)en(\s+)Rust(\s+)y(\s+)500,3",
+                                         r"500,3\1MiB\2por\3versión\4en\5Rust\6y\g<7>15,6", adr, count=1),
+         "prosa: falta la frase con MiB medidos «para los"),
         ("prosa-veces", re.sub(r"pesa(\s+)32,1(\s+)veces", r"pesa\g<1>3,2\2veces", adr, count=1), "prosa: «3,2 veces»"),
         ("prosa-repos", re.sub(r"en(\s+)los(\s+)3(\s+)repos", r"en\1los\g<2>2\3repos", adr, count=1),
          "prosa: «en 2 repos»"),
