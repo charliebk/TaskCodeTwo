@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-094-f1-18-adr-hito-de-decisiones-adr-en-init
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 | 2026-11-14T16:22:54Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T16:59:01Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T17:31:05Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T17:39:50Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -71,3 +72,9 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 - **Revision**: ronda 1 con IMP-1 (`cerrado` sin firma de persona), IMP-2 (codigo 4 atribuido y en choque con `sinred`), IMP-3 (nadie creaba el registro en `actualizar`) y MEN-1..4; el revisor escribio `aprobada-con-correcciones` con IMPORTANTE abiertos y se corrigio a `cambios-solicitados` (la skill no lo admite); todo corregido en 283d19c. Ronda 2 aprobada con correcciones: MEN-5..7 (blanqueo de ediciones al firmar, `abrir` sobre registro existente, choque del 3) corregidos en 3154cb6; PoC completa reejecutada con log identico.
 - Implementacion por un agente implementador; revision por dos agentes independientes. `taskctl doctor` con 0 errores. OpenDockTrading solo leido. Temporales borrados.
 
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 77 min
+- Paso de la hora: 77 min reales frente a 120 estimados
+- Cierre (finish): 12 s, de 2026-11-14T17:39:38Z a 2026-11-14T17:39:50Z
