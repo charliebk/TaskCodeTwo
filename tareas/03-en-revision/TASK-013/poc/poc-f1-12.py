@@ -1379,7 +1379,7 @@ def comprobar_trabajo(trabajo):
     raiz = os.path.normcase(os.path.abspath(os.path.join(base, "pruebas-claude")))
     if not os.path.normcase(os.path.abspath(trabajo)).startswith(raiz + os.sep):
         raise SystemExit(f"ERROR: {trabajo} no esta bajo %LOCALAPPDATA%/pruebas-claude ({raiz})")
-    partes = trabajo.replace("\\", "/").rstrip("/").split("/")
+    partes = [x.lower() for x in trabajo.replace("\\", "/").rstrip("/").split("/")]
     if "pruebas-claude" not in partes:
         raise SystemExit("ERROR: la carpeta de trabajo tiene que estar bajo pruebas-claude/<proyecto>/<motivo>")
     debajo = partes[len(partes) - partes[::-1].index("pruebas-claude"):]

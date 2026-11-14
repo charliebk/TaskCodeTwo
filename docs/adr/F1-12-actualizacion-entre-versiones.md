@@ -133,8 +133,8 @@ tareas tras migrar. La PoC fuerza la migración para medir el resto.
 El `subtree split` recorre los 1350 commits de `develop` y deja 1151 en la
 rama de estado. Es el paso caro de la migración y su tiempo de reloj varía
 entre ejecuciones en la misma máquina, así que no entra en la tabla
-comprobada. Rango observado: 594 s en la entrega (su log solo guardó el
-cubo «menos de 600 s», línea 29 del log del commit 7f431ff), 614 s en la reejecución
+comprobada. Medidas con respaldo: «menos de 600 s» en la entrega (el log del
+commit 7f431ff, línea 29, solo guardó ese cubo), 614 s en la reejecución
 de la revisión 1 y 647 s en la ejecución que deja el log de esta
 corrección (su stderr va junto al log, en `poc-f1-12.tiempos.log`).
 
