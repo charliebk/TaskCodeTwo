@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-002-f1-1-adr-carpeta-fija-por-tarea-y-rama-d
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 226256
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -38,3 +38,10 @@ Tarea F1-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T02:48:25Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T02:53:41Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-14T02:53:14Z | diseno | agente:aef3992f14554e6a0 | 16 | 35501 | 179008 | 11731 | 17 | 226256 | - | - |
