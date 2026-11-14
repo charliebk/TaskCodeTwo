@@ -78,7 +78,7 @@ tabla entre los marcadores `matriz-amenazas` y comprueba cada fila.
 | `A10` | Rama `taskcode/tareas` y texto de tareas y PR | Z2 | el agente empuja sin PR; el revisor y el agente lo leen | instrucciones hostiles que el agente o el revisor obedecen (ALTA) | el texto es dato; defensa por capacidades (decisión 4); la batería de casos es de F6-7 y la prueba de F9-5 | F6-7, F9-5 |
 | `A11` | `comando_*` de `.taskcode/` y lo que ejecutan | Z2 | el CLI y el hook en local; el workflow en CI | un `git pull` cambia la orden o el script y se ejecuta sin preguntar (CRÍTICA, H2) | confianza única con hash de la orden y de lo que ejecuta (D4b, decisión 5); CODEOWNERS en `/.taskcode/` (F1-5) | F0-2, F5-6, F1-11 |
 | `A12` | Runner propio | Z4 | jobs de PR y de la release | código del PR roba lo que hay en la máquina o deja una herramienta alterada que usa la pesada de `main` (CRÍTICA) | usuario de servicio, directorio limpio por job, runner de tareas distinto del de la release; si no se garantiza, ningún job de PR en el runner propio (D3b, decisión 6); solo en privados (F1-7) | F5-5, F3-8 |
-| `A13` | Workflows de `.github/workflows/` | Z2 | la persona (el agente no tiene `workflows`, F1-6) | un workflow escucha `repository_dispatch` o interpola datos del evento en `run:` y el agente lo dispara con `POST /dispatches` (CRÍTICA) | ningún workflow de TaskCode escucha `repository_dispatch` ni interpola `github.event.*` o `github.head_ref` en `run:`; lo comprueba el lint (PoC B, heurístico: ver «No verificado») y `doctor`; F5-1 lo convierte en lista blanca de eventos y usos de checkout | F5-1, F3-8 |
+| `A13` | Workflows de `.github/workflows/` | Z2 | la persona (la App del agente no tiene `workflows`, F1-6; salvo A5: el token de la persona sí tiene el scope `workflow`) | un workflow escucha `repository_dispatch` o interpola datos del evento en `run:` y el agente lo dispara con `POST /dispatches` (CRÍTICA) | ningún workflow de TaskCode escucha `repository_dispatch` ni interpola `github.event.*` o `github.head_ref` en `run:`; lo comprueba el lint (PoC B, heurístico: ver «No verificado») y `doctor`; F5-1 lo convierte en lista blanca de eventos y usos de checkout | F5-1, F3-8 |
 | `A14` | Rulesets y ajustes de Actions | Z5 | la persona como administradora | se relaja un ajuste (permisos por defecto en escritura, `can_approve_pull_request_reviews`, workflows de forks en privados) (ALTA) | `doctor` los lee con `GET` y los compara con el modelo (PoC D); `init` los aplica | F3-8, F3-1 |
 | `A15` | Worktrees y estado local sin commitear | Z1 | el CLI y la persona | un script del PR lanza `git clean -ffdx` o borra el worktree de `tareas/` en una verificación local (MEDIA) | ninguna; riesgo aceptado y nombrado (ver «Preguntas abiertas»); la confianza (D4b) reduce cuándo corre código del repo | F5-6, F1-16 |
 | `A16` | Lote desatendido (RR-18) | Z1 | el CLI encadena tareas con el agente | una tarea con texto hostil lleva a las siguientes del lote (ALTA) | el lote nunca integra en `develop` sin el PR final que aprueba la persona (P13); las mismas capacidades que fuera de lote | F1-16, F4-7 |
@@ -392,8 +392,9 @@ ramas base como únicas ramas permitidas. Ningún workflow con
    **parcial**: F1-5 lo relanza con cada review y `pull_request_review`
    ejecuta el workflow del ref del PR (no verificado), así que un workflow
    cambiado en el propio PR por una persona puede seguir dando un `carril`
-   en verde al relanzarse; lo contienen CODEOWNERS en `/.github/` y que el
-   agente no tenga `workflows`. La migración borra el `carril` viejo en el
+   en verde al relanzarse; lo contienen CODEOWNERS en `/.github/` y que la
+   App del agente no tenga `workflows` (salvo A5: con el token de la persona
+   sí podría). La migración borra el `carril` viejo en el
    mismo commit en que entra el nuevo (si conviven, hay dos check-runs
    `carril` de la misma integración y `filter=latest` toma el último). E2E
    en F2-6.
