@@ -35,6 +35,10 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - [ ] nada lo decide el modelo «a ojo»
 - [ ] Cumple lo que pide la tarea F1-15 del plan y los requisitos que cita
 
+## Decisiones de la persona
+
+- 2026-11-14, Carlos, comprobacion a mano (D10a) de la tabla de las 10 tareas reales de F1-15 (ToolsaWeb TASK-306, 399, 403, 299, 402; OpenDockTrading TASK-063, 014, 067, 069, 096): "Coincide las 10". Las 10 propuestas (roles de diseno, revisoras y modelo por rol) coinciden con lo que habria elegido.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
