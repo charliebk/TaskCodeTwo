@@ -1,0 +1,33 @@
+---
+id: TASK-081
+titulo: "F3-10 Liberar y reasignar tareas abandonadas"
+tipo: feature
+sprint: 3
+etiquetas: []
+complejidad: null
+modelo_sugerido: sonnet
+estado: planificada
+plan_aprobado: false
+rama: feature/task-081-f3-10-liberar-y-reasignar-tareas-abandon
+asignado_a: null
+agente_revisor: general-purpose
+skills_recomendados: []
+regla_seleccion_skill: null
+ultimo_commit_revisado: null
+revision_codex: false
+tokens_diseno: null
+tokens_implementacion: null
+tokens_revision: null
+creado: 2026-11-14
+actualizado: 2026-11-14
+dependencias: []
+---
+## Objetivo
+
+Liberar y reasignar tareas: `taskctl liberar` y `reasignar`, aviso de tareas tomadas sin actividad en N días, con aviso a quien la tenía (RR-12)
+
+Tarea F3-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-6.
+
+## Criterios de aceptacion
+- [ ] Una tarea abandonada vuelve a «lista para empezar» sin perder su trabajo ni su rama
+- [ ] Cumple lo que pide la tarea F3-10 del plan y los requisitos que cita
