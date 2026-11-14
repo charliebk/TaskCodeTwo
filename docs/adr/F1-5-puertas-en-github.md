@@ -284,7 +284,7 @@ Lectura:
    `fix/errata-<slug>` de la corrección de MEN-4). P7 dice «errata → PR
    directo»; aquí «directo» queda como «sin plan aprobado», no «sin tarea»:
    la rama es `fix/task-NNN-<slug>` como el resto (D1a de F1-3: unicidad por
-   ID; RR-12: el estado de todas las tareas a la vista), y un PR sin tarea
+   ID; RR-12: IDs y nombres de rama únicos aunque se creen a la vez), y un PR sin tarea
    falla cerrado siempre. Si eso es demasiado peso para una errata lo puede
    revisar F1-10 sin tocar las puertas.
 9. **Aprobación del plan atada al contenido y errata solo en `docs/`**
@@ -416,9 +416,10 @@ ha aplicado ningún ruleset):
         aprobación **se ata al contenido**: el commit firmado de `approve`
         registra el sha del blob de `plan-final.md` aprobado (por ejemplo,
         un trailer `Plan-Blob: <sha>`), y `carril` exige que el blob actual
-        de `plan-final.md` en `taskcode/tareas` sea ese mismo (equivale a que
-        el último commit que toca `plan-final.md` sea el firmado de
-        `approve`). Si el agente cambia el plan después, la aprobación deja
+        de `plan-final.md` en `taskcode/tareas` sea ese mismo. Se compara el
+        contenido, no la historia: si el agente cambia el plan y lo revierte,
+        el blob coincide aunque el último commit que toca `plan-final.md` no
+        sea el firmado, y el plan aprobado sigue siendo el mismo. Si el agente cambia el plan después, la aprobación deja
         de contar hasta un nuevo `approve` firmado. Es también la base de la
         segunda aprobación de riesgo alto (D4a).
      2. **Carril efectivo = el mayor** entre el declarado en la tarea y un
@@ -561,6 +562,8 @@ entre el declarado y el mínimo por ficheros), no el que el agente declara.
 - Implementación y E2E: F2-6, F3-1, F3-8, F6, F9-4.
 
 ## Preguntas abiertas
+
+- **Renombrados en el carril mínimo** (nota de la revisión 3): un rename de `.github/` a `docs/` no puede salir como errata; la derivación tiene que mirar el nombre viejo y el nuevo de cada fichero (F1-10).
 
 Este ADR se planificó con un solo rol (arquitectura). Quedan sin cubrir, como
 riesgos sin prueba:
