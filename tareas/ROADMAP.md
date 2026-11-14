@@ -5,7 +5,34 @@
 <!-- manual:inicio (se edita a mano; taskctl la conserva) -->
 ## Hitos
 
-Un `### Hn — título` por hito (n es el campo `sprint` de sus tareas), en el orden en que se hacen y con su motivo debajo. taskctl conserva esta zona tal cual y toma de aquí los títulos y el orden de los hitos.
+Las fases del [plan](../docs/plan/PLAN-TASKCODE-2.md); cada tarea lleva su F-id en el título. La Fase 0 (0.16.2) se hace en el repo TaskCode.
+
+### H1 — Arranque y decisiones de arquitectura (ADR)
+Sin código hasta cerrar las decisiones de fondo.
+
+### H2 — Núcleo
+Operaciones Git deterministas, rama de estado, IDs, adaptadores GitHub y GitLab, distribución.
+
+### H3 — Comandos del flujo
+init, new/import, next, roadmap, board/status, start, descartar, doctor.
+
+### H4 — Diseño, aprobación y relevo
+Brainstorm de roles, aprobación verificable, modo automático; relevo de la 0.16 a la 2.0 en este repo.
+
+### H5 — Verificación sin redundancia
+CI con perfiles, caché por SHA, runner propio.
+
+### H6 — Revisión con identidad y búsqueda de errores
+Revisor IA con identidad propia, revisoras por dominio, rondas incrementales.
+
+### H7 — Integración y publicación
+finish en develop, Resultado obligatorio, release y hotfix.
+
+### H8 — Equipo, métricas e iteración del método
+Métricas, presupuesto de tokens, ciclo de iteración, guía.
+
+### H9 — Actualización de proyectos, piloto y 2.0.0
+taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTrading y ToolsaWeb.
 <!-- manual:fin -->
 
 ## Estado del trabajo
