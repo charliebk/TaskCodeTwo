@@ -44,3 +44,7 @@ ADR: el «Hito de decisiones (ADR)» como paso del producto en todo proyecto (no
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-14T16:22:45Z | diseno | agente:af45bd1a014dc7307 | 34 | 97122 | 1048253 | 18046 | 23 | 1163455 | - | - |
+
+## Autorrevision
+
+- code-quality-reviewer — 85195c9
