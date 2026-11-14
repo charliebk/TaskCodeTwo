@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-009-f1-8-adr-seguridad
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -31,3 +31,9 @@ Tarea F1-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 ## Criterios de aceptacion
 - [ ] Modelo de amenazas con mitigaciones
 - [ ] Cumple lo que pide la tarea F1-8 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-14T07:43:12Z | plan | automatico | persona | 0.16.1 |
