@@ -1,0 +1,155 @@
+python 3.12.10 (-I: True) ; git version 2.56.0.windows.4
+ADR: F1-10-carriles-y-modo-automatico.md ; trabajo: .../pruebas-claude/taskcodetwo/task-011-c3
+repo ToolsaWeb: commit 93c9618ac (2026-11-14)
+repo OpenDockTrading: commit fab8d7e05 (2026-11-14)
+repo TaskCodeTwo: commit afc3791b5 (2026-11-14)
+
+=== A: carril minimo por ficheros sobre las ramas de tarea integradas ===
+--- ToolsaWeb (commit 93c9618ac)
+merges de primer padre con rama de tarea: 160 (por prefijo: feature=155, fix=5; sin ID de tarea: 1)
+cambios solo de tareas/ (estado de la 0.16, fuera del PR en la 2.0) excluidos: 6230
+tareas sin ningun fichero fuera de tareas/: 0
+carril minimo: errata=22 ; fix=134 ; funcionalidad=0 ; riesgo-alto=4
+  errata (22): TASK-016 TASK-173 TASK-174 TASK-175 TASK-176 TASK-177 TASK-178 TASK-179 TASK-180 TASK-181 TASK-182 TASK-188 TASK-189 TASK-190 TASK-191 TASK-222 TASK-223 TASK-224 TASK-225 TASK-227 TASK-278 TASK-299
+  riesgo-alto (4):
+    TASK-297 (.taskcode/config.yml)
+    TASK-298 (.taskcode/config.yml)
+    TASK-344 (.taskcode/config.yml)
+    TASK-403 (.taskcode/config.yml)
+renombrados fuera de tareas/: 6 ; que cambian de clase con los dos nombres: 0
+--- OpenDockTrading (commit fab8d7e05)
+merges de primer padre con rama de tarea: 43 (por prefijo: feature=43; sin ID de tarea: 0)
+cambios solo de tareas/ (estado de la 0.16, fuera del PR en la 2.0) excluidos: 1674
+tareas sin ningun fichero fuera de tareas/: 0
+carril minimo: errata=1 ; fix=41 ; funcionalidad=0 ; riesgo-alto=1
+  errata (1): TASK-067
+  riesgo-alto (1):
+    TASK-014 (.taskcode/config.yml)
+renombrados fuera de tareas/: 0 ; que cambian de clase con los dos nombres: 0
+-- casos sinteticos
+  renombrado .github/ -> docs/             -> riesgo-alto  ok
+  renombrado docs/ -> .taskcode/           -> riesgo-alto  ok
+  renombrado src/ -> docs/                 -> fix          ok
+  solo docs/                               -> errata       ok
+  docs/CODEOWNERS                          -> riesgo-alto  ok
+  .GitHub/ en mayusculas                   -> riesgo-alto  ok
+  Docs/ en mayusculas no es errata         -> fix          ok
+  CLAUDE.md en la raiz                     -> fix          ok
+  borrado de un workflow                   -> riesgo-alto  ok
+  copia desde .github/                     -> riesgo-alto  ok
+  rutas_carril sube src/auth/**            -> riesgo-alto  ok
+  rutas_carril fix sobre docs/api/**       -> fix          ok
+  .taskcode exacto (fichero o enlace)      -> riesgo-alto  ok
+  .github exacto (submodulo)               -> riesgo-alto  ok
+  .githubx/ no es el suelo                 -> fix          ok
+  ./.github/ se normaliza                  -> riesgo-alto  ok
+  PR sin ficheros                          -> ERROR        ok
+  ruta con ..                              -> ERROR        ok
+-- carril efectivo (solo sube)
+  declarado=errata         minimo=fix          -> fix
+  declarado=funcionalidad  minimo=fix          -> funcionalidad
+  declarado=fix            minimo=riesgo-alto  -> riesgo-alto
+  declarado=riesgo-alto    minimo=errata       -> riesgo-alto
+  declarado=release (es un tipo, no un carril) -> rechazado
+RESULTADO A ToolsaWeb: errata=22 fix=134 riesgo-alto=4 funcionalidad=0 solo-estado=0 renombrados=6 cruzan=0 ; OpenDockTrading: errata=1 fix=41 riesgo-alto=1 funcionalidad=0 solo-estado=0 renombrados=0 cruzan=0 ; casos 23/23
+
+=== B: tabla de politica del ADR frente a F1-5 y F1-7 ===
+perfiles de F1-7: {'develop': 'completa', 'release': 'completa y pesada', 'hotfix': 'completa'}
+errata         base=develop  roles>=0 plan=no aprob=1 perfil='completa' checks=carril,revision-ia,verificacion paradas=merge-pr lote=si
+fix            base=develop  roles>=1 plan=no aprob=1 perfil='completa' checks=carril,revision-ia,verificacion paradas=merge-pr lote=si
+funcionalidad  base=develop  roles>=1 plan=si aprob=2 perfil='completa' checks=carril,revision-ia,verificacion paradas=approve,merge-pr lote=si
+riesgo-alto    base=develop  roles>=4 plan=si aprob=2 perfil='completa' checks=carril,revision-ia,verificacion paradas=approve,merge-pr lote=no
+release        base=main     roles>=0 plan=no aprob=1 perfil='completa y pesada' checks=carril,verificacion paradas=merge-pr,tag lote=no
+hotfix         base=main     roles>=1 plan=no aprob=1 perfil='completa' checks=carril,revision-ia,verificacion paradas=merge-pr,tag lote=no
+-- desvios inyectados (la comparacion tiene que detectarlos)
+  errata sin revision-ia               -> detectado (2 fallos)
+  funcionalidad sin parada approve     -> detectado (1 fallos)
+  riesgo-alto con 1 aprobacion         -> detectado (2 fallos)
+  release sin parada tag               -> detectado (1 fallos)
+  fix con plan aprobado                -> detectado (2 fallos)
+  hotfix con base develop              -> detectado (1 fallos)
+  riesgo-alto en lote                  -> detectado (1 fallos)
+  fix con perfil rapida                -> detectado (1 fallos)
+  errata sin parada merge-pr           -> detectado (1 fallos)
+  fila errata quitada                  -> detectado (2 fallos)
+  riesgo-alto con 1 rol                -> detectado (1 fallos)
+  parada inventada en fix (review)     -> detectado (2 fallos)
+RESULTADO B filas=6 fallos=0 ; desvios detectados=12/12
+
+=== C: accion simulada sobre las ## Transiciones reales de la 0.16 ===
+hoy (0.16): manual y semiautomatico = transiciones - 1; automatico = approve de persona + pausas + rondas por encima del tope
+nuevo: cadena plan -> [approve] -> start -> review x N -> merge-pr -> [tag] con accion(); declarado = fix si tipo fix, funcionalidad si no; efectivo = max(declarado, minimo de A)
+--- ToolsaWeb (commit 93c9618ac, tope_rondas=2) tareas=160 sin transiciones=0
+carril efectivo: errata=0, fix=5, funcionalidad=151, riesgo-alto=4
+filas en automatico: finish=156 ; approve decidido_por automatico=114 ; approve decidido_por persona=43
+paradas humanas: hoy=136 (0.85/tarea) ; nuevo=403 (2.52/tarea) ; cota inferior con declarado = minimo por ficheros=244 (1.52/tarea)
+paradas nuevas por tipo: approve=159, merge-pr=160, modo-manual=11, subida=4, tope=69
+reparto (hoy -> nuevo: tareas): 0->1: 3, 0->2: 78, 1->1: 2, 1->2: 19, 1->3: 25, 1->4: 2, 2->2: 1, 2->3: 14, 2->4: 4, 2->5: 1, 2->6: 1, 3->4: 2, 4->5: 1, 4->6: 1, 5->5: 3, 5->6: 2, 7->4: 1
+--- OpenDockTrading (commit fab8d7e05, tope_rondas=2) tareas=43 sin transiciones=0
+carril efectivo: errata=0, fix=0, funcionalidad=42, riesgo-alto=1
+filas en automatico: finish=40 ; approve decidido_por automatico=5 ; approve decidido_por persona=35
+paradas humanas: hoy=91 (2.12/tarea) ; nuevo=137 (3.19/tarea) ; cota inferior con declarado = minimo por ficheros=93 (2.16/tarea)
+paradas nuevas por tipo: approve=44, merge-pr=43, modo-semiautomatico=9, subida=1, tope=40
+reparto (hoy -> nuevo: tareas): 0->2: 2, 1->2: 16, 1->3: 1, 1->4: 1, 2->3: 14, 2->4: 2, 3->3: 1, 3->4: 2, 5->5: 2, 8->8: 1, 14->15: 1
+--- TaskCodeTwo (commit afc3791b5, tope_rondas=2) tareas=9 sin transiciones=0
+carril efectivo: errata=0, fix=0, funcionalidad=9, riesgo-alto=0
+filas en automatico: finish=9 ; approve decidido_por automatico=0 ; approve decidido_por persona=9
+paradas humanas: hoy=11 (1.22/tarea) ; nuevo=20 (2.22/tarea) ; cota inferior con declarado = minimo por ficheros=11 (1.22/tarea)
+paradas nuevas por tipo: approve=9, merge-pr=9, tope=2
+reparto (hoy -> nuevo: tareas): 1->2: 7, 2->3: 2
+-- tareas sinteticas de tipo release y hotfix (la 0.16 no tiene ninguna terminada)
+  release  paradas=2 [('merge-pr', 1), ('tag', 1)] politica=['merge-pr', 'tag'] -> ok
+  hotfix   paradas=2 [('merge-pr', 1), ('tag', 1)] politica=['merge-pr', 'tag'] -> ok
+-- tipo de la tarea frente a la base real del PR (revision 1, IMP-1)
+  hotfix con .github/ contra develop     efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr'], ['carril', 'revision-ia', 'verificacion']) ok
+  hotfix con .github/ contra main        efectivo=riesgo-alto  -> ('hotfix+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  hotfix solo src/ contra main           efectivo=fix          -> ('hotfix+fix', False, 1, ['merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  release con .github/ contra develop    efectivo=riesgo-alto  -> ('riesgo-alto', True, 2, ['approve', 'merge-pr'], ['carril', 'revision-ia', 'verificacion']) ok
+  release con .taskcode/ contra main     efectivo=riesgo-alto  -> ('release+riesgo-alto', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  release solo docs/ contra main         efectivo=errata       -> ('release+errata', False, 1, ['merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  hotfix contra main desde feature/*     efectivo=fix          -> ERROR ok
+  feature contra main                    efectivo=funcionalidad -> ERROR ok
+  M1 release contra main desde feature/* efectivo=funcionalidad -> ERROR ok
+  M3 hotfix funcionalidad contra main    efectivo=funcionalidad -> ('hotfix+funcionalidad', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+  union: release funcionalidad desde develop efectivo=funcionalidad -> ('release+funcionalidad', True, 2, ['approve', 'merge-pr', 'tag'], ['carril', 'revision-ia', 'verificacion']) ok
+-- barrido: approve, merge-pr y tag en todo carril, tipo, base, modo y configuracion valida de D
+  combinaciones=1260 ; continuar=0 ; tipo y base que fallan cerrado (sin fila)=160
+  filas de main por debajo del carril efectivo configurado (5 configuraciones aceptadas de D): 0/40
+-- union con la politica configurada (revision 3, IMP-2)
+  X1 hotfix/* -> main, fix + plan_aprobado                   -> ('hotfix+fix', True, 2, 1, ['approve', 'merge-pr', 'tag']) revisoras='por dominio del diff' ok
+  X2 release develop -> main, funcionalidad + review, roles 3 -> ('release+funcionalidad', True, 2, 3, ['approve', 'merge-pr', 'review', 'tag']) revisoras='por dominio del diff' ok
+  X3 hotfix/* -> main, funcionalidad + review, roles 3       -> ('hotfix+funcionalidad', True, 2, 3, ['approve', 'merge-pr', 'review', 'tag']) revisoras='por dominio del diff' ok
+RESULTADO C ToolsaWeb: tareas=160 hoy=0.85 nuevo=2.52 cota=1.52 ; OpenDockTrading: tareas=43 hoy=2.12 nuevo=3.19 cota=2.16 ; TaskCodeTwo: tareas=9 hoy=1.22 nuevo=2.22 cota=1.22 ; tipo y base 14/14 ; continuar sobre approve/merge-pr/tag=0 ; paradas distintas de la politica=0
+
+=== D: configuracion que solo endurece ===
+-- aceptadas (endurecen o no cambian nada)
+  V0 {} -> aceptada, no baja nada
+  V1 {"politica_carriles": {"fix": {"lote": false, "plan_aprobado": true, "roles_diseno": 2}}} -> aceptada, no baja nada
+  V2 {"politica_carriles": {"funcionalidad": {"paradas_extra": ["start", "review"], "perfil": "completa y pesada"}}, "rutas_carril": {"riesgo-alto": ["src/auth/**"]}} -> aceptada, no baja nada
+  V3 {"politica_carriles": {"errata": {"revisoras_extra": ["code-quality-reviewer"], "roles_diseno": 1}}, "rutas_carril": {"fix": ["docs/api/**"]}} -> aceptada, no baja nada
+  V4 {"politica_carriles": {"riesgo-alto": {"lote": false, "roles_diseno": 5}}} -> aceptada, no baja nada
+  efecto de V1 en fix: plan=True paradas=['approve', 'merge-pr'] roles>=2 lote=False
+-- rechazadas (bajan un carril, quitan una parada o no se reconocen: falla cerrado)
+  funcionalidad sin plan aprobado                      -> rechazada: politica_carriles.funcionalidad.plan_aprobado: solo admite true (no se quita el plan aprob
+  riesgo-alto con 1 aprobacion                         -> rechazada: politica_carriles.riesgo-alto.aprobaciones: clave no admitida
+  quitar merge-pr de fix                               -> rechazada: politica_carriles.fix.paradas_quitar: clave no admitida
+  paradas de riesgo-alto sustituidas                   -> rechazada: politica_carriles.riesgo-alto.paradas: clave no admitida
+  paradas_extra con approve quitado (fase no admitida) -> rechazada: politica_carriles.fix.paradas_extra: solo fases de ['review', 'start']
+  rutas que dan errata                                 -> rechazada: rutas_carril.errata: solo fix o riesgo-alto (errata no se da por rutas; funcionalidad nunc
+  rutas que dan funcionalidad                          -> rechazada: rutas_carril.funcionalidad: solo fix o riesgo-alto (errata no se da por rutas; funcionalid
+  glob negado en riesgo-alto                           -> rechazada: rutas_carril.riesgo-alto: glob no admitido '!docs/**' (sin negaciones ni rutas absolutas)
+  riesgo-alto entra en lote                            -> rechazada: politica_carriles.riesgo-alto.lote: solo admite false (no se abre el lote)
+  funcionalidad con 0 roles                            -> rechazada: politica_carriles.funcionalidad.roles_diseno: 0 por debajo del suelo 1 o fuera de 0..5
+  fix con perfil rapida                                -> rechazada: politica_carriles.fix.perfil: 'rapida' por debajo de 'completa'
+  errata sin revision-ia                               -> rechazada: politica_carriles.errata.revision_ia: clave no admitida
+  politica de release (es un tipo)                     -> rechazada: politica_carriles.release: carril desconocido
+  clave raiz desconocida                               -> rechazada: clave desconocida carril_maximo
+  modo que se salta paradas                            -> rechazada: politica_carriles.funcionalidad.modo: clave no admitida
+  riesgo-alto con roles como texto                     -> rechazada: politica_carriles.riesgo-alto.roles_diseno: '4' por debajo del suelo 4 o fuera de 0..5
+  paradas_extra con una lista dentro                   -> rechazada: politica_carriles.fix.paradas_extra: solo fases de ['review', 'start']
+-- PR que cambia .taskcode/config.yml para bajar la politica
+  carril minimo=riesgo-alto (.taskcode/config.yml) ; config de la rama valida=False ; politica con la de la base: plan=True paradas=['approve', 'merge-pr']
+RESULTADO D aceptadas=5/5 ; rechazadas=17/17
+
+=== RESUMEN ===
+todo como se espera: A, B, C y D
