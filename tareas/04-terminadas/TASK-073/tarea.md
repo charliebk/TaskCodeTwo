@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-073-f1-15-adr-seleccion-de-skills-agentes-y
 asignado_a: charlie.bk@gmail.com
@@ -48,6 +48,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | 2026-11-14T20:49:11Z | start | automatico | persona | 0.16.1 |
 | 2026-11-14T21:24:48Z | review | automatico | persona | 0.16.1 |
 | 2026-11-14T22:07:30Z | review | automatico | persona | 0.16.1 |
+| 2026-11-14T22:31:03Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -80,3 +81,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - **Revision**: ronda 1 cambios (IMP-1 motivo de D1b no sostenido por los datos; IMP-2 la PoC no leia `tabla-seleccion` y varias reglas no se ejercitaban; IMP-3 evasion del suelo por vocabulario; MEN-1..7), corregido en 806f024; ronda 2 aprobada con correcciones; MEN-8..11 (lista real de la 0.16, cobertura por atomo, ruta sin distinguir mayusculas, etiquetas aprobadas) corregidos en 71bc716 (`verificar-menores` no reconoce MEN-9 y MEN-10 por vivir en `poc/`, ver `revision/menores-pendientes.md`).
 - Implementacion por un agente implementador; revision por dos agentes independientes. `taskctl doctor` con 0 errores. Pilotos solo leidos. Temporales borrados.
 
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 102 min
+- Paso de la hora: 102 min reales frente a 150 estimados
+- Cierre (finish): 12 s, de 2026-11-14T22:30:51Z a 2026-11-14T22:31:03Z

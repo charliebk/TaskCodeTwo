@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-073 (feature) — F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol (2026-11-14)
 - TASK-015 (feature) — F1-13 ADR adaptador de plataforma GitHub y GitLab (2026-11-14)
 - TASK-014 (feature) — F1-14 ADR distribucion e instalacion (2026-11-14)
 - TASK-094 (feature) — F1-18 ADR hito de decisiones (ADR) en init y en actualizar (2026-11-14)
