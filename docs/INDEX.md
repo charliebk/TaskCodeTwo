@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-011 — F1-10 ADR carriles y modo automatico · etiquetas: (sin etiquetas) · rama feature/task-011-f1-10-adr-carriles-y-modo-automatico · terminada 2026-11-14 · tareas/04-terminadas/TASK-011/
 - TASK-010 — F1-9 ADR formato de tarea, plan y especificacion · etiquetas: (sin etiquetas) · rama feature/task-010-f1-9-adr-formato-de-tarea-plan-y-especif · terminada 2026-11-14 · tareas/04-terminadas/TASK-010/
 - TASK-009 — F1-8 ADR seguridad · etiquetas: (sin etiquetas) · rama feature/task-009-f1-8-adr-seguridad · terminada 2026-11-14 · tareas/04-terminadas/TASK-009/
 - TASK-008 — F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners · etiquetas: (sin etiquetas) · rama feature/task-008-f1-7-adr-verificacion-en-ci-perfiles-cac · terminada 2026-11-14 · tareas/04-terminadas/TASK-008/

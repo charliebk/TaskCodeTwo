@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-011 (feature) — F1-10 ADR carriles y modo automatico (2026-11-14)
 - TASK-010 (feature) — F1-9 ADR formato de tarea, plan y especificacion (2026-11-14)
 - TASK-009 (feature) — F1-8 ADR seguridad (2026-11-14)
 - TASK-008 (feature) — F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners (2026-11-14)
