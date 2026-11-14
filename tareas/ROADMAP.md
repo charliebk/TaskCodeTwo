@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-012, TASK-013, TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-020, TASK-023, TASK-041, TASK-046, TASK-047
+- **En marcha:** TASK-012 (en diseño)
+- **Listas para empezar:** TASK-013, TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-020, TASK-023, TASK-041, TASK-046, TASK-047
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -59,7 +59,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-009 | F1-8 ADR seguridad | — | TASK-007, TASK-008 | ✅ terminada |
 | — | TASK-010 | F1-9 ADR formato de tarea, plan y especificacion | — | TASK-002 | ✅ terminada |
 | — | TASK-011 | F1-10 ADR carriles y modo automatico | — | TASK-006 | ✅ terminada |
-| 1 | TASK-012 | F1-11 ADR extensiones declaradas | — | TASK-002, TASK-008 | lista para empezar |
+| 1 | TASK-012 | F1-11 ADR extensiones declaradas | — | TASK-002, TASK-008 | ▶ en diseño |
 | 2 | TASK-013 | F1-12 ADR actualizacion de proyectos entre versiones | — | TASK-002, TASK-010 | lista para empezar |
 | 3 | TASK-014 | F1-14 ADR distribucion e instalacion | — | TASK-001 | lista para empezar |
 | 4 | TASK-015 | F1-13 ADR adaptador de plataforma GitHub y GitLab | — | TASK-005 | lista para empezar |
