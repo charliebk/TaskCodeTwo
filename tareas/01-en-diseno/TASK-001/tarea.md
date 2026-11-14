@@ -38,3 +38,4 @@ Tarea F1-0 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: —
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-14T01:58:40Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-14T01:58:57Z | plan | automatico | persona | 0.16.1 |
