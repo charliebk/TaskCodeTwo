@@ -2,7 +2,7 @@
 
 - Commit revisado: ef826d85f6c32ba273cb3ffd54e9f1da27506f09 (correcciones en 4456a70; base de la ronda: 36828cc)
 - Revisor: code-quality-reviewer
-- Veredicto: aprobada-con-correcciones
+- Veredicto: aprobada con correcciones
 
 Pase generico, incremental (verificacion acotada al diff de las correcciones). Profundidad: a fondo el guion (`POC`, guardas de `main`, `lanzadores`, `errores_prosa`, las 7 mutaciones nuevas), la decision nueva de no reverificar la cache y sus cifras; por encima el resto del ADR, que no se revisa de nuevo.
 
