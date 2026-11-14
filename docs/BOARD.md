@@ -1,0 +1,89 @@
+# Tablero de tareas
+
+> Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
+
+## Planificadas (00-planificadas) — 71
+
+```text
+ID        Titulo                                                                    Asignado
+--------  ------------------------------------------------------------------------  -------------
+TASK-002  F1-1 ADR carpeta fija por tarea y rama de estado                          (sin asignar)
+TASK-003  F1-2 ADR escrituras atomicas, reserva de IDs y toma de tareas             (sin asignar)
+TASK-004  F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release  (sin asignar)
+TASK-005  F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato       (sin asignar)
+TASK-006  F1-5 ADR puertas en GitHub                                                (sin asignar)
+TASK-007  F1-6 ADR identidades del agente, del revisor y de la persona              (sin asignar)
+TASK-008  F1-7 ADR verificacion en CI, perfiles, cache por SHA y runners            (sin asignar)
+TASK-009  F1-8 ADR seguridad                                                        (sin asignar)
+TASK-010  F1-9 ADR formato de tarea, plan y especificacion                          (sin asignar)
+TASK-011  F1-10 ADR carriles y modo automatico                                      (sin asignar)
+TASK-012  F1-11 ADR extensiones declaradas                                          (sin asignar)
+TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                      (sin asignar)
+TASK-014  F1-14 ADR distribucion e instalacion                                      (sin asignar)
+TASK-015  F1-13 ADR adaptador de plataforma GitHub y GitLab                         (sin asignar)
+TASK-016  F2-1 Esqueleto: TypeScript, build reproducible                            (sin asignar)
+TASK-017  F2-2 Capa de operaciones Git deterministas                                (sin asignar)
+TASK-018  F2-3 Rama de estado                                                       (sin asignar)
+TASK-019  F2-4 Reserva de IDs por push atomico                                      (sin asignar)
+TASK-020  F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido     (sin asignar)
+TASK-021  F2-6 Adaptador GitHub                                                     (sin asignar)
+TASK-022  F2-9 Adaptador GitLab                                                     (sin asignar)
+TASK-023  F2-7 Configuracion minima con esquema validado y valores por defecto      (sin asignar)
+TASK-024  F2-8 i18n de mensajes                                                     (sin asignar)
+TASK-025  F2-10 Build de ejecutables por sistema en la CI, firmados                 (sin asignar)
+TASK-026  F2-11 Instaladores de una linea                                           (sin asignar)
+TASK-027  F2-12 taskctl actualizar --cli y aviso de version nueva                   (sin asignar)
+TASK-028  F3-1 taskctl init / setup                                                 (sin asignar)
+TASK-029  F3-2 new e import en bloque con dependencias e hito                       (sin asignar)
+TASK-030  F3-3 next: lo listo para empezar por dependencias y prioridad             (sin asignar)
+TASK-031  F3-4 roadmap: la vista para todos                                         (sin asignar)
+TASK-032  F3-5 board y status                                                       (sin asignar)
+TASK-033  F3-6 start: toma atomica de la tarea, rama y worktree desde develop       (sin asignar)
+TASK-034  F3-7 descartar y pausa                                                    (sin asignar)
+TASK-035  F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks         (sin asignar)
+TASK-036  F4-1 plan con brainstorm de roles                                         (sin asignar)
+TASK-037  F4-2 approve con la identidad de la persona                               (sin asignar)
+TASK-038  F4-3 Aprobacion de un hito en lote                                        (sin asignar)
+TASK-039  F4-4 Orquestador del modo automatico                                      (sin asignar)
+TASK-040  F4-5 Punto de relevo                                                      (sin asignar)
+TASK-041  F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab        (sin asignar)
+TASK-042  F5-2 Cache por SHA del arbol compartida                                   (sin asignar)
+TASK-043  F5-3 Verificacion por impacto como paso de CI y completa en la cola       (sin asignar)
+TASK-044  F5-4 Informe de verificacion en JSON para el revisor IA                   (sin asignar)
+TASK-045  F5-5 Runner self-hosted Windows por perfil                                (sin asignar)
+TASK-046  F5-6 Hook local rapido, opcional y con confianza                          (sin asignar)
+TASK-047  F6-1 Identidades: agente implementador                                    (sin asignar)
+TASK-048  F6-2 review: abre el PR contra develop con la identidad del agente        (sin asignar)
+TASK-049  F6-3 Revisor en CI con las skills de dominio de la 0.16                   (sin asignar)
+TASK-050  F6-4 Busqueda de errores                                                  (sin asignar)
+TASK-051  F6-5 Hallazgos estructurados                                              (sin asignar)
+TASK-052  F6-6 Rondas incrementales                                                 (sin asignar)
+TASK-053  F6-7 Defensa contra prompt injection en PR y tareas                       (sin asignar)
+TASK-054  F7-1 finish: merge en develop por la cola cuando pasan las puertas        (sin asignar)
+TASK-055  F7-2 Resultado obligatorio en cada tarea                                  (sin asignar)
+TASK-056  F7-3 release y hotfix con tag y notas desde los PR                        (sin asignar)
+TASK-057  F7-4 CHANGELOG generado al publicar, no en cada cierre                    (sin asignar)
+TASK-058  F8-1 metricas: tiempo por fase, rondas, hallazgos, tokens y minutos       (sin asignar)
+TASK-059  F8-2 Presupuesto de tokens por carril con desglose                        (sin asignar)
+TASK-060  F8-3 Ciclo de iteracion                                                   (sin asignar)
+TASK-061  F8-4 Espejo opcional en issues de GitHub o GitLab                         (sin asignar)
+TASK-062  F8-5 Guia de una pagina y referencia generada desde el codigo             (sin asignar)
+TASK-063  F9-1 taskctl actualizar --simular                                         (sin asignar)
+TASK-064  F9-2 taskctl actualizar                                                   (sin asignar)
+TASK-065  F9-3 Actualizaciones entre versiones de la 2.x                            (sin asignar)
+TASK-066  F9-4 Suite E2E del flujo con dos personas a la vez                        (sin asignar)
+TASK-067  F9-5 Prueba de seguridad                                                  (sin asignar)
+TASK-068  F9-6 Auditoria externa repetida con el mismo encargo                      (sin asignar)
+TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0           (sin asignar)
+TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                         (sin asignar)
+TASK-071  F9-9a Prueba de instalacion en maquinas limpias                           (sin asignar)
+TASK-072  F9-9 Publicar 2.0.0                                                       (sin asignar)
+```
+
+## Terminadas (04-terminadas) — 1
+
+```text
+ID        Titulo                  Asignado
+--------  ----------------------  --------------------
+TASK-001  F1-0 Crear TaskCodeTwo  charlie.bk@gmail.com
+```
