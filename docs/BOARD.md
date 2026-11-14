@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
 
-## Planificadas (00-planificadas) — 71
+## Planificadas (00-planificadas) — 91
 
 ```text
 ID        Titulo                                                                    Asignado
 --------  ------------------------------------------------------------------------  -------------
-TASK-002  F1-1 ADR carpeta fija por tarea y rama de estado                          (sin asignar)
 TASK-003  F1-2 ADR escrituras atomicas, reserva de IDs y toma de tareas             (sin asignar)
 TASK-004  F1-3 ADR flujo de ramas develop/main, rama por tarea, worktrees, release  (sin asignar)
 TASK-005  F1-4 ADR capa de operaciones Git/GitHub deterministas y su contrato       (sin asignar)
@@ -78,12 +77,34 @@ TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0       
 TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                         (sin asignar)
 TASK-071  F9-9a Prueba de instalacion en maquinas limpias                           (sin asignar)
 TASK-072  F9-9 Publicar 2.0.0                                                       (sin asignar)
+TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           (sin asignar)
+TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 (sin asignar)
+TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         (sin asignar)
+TASK-076  F2-4b Nombres unicos de tarea y rama                                      (sin asignar)
+TASK-077  F2-13 Identidad de la persona desde la plataforma                         (sin asignar)
+TASK-078  F2-14 taskctl desinstalar: quitar TaskCodeTwo de forma limpia             (sin asignar)
+TASK-079  F3-5b status y roadmap siempre frescos                                    (sin asignar)
+TASK-080  F3-9 Inventario de skills y agentes instalados                            (sin asignar)
+TASK-081  F3-10 Liberar y reasignar tareas abandonadas                              (sin asignar)
+TASK-082  F3-11 Aviso de solape entre tareas en curso                               (sin asignar)
+TASK-083  F3-13 Estimacion por fase de cada tarea al planificar                     (sin asignar)
+TASK-084  F3-12 Progreso en vivo: fases que faltan y tiempo restante                (sin asignar)
+TASK-085  F4-6 plan propone skills, agentes y modelo por rol                        (sin asignar)
+TASK-086  F4-7 taskctl lote: secuencia de tareas sin preguntas                      (sin asignar)
+TASK-087  F4-8 Fallos, presupuesto, reanudacion e informe del lote                  (sin asignar)
+TASK-088  F4-9 Progreso del lote en el terminal                                     (sin asignar)
+TASK-089  F8-6 Medicion del acierto de skills, agentes y modelo                     (sin asignar)
+TASK-090  F8-7 Metricas finales de cada tarea y de cada lote                        (sin asignar)
+TASK-091  F9-4b Prueba nocturna de un lote de 10 tareas                             (sin asignar)
+TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                       (sin asignar)
+TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                              (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 1
+## Terminadas (04-terminadas) — 2
 
 ```text
-ID        Titulo                  Asignado
---------  ----------------------  --------------------
-TASK-001  F1-0 Crear TaskCodeTwo  charlie.bk@gmail.com
+ID        Titulo                                            Asignado
+--------  ------------------------------------------------  --------------------
+TASK-001  F1-0 Crear TaskCodeTwo                            charlie.bk@gmail.com
+TASK-002  F1-1 ADR carpeta fija por tarea y rama de estado  charlie.bk@gmail.com
 ```
