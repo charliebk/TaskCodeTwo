@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-075 — F1-17 ADR progreso en vivo y estimacion de tiempo · etiquetas: (sin etiquetas) · rama feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion · terminada 2026-11-15 · tareas/04-terminadas/TASK-075/
 - TASK-074 — F1-16 ADR lotes desatendidos con revision humana al final · etiquetas: (sin etiquetas) · rama feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio · terminada 2026-11-15 · tareas/04-terminadas/TASK-074/
 - TASK-073 — F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol · etiquetas: (sin etiquetas) · rama feature/task-073-f1-15-adr-seleccion-de-skills-agentes-y · terminada 2026-11-14 · tareas/04-terminadas/TASK-073/
 - TASK-015 — F1-13 ADR adaptador de plataforma GitHub y GitLab · etiquetas: (sin etiquetas) · rama feature/task-015-f1-13-adr-adaptador-de-plataforma-github · terminada 2026-11-14 · tareas/04-terminadas/TASK-015/

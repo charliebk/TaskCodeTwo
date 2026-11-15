@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion
 asignado_a: charlie.bk@gmail.com
@@ -47,6 +47,7 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | 2026-11-15T09:52:37Z | start | automatico | persona | 0.16.1 |
 | 2026-11-15T10:42:24Z | review | automatico | persona | 0.16.1 |
 | 2026-11-15T11:05:45Z | review | automatico | persona | 0.16.1 |
+| 2026-11-15T11:11:49Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -73,3 +74,10 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 - **No verificado**: lo recortado por alcance (sensibilidad por tarea a otros umbrales, `start` con merge sin empujar o cache sin fetch, aviso de cambios ajenos, estres con procesos reales, mutaciones de `start`/solape/status line); status line real de Claude Code y de la 0.16.1; rename en Linux/macOS y con lector Rust; ascendencia con falso negativo tras squash/rebase o commits posteriores al merge; ramas antiguas en el remoto de los pilotos; estimacion de tokens.
 - **Revision**: ronda 1 cambios (IMP-1 control de fuga que no detectaba fugas; IMP-2 `start` exigia un trailer que ningun merge real tiene; MEN-1..6), corregido en b516dee; ronda 2 aprobada sin hallazgos nuevos.
 - Implementacion por un agente implementador; revision por dos agentes independientes. `taskctl doctor` con 0 errores. Pilotos solo leidos. Temporales borrados.
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 79 min
+- Paso de la hora: 79 min reales frente a 300 estimados
+- Cierre (finish): 35 s, de 2026-11-15T11:11:14Z a 2026-11-15T11:11:49Z
