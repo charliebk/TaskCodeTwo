@@ -1,19 +1,22 @@
-# E2E de TASK-021 contra charliebk/taskcodetwo-e2e-github (2026-11-15)
+# E2E de TASK-021 contra charliebk/taskcodetwo-e2e-github (2026-11-15, tras las correcciones de la ronda 1)
 # cargo test -p tc2 --test plataforma_e2e -- --ignored --nocapture --test-threads=1
-test puertas_reales_contra_github ...   leer-puertas develop: ReglasLeidas { plan_da_reglas: true, rulesets: ["tc2-e2e-1794762985-36176"], reglas_rama: ["pull_request"] }
-  abrir-pr ok pr=3
-  estado-puertas esperando pr=3 aprobaciones=0 ignoradas=0 falta=aprobacion
+   Compiling tc2 v0.0.0 (C:\Users\nullcad2025\Documents\sources\Personal\TaskCodeTwo\crates\tc2)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.81s
+     Running tests\plataforma_e2e.rs (target\debug\build\tc2/aaea2b10be11d15e\out\plataforma_e2e-aaea2b10be11d15e.exe)
+test puertas_reales_contra_github ...   leer-puertas develop: ReglasLeidas { plan_da_reglas: true, rulesets: ["tc2-e2e-1794765179-58572"], reglas_rama: ["pull_request"] }
+  abrir-pr ok pr=5
+  estado-puertas esperando pr=5 aprobaciones=0 ignoradas=0 falta=aprobacion
   auto-aprobacion: 422 ["Review Can not approve your own pull request"]
   forma de una review: state="COMMENTED" user.type="User" user.id presente=true claves=Some(["_links", "author_association", "body", "commit_id", "copilot_code_review_effort", "html_url", "id", "is_copilot_code_review", "node_id", "pull_request_url", "state", "submitted_at", "user"])
-  merge-pr rechazada pr=3 motivo=no-mergeable  [3] GitHub no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas (GitHub: «Repository rule violations found  At least 1 approving review is required by reviewers with write access.»)
+  merge-pr rechazada pr=5 motivo=no-mergeable  [3] GitHub no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas (GitHub: «Repository rule violations found  At least 1 approving review is required by reviewers with write access.»)
 test recorrido_contra_github ...   identidad: login=charliebk type=User
-  abrir-pr ok pr=4
-  abrir-pr sin-cambios pr=4
-  estado-puertas esperando pr=4 aprobaciones=0 ignoradas=0 falta=aprobacion
-  merge-pr rechazada pr=4 motivo=head-cambiado
-  merge-pr ok pr=4 commit=1425f7eb2d62
-  merge-pr sin-cambios pr=4 estado=mergeado
-  estado-puertas sin-cambios pr=4 estado=mergeado
+  abrir-pr ok pr=6
+  abrir-pr sin-cambios pr=6
+  estado-puertas esperando pr=6 aprobaciones=0 ignoradas=0 falta=aprobacion
+  merge-pr rechazada pr=6 motivo=head-cambiado
+  merge-pr ok pr=6 commit=06be297e25cd
+  merge-pr sin-cambios pr=6 estado=mergeado
+  estado-puertas sin-cambios pr=6 estado=mergeado
   firma del merge: verificada=true motivo=valid committer=Some(("web-flow", "User"))
   leer-permisos-ci ok ci-aprueba=false permisos=read
   leer-puertas main: ReglasLeidas { plan_da_reglas: true, rulesets: [], reglas_rama: [] }
@@ -21,4 +24,4 @@ test recorrido_contra_github ...   identidad: login=charliebk type=User
   identidad denegada motivo=credenciales rol=agente  [8] el token de agente no vale o ha caducado: define o renueva TC2_TOKEN_AGENTE (GitHub: «Bad credentials»)
   estado-puertas denegada motivo=no-existe-o-sin-acceso rol=agente  [8] no existe o el token de agente no lo ve: revisa el repo, el PR o el commit y el alcance del token (GitHub da 404 en un repo privado sin acceso) (GitHub: «Not Found»)
   llamadas del adaptador: 23
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.94s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 34.67s

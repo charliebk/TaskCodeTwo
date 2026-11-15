@@ -16,6 +16,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+use std::cell::{Cell, RefCell};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
@@ -61,6 +62,11 @@ impl Arnes {
     }
 
     fn api(&self, metodo: &str, ruta: &str, cuerpo: Option<Value>) -> (u16, Value) {
+        self.intentar(metodo, ruta, cuerpo).expect("red")
+    }
+
+    /// Como `api`, sin entrar en panico: para limpiar desde `Drop`.
+    fn intentar(&self, metodo: &str, ruta: &str, cuerpo: Option<Value>) -> Option<(u16, Value)> {
         let url = format!("https://api.github.com/repos/{}{ruta}", self.e.repo);
         let auth = format!("Bearer {}", self.e.token);
         fn cab<B>(p: ureq::RequestBuilder<B>, auth: &str) -> ureq::RequestBuilder<B> {
@@ -75,12 +81,12 @@ impl Arnes {
             ("POST", Some(c)) => cab(self.agente.post(&url), &auth).send(c.to_string()),
             ("PUT", Some(c)) => cab(self.agente.put(&url), &auth).send(c.to_string()),
             ("PATCH", Some(c)) => cab(self.agente.patch(&url), &auth).send(c.to_string()),
-            _ => panic!("llamada del arnes mal formada"),
+            _ => return None,
         };
-        let mut r = r.expect("red");
+        let mut r = r.ok()?;
         let estado = r.status().as_u16();
         let texto = r.body_mut().read_to_string().unwrap_or_default();
-        (estado, serde_json::from_str(&texto).unwrap_or(Value::Null))
+        Some((estado, serde_json::from_str(&texto).unwrap_or(Value::Null)))
     }
 
     fn sha_de(&self, rama: &str) -> String {
@@ -109,15 +115,59 @@ impl Arnes {
     }
 
     fn borrar_rama(&self, rama: &str) {
-        let _ = self.api("DELETE", &format!("/git/refs/heads/{rama}"), None);
+        let _ = self.intentar("DELETE", &format!("/git/refs/heads/{rama}"), None);
     }
 
     fn cerrar_pr(&self, n: &str) {
-        let _ = self.api(
+        let _ = self.intentar(
             "PATCH",
             &format!("/pulls/{n}"),
             Some(json!({"state": "closed"})),
         );
+    }
+}
+
+/// Deja el repo de pruebas como estaba aunque una asercion falle a medias:
+/// cierra los PR, borra las ramas y el ruleset que se hayan apuntado.
+struct Limpieza<'a> {
+    arnes: &'a Arnes,
+    prs: RefCell<Vec<String>>,
+    ramas: RefCell<Vec<String>>,
+    ruleset: Cell<Option<u64>>,
+}
+
+impl<'a> Limpieza<'a> {
+    fn nueva(arnes: &'a Arnes) -> Self {
+        Self {
+            arnes,
+            prs: RefCell::default(),
+            ramas: RefCell::default(),
+            ruleset: Cell::new(None),
+        }
+    }
+
+    fn rama(&self, r: &str) {
+        self.ramas.borrow_mut().push(r.to_owned());
+    }
+
+    fn pr(&self, n: &str) {
+        self.prs.borrow_mut().push(n.to_owned());
+    }
+}
+
+impl Drop for Limpieza<'_> {
+    fn drop(&mut self) {
+        for n in self.prs.borrow().iter() {
+            self.arnes.cerrar_pr(n);
+        }
+        for r in self.ramas.borrow().iter() {
+            self.arnes.borrar_rama(r);
+        }
+        if let Some(id) = self.ruleset.get() {
+            let _ = self
+                .arnes
+                .intentar("DELETE", &format!("/rulesets/{id}"), None);
+        }
     }
 }
 
@@ -155,6 +205,8 @@ fn recorrido_contra_github() {
     assert_eq!(yo.tipo, "User");
     let gh = adaptador(&repo, &token, Personas::nuevas([yo.id]));
     let rama = format!("e2e/a-{}", sufijo());
+    let limpieza = Limpieza::nueva(&arnes);
+    limpieza.rama(&rama);
     let sha = arnes.rama_con_commit(&rama, "main");
 
     let i = gh.abrir_pr(
@@ -227,6 +279,7 @@ fn recorrido_contra_github() {
 
     // Sin commits nuevos respecto a la base.
     let vacia = format!("e2e/vacia-{}", sufijo());
+    limpieza.rama(&vacia);
     let base_sha = arnes.sha_de("main");
     let (e, _) = arnes.api(
         "POST",
@@ -277,8 +330,7 @@ fn recorrido_contra_github() {
     );
     eprintln!("  llamadas del adaptador: {}", gh.registro().len());
 
-    arnes.borrar_rama(&rama);
-    arnes.borrar_rama(&vacia);
+    drop(limpieza);
 }
 
 /// (b) Puertas reales: con un ruleset en `develop` que exige 1 aprobacion,
@@ -309,8 +361,10 @@ fn puertas_reales_contra_github() {
         })),
     );
     assert_eq!(e, 201, "{v}");
-    let ruleset = v["id"].as_u64().unwrap();
+    let limpieza = Limpieza::nueva(&arnes);
+    limpieza.ruleset.set(v["id"].as_u64());
     let rama = format!("e2e/b-{}", sufijo());
+    limpieza.rama(&rama);
     let sha = arnes.rama_con_commit(&rama, "develop");
 
     let reglas = gh.leer_puertas(Rol::Agente, "develop").unwrap();
@@ -322,6 +376,7 @@ fn puertas_reales_contra_github() {
     assert_eq!(i.resultado, Resultado::Ok, "{}", ver(&i));
     ver(&i);
     let n = i.valor("pr").unwrap().to_owned();
+    limpieza.pr(&n);
     let num: u64 = n.parse().unwrap();
     let modelo = ModeloPuertas {
         checks: Vec::new(),
@@ -377,8 +432,10 @@ fn puertas_reales_contra_github() {
     );
     assert_eq!(s.codigo, 3);
 
-    arnes.cerrar_pr(&n);
-    arnes.borrar_rama(&rama);
-    let (e, _) = arnes.api("DELETE", &format!("/rulesets/{ruleset}"), None);
-    assert_eq!(e, 204);
+    drop(limpieza);
+    let (_, quedan) = arnes.api("GET", "/rulesets", None);
+    assert!(
+        !quedan.to_string().contains(&nombre),
+        "el ruleset del E2E se ha borrado"
+    );
 }
