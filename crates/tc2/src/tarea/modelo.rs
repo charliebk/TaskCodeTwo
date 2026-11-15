@@ -421,6 +421,9 @@ impl Tarea {
 
     /// Frontmatter en la forma fija de F1-9 seguido de `cuerpo`. Las claves
     /// desconocidas van al final, en su orden y con su texto original.
+    /// No valida: un texto con caracteres de control sale escapado (YAML
+    /// valido) pero [`super::leer`] lo rechaza, y `estimacion` y las
+    /// desconocidas se copian tal cual (tienen que venir de una lectura).
     pub fn escribir(&self, cuerpo: &Cuerpo) -> String {
         let r = &self.roles;
         let rol = |x: &Rol| {

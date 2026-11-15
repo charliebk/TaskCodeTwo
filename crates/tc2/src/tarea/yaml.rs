@@ -62,7 +62,7 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
     let mut lineas = texto.split_inclusive('\n');
     let sin_fin = |l: &str| l.trim_end_matches('\n').trim_end_matches('\r').to_owned();
     match lineas.next() {
-        Some(l) if sin_fin(l) == DELIMITADOR => {}
+        Some(l) if sin_fin(l).trim_end() == DELIMITADOR => {}
         _ => return Err(ErrorTarea::general("no empieza con un frontmatter `---`")),
     }
     let mut consumido = texto.split_inclusive('\n').next().map_or(0, str::len);
@@ -71,7 +71,8 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
     for l in lineas {
         consumido += l.len();
         let linea = sin_fin(l);
-        if linea == DELIMITADOR {
+        // Como la 0.16: espacios al final del delimitador se admiten.
+        if linea.trim_end() == DELIMITADOR {
             cerrado = true;
             break;
         }
@@ -181,7 +182,7 @@ mod tests {
 
     #[test]
     fn partir_separa_entradas_y_cuerpo_intacto() -> Result<(), ErrorTarea> {
-        let t = "\u{feff}---\r\nid: \"TASK-001\"\r\nroles:\r\n  a: {b: 1}\r\n# nota\r\nx: 1\r\n---\r\n## Objetivo\r\n";
+        let t = "\u{feff}---\r\nid: \"TASK-001\"\r\nroles:\r\n  a: {b: 1}\r\n# nota\r\nx: 1\r\n--- \r\n## Objetivo\r\n";
         let p = partir(t)?;
         let claves: Vec<&str> = p.entradas.iter().map(|e| e.clave.as_str()).collect();
         assert_eq!(claves, ["id", "roles", "x"]);
