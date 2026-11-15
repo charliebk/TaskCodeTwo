@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-15
 dependencias: [TASK-010, TASK-011]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 ## Criterios de aceptacion
 - [ ] Estimación probada contra las tareas terminadas de ToolsaWeb y OpenDockTrading, con su error medio
 - [ ] Cumple lo que pide la tarea F1-17 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-15T08:34:51Z | plan | automatico | persona | 0.16.1 |
