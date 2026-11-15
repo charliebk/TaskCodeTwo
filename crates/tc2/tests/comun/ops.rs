@@ -1,6 +1,8 @@
 //! Operaciones de prueba sobre la rama de estado.
 
 use tc2::estado::{Cambio, Estado, Fallo, Operacion};
+// Texto de prueba, fuera del catalogo: el test de guarda solo mira `src/`.
+use tc2::i18n::Mensaje;
 
 /// Escribe `ruta` si no existe (idempotente).
 pub struct Anotar {
@@ -61,7 +63,7 @@ impl Operacion for CrearUnico {
         if e.leer(&self.ruta)?.is_some() {
             return Err(Fallo::rechazada(
                 "ya-existe",
-                format!("{} ya existe", self.ruta),
+                Mensaje::externo(format!("{} ya existe", self.ruta)),
             ));
         }
         Ok(vec![Cambio::nuevo(self.ruta.clone(), "unico\n")])
@@ -87,10 +89,10 @@ impl Operacion for FallaSi {
     }
     fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         if e.leer(&self.veneno)?.is_some() {
-            return Err(Fallo::Error(format!(
+            return Err(Fallo::Error(Mensaje::externo(format!(
                 "{} envenena {}",
                 self.veneno, self.ruta
-            )));
+            ))));
         }
         Ok(vec![Cambio::nuevo(
             self.ruta.clone(),

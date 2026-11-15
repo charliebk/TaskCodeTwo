@@ -8,6 +8,8 @@ use std::path::{Component, Path};
 use super::remoto::{merge_abierto, sin_resolver};
 use super::{Git, Paso, Subcomando, commit_de, entradas_status, exigir};
 use crate::contrato::{Informe, Resultado, corto};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::git as txt;
 
 const OP: &str = "guardar";
 
@@ -19,7 +21,7 @@ pub fn guardar(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Informe 
 fn uso(motivo: &str) -> Informe {
     Informe::nuevo(OP, Resultado::Uso)
         .con("motivo", motivo)
-        .diagnostico_sin_traducir("uso: guardar \"<mensaje>\" <rutas...>")
+        .diagnostico(&crate::i18n::catalogo::cli::USO_GUARDAR)
 }
 
 fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<Informe> {
@@ -49,10 +51,10 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("motivo", "conflicto-sin-resolver")
                 .con_lista("ficheros", pendientes.clone())
-                .diagnostico_sin_traducir(format!(
-                    "resuelve {} y guardalo con el resto",
-                    pendientes.join(" ")
-                )));
+                .diagnostico(
+                    Mensaje::nuevo(&txt::RESUELVE_Y_GUARDA_CON_EL_RESTO)
+                        .con("ficheros", pendientes.join(" ")),
+                ));
         }
         let con_marcas: Vec<String> = rutas
             .iter()
@@ -63,10 +65,9 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("motivo", "marcas-de-conflicto")
                 .con_lista("ficheros", con_marcas.clone())
-                .diagnostico_sin_traducir(format!(
-                    "quita las marcas de conflicto de {}",
-                    con_marcas.join(" ")
-                )));
+                .diagnostico(
+                    Mensaje::nuevo(&txt::QUITA_LAS_MARCAS).con("ficheros", con_marcas.join(" ")),
+                ));
         }
         let estado = exigir(
             git,

@@ -23,6 +23,8 @@ use crate::git::{
     Cambio, FalloRemoto, Git, REMOTO, Subcomando, clasificar_fallo_remoto, commit_de, correr,
     es_ancestro, exigir, localizar_principal, worktrees,
 };
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::estado as txt;
 
 /// Por que una operacion no produce cambios.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,16 +34,16 @@ pub enum Fallo {
     Rechazada {
         /// Valor de `motivo=`.
         motivo: String,
-        /// Que hacer, en una linea.
-        diagnostico: String,
+        /// Que hacer, en una linea (mensaje del catalogo, F2-8).
+        diagnostico: Mensaje,
     },
     /// Fallo interno: `error` (1).
-    Error(String),
+    Error(Mensaje),
 }
 
 impl Fallo {
     /// Atajo para [`Fallo::Rechazada`].
-    pub fn rechazada(motivo: impl Into<String>, diagnostico: impl Into<String>) -> Self {
+    pub fn rechazada(motivo: impl Into<String>, diagnostico: impl Into<Mensaje>) -> Self {
         Self::Rechazada {
             motivo: motivo.into(),
             diagnostico: diagnostico.into(),
@@ -152,8 +154,8 @@ fn informe(r: Resultado, op: &dyn Operacion) -> Informe {
     Informe::nuevo(OP, r).con("operacion", op.nombre())
 }
 
-fn error(diagnostico: impl Into<String>) -> Informe {
-    Informe::nuevo(OP, Resultado::Error).diagnostico_sin_traducir(diagnostico)
+fn error(diagnostico: impl Into<Mensaje>) -> Informe {
+    Informe::nuevo(OP, Resultado::Error).diagnostico(diagnostico)
 }
 
 fn renombrado(mut i: Informe) -> Informe {
@@ -190,11 +192,13 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
             Err(ErrorCerrojo::Ocupado) => {
                 return Ok(informe(Resultado::Agotada, op)
                     .con("motivo", "cerrojo")
-                    .diagnostico_sin_traducir(
-                        "otro proceso de este clon esta escribiendo la rama de estado: reintenta",
-                    ));
+                    .diagnostico(&txt::CERROJO_OCUPADO));
             }
-            Err(ErrorCerrojo::Io(e)) => return Err(error(format!("cerrojo: {e}"))),
+            Err(ErrorCerrojo::Io(e)) => {
+                return Err(error(
+                    Mensaje::nuevo(&txt::CERROJO_ERROR).con("error", e.to_string()),
+                ));
+            }
         };
         let r = intento(c, op, &anotacion, &principal, remoto, n);
         drop(cerrojo);
@@ -203,9 +207,7 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
             Intento::Reintentar if n >= c.politica.intentos => {
                 return Ok(informe(Resultado::Agotada, op)
                     .con("intentos", n.to_string())
-                    .diagnostico_sin_traducir(
-                        "la rama de estado cambio en cada intento: no se ha escrito nada; reintenta",
-                    ));
+                    .diagnostico(&txt::AGOTADA));
             }
             Intento::Reintentar => std::thread::sleep(espera(c.politica.base, n)),
         }
@@ -245,7 +247,11 @@ fn de_fallo(f: Fallo) -> Informe {
         Fallo::Rechazada {
             motivo,
             diagnostico,
-        } => error(format!("{motivo}: {diagnostico}")),
+        } => error(
+            Mensaje::nuevo(&txt::RECHAZADA_COMO_ERROR)
+                .con("motivo", motivo)
+                .con_mensaje("diagnostico", diagnostico),
+        ),
     }
 }
 
@@ -333,7 +339,7 @@ fn intento(
             return Ok(Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", motivo)
-                    .diagnostico_sin_traducir(diagnostico),
+                    .diagnostico(diagnostico),
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
@@ -374,9 +380,7 @@ fn intento(
             Tareas::ConCambios => Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", "tareas-con-cambios")
-                    .diagnostico_sin_traducir(format!(
-                        "{CARPETA}/ tiene cambios que chocan con la operacion: guardalos o deshazlos y reintenta"
-                    )),
+                    .diagnostico(Mensaje::nuevo(&txt::TAREAS_CON_CAMBIOS).con("carpeta", CARPETA)),
             ),
             t => Intento::Hecho(ok(op, &sha, n, t, 0, 0)),
         });
@@ -420,23 +424,23 @@ fn duplicada(rutas: &[String], cambios: &[Cambio], op: &dyn Operacion) -> Option
     choque(rutas, cambios).map(|(nueva, otra)| {
         informe(Resultado::Rechazada, op)
             .con("motivo", "ruta-duplicada")
-            .diagnostico_sin_traducir(format!(
-                "{nueva} solo difiere en mayusculas de {otra}: chocarian en Windows y macOS"
-            ))
+            .diagnostico(
+                Mensaje::nuevo(&txt::RUTA_DUPLICADA)
+                    .con("nueva", nueva)
+                    .con("otra", otra),
+            )
     })
 }
 
 fn denegada(op: &dyn Operacion, motivo: &str, detalle: &str) -> Informe {
-    let primera = detalle
-        .lines()
-        .map(str::trim)
-        .find(|l| !l.is_empty())
-        .unwrap_or("sin mensaje");
+    let texto = Mensaje::nuevo(&txt::ESCRITURA_DENEGADA);
+    let texto = match detalle.lines().map(str::trim).find(|l| !l.is_empty()) {
+        Some(primera) => texto.con("detalle", primera),
+        None => texto.con_mensaje("detalle", &txt::SIN_MENSAJE),
+    };
     informe(Resultado::Denegada, op)
         .con("motivo", motivo)
-        .diagnostico_sin_traducir(format!(
-            "{primera}; el remoto deniega la escritura: revisa credenciales, permisos o reglas, no se reintenta"
-        ))
+        .diagnostico(texto)
 }
 
 fn con_pendientes(mut i: Informe, publicadas: usize, rechazadas: usize) -> Informe {
@@ -481,9 +485,7 @@ fn sin_red(
         return Ok(Intento::Hecho(
             informe(Resultado::Sinred, op)
                 .con("pendiente", "no")
-                .diagnostico_sin_traducir(format!(
-                    "{detalle}; esta operacion exige red: no se ha escrito nada, reintenta con red"
-                )),
+                .diagnostico(Mensaje::nuevo(&txt::EXIGE_RED).con("detalle", detalle)),
         ));
     }
     let git = c.git;
@@ -507,7 +509,7 @@ fn sin_red(
             return Ok(Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", motivo)
-                    .diagnostico_sin_traducir(diagnostico),
+                    .diagnostico(diagnostico),
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
@@ -529,9 +531,7 @@ fn sin_red(
         informe(Resultado::Sinred, op)
             .con("pendiente", "si")
             .con("pendientes", (previas.len() + 1).to_string())
-            .diagnostico_sin_traducir(format!(
-                "{detalle}; queda pendiente de publicar: se publicara en la siguiente operacion con red"
-            )),
+            .diagnostico(Mensaje::nuevo(&txt::QUEDA_PENDIENTE).con("detalle", detalle)),
     ))
 }
 
@@ -599,10 +599,11 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
             );
             let s = s?;
             if !s.exito() {
-                return Err(error(format!(
-                    "no se pudo adelantar {RAMA}: {}",
-                    s.primera_linea_error()
-                )));
+                return Err(error(
+                    Mensaje::nuevo(&txt::NO_SE_PUDO_ADELANTAR)
+                        .con("rama", RAMA)
+                        .con("error", s.primera_linea_error()),
+                ));
             }
             borrado?;
         }

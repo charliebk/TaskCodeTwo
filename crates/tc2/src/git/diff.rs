@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::{Git, Paso, Subcomando, base_de_rama, commit_de, exigir, rama_actual};
 use crate::contrato::{Informe, Resultado, corto};
+use crate::i18n::catalogo::git as txt;
 
 /// Ficheros y lineas que cambian desde el `merge-base` con la base de la rama
 /// (incluye lo no guardado del worktree; no los ficheros sin seguimiento).
@@ -17,7 +18,7 @@ fn diff_paso(git: &Git, dir: &Path) -> Paso<Informe> {
     let Some(rama) = rama_actual(git, dir, OP)? else {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "sin-rama")
-            .diagnostico_sin_traducir("lanzalo en el worktree de la tarea"));
+            .diagnostico(&txt::LANZALO_EN_EL_WORKTREE));
     };
     let base = base_de_rama(&rama);
     if commit_de(git, dir, OP, base)?.is_none() {

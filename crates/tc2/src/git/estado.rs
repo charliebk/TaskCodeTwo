@@ -8,8 +8,11 @@
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::{Git, Paso, Subcomando, correr, exigir};
+use super::rama::error_de_fichero;
+use super::{Git, Paso, Subcomando, correr, exigir, git_fallo};
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::git as txt;
 
 /// Un fichero que la operacion anade o cambia en la rama de estado. No hay
 /// borrado: las carpetas de tarea no se borran nunca (ADR F1-1).
@@ -136,8 +139,7 @@ impl Temporal {
             .join(format!("{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&ruta);
         std::fs::create_dir_all(&ruta).map_err(|e| {
-            Informe::nuevo(op, Resultado::Error)
-                .diagnostico_sin_traducir(format!("{}: {e}", ruta.display()))
+            Informe::nuevo(op, Resultado::Error).diagnostico(error_de_fichero(&ruta, &e))
         })?;
         Ok(Self(ruta))
     }
@@ -158,7 +160,7 @@ impl Drop for Temporal {
 
 fn texto(op: &str, p: &Path) -> Paso<String> {
     p.to_str().map(str::to_owned).ok_or_else(|| {
-        Informe::nuevo(op, Resultado::Error).diagnostico_sin_traducir("ruta temporal no UTF-8")
+        Informe::nuevo(op, Resultado::Error).diagnostico(&txt::RUTA_TEMPORAL_NO_UTF8)
     })
 }
 
@@ -175,18 +177,14 @@ fn con_indice(
         .map_err(|e| {
             Informe::nuevo(op, Resultado::Error)
                 .con("git", sub.nombre())
-                .diagnostico_sin_traducir(e.to_string())
+                .diagnostico(e.mensaje())
         })?;
     if s.exito() {
         Ok(s.stdout)
     } else {
         Err(Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico_sin_traducir(format!(
-                "git {} fallo: {}",
-                sub.nombre(),
-                s.primera_linea_error()
-            )))
+            .diagnostico(git_fallo(sub, &s)))
     }
 }
 
@@ -204,10 +202,9 @@ pub(crate) fn construir_commit(
     if let Some(malo) = cambios.iter().find(|c| !ruta_valida(&c.ruta)) {
         return Err(Informe::nuevo(op, Resultado::Error)
             .con("motivo", "ruta-invalida")
-            .diagnostico_sin_traducir(format!(
-                "ruta invalida en la rama de estado: {}",
-                malo.ruta
-            )));
+            .diagnostico(
+                Mensaje::nuevo(&txt::RUTA_INVALIDA_EN_ESTADO).con("ruta", malo.ruta.as_str()),
+            ));
     }
     let comun = dir_comun(git, dir, op)?;
     let tmp = Temporal::nueva(&comun, op)?;
@@ -220,8 +217,7 @@ pub(crate) fn construir_commit(
         for (i, c) in cambios.iter().enumerate() {
             let f = tmp.0.join(format!("blob-{i}"));
             std::fs::write(&f, c.contenido.as_bytes()).map_err(|e| {
-                Informe::nuevo(op, Resultado::Error)
-                    .diagnostico_sin_traducir(format!("{}: {e}", f.display()))
+                Informe::nuevo(op, Resultado::Error).diagnostico(error_de_fichero(&f, &e))
             })?;
             ficheros.push(texto(op, &f)?);
         }
@@ -230,8 +226,9 @@ pub(crate) fn construir_commit(
         let shas = exigir(git, dir, op, Subcomando::HashObject, &args)?;
         let shas: Vec<&str> = shas.lines().map(str::trim).collect();
         if shas.len() != cambios.len() {
-            return Err(Informe::nuevo(op, Resultado::Error)
-                .diagnostico_sin_traducir("git hash-object no devolvio un hash por fichero"));
+            return Err(
+                Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO)
+            );
         }
         let entradas: Vec<String> = cambios
             .iter()

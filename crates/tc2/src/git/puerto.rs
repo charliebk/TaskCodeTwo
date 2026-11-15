@@ -11,6 +11,9 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::process::Command;
 
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::git as txt;
+
 /// Subcomandos de `git` que la capa puede lanzar (lista permitida de F1-4 B2b,
 /// reducida a los que usan las operaciones de F2-2 y la rama de estado de
 /// F2-3).
@@ -150,6 +153,17 @@ impl std::fmt::Display for ErrorGit {
         match self {
             Self::Prohibido(a) => write!(f, "argumento prohibido para la capa: {a}"),
             Self::Lanzar(e) => write!(f, "no se pudo lanzar git: {e}"),
+        }
+    }
+}
+
+impl ErrorGit {
+    /// El mismo texto que `Display`, como mensaje del catalogo (F2-8): lo
+    /// que va al diagnostico se traduce.
+    pub fn mensaje(&self) -> Mensaje {
+        match self {
+            Self::Prohibido(a) => Mensaje::nuevo(&txt::ARGUMENTO_PROHIBIDO).con("argumento", a),
+            Self::Lanzar(e) => Mensaje::nuevo(&txt::NO_SE_PUDO_LANZAR_GIT).con("error", e),
         }
     }
 }

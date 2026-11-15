@@ -83,9 +83,12 @@ impl Estado for Vista<'_> {
             Some(c) if self.rutas.contains(ruta) => leer_blob(self.git, &self.dir, OP, c, ruta)
                 .map(Some)
                 .map_err(|i| {
+                    // Sin diagnostico queda la linea de contrato, que no se
+                    // traduce (ADR F1-4).
                     Fallo::Error(
-                        i.diagnostico_en(crate::i18n::Idioma::Es)
-                            .unwrap_or_else(|| i.linea()),
+                        i.diagnostico
+                            .clone()
+                            .unwrap_or_else(|| crate::i18n::Mensaje::externo(i.linea())),
                     )
                 }),
             _ => Ok(None),
