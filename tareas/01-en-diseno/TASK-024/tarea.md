@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-024-f2-8-i18n-de-mensajes
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 672873
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F2-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-15T22:46:36Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-15T22:54:50Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-15T22:54:08Z | diseno | agente:aac7fedea7ec4b16b | 28 | 74740 | 581369 | 16736 | 25 | 672873 | - | - |
