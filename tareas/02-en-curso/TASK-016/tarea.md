@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-016-f2-1-esqueleto-typescript-build-reproduc
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F2-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T11:34:39Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T11:43:33Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T11:43:56Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
