@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-019, TASK-020, TASK-021, TASK-022, TASK-023, TASK-024, TASK-025, TASK-031, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056
+- **En marcha:** TASK-019 (en diseño)
+- **Listas para empezar:** TASK-020, TASK-021, TASK-022, TASK-023, TASK-024, TASK-025, TASK-031, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -77,7 +77,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-016 | F2-1 Esqueleto: Rust, build reproducible | — | TASK-001, TASK-002, TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-094 | ✅ terminada |
 | — | TASK-017 | F2-2 Capa de operaciones Git deterministas | — | TASK-005, TASK-016 | ✅ terminada |
 | — | TASK-018 | F2-3 Rama de estado | — | TASK-002, TASK-003, TASK-017 | ✅ terminada |
-| 1 | TASK-019 | F2-4 Reserva de IDs por push atomico | — | TASK-018 | lista para empezar |
+| 1 | TASK-019 | F2-4 Reserva de IDs por push atomico | — | TASK-018 | ▶ en diseño |
 | 2 | TASK-020 | F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido | — | TASK-010 | lista para empezar |
 | 3 | TASK-021 | F2-6 Adaptador GitHub | — | TASK-015, TASK-017 | lista para empezar |
 | 4 | TASK-022 | F2-9 Adaptador GitLab | — | TASK-015, TASK-017 | lista para empezar |
