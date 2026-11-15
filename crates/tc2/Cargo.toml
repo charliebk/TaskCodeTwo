@@ -21,6 +21,12 @@ workspace = true
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde-saphyr = { version = "2.1", default-features = false, features = ["deserialize"] }
+# F2-6: adaptador GitHub por la API REST (F1-13 decision 1, F1-14): cliente
+# HTTP bloqueante con TLS del almacen del sistema (rustls-platform-verifier
+# por la feature `platform-verifier`), sin `gh`. Todo detras de
+# `plataforma::http`.
+serde_json = "1"
+ureq = { version = "3.5", default-features = false, features = ["rustls", "platform-verifier"] }
 
 # Parser YAML de otra base de codigo (port de libyaml, como el PyYAML del PoC
 # de F1-9) para la ida y vuelta de los tests: con el de produccion seria
