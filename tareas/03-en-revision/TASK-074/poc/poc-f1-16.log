@@ -1,0 +1,325 @@
+PoC F1-16 ; ToolsaWeb@93c9618ac (copia git clone --no-hardlinks --no-checkout) ; serie 74613c6a7..324278150 ; tope_rondas 2 ; lote noche-173-210
+
+=== L: la serie real en la copia (git log --first-parent) y los datos de cada tarea ===
+merges de tarea en el primer padre de develop entre 74613c6a7 y 324278150: 18
+  7e8c36fcd TASK-173 merge(feature): feature/task-173-material-de-los-cursos-de-openroads-d
+  5bdbe1d41 TASK-174 merge(feature): feature/task-174-lectura-de-los-dgn-v8-del-curso-de-op
+  a92686591 TASK-175 merge(feature): feature/task-175-documentacion-de-la-categoria-2-del-c
+  cc2eb8c34 TASK-176 merge(feature): feature/task-176-documentacion-de-la-categoria-3-del-c
+  01be5e308 TASK-177 merge(feature): feature/task-177-documentacion-de-la-categoria-4-del-c
+  d9fb9c232 TASK-178 merge(feature): feature/task-178-documentacion-de-la-categoria-5-del-c
+  dd2283ce6 TASK-179 merge(feature): feature/task-179-documentacion-de-la-categoria-6-del-c
+  26189e4c4 TASK-180 merge(feature): feature/task-180-documentacion-de-la-categoria-7-del-c
+  a9b5aab49 TASK-181 merge(feature): feature/task-181-documentacion-de-la-categoria-8-del-c
+  8fbe2f6b9 TASK-182 merge(feature): feature/task-182-catalogo-de-features-de-openroads-com
+  9adb8d3f5 TASK-187 merge(fix): fix/task-187-importar-ejes-en-circulo-completo-rotond -> d
+  420c42db5 TASK-188 merge(feature): feature/task-188-adr-de-las-lineas-con-perfil-propio-y
+  d8a118f31 TASK-189 merge(feature): feature/task-189-adr-de-los-vinculos-entre-objetos-y-d
+  58bfd8e41 TASK-190 merge(feature): feature/task-190-adr-de-los-recortes-las-fronteras-y-l
+  1fe028a81 TASK-191 merge(feature): feature/task-191-modelo-de-datos-de-la-anotacion-y-del
+  2ee793f67 TASK-192 merge(feature): feature/task-192-casos-de-verificacion-que-faltan-en-l
+  a35f012fa TASK-205 merge(feature): feature/task-205-orden-explicita-para-cambiar-el-orige
+  324278150 TASK-210 merge(fix): fix/task-210-tests-de-rendimiento-que-no-paran-la-ver -> d
+serie TASK-173..TASK-191: 15 merges (sin TASK-183..TASK-186, que no se integraron en ese tramo)
+TASK-192 queda fuera: 51 commits directos de la persona en develop con «docs(TASK-192)» durante la tarea
+
+tabla-lote calculada:
+| Tarea | Tipo | Carril efectivo | Dependencias | Rondas reales | Rondas con tope 2 | Bloqueantes en la ronda 2 | MENOR sin corregir (tope 2) | Tokens de revisión (tope 2) | Tokens de las rondas 3 y 4 | approve en la 0.16 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TASK-173 | feature | funcionalidad | - | 2 | 2 | 0 | 0 | 4917476 | - | persona |
+| TASK-174 | feature | funcionalidad | - | 3 | 2 | 0 | 4 | 15942752 | 1208250 | persona |
+| TASK-175 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 6628082 | - | persona |
+| TASK-176 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 2 | 8948575 | - | automatico |
+| TASK-177 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 9033664 | - | automatico |
+| TASK-178 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 5390536 | - | automatico |
+| TASK-179 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 12446750 | - | automatico |
+| TASK-180 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 7873137 | - | automatico |
+| TASK-181 | feature | funcionalidad | TASK-173, TASK-174 | 2 | 2 | 0 | 0 | 3783148 | - | automatico |
+| TASK-182 | feature | funcionalidad | TASK-175, TASK-176, TASK-177, TASK-178, TASK-179, TASK-180, TASK-181 | 2 | 2 | 0 | 2 | 5190039 | - | automatico |
+| TASK-187 | fix | fix | TASK-174 | 2 | 2 | 0 | 0 | 3580350 | - | automatico |
+| TASK-188 | feature | funcionalidad | TASK-182 | 2 | 2 | 0 | 3 | 2597817 | - | automatico |
+| TASK-189 | feature | funcionalidad | TASK-182 | 3 | 2 | 0 | 3 | 6613483 | 931852 | automatico |
+| TASK-190 | feature | funcionalidad | TASK-182 | 2 | 2 | 0 | 1 | 3931233 | - | automatico |
+| TASK-191 | feature | funcionalidad | TASK-182 | 4 | 2 | 0 | 3 | 6677122 | 11867555 | automatico |
+| TASK-205 | feature | funcionalidad | TASK-187 | 2 | 2 | 0 | 2 | 22675930 | - | automatico |
+| TASK-210 | fix | fix | - | 1 | 1 | - | 1 | 4581338 | - | automatico |
+
+tareas de codigo (carril minimo distinto de errata): 3 (TASK-187, TASK-205, TASK-210); solo docs/: 14
+approve firmado por una persona en la 0.16: 3 de 17; [DECIDE CARLOS] en tarea.md o plan: 0
+tareas con codigo cambiado despues de su ultima revision: 4 (TASK-177, TASK-178, TASK-179, TASK-180)
+  TASK-177: docs/cursos/openroads/04-modelado-seccion-transversal.md
+  TASK-178: docs/cursos/openroads/05-civilcells.md
+  TASK-179: docs/cursos/openroads/06-urbanizacion.md
+  TASK-180: docs/cursos/openroads/07-anotacion.md
+
+lo que escriben los commits chore(TASK-NNN) de la 0.16 en tarea.md, en los tres repos:
+  ToolsaWeb@93c9618ac: 1698 commits chore(TASK-NNN) que tocan su tarea.md: a mano (persona o replanificacion) 68 ; antes del lanzamiento 500 ; despues del cierre 159 ; durante (CLI) 939 ; durante (ciclo) 32
+    claves que cambian: actualizado=128 ; asignado_a=162 ; complejidad=3 ; dependencias=50 ; estado=642 ; etiquetas=2 ; modelo_sugerido=2 ; plan_aprobado=163 ; regla_seleccion_skill=21 ; skills_recomendados=21 ; sprint=3 ; titulo=3 ; tokens_diseno=171 ; tokens_implementacion=56 ; tokens_revision=379
+    secciones que cambian: Autorrevision=29 ; Coste=367 ; Criterios de aceptacion=10 ; Descartada=1 ; Duracion=22 ; Objetivo=6 ; Resultado=8 ; Ronda extra=4 ; Transiciones=1030 ; Verificacion omitida=2
+    cambian el nucleo: 79 (a mano (persona o replanificacion) 57 ; antes del lanzamiento 21 ; despues del cierre 1)
+    c051b200f despues del cierre: chore(TASK-403): tarea terminada y artefactos de cierre (Criterios de aceptacion)
+  TaskCodeTwo@021427128: 163 commits chore(TASK-NNN) que tocan su tarea.md: a mano (persona o replanificacion) 6 ; antes del lanzamiento 38 ; despues del cierre 7 ; durante (CLI) 70 ; durante (ciclo) 42
+    claves que cambian: actualizado=1 ; asignado_a=18 ; estado=61 ; plan_aprobado=19 ; tokens_diseno=17 ; tokens_implementacion=23 ; tokens_revision=29
+    secciones que cambian: Autorrevision=36 ; Coste=64 ; Criterios de aceptacion=2 ; Decisiones de la persona=2 ; Duracion=7 ; Resultado=7 ; Rondas extra=7 ; Transiciones=102 ; Verificacion ligera=13
+    cambian el nucleo: 2 (a mano (persona o replanificacion) 2)
+  OpenDockTrading@fab8d7e05: 533 commits chore(TASK-NNN) que tocan su tarea.md: a mano (persona o replanificacion) 6 ; antes del lanzamiento 126 ; despues del cierre 42 ; durante (CLI) 282 ; durante (ciclo) 77
+    claves que cambian: actualizado=37 ; asignado_a=45 ; dependencias=1 ; estado=174 ; plan_aprobado=44 ; tokens_diseno=44 ; tokens_implementacion=41 ; tokens_revision=120
+    secciones que cambian: Autorrevision=83 ; Coste=205 ; Criterios de aceptacion=8 ; Duracion=32 ; Resultado=4 ; Revisores no relanzados=1 ; Rondas extra=2 ; Transiciones=301 ; Verificacion ligera=3
+    cambian el nucleo: 3 (a mano (persona o replanificacion) 1 ; antes del lanzamiento 2)
+  escrituras del CLI y del ciclo durante una tarea (las que pasan dentro de un lote): 1442; cambian el nucleo: 0; no apartarian la tarea: 100,0 %
+
+=== P: nucleo puro (planificar, cierre transitivo, siguiente_paso, puede_lanzar) ===
+orden del lote real (approve firmado al lanzar): 173 174 175 176 177 178 179 180 181 182 187 188 189 190 191 205 210 ; fuera: []
+con las firmas reales de la 0.16 (D7a): entran 5, no entran 12
+  riesgo alto no entra y arrastra a TASK-205: fuera=[('TASK-187', 'carril-no-admitido'), ('TASK-205', 'depende-de-apartada')] -> ok
+  [DECIDE CARLOS] abierto: no entra, el resto sigue: fuera=[('TASK-174', 'decide-abierto'), ('TASK-175', 'depende-de-apartada'), ('TASK-176', 'depende-de-apartada'), ('TASK-177', 'depende-de-apartada'), ('TASK-178', 'depende-de-apartada'), ('TASK-179', 'depende-de-apartada'), ('TASK-180', 'depende-de-apartada'), ('TASK-181', 'depende-de-apartada'), ('TASK-182', 'depende-de-apartada'), ('TASK-187', 'depende-de-apartada'), ('TASK-188', 'depende-de-apartada'), ('TASK-189', 'depende-de-apartada'), ('TASK-190', 'depende-de-apartada'), ('TASK-191', 'depende-de-apartada'), ('TASK-205', 'depende-de-apartada')] -> ok
+  funcionalidad sin approve firmado: fuera=[('TASK-188', 'plan-sin-firmar')] -> ok
+  dependencia fuera del lote sin terminar: fuera=[('TASK-205', 'dependencia-externa-sin-terminar')] -> ok
+  dependencia fuera del lote terminada: fuera=[] -> ok
+  ciclo: fuera=[('TASK-901', 'ciclo'), ('TASK-902', 'ciclo')] -> ok
+  cierre de TASK-174: 14 (175 176 177 178 179 180 181 182 187 188 189 190 191 205)
+  cierre de TASK-178 (dependencia parcial de TASK-182): 182 188 189 190 191
+  puede_lanzar con A5 abierto y el token de la persona en la sesion: False (token-de-persona-con-a5-abierto)
+  puede_lanzar sin el token de la persona: True; aviso: puertas no impuestas por la plataforma en lote/*: la comprobacion del primer padre del CLI es la unica
+  siguiente_paso, presupuesto de la tarea: apartar presupuesto-de-tarea -> ok
+  siguiente_paso, tope con 2 bloqueantes: apartar tope-con-bloqueantes -> ok
+  siguiente_paso, verificacion en rojo: apartar verificacion-en-rojo -> ok
+  siguiente_paso, tope con solo MENOR: integrar  -> ok
+  siguiente_paso, sin margen de lote: parar presupuesto-de-lote -> ok
+  siguiente_paso, [DECIDE CARLOS] durante el lote: apartar decide-durante-el-lote -> ok
+  siguiente_paso, carril del diff sube a riesgo alto: apartar carril-subio -> ok
+  siguiente_paso, develop movido por la App del agente: parar develop-movido-por-agente -> ok
+  siguiente_paso, escritura no declarada en el worktree: apartar escritura-no-declarada -> ok
+  nucleo de tarea.md: escritura del CLI cambia el blob (True) y no el nucleo (True); una frase en ## Objetivo cambia el nucleo (True)
+  nucleo, casilla de un criterio marcada por el CLI: no cambia -> ok
+  nucleo, ## Resultado escrito por el CLI: no cambia -> ok
+  nucleo, ## Escenarios nueva: cambia -> ok
+  nucleo, carril en el frontmatter: cambia -> ok
+  nucleo, roles en el frontmatter: cambia -> ok
+  nucleo, dependencias en bloque: cambia -> ok
+  nucleo, una seccion nueva cualquiera: cambia -> ok
+  nucleo, ## Objetivo duplicado antes del original: cambia -> ok
+  nucleo, clave titulo duplicada antes de la original: cambia -> ok
+  nucleo, ## Autorrevision escrita por el agente: no cambia -> ok
+  nucleo, ## Verificacion ligera escrita por el CLI: no cambia -> ok
+  carril minimo (regla de F1-10 mas GitLab): 10 de 10 casos; rutas_carril src/auth/** -> riesgo-alto
+
+=== A: lote limpio ===
+A0 replica fiel del primer padre de develop desde TASK-173 hasta TASK-210 con merge-tree: 219 de 219 arboles iguales
+A0b disposicion de la 0.16 (hitos.md en docs/, como hoy): 6 de 17 tareas chocan al llevarlas sobre lote/*: TASK-187 en docs/planificacion/hitos.md; TASK-189 en docs/planificacion/hitos.md; TASK-190 en docs/modelo-twp.md, docs/planificacion/hitos.md; TASK-191 en docs/modelo-twp.md, docs/planificacion/hitos.md; TASK-205 en docs/planificacion/hitos.md; TASK-210 en docs/planificacion/hitos.md
+A1 (worktrees reales, rondas que hubo): fin; integradas 17 de 17; apartadas 0
+A1 primer padre de lote/*: 17 commits, todos merges de la Plataforma con trailer Tarea: True
+A1 arbol final de lote/* frente a develop real en 324278150 (fuera de la rama de estado): 15 rutas distintas; atribuidas: commits directos en develop 14, TASK-192 (fuera del lote) 8, cambios posteriores a la ultima revision 4; sin explicar: 0
+  CHANGELOG.md: directo
+  docs/BOARD.md: directo
+  docs/INDEX.md: directo
+  docs/catalogo-entidades.md: directo, TASK-192
+  docs/civilboot-comportamiento.md: directo
+  docs/cursos/openroads/02-terrenos.md: directo
+  docs/cursos/openroads/03-geometrias.md: directo, TASK-192
+  docs/cursos/openroads/04-modelado-seccion-transversal.md: directo, TASK-192, posterior a la revision
+  docs/cursos/openroads/05-civilcells.md: directo, TASK-192, posterior a la revision
+  docs/cursos/openroads/06-urbanizacion.md: directo, TASK-192, posterior a la revision
+  docs/cursos/openroads/07-anotacion.md: directo, TASK-192, posterior a la revision
+  docs/cursos/openroads/08-explanaciones.md: directo
+  docs/cursos/propuesta-roadmap.md: TASK-192
+  docs/recursos-y-medicion.md: directo
+  scripts/grafo-tareas.py: directo, TASK-192
+A1 rutas que cambio el lote y nada mas: 174, todas iguales a develop: True
+A2 (tope 2, D6a): fin; integradas 15; apartadas 2; tareas con mas rondas reales que el tope: 3 (TASK-174, TASK-189, TASK-191); las que cierran en la ronda 2 dejan 7 MENOR sin corregir; tokens de revision que no se gastan: 14007657; rutas distintas de A1: 6 (docs/ADR-021-vinculos-entre-objetos-y-pk-de-calculo.md, docs/ADR-022-recortes-fronteras-y-composicion-de-terrenos.md, docs/ADR-023-anotacion-y-estilo-por-vista.md, docs/cursos/openroads/dgn-formato.md, docs/cursos/openroads/dgn-inventario.md, docs/modelo-twp.md)
+  A2 apartada TASK-190: conflicto-con-lote (el trabajo no entra sobre lote/*: docs/modelo-twp.md); dependientes []
+  A2 apartada TASK-191: conflicto-con-lote (el trabajo no entra sobre lote/*: docs/modelo-twp.md); dependientes []
+
+=== B: fallos ===
+B1 apartado en cascada si cada tarea saliera en rojo (cierre transitivo sobre las dependencias declaradas):
+  173=12 ; 174=14 ; 175=5 ; 176=5 ; 177=5 ; 178=5 ; 179=5 ; 180=5 ; 181=5 ; 182=4 ; 187=1 ; 188=0 ; 189=0 ; 190=0 ; 191=0 ; 205=0 ; 210=0
+  media 3.88 dependientes (22,8 % del lote), maximo 14 (82,4 %, TASK-174), sin dependientes 6 de 17
+  ejecucion con TASK-174 en rojo: fin; apartadas 15 (88,2 %; en cascada 14, 82,4 %): TASK-174 por verificacion-en-rojo, dependientes 175 176 177 178 179 180 181 182 187 188 189 190 191 205; integradas 2; rojo integrado: False
+  ejecucion con TASK-187 en rojo: fin; apartadas 2 (11,8 %; en cascada 1, 5,9 %): TASK-187 por verificacion-en-rojo, dependientes 205; integradas 13; rojo integrado: False
+B2 sublote TASK-187, TASK-205 sobre develop en a831326a0 (TASK-174 terminada): 55 acciones atomicas
+B2 55 cortes, uno antes de cada accion, y --reanudar: todos terminan con el mismo arbol, las mismas 2 integraciones y sin repetir ni saltar puertas: True; ronda repetida entera (y contada con la mediana) en 4 cortes: diario:ronda:TASK-187, diario:ronda:TASK-187, diario:ronda:TASK-205, diario:ronda:TASK-205
+B3 presupuesto de 47645803 tokens (las 9 primeras rondas y una mediana menos 1): presupuesto-de-lote (quedan 3045407 tokens y una ronda mediana son 3045408); integradas 4, empezada sin integrar ['TASK-177'], usados 44600396 <= 47645803: True; rondas cortadas: 0
+B3 --reanudar con presupuesto ampliado por la persona: fin; integradas 15; arbol igual a A2: True; rondas repetidas: 0
+B3 presupuesto de tiempo 9:15 (las 4 primeras tareas y una ronda mediana menos 1 s): presupuesto-de-lote (quedan 576 s y una ronda mediana son 577 s); integradas 4
+B4 limite de uso en la ronda 1 de TASK-189: entorno-no-responde; apartadas 0; integradas 12
+B4 --reanudar: fin; integradas 15; apartadas 2; la ronda 1 de TASK-189 se lanza 2 veces (repetida entera); tokens 123248485 = los de A2 120203077 + una mediana 3045408: True; arbol igual a A2: True
+B5 develop avanza hasta lo que de verdad hubo en develop tras la serie: 12 conflictos con el lote: docs/ADR-021-vinculos-entre-objetos-y-pk-de-calculo.md, docs/cursos/openroads/02-terrenos.md, docs/cursos/openroads/03-geometrias.md, docs/cursos/openroads/04-modelado-seccion-transversal.md, docs/cursos/openroads/05-civilcells.md, docs/cursos/openroads/06-urbanizacion.md, docs/cursos/openroads/07-anotacion.md, docs/cursos/openroads/08-explanaciones.md, docs/cursos/openroads/dgn-formato.md, docs/cursos/openroads/dgn-inventario.md, docs/cursos/propuesta-roadmap.md, docs/modelo-twp.md
+B5 develop avanza con el primer commit real posterior que entra limpio y no toca ficheros del lote: f336ef14a «docs(TASK-277): doce videos tutoriales y dos PDF d» (docs/topograph_GNSS/114321686-Tutorial-Topografia.pdf, docs/topograph_GNSS/Redes de poligonales 3d.pdf)
+  lote con develop avanzado (con conflicto): fin; integradas 15; conflictos al informe: ['docs/ADR-021-vinculos-entre-objetos-y-pk-de-calculo.md', 'docs/cursos/openroads/02-terrenos.md', 'docs/cursos/openroads/03-geometrias.md', 'docs/cursos/openroads/04-modelado-seccion-transversal.md', 'docs/cursos/openroads/05-civilcells.md', 'docs/cursos/openroads/06-urbanizacion.md', 'docs/cursos/openroads/07-anotacion.md', 'docs/cursos/openroads/08-explanaciones.md', 'docs/cursos/openroads/dgn-formato.md', 'docs/cursos/openroads/dgn-inventario.md', 'docs/cursos/propuesta-roadmap.md', 'docs/modelo-twp.md']; resueltos de noche: 0
+  lote con develop avanzado (sin conflicto): fin; integradas 15; conflictos al informe: ninguno; resueltos de noche: 0
+
+=== C: interferencia (impedir y detectar, D4a) ===
+C0 agente lanzado sin stdin: lee 0 bytes de entrada
+C1 commit ajeno en el worktree de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
+C2 cambio sin commit en el worktree de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
+C3 commit ajeno empujado a la rama de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
+C4 commit ajeno empujado a lote/* sin ruleset: lote-con-commits-ajenos; el lote para antes de empezar TASK-205 (eb17d18b46 no es un merge (companero@personas.invalid)); integradas ['TASK-187']
+C4d un evento ajeno-aceptado con decidido_por agente (lo escribe quien tiene escritura en la rama de estado): --reanudar lote-con-commits-ajenos; el informe lo da por rechazado: True
+C4f un evento ajeno-aceptado con decidido_por persona pero de alguien fuera de la lista de personas: --reanudar lote-con-commits-ajenos
+C4c --reanudar sin decidir nada: lote-con-commits-ajenos; la persona acepta el commit ajeno eb17d18b46 (evento ajeno-aceptado) y reanuda: fin, integradas 3; el informe lo nombra: True
+C4g reversion parcial: el arbol del commit ajeno mas un cambio: --reanudar lote-con-commits-ajenos
+C4h commit de la persona sin relacion con el ajeno: --reanudar lote-con-commits-ajenos
+C4i reversion exacta con autor persona forjado y committer la App del agente: --reanudar lote-con-commits-ajenos
+C4e la persona (committer de la lista) revierte el commit ajeno con un commit que deja el arbol de antes y reanuda sin evento: fin; integradas 3
+C4b el mismo push con el ruleset taskcodetwo-lote impuesto: rechazado por la plataforma (codigo 1); el lote sigue: fin, integradas 3
+C6c escrituras legitimas del CLI y del ciclo en tarea.md durante ese lote: 18 (estado, asignado_a, transiciones, ## Autorrevision, ## Verificacion ligera, ultimo_commit_revisado); tarea.md con otro blob: 3 de 3; apartadas por manifiesto-cambiado: 0
+C5 push directo a lote/* tras la ultima tarea: lote-con-commits-ajenos; PR final abierto: False
+C5b merge falsificado con trailer «Tarea: TASK-210» y committer de la plataforma: lote-con-commits-ajenos (bf9c850b3a integra a831326a0a y lo revisado de TASK-210 es 63ccb2669c)
+C5c merge con los mismos padres, trailer y committer pero otro arbol (un fichero que nadie reviso): lote-con-commits-ajenos (757ed26be9 tiene un arbol distinto del merge de sus padres (1f8f7a253d y se espera 134a025cf1; difieren: scripts/instalar-malo.sh))
+C6 tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de empezar): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C6b tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de la ronda 1): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C6d una seccion ## Escenarios nueva en el tarea.md de TASK-205 a mitad de la tarea: fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C6e carril y roles en el frontmatter en el tarea.md de TASK-205 a mitad de la tarea: fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C7 head de TASK-187 movido entre la guarda y el merge: fin; TASK-187 interferida-cas (409: el head de fix/task-187 es c2a47be202 y se pidio a3d18bd818); dependientes ['TASK-205']; integradas ['TASK-210']
+C7b lote/* movido entre la guarda y el merge de TASK-205 (la API no compara la base): el merge entra; siguiente paso: lote-con-commits-ajenos; PR final abierto: False
+C9b el trabajo de TASK-187 trae .GitHub/workflows/x.yml y .gitlab-ci.yml: fin; TASK-187 carril-subio; integradas ['TASK-210']
+C9c con rutas_carril core/tw-alineacion/** el diff real de TASK-187 sube a riesgo alto: fin; TASK-187 carril-subio; integradas ['TASK-210']
+C9 el trabajo de TASK-187 trae .github/workflows/evil.yml: fin; TASK-187 carril-subio antes de la ronda 1 (el diff de la tarea es riesgo-alto y el manifiesto dice fix (.github/workflows/evil.yml)); dependientes ['TASK-205']; integradas ['TASK-210']
+C10 escritura concurrente en un fichero que el agente no toca: fin; TASK-187 escritura-no-declarada (el worktree cambio fuera de lo que declaro el agente: notas-de-carlos.txt); integradas ['TASK-210']
+C10b escritura concurrente en un fichero que el agente tambien escribe (core/tw-alineacion/src/convertir.rs): fin; detectada: False; la linea de Carlos entra en el commit de la ronda 1 como trabajo del agente y es lo que revisa la ronda 1: True; integradas ['TASK-187', 'TASK-205', 'TASK-210']
+C11 la App del agente mueve develop durante la noche: develop-movido-por-agente (900b306491 de agente@taskcodetwo.invalid); PR final abierto: False
+C8 dos lanzamientos con el mismo nombre desde la misma base: primero True, segundo False (CAS); al releer, la reserva existe: True; `start` de un companero sobre TASK-205 rechazado (asignada al lote): True
+
+=== I: informe de la manana (funcion pura sobre el diario de A2) ===
+informe: 51 lineas; hash 9e656ba353bc; igual tras escribir y releer el diario: True
+PR final del lote: lote/noche-173-210 -> develop, descripcion = informe: True
+
+# Informe del lote `noche-173-210`
+
+- Base: `develop` en `389e193d7d`; manifiesto `baa00915b31d`; tope de rondas 2.
+- Tareas en el manifiesto: 17; terminadas: 15; apartadas: 2 (0 en cascada); fuera desde el lanzamiento: 0.
+- Tokens de revisión: 120203077; tiempo de agente y revisión: 38:20.
+
+## Terminadas
+
+| Tarea | Rondas | Merge en el lote | Tokens | Hallazgos sin corregir |
+|---|---|---|---|---|
+| TASK-173 | 2 | `59b0f4968b` | 4917476 | 0 MENOR |
+| TASK-174 | 2 | `79c791c4e1` | 15942752 | 4 MENOR |
+| TASK-175 | 2 | `240be308f9` | 6628082 | 0 MENOR |
+| TASK-176 | 2 | `b0d2b0d823` | 8948575 | 2 MENOR |
+| TASK-177 | 2 | `4466292436` | 9033664 | 0 MENOR |
+| TASK-178 | 2 | `d4a58b6be0` | 5390536 | 0 MENOR |
+| TASK-179 | 2 | `83161840ec` | 12446750 | 0 MENOR |
+| TASK-180 | 2 | `9c1fe140f8` | 7873137 | 0 MENOR |
+| TASK-181 | 2 | `60c50bf828` | 3783148 | 0 MENOR |
+| TASK-182 | 2 | `a4de217f79` | 5190039 | 2 MENOR |
+| TASK-187 | 2 | `f513dc6af5` | 3580350 | 0 MENOR |
+| TASK-188 | 2 | `84f8559877` | 2597817 | 3 MENOR |
+| TASK-189 | 2 | `70673a032c` | 6613483 | 3 MENOR |
+| TASK-205 | 2 | `3b85b5b309` | 22675930 | 2 MENOR |
+| TASK-210 | 1 | `04cb070344` | 4581338 | 1 MENOR |
+
+## Apartadas
+
+| Tarea | Motivo | Detalle | Dependientes apartados | Base en el lote |
+|---|---|---|---|---|
+| TASK-190 | conflicto-con-lote | el trabajo no entra sobre lote/*: docs/modelo-twp.md | - | `70673a032c` |
+| TASK-191 | conflicto-con-lote | el trabajo no entra sobre lote/*: docs/modelo-twp.md | - | `70673a032c` |
+
+## Interferencias
+
+ninguna
+
+## Hallazgos sin corregir
+
+TASK-174: 4 MENOR; TASK-176: 2 MENOR; TASK-182: 2 MENOR; TASK-188: 3 MENOR; TASK-189: 3 MENOR; TASK-205: 2 MENOR; TASK-210: 1 MENOR
+
+## Contra develop
+
+- Primer padre de `lote/noche-173-210`: solo merges del lote.
+- `merge-tree` contra `origin/develop` en `389e193d7d`: sin conflictos.
+- De noche no se resuelve ningún conflicto; la verificación completa del árbol final es obligatoria en el PR.
+
+## Paradas y reanudaciones
+
+ninguna
+Reanudaciones: 0; hechos reconciliados desde Git: 0; commits ajenos aceptados por la persona: 0.
+
+
+tabla-inyecciones calculada:
+| ID | Inyección | Detectado | Cuándo | Efecto |
+|---|---|---|---|---|
+| B1 | `verificacion` en rojo en TASK-174 | sí | antes de integrar | se aparta con 14 dependientes; el lote sigue |
+| B1b | `verificacion` en rojo en TASK-187 | sí | antes de integrar | se aparta con 1 dependiente; el lote sigue |
+| B2 | corte antes de cada una de las 55 acciones atómicas | sí | al reanudar | `--reanudar` termina igual, sin repetir ni saltar puertas; 4 rondas cortadas se repiten enteras |
+| B3 | presupuesto de tokens y de tiempo | sí | antes de empezar una ronda | para limpio, sin apartar; se reanuda con el presupuesto ampliado por la persona |
+| B4 | límite de uso del proveedor | sí | durante la ronda | para sin apartar; la ronda se repite entera y sus tokens cuentan |
+| B5 | `develop` avanza durante la noche | sí | al final | 12 conflictos al informe; ninguno resuelto de noche |
+| C1 | commit ajeno en el worktree de la tarea | sí | antes de `review` | la tarea se aparta como interferida con su dependiente |
+| C2 | cambio sin commit en el worktree de la tarea | sí | antes de `review` | la tarea se aparta como interferida con su dependiente |
+| C3 | commit ajeno empujado a la rama de la tarea | sí | antes de `review` | la tarea se aparta como interferida con su dependiente |
+| C4 | commit ajeno empujado a `lote/*` sin ruleset | sí | antes de la tarea siguiente | el lote para |
+| C4b | el mismo push con el ruleset impuesto | sí | en el push | lo rechaza la plataforma; el lote sigue |
+| C4c | la persona acepta el commit ajeno de C4 (`ajeno-aceptado`) | no aplica | al reanudar | el lote termina y el informe nombra el commit |
+| C4d | `ajeno-aceptado` que no firma una persona de la lista | sí | al reanudar | se rechaza; el lote sigue parado |
+| C4e | la persona revierte el commit ajeno de C4 | no aplica | al reanudar | el lote termina sin evento |
+| C4f | `ajeno-aceptado` de persona que no está en la lista | sí | al reanudar | se rechaza; el lote sigue parado |
+| C4g | reversión parcial del commit ajeno | sí | al reanudar | no desbloquea; el lote sigue parado |
+| C4h | commit de la persona sin relación con el ajeno | sí | al reanudar | no desbloquea; el lote sigue parado |
+| C4i | reversión exacta con autor persona y committer la App | sí | al reanudar | no desbloquea; el lote sigue parado |
+| C5 | push directo a `lote/*` tras la última tarea | sí | antes del PR final | el lote para sin abrir el PR |
+| C5b | merge falsificado con trailer `Tarea:` | sí | antes del PR final | el lote para sin abrir el PR |
+| C5c | merge con los mismos padres, trailer y committer y otro árbol | sí | antes del PR final | el lote para sin abrir el PR |
+| C6 | `tarea.md` cambiado antes de empezar | sí | antes de empezar la tarea | la tarea se aparta (manifiesto) |
+| C6b | `tarea.md` cambiado a mitad de la tarea | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C6c | escrituras legítimas del CLI en `tarea.md` (estado, transiciones) | no aplica | en cada vuelta | no apartan: el núcleo no cambia |
+| C6d | una sección `## Escenarios` nueva en `tarea.md` | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C6e | `carril` y `roles` añadidos al frontmatter | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C7 | head de la tarea movido entre la guarda y el merge | sí | en el merge (CAS del `sha`) | la tarea se aparta como interferida con su dependiente |
+| C7b | `lote/*` movido entre la guarda y el merge | sí | en el paso siguiente | el lote para sin abrir el PR |
+| C8 | segundo lanzamiento con el mismo nombre | sí | al reservar | rechazado por el CAS de la rama de estado |
+| C9 | el diff del agente trae un workflow | sí | antes de `review` | la tarea se aparta (`carril-subio`) con su dependiente |
+| C9b | el diff trae `.GitHub/workflows/` y `.gitlab-ci.yml` | sí | antes de `review` | la tarea se aparta (`carril-subio`) |
+| C9c | `rutas_carril` de la configuración cubre el diff real | sí | antes de `review` | la tarea se aparta (`carril-subio`) |
+| C10 | escritura concurrente con el agente en otro fichero | sí | antes del commit del CLI | la tarea se aparta (`escritura-no-declarada`) |
+| C10b | escritura concurrente con el agente en un fichero que él también escribe | no | no se detecta | entra como trabajo del agente y llega a la revisión |
+| C11 | la App del agente mueve `develop` | sí | antes del PR final | el lote para sin abrir el PR |
+
+frases de la prosa calculadas:
+  «17 tareas reales de ToolsaWeb»
+  «15 merges de la serie TASK-173..TASK-191»
+  «3 de código»
+  «219 de 219 árboles iguales»
+  «6 de 17 tareas chocan»
+  «4 de 17 tareas cambiaron un fichero después de su última revisión»
+  «3 de 17 tareas tenían el `approve` firmado por una persona»
+  «3 tareas que en la realidad tuvieron una tercera o cuarta ronda»
+  «7 MENOR sin corregir»
+  «14007657 tokens de revisión»
+  «22,8 % del lote de media en dependientes»
+  «28,7 % del lote de media contando la tarea en rojo»
+  «88,2 % del lote con TASK-174 y sus dependientes»
+  «82,4 % con TASK-174»
+  «6 de 17 tareas no tienen dependientes»
+  «55 cortes»
+  «51 commits directos»
+
+=== G: el ADR (tablas, IDs, enlaces, secciones, prosa por contexto) y sus mutaciones de control ===
+errores del ADR: 0
+  mutacion lote-rondas-cambiadas: falla como se espera (tabla-lote: falta o cambia la fila | TASK-174 | feature | funcionalidad | -)
+  mutacion lote-fila-quitada: falla como se espera (tabla-lote: 16 filas y son 17)
+  mutacion inyeccion-no-detectada: falla como se espera (tabla-inyecciones: falta o cambia la fila | C1 | commit ajeno en el worktree de la)
+  mutacion parada-quitada: falla como se espera (tabla-paradas: falta interferida-cas)
+  mutacion parada-cambiada: falla como se espera (tabla-paradas: presupuesto-de-lote dice «aparta» y el CLI hace «para»)
+  mutacion parada-inventada: falla como se espera (tabla-paradas: noche-larga no es un motivo del CLI)
+  mutacion id-inexistente: falla como se espera (IDs que no existen: ['F7-99'])
+  mutacion rf16-fuera-de-divergencias: falla como se espera (IDs que no existen: ['RF-16'])
+  mutacion enlace-roto: falla como se espera (enlace que no resuelve: F1-99-no-existe.md)
+  mutacion seccion-borrada: falla como se espera (faltan secciones ['## Cómo se ve en GitHub y en GitLab'])
+  mutacion estado-propuesta: falla como se espera (el estado no es aceptada)
+  mutacion divergencia-sin-f1-6: falla como se espera («Divergencias con el plan» no trata F1-6)
+  mutacion no-verificado-sin-gitlab: falla como se espera («No verificado» no nombra «GitLab»)
+  mutacion prosa-replica: falla como se espera (prosa: falta la frase «219 de 219 árboles iguales»)
+  mutacion prosa-cifra-suelta: falla como se espera (prosa: «3 de 17 tareas» fuera de una frase que diga a qué corresponde (…ote/*` y cerró los duplicado)
+  mutacion sin-procedencia: falla como se espera (falta la regla: `comprobar_procedencia`)
+  mutacion c10b-marcado-detectado: falla como se espera (tabla-inyecciones: falta o cambia la fila | C10b | escritura concurrente con el ag)
+  mutacion parada-carril-subio-quitada: falla como se espera (tabla-paradas: falta carril-subio)
+  mutacion informe-filas-mas: falla como se espera (informe de ejemplo: dice 99 filas más y son 12)
+  mutacion informe-fila-inventada: falla como se espera (informe de ejemplo: «TASK-999» no está en el informe calculado)
+  mutacion divergencia-sin-f1-10: falla como se espera («Divergencias con el plan» no trata F1-10)
+  mutacion no-verificado-sin-mismo-fichero: falla como se espera («No verificado» no nombra «mismo fichero»)
+
+carpeta de trabajo borrada al terminar: si
+
+RESULTADO: todo como se espera
