@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-016 (feature) — F2-1 Esqueleto: Rust, build reproducible (2026-11-15)
 - TASK-075 (feature) — F1-17 ADR progreso en vivo y estimacion de tiempo (2026-11-15)
 - TASK-074 (feature) — F1-16 ADR lotes desatendidos con revision humana al final (2026-11-15)
 - TASK-073 (feature) — F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol (2026-11-14)

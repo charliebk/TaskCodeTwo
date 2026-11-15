@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-016-f2-1-esqueleto-typescript-build-reproduc
 asignado_a: charlie.bk@gmail.com
@@ -29,9 +29,9 @@ Esqueleto en Rust (ADR F1-14, divergencia 1; el titulo original decia TypeScript
 Tarea F2-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-*.
 
 ## Criterios de aceptacion
-- [ ] CI verde en los tres desde el primer commit: `gh run view <id> --json jobs` da 4 jobs `success` (`comprobar-repo` + `codigo` en ubuntu/macos/windows-latest) en el SHA del primer commit de codigo y en el merge en develop
-- [ ] Cumple lo que pide la tarea F2-1 del plan (corregida a Rust) y los requisitos que cita: `cargo xtask verificar --perfil rapida` en verde y `tc2 --version` probado en `crates/tc2/tests/`
-- [ ] Dos builds en limpio con el mismo sha256 en Windows (x86_64-pc-windows-msvc), en el job `codigo` de windows-latest (`cargo xtask verificar --perfil completa`); Linux y macOS no se miden (decision de la persona, 2026-11-15)
+- [x] CI verde en los tres desde el primer commit: `gh run view <id> --json jobs` da 4 jobs `success` (`comprobar-repo` + `codigo` en ubuntu/macos/windows-latest) en el SHA del primer commit de codigo y en el merge en develop
+- [x] Cumple lo que pide la tarea F2-1 del plan (corregida a Rust) y los requisitos que cita: `cargo xtask verificar --perfil rapida` en verde y `tc2 --version` probado en `crates/tc2/tests/`
+- [x] Dos builds en limpio con el mismo sha256 en Windows (x86_64-pc-windows-msvc), en el job `codigo` de windows-latest (`cargo xtask verificar --perfil completa`); Linux y macOS no se miden (decision de la persona, 2026-11-15)
 
 ## Transiciones
 
@@ -41,6 +41,7 @@ Tarea F2-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-15T11:43:33Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-15T11:43:56Z | start | automatico | persona | 0.16.1 |
 | 2026-11-15T12:10:51Z | review | automatico | persona | 0.16.1 |
+| 2026-11-15T12:25:18Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -72,3 +73,9 @@ Esqueleto de TaskCodeTwo en Rust (ADR F1-14; el titulo original decia TypeScript
 - Desviaciones del plan: (1) sin `--remap-path-prefix`: no hace falta hoy (mismo sha256 en dos rutas sin el) y no se puede fijar estatico en `.cargo/config.toml`; queda para F2-10 cuando haya dependencias de crates.io (MEN-1 calidad, MEN-4 rust, aceptados). (2) `rapida` incluye `cargo test` (el plan decia sin tests) para que `finish` y el freno de la 0.16 corran los tests: 3 s (MEN-2 calidad, aceptado).
 - Revision ronda 1: rust-wasm-reviewer y code-quality-reviewer, aprobada con correcciones, solo MENORES. Corregidos en 4db59dd: MEN-1 rust (tc2 sale con 1 si no puede escribir la salida), MEN-2 rust (`comparar_hashes` con test; mutante detectado), MEN-3 rust (en rojo se conservan las copias). Pendientes y aceptados: los dos citados en desviaciones, en `revision/menores-pendientes.md`.
 - Duracion estimada 150 min; no se troceo por decision de la persona.
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 41 min
+- Cierre (finish): 66 s, de 2026-11-15T12:24:12Z a 2026-11-15T12:25:18Z
