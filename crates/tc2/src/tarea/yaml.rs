@@ -10,6 +10,8 @@
 //!   forma byte a byte (comillas dobles siempre, orden de claves, `roles` en
 //!   flujo) y un serializador generico no la da.
 
+use std::collections::HashSet;
+
 use serde::de::DeserializeOwned;
 use serde_saphyr::{DuplicateKeyPolicy, MergeKeyPolicy, Options};
 
@@ -37,6 +39,20 @@ impl Partes<'_> {
     /// Si el frontmatter tiene la clave `clave`.
     pub fn tiene(&self, clave: &str) -> bool {
         self.entradas.iter().any(|e| e.clave == clave)
+    }
+
+    /// Valor de una entrada de una sola linea, sin la clave, sin un
+    /// comentario ` #` final y sin espacios; `None` si falta o si ocupa
+    /// varias lineas.
+    pub fn valor_plano(&self, clave: &str) -> Option<&str> {
+        let e = self.entradas.iter().find(|e| e.clave == clave)?;
+        let linea = e.crudo.strip_suffix('\n')?;
+        if linea.contains('\n') {
+            return None;
+        }
+        let (_, valor) = linea.split_once(':')?;
+        let valor = valor.split_once(" #").map_or(valor, |(v, _)| v);
+        Some(valor.trim())
     }
 
     /// El texto YAML del frontmatter (sin delimitadores), normalizado a `\n`.
@@ -67,6 +83,8 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
     }
     let mut consumido = texto.split_inclusive('\n').next().map_or(0, str::len);
     let mut entradas: Vec<Entrada> = Vec::new();
+    // Para detectar duplicadas en tiempo lineal (dato no confiable, F1-8).
+    let mut vistas: HashSet<String> = HashSet::new();
     let mut cerrado = false;
     for l in lineas {
         consumido += l.len();
@@ -83,7 +101,9 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
                     e.crudo.push_str(&linea);
                     e.crudo.push('\n');
                 }
-                None if linea.trim().is_empty() => {}
+                // Lineas en blanco y comentarios antes de la primera clave
+                // son YAML valido; como todo comentario, no se conservan.
+                None if linea.trim().is_empty() || linea.starts_with('#') => {}
                 None => {
                     return Err(ErrorTarea::general(
                         "texto antes de la primera clave del frontmatter",
@@ -102,7 +122,7 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
                 "clave no admitida en el frontmatter: «{clave}»"
             )));
         }
-        if entradas.iter().any(|e| e.clave == clave) {
+        if !vistas.insert(clave.to_owned()) {
             return Err(ErrorTarea::en(clave, "clave duplicada"));
         }
         entradas.push(Entrada {
@@ -124,6 +144,11 @@ pub(crate) fn partir(texto: &str) -> Result<Partes<'_>, ErrorTarea> {
 /// denegacion de servicio, F1-8).
 fn opciones() -> Options {
     let mut o = Options::default();
+    // Booleanos y numeros solo con la grafia de YAML 1.2 (`yes`, `1_0` o `010`
+    // no son bool ni entero, como para un parser estandar).
+    o.strict_booleans = true;
+    o.underscored_numbers_as_strings = true;
+    o.leading_zero_numbers_as_strings = true;
     o.duplicate_keys = DuplicateKeyPolicy::Error;
     o.merge_keys = MergeKeyPolicy::Error;
     let mut presupuesto = o.budget.unwrap_or_default();
@@ -150,7 +175,14 @@ pub(crate) fn cadena(texto: &str) -> String {
         match c {
             '\\' => s.push_str("\\\\"),
             '"' => s.push_str("\\\""),
-            c if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}') => {
+            // U+FFFE y U+FFFF no son imprimibles en YAML: un parser estandar
+            // los rechaza si van tal cual.
+            c if c.is_control()
+                || matches!(
+                    c,
+                    '\u{2028}' | '\u{2029}' | '\u{feff}' | '\u{fffe}' | '\u{ffff}'
+                ) =>
+            {
                 s.push_str(&format!("\\u{:04X}", u32::from(c)));
             }
             c => s.push(c),
@@ -182,7 +214,7 @@ mod tests {
 
     #[test]
     fn partir_separa_entradas_y_cuerpo_intacto() -> Result<(), ErrorTarea> {
-        let t = "\u{feff}---\r\nid: \"TASK-001\"\r\nroles:\r\n  a: {b: 1}\r\n# nota\r\nx: 1\r\n--- \r\n## Objetivo\r\n";
+        let t = "\u{feff}---\r\n# inicial\r\nid: \"TASK-001\"\r\nroles:\r\n  a: {b: 1}\r\n# nota\r\nx: 1\r\n--- \r\n## Objetivo\r\n";
         let p = partir(t)?;
         let claves: Vec<&str> = p.entradas.iter().map(|e| e.clave.as_str()).collect();
         assert_eq!(claves, ["id", "roles", "x"]);

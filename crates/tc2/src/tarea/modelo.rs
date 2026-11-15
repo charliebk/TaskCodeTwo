@@ -177,7 +177,8 @@ pub struct Tarea {
     pub asignado_a: Option<String>,
     pub roles: Roles,
     /// Entrada `estimacion:` cruda (su forma la fija F1-17); `None` es `null`.
-    pub estimacion: Option<String>,
+    /// Privada: solo llega de una lectura, que la ha validado como YAML.
+    estimacion: Option<String>,
     pub tokens_diseno: Option<u64>,
     pub tokens_implementacion: Option<u64>,
     pub tokens_revision: Option<u64>,
@@ -185,8 +186,9 @@ pub struct Tarea {
     pub actualizado: String,
     pub dependencias: Vec<String>,
     /// Claves desconocidas con su texto crudo, en su orden (F1-9 D4a: se
-    /// conservan en la ida y vuelta; `doctor` avisa).
-    pub desconocidas: Vec<(String, String)>,
+    /// conservan en la ida y vuelta; `doctor` avisa). Privadas: solo llegan
+    /// de una lectura, que las ha validado y comprobado sin duplicadas.
+    desconocidas: Vec<(String, String)>,
 }
 
 #[derive(Deserialize)]
@@ -345,9 +347,25 @@ impl Tarea {
         &self.desconocidas
     }
 
+    /// Entrada `estimacion:` cruda tal como se leyo; `None` si es `null`.
+    pub fn estimacion(&self) -> Option<&str> {
+        self.estimacion.as_deref()
+    }
+
     /// Lee el frontmatter de formato 2 con el esquema estricto.
     pub(crate) fn leer(partes: &Partes<'_>) -> Result<Self, ErrorTarea> {
         faltan(partes, &CLAVES)?;
+        canonicos(
+            partes,
+            &[
+                ("formato", Canon::Entero),
+                ("sprint", Canon::Entero),
+                ("plan_aprobado", Canon::Bool),
+                ("tokens_diseno", Canon::EnteroONull),
+                ("tokens_implementacion", Canon::EnteroONull),
+                ("tokens_revision", Canon::EnteroONull),
+            ],
+        )?;
         let c: CrudoV2 = yaml::decodificar(&partes.yaml())?;
         let formato = exigir("formato", c.formato)?;
         if formato != 2 {
@@ -422,8 +440,9 @@ impl Tarea {
     /// Frontmatter en la forma fija de F1-9 seguido de `cuerpo`. Las claves
     /// desconocidas van al final, en su orden y con su texto original.
     /// No valida: un texto con caracteres de control sale escapado (YAML
-    /// valido) pero [`super::leer`] lo rechaza, y `estimacion` y las
-    /// desconocidas se copian tal cual (tienen que venir de una lectura).
+    /// valido) pero [`super::leer`] lo rechaza. Lo que no conserva: los
+    /// comentarios del frontmatter, el BOM y los `\r\n` del frontmatter (sale
+    /// con `\n`; el cuerpo, byte a byte como se leyo).
     pub fn escribir(&self, cuerpo: &Cuerpo) -> String {
         let r = &self.roles;
         let rol = |x: &Rol| {
@@ -556,6 +575,9 @@ struct CrudoV1 {
 /// La 0.16 escapa `"` pero no `\` (H11): un `\` que no va seguido de `"`
 /// lo leeria mal un parser estandar (`C:\ruta` daria un retorno de carro).
 /// Mejor un error claro que un valor cambiado en silencio.
+/// Solo mira dentro de cadenas entre comillas dobles: en una cadena plana,
+/// de comilla simple o en un comentario la barra es literal tambien para un
+/// parser estandar.
 fn escape_ambiguo(partes: &Partes<'_>) -> Result<(), ErrorTarea> {
     for e in partes
         .entradas
@@ -563,13 +585,69 @@ fn escape_ambiguo(partes: &Partes<'_>) -> Result<(), ErrorTarea> {
         .filter(|e| CLAVES_V1.contains(&e.clave.as_str()))
     {
         let mut cs = e.crudo.chars().peekable();
+        let mut dobles = false;
         while let Some(c) = cs.next() {
-            if c == '\\' && cs.next_if_eq(&'"').is_none() {
-                return Err(ErrorTarea::en(
-                    &e.clave,
-                    "lleva `\\` con el escape de la 0.16, que un parser YAML estandar lee distinto (H11)",
-                ));
+            match (dobles, c) {
+                (true, '\\') if cs.next_if_eq(&'"').is_none() => {
+                    return Err(ErrorTarea::en(
+                        &e.clave,
+                        "lleva `\\` con el escape de la 0.16, que un parser YAML estandar lee distinto (H11)",
+                    ));
+                }
+                (true, '"') | (false, '"') => dobles = !dobles,
+                (false, '\'') => {
+                    // Comilla simple: hasta la siguiente (`''` es una comilla).
+                    while cs.next().is_some_and(|c| c != '\'') {}
+                }
+                (false, '#') => {
+                    // Comentario: hasta el final de la linea.
+                    while cs.next().is_some_and(|c| c != '\n') {}
+                }
+                _ => {}
             }
+        }
+    }
+    Ok(())
+}
+
+/// Grafia que se exige al texto crudo de un campo no textual.
+#[derive(Clone, Copy)]
+enum Canon {
+    /// `true` o `false`.
+    Bool,
+    /// `0` o `[1-9][0-9]*`.
+    Entero,
+    /// Un [`Canon::Entero`] o `null`.
+    EnteroONull,
+}
+
+/// Los campos bool y enteros llevan su grafia canonica, sin comillas: un
+/// `'7'` o un `"false"` serian cadenas para un parser estandar y el crate los
+/// convertiria (F1-9 punto 5: tipo incorrecto da error).
+fn canonicos(partes: &Partes<'_>, campos: &[(&str, Canon)]) -> Result<(), ErrorTarea> {
+    let entero = |v: &str| {
+        v == "0" || (!v.starts_with('0') && !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()))
+    };
+    for (clave, canon) in campos {
+        let Some(v) = partes.valor_plano(clave) else {
+            // Falta (lo dice `faltan`/`exigir`) o ocupa varias lineas.
+            if partes.tiene(clave) {
+                return Err(ErrorTarea::en(clave, "tiene que ir en una sola linea"));
+            }
+            continue;
+        };
+        let vale = match canon {
+            Canon::Bool => v == "true" || v == "false",
+            Canon::Entero => entero(v),
+            Canon::EnteroONull => v == "null" || entero(v),
+        };
+        if !vale {
+            let esperado = match canon {
+                Canon::Bool => "`true` o `false`",
+                Canon::Entero => "un entero sin comillas",
+                Canon::EnteroONull => "un entero sin comillas o `null`",
+            };
+            return Err(ErrorTarea::en(clave, format!("«{v}» no es {esperado}")));
         }
     }
     Ok(())
@@ -580,6 +658,17 @@ impl TareaV1 {
     /// (`validateTask`): obligatorios los que la 0.16 exige.
     pub(crate) fn leer(partes: &Partes<'_>) -> Result<Self, ErrorTarea> {
         escape_ambiguo(partes)?;
+        canonicos(
+            partes,
+            &[
+                ("sprint", Canon::Entero),
+                ("plan_aprobado", Canon::Bool),
+                ("revision_codex", Canon::Bool),
+                ("tokens_diseno", Canon::EnteroONull),
+                ("tokens_implementacion", Canon::EnteroONull),
+                ("tokens_revision", Canon::EnteroONull),
+            ],
+        )?;
         let c: CrudoV1 = yaml::decodificar(&partes.yaml())?;
         Ok(Self {
             id: id("id", exigir("id", c.id)?)?,

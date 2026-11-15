@@ -43,10 +43,34 @@ pub struct Cuerpo {
     pub secciones: Vec<Seccion>,
 }
 
-/// Si `linea` abre o cierra un bloque de codigo cercado.
-fn es_cerca(linea: &str) -> bool {
-    let l = linea.trim_start();
-    l.starts_with("```") || l.starts_with("~~~")
+/// Cerca de codigo de `linea` (CommonMark 4.5): hasta 3 espacios de
+/// sangria y 3 o mas `` ` `` o `~` seguidos. Devuelve el caracter, cuantos
+/// lleva y el resto de la linea.
+fn cerca(linea: &str) -> Option<(char, usize, &str)> {
+    let sin_sangria = linea.trim_start_matches(' ');
+    if linea.len() - sin_sangria.len() > 3 {
+        return None;
+    }
+    let c = sin_sangria
+        .chars()
+        .next()
+        .filter(|c| matches!(c, '`' | '~'))?;
+    let n = sin_sangria.chars().take_while(|x| *x == c).count();
+    (n >= 3).then(|| (c, n, &sin_sangria[n..]))
+}
+
+/// Si `linea` abre un bloque: en una cerca de `` ` `` la informacion que
+/// sigue no puede llevar `` ` ``.
+fn abre(linea: &str) -> Option<(char, usize)> {
+    let (c, n, resto) = cerca(linea)?;
+    (c == '~' || !resto.contains('`')).then_some((c, n))
+}
+
+/// Si `linea` cierra el bloque abierto con `abierta`: el mismo caracter, al
+/// menos tantos y nada mas que espacios detras.
+fn cierra(linea: &str, abierta: (char, usize)) -> bool {
+    cerca(linea)
+        .is_some_and(|(c, n, resto)| c == abierta.0 && n >= abierta.1 && resto.trim().is_empty())
 }
 
 /// Titulo de `linea` si es un encabezado de seccion `## ` (no `###`).
@@ -60,12 +84,20 @@ impl Cuerpo {
     /// cercado no abre seccion.
     pub fn leer(texto: &str) -> Self {
         let mut cuerpo = Self::default();
-        let mut en_codigo = false;
+        let mut abierta: Option<(char, usize)> = None;
         for linea in texto.split_inclusive('\n') {
-            let encabezado = if en_codigo { None } else { titulo(linea) };
-            if es_cerca(linea) {
-                en_codigo = !en_codigo;
-            }
+            let encabezado = match abierta {
+                Some(a) => {
+                    if cierra(linea, a) {
+                        abierta = None;
+                    }
+                    None
+                }
+                None => {
+                    abierta = abre(linea);
+                    titulo(linea)
+                }
+            };
             match (encabezado, cuerpo.secciones.last_mut()) {
                 (Some(t), _) => cuerpo.secciones.push(Seccion {
                     titulo: t,
@@ -118,5 +150,27 @@ mod tests {
         let p = Cuerpo::plantilla();
         assert_eq!(p.escribir(), PLANTILLA);
         assert_eq!(p.secciones.len(), 5);
+    }
+
+    #[test]
+    fn cercas_como_commonmark() {
+        let titulos = |t: &str| -> Vec<String> {
+            Cuerpo::leer(t)
+                .secciones
+                .into_iter()
+                .map(|s| s.titulo)
+                .collect()
+        };
+        // Cuatro acentos no se cierran con tres; `~~~` no cierra `` ``` ``.
+        assert_eq!(titulos("## A\n````\n```\n## B\n````\n## C\n"), ["A", "C"]);
+        assert_eq!(titulos("## A\n```\n~~~\n## B\n```\n## C\n"), ["A", "C"]);
+        // `` ```x``` `` no abre (lleva acentos en la informacion), una
+        // sangria de 4 no es cerca, y una cierre con texto detras no cierra.
+        assert_eq!(titulos("## A\n```x```\n## B\n"), ["A", "B"]);
+        assert_eq!(titulos("## A\n    ```\n## B\n"), ["A", "B"]);
+        assert_eq!(
+            titulos("## A\n~~~ md\n~~~ no\n## B\n~~~\n## C\n"),
+            ["A", "C"]
+        );
     }
 }

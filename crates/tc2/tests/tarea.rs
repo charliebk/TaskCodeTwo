@@ -180,7 +180,7 @@ fn coincide_con_estandar(m: &Tarea, v: &Value) {
     );
     assert_eq!(
         v.get("estimacion").unwrap().is_null(),
-        m.estimacion.is_none()
+        m.estimacion().is_none()
     );
     for (clave, valor) in [
         ("tokens_diseno", m.tokens_diseno),
@@ -192,7 +192,7 @@ fn coincide_con_estandar(m: &Tarea, v: &Value) {
     assert_eq!(cad(v, "creado"), Some(m.creado.as_str()));
     assert_eq!(cad(v, "actualizado"), Some(m.actualizado.as_str()));
     assert_eq!(lista(v, "dependencias"), m.dependencias);
-    for (clave, _) in &m.desconocidas {
+    for (clave, _) in m.claves_desconocidas() {
         assert!(v.get(clave.as_str()).is_some(), "desconocida {clave}");
     }
 }
@@ -242,6 +242,8 @@ fn ida_y_vuelta_con_parser_estandar() {
         "[no es lista]",
         "null",
         "{fecha}",
+        // No imprimibles en YAML: tienen que salir escapados.
+        "a\u{fffe}b\u{ffff}c",
     ];
     for titulo in hostiles {
         let mut m = Tarea::nueva("TASK-001", titulo, "2026-11-15");
@@ -250,11 +252,17 @@ fn ida_y_vuelta_con_parser_estandar() {
         m.rama = Some("feature/task-001-x".to_owned());
         m.tokens_diseno = Some(u64::MAX);
         m.dependencias = vec!["TASK-002".to_owned()];
-        m.desconocidas = vec![("zonas".to_owned(), "zonas: [\"a: b\"]\n".to_owned())];
         let t = m.escribir(&Cuerpo::plantilla());
         let (leida, _) = leer2(&t);
         assert_eq!(leida, m, "{titulo}");
         coincide_con_estandar(&m, &estandar(&t));
+        // Con una clave desconocida, que se conserva y lee igual el estandar.
+        let t = t.replacen("dependencias:", "zonas: [\"a: b\"]\ndependencias:", 1);
+        let (leida, c) = leer2(&t);
+        assert_eq!(leida.titulo, titulo);
+        assert_eq!(leida.claves_desconocidas().len(), 1);
+        coincide_con_estandar(&leida, &estandar(&t));
+        assert!(leida.escribir(&c).contains("zonas: [\"a: b\"]\n---\n"));
     }
     let (m, _) = leer2(COMPLETA);
     coincide_con_estandar(&m, &estandar(COMPLETA));
@@ -377,6 +385,49 @@ fn formato_1_ambiguo_o_duplicado_falla() {
             .to_string()
             .contains("duplicada")
     );
+    // Una barra fuera de comillas dobles (cadena plana, comilla simple,
+    // comentario) es literal tambien para un parser estandar: no es H11.
+    for (linea, titulo) in [
+        ("titulo: 'C:\\ruta' # y \\x", "C:\\ruta"),
+        ("titulo: C:\\plana", "C:\\plana"),
+        ("titulo: 'it''s \\'", "it's \\"),
+    ] {
+        let t = con_linea(&base, "titulo", linea);
+        let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
+            panic!("{linea}: {:?}", tarea::leer(&t));
+        };
+        assert_eq!(m.titulo, titulo);
+    }
+    // Tipos con grafia de YAML 1.1 o entre comillas: error, no conversion.
+    for (clave, linea) in [
+        ("plan_aprobado", "plan_aprobado: yes"),
+        ("revision_codex", "revision_codex: \"false\""),
+        ("sprint", "sprint: '7'"),
+    ] {
+        let e = tarea::leer(&con_linea(&base, clave, linea)).unwrap_err();
+        assert_eq!(e.clave.as_deref(), Some(clave), "{linea}: {e}");
+    }
+}
+
+/// `t` con la linea `clave: ...` del frontmatter sustituida por `nueva`.
+fn con_linea(t: &str, clave: &str, nueva: &str) -> String {
+    let prefijo = format!("{clave}:");
+    let mut hecho = false;
+    let mut s: String = t
+        .lines()
+        .map(|l| {
+            if !hecho && l.starts_with(&prefijo) {
+                hecho = true;
+                nueva.to_owned()
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    s.push('\n');
+    assert!(hecho, "sin {clave}");
+    s
 }
 
 /// C3: esquema estricto del formato 2 (F1-9 punto 5, F1-14): tipos, valores
@@ -384,8 +435,8 @@ fn formato_1_ambiguo_o_duplicado_falla() {
 #[test]
 fn esquema_estricto_del_formato_2() {
     for (de, a, clave) in [
-        ("sprint: 0", "sprint: \"cero\"", None),
-        ("sprint: 0", "sprint: -1", None),
+        ("sprint: 0", "sprint: \"cero\"", Some("sprint")),
+        ("sprint: 0", "sprint: -1", Some("sprint")),
         ("formato: 2", "formato: 3", Some("formato")),
         ("id: \"TASK-008\"", "id: \"TASK-8\"", Some("id")),
         ("tipo: \"feature\"", "tipo: \"epica\"", Some("tipo")),
@@ -432,6 +483,35 @@ fn esquema_estricto_del_formato_2() {
             Some("etiquetas"),
         ),
         ("etiquetas: []", "etiquetas: &a []\nancla: *a", None),
+        // Bool y enteros con grafia de YAML 1.1 o entre comillas (un parser
+        // estandar los leeria como cadena): error, no conversion.
+        (
+            "plan_aprobado: false",
+            "plan_aprobado: yes",
+            Some("plan_aprobado"),
+        ),
+        (
+            "plan_aprobado: false",
+            "plan_aprobado: On",
+            Some("plan_aprobado"),
+        ),
+        (
+            "plan_aprobado: false",
+            "plan_aprobado: \"false\"",
+            Some("plan_aprobado"),
+        ),
+        ("sprint: 0", "sprint: '7'", Some("sprint")),
+        ("sprint: 0", "sprint: 0x10", Some("sprint")),
+        ("sprint: 0", "sprint: 1_0", Some("sprint")),
+        ("sprint: 0", "sprint: +5", Some("sprint")),
+        ("sprint: 0", "sprint: 010", Some("sprint")),
+        ("formato: 2", "formato: \"2\"", Some("formato")),
+        (
+            "tokens_revision: null",
+            "tokens_revision: \"12\"",
+            Some("tokens_revision"),
+        ),
+        ("sprint: 0", "sprint:\n  7", Some("sprint")),
     ] {
         assert!(DORADA.contains(de), "{de}");
         let t = DORADA.replacen(de, a, 1);
