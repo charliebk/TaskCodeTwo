@@ -78,7 +78,6 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         "connect to host",
         "could not resolve",
         "couldn't connect",
-        "connection",
     ]);
     if alguno(&["couldn't find remote ref", "could not find remote ref"]) {
         FalloRemoto::RamaInexistente
@@ -612,6 +611,11 @@ mod tests {
         ] {
             assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::SinRed, "{t}");
         }
+        // Un `Connection closed` tras rechazar la contrasena no es la red.
+        let t = "git@h: Permission denied, please try again.\ngit@h: Permission denied (password).\nConnection closed by 1.2.3.4 port 22\nfatal: Could not read from remote repository.";
+        assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::Credenciales);
+        let t = "error: cannot lock ref 'refs/heads/x': Permission denied\nhint: connection lost";
+        assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::Local);
     }
 
     #[test]
