@@ -55,7 +55,7 @@ pub(crate) fn ruta_valida(ruta: &str) -> bool {
 
 /// Nombres que Windows reserva aunque lleven extension (`aux.md`): un clon en
 /// Windows no podria sacarlos al worktree.
-fn reservado_en_windows(parte: &str) -> bool {
+pub(crate) fn reservado_en_windows(parte: &str) -> bool {
     let base = parte
         .split('.')
         .next()

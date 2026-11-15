@@ -5,3 +5,6 @@
 *.rs text eol=lf
 *.toml text eol=lf
 Cargo.lock text eol=lf
+# Esquema publicado de la configuracion (F2-7): se compara byte a byte con
+# el que genera el codigo.
+crates/tc2/esquemas/*.json text eol=lf
