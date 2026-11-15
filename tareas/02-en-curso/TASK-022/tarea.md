@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-022-f2-9-adaptador-gitlab
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F2-9 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T18:32:06Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T18:39:10Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T18:39:11Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
