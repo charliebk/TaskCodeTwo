@@ -10,14 +10,14 @@ Pase generico (el diff es un ADR, su fila del indice, una PoC en Python y su log
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | docs/adr/F1-17-progreso-y-estimacion.md:226 (Control de fuga) y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:1145 | implementacion |
-| IMP-2 | IMPORTANTE | abierto | docs/adr/F1-17-progreso-y-estimacion.md:335 y :486 (decision 12) y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:950 (`mergeada`) | plan |
-| MEN-1 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:267 y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:1204 | implementacion |
-| MEN-2 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:352 y :453 | implementacion |
-| MEN-3 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:480 y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:993 | plan |
-| MEN-4 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:421 y :348 | plan |
-| MEN-5 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:279 | implementacion |
-| MEN-6 | MENOR | abierto | docs/adr/F1-17-progreso-y-estimacion.md:457 y :492 | plan |
+| IMP-1 | IMPORTANTE | corregido | docs/adr/F1-17-progreso-y-estimacion.md:226 (Control de fuga) y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:1145 | implementacion |
+| IMP-2 | IMPORTANTE | corregido | docs/adr/F1-17-progreso-y-estimacion.md:335 y :486 (decision 12) y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:950 (`mergeada`) | plan |
+| MEN-1 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:267 y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:1204 | implementacion |
+| MEN-2 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:352 y :453 | implementacion |
+| MEN-3 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:480 y tareas/03-en-revision/TASK-075/poc/poc-f1-17.py:993 | plan |
+| MEN-4 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:421 y :348 | plan |
+| MEN-5 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:279 | implementacion |
+| MEN-6 | MENOR | corregido | docs/adr/F1-17-progreso-y-estimacion.md:457 y :492 | plan |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
 plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el

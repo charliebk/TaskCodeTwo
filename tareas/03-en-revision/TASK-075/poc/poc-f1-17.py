@@ -16,7 +16,7 @@ Bloques:
 (E) Estimacion fuera de muestra (rolling origin por repo y cruzado) por fases medibles (implementacion,
     rondas, cierre; diseno sin calibrar, D7a) con la cascada de tareas parecidas; mediana/p80/p90 del
     error relativo, % dentro de +-50 % y error medio (D8a); lineas base: la «Estimada» de la 0.16, la
-    mediana ingenua y la mediana por complejidad; control dentro de muestra (fuga).
+    mediana ingenua y la mediana por complejidad; control de fuga que se comprueba metiendo una fuga a proposito.
 (D) `resumen` (dashboard) y `repartir --personas N` con camino critico y zonas (D4a: sin zona = choca
     con todas) sobre las tareas de TaskCodeTwo; reproduccion del prototipo de la sesion.
 (S) `start` y predecesoras (D3a: fetch, merge en develop, negarse sin red) y aviso de solape, con un
@@ -559,12 +559,25 @@ def metricas(pares):
             "mape": statistics.mean(er), "sesgo": mediana([e / max(r, 1.0) for e, r in pares])}
 
 
-def evaluar(objetivos, propias, semilla, dentro=False, niveles=NIVELES, tamf=tam, n_min=N_MIN):
+def disponibles_con_fuga(pool, obj, dentro=False):
+    """Fuga a proposito para el control: todo el pool menos la propia tarea, futuro incluido."""
+    return [m for m in pool if m["id"] != obj["id"]]
+
+
+def fugas(filas):
+    """Control de fuga: muestras usadas por cada estimacion que terminaron despues de aprobarse el plan
+    de la tarea estimada, o que son ella misma. Fuera de muestra tiene que dar 0."""
+    return sum(1 for f in filas if f["e"] for m in f["e"]["muestras"]
+               if m["finish"] > f["o"]["approve"] or m["id"] == f["o"]["id"])
+
+
+def evaluar(objetivos, propias, semilla, dentro=False, niveles=NIVELES, tamf=tam, n_min=N_MIN, disp=None):
     """Para cada objetivo: estimacion del modelo y de las lineas base, con lo disponible antes."""
     filas = []
+    disp = disp or disponibles
     for o in objetivos:
-        p = disponibles(propias, o, dentro)
-        s = disponibles(semilla, o, dentro)
+        p = disp(propias, o, dentro)
+        s = disp(semilla, o, dentro)
         e = estimar(o, p, s, niveles, tamf, n_min)
         ingenua = mediana([m["real"]["total"] for m in p]) if p else None
         pc = [m["real"]["total"] for m in p if m["complejidad"] == o["complejidad"]] if o["complejidad"] else []
@@ -757,7 +770,11 @@ def restante(est, fase, transc):
         if actual:
             r -= min(transc, m["real"][actual])
         xs.append(max(0.0, r))
-    return {"med": mediana(xs), "p80": cuantil(xs, PCT), "n": len(base), "condicionada": base is vivas and actual is not None}
+    # Con menos de N_MIN parecidas por encima de lo transcurrido, la fase en curso ya se ha desbordado: lo
+    # que queda de ella es desconocido y lo que se da es solo una cota inferior (las fases siguientes).
+    desbordada = actual is not None and len(vivas) < N_MIN
+    return {"med": mediana(xs), "p80": cuantil(xs, PCT), "n": len(base), "condicionada": base is vivas and actual is not None,
+            "desbordada": desbordada, "vivas": len(vivas)}
 
 
 def suma_remuestreada(distribuciones, rng, n=REMUESTREOS):
@@ -780,6 +797,8 @@ def linea_estado(e):
     faltan = ", ".join(e["faltan"]) if e["faltan"] else "ninguna"
     if e.get("restante") is None:
         est = "sin estimacion"
+    elif e.get("desbordada"):
+        est = f"faltan ≥{round(e['restante'][0])} min (fase en curso por encima de sus parecidas)"
     else:
         est = f"faltan ≈{round(e['restante'][0])} min (p80 {round(e['restante'][1])})"
     q = f" · sin actividad registrada hace {e['quieto_min']} min" if e.get("quieto_min", 0) > UMBRAL else ""
@@ -914,8 +933,9 @@ class MundoS:
         git(d, "commit", "-q", "-m", "estado", quien=quien)
         git(d, "push", "-q", "origin", f"HEAD:{ESTADO}")
 
-    def trabajo(self, maquina, t, ficheros, merge=True, empujar=True):
-        """Rama de la tarea con un cambio; con `merge`, merge --no-ff en develop con trailer «Tarea:»."""
+    def trabajo(self, maquina, t, ficheros, merge=True, empujar=True, mensaje=None):
+        """Rama de la tarea con un cambio; con `merge`, merge --no-ff en develop con el mensaje de la 0.16
+        (`merge(feature): feature/task-nnn -> develop`, sin trailer) o el que se pase."""
         d = self.maq[maquina]
         git(d, "fetch", "-q", "origin")
         git(d, "checkout", "-q", "-B", f"feature/{t.lower()}", "origin/develop")
@@ -928,10 +948,18 @@ class MundoS:
         git(d, "push", "-q", "origin", f"feature/{t.lower()}")
         git(d, "checkout", "-q", "-B", "develop", "origin/develop")
         if merge:
-            git(d, "merge", "-q", "--no-ff", "-m", f"merge(feature): feature/{t.lower()} -> develop\n\nTarea: {t}", rama)
+            git(d, "merge", "-q", "--no-ff", "-m", mensaje or f"merge(feature): feature/{t.lower()} -> develop", rama)
             if empujar:
                 git(d, "push", "-q", "origin", "develop")
         return rama
+
+    def integrar_rama(self, maquina, t):
+        """Merge --no-ff en develop de la rama ya empujada de la tarea, con el mensaje de la 0.16."""
+        d = self.maq[maquina]
+        git(d, "fetch", "-q", "origin")
+        git(d, "checkout", "-q", "-B", "develop", "origin/develop")
+        git(d, "merge", "-q", "--no-ff", "-m", f"merge(feature): feature/{t.lower()} -> develop", f"origin/feature/{t.lower()}")
+        git(d, "push", "-q", "origin", "develop")
 
 
 def leer_estado_remoto(d, ref=f"origin/{ESTADO}"):
@@ -948,9 +976,16 @@ def leer_estado_remoto(d, ref=f"origin/{ESTADO}"):
 
 
 def mergeada(d, t, ref="origin/develop"):
-    """La predecesora tiene su merge en develop: un merge del primer padre con trailer «Tarea: TASK-NNN»."""
-    log = g1(d, "log", "--first-parent", "--merges", "--format=%B%x1e", ref)
-    return any(re.search(rf"^Tarea: {t}\s*$", b, re.M) for b in log.split("\x1e"))
+    """La predecesora esta integrada en develop por ascendencia: la cabeza de su rama remota
+    (`<tipo>/task-nnn-*`, que F1-3 conserva; en la 2.0, `ultimo_commit_revisado`) es antecesora de
+    origin/develop (`git merge-base --is-ancestor`). No mira mensajes: vale para la historia de la 0.16 y
+    un trailer copiado no engana."""
+    n = t.split("-")[1]
+    ramas = [r for r in g1(d, "branch", "-r", "--format=%(refname:short)").split()
+             if re.search(rf"/(?:feature|fix|hotfix)/task-{n}(?:-|$)", r)]
+    if not ramas:
+        return False
+    return all(git(d, "merge-base", "--is-ancestor", r, ref, ok=(0, 1))[0] == 0 for r in ramas)
 
 
 def puede_empezar(d, t, mutacion=None):
@@ -990,10 +1025,39 @@ def avisos_solape(d, t, zona_nueva, mutacion=None):
         rama = next((r for r in ramas if r.endswith(f"feature/{u.lower()}")), None)
         if rama and x["zonas"] is not None:
             base = g1(d, "merge-base", rama, "origin/develop")
-            fuera = [f for f in g1(d, "diff", "--name-only", base, rama).split() if not solapan([f], x["zonas"])]
+            fuera = fuera_de_zona(d, rama, x["zonas"])
             if fuera and mutacion != "sin-cruce-diff" and solapan(zona_nueva, fuera):
                 av.append(f"{u} ({x['asignado']}): su rama toca fuera de su zona: {', '.join(fuera)}")
     return av
+
+
+def glob_re(g):
+    """Glob de zona a expresion regular: `**` cruza carpetas, `*` y `?` no."""
+    r, i = "", 0
+    while i < len(g):
+        if g.startswith("**/", i):
+            r, i = r + "(?:.*/)?", i + 3
+        elif g.startswith("**", i):
+            r, i = r + ".*", i + 2
+        elif g[i] == "*":
+            r, i = r + "[^/]*", i + 1
+        elif g[i] == "?":
+            r, i = r + "[^/]", i + 1
+        else:
+            r, i = r + re.escape(g[i]), i + 1
+    return re.compile(r + r"\Z")
+
+
+def en_zona(fichero, zonas):
+    """Pertenencia de un fichero a una zona (emparejamiento real del glob). Distinta de `solapan`, que
+    compara zona con zona por el prefijo literal y es conservadora."""
+    return zonas is not None and any(glob_re(g).match(fichero) for g in zonas)
+
+
+def fuera_de_zona(d, rama, zonas):
+    """Ficheros que la rama cambia (desde su base en develop) y que no estan en su zona declarada."""
+    base = g1(d, "merge-base", rama, "origin/develop")
+    return [f for f in g1(d, "diff", "--name-only", base, rama).split() if not en_zona(f, zonas)]
 
 
 def comprobar_cas(d, rama, esperado):
@@ -1141,8 +1205,13 @@ def seccion_e(H, rng):
         print(f"  cobertura del p80 (real <= p80 estimado): {sum(cov)} de {len(cov)} ({pct(sum(cov), len(cov))} %)")
         dentro = evaluar(S[nom], S[nom], S[otro], dentro=True)
         md = tabla_metricas(dentro, lambda x: x["e"] is not None and x["ingenua"] is not None)["modelo"]
-        print(f"  control dentro de muestra (fuga): {fmt_m(md)}")
-        comprueba("E", md["med"] < comun["modelo"]["med"], f"{nom}: dentro de muestra el error no baja: el guion tiene fuga")
+        print(f"  referencia dentro de muestra (no es un control): {fmt_m(md)}")
+        n_fuga = fugas(f)
+        n_fuga_mut = fugas(evaluar(S[nom], S[nom], S[otro], disp=disponibles_con_fuga))
+        print(f"  control de fuga: muestras posteriores al approve (o la propia) usadas fuera de muestra {n_fuga} ; "
+              f"con la fuga metida a proposito {n_fuga_mut} ({'detectada' if n_fuga_mut else 'NO detectada'})")
+        comprueba("E", n_fuga == 0, f"{nom}: la estimacion fuera de muestra usa muestras posteriores")
+        comprueba("E", n_fuga_mut > 0, f"{nom}: el control no detecta la fuga metida a proposito")
         cruz = evaluar(S[nom], [], S[otro])
         mc = tabla_metricas(cruz, lambda x: x["e"] is not None)
         print(f"  cruzado (solo con {otro}, anteriores a cada tarea): estimables {sum(1 for x in cruz if x['e'])} de {len(cruz)} ; {fmt_m(mc['modelo'])}")
@@ -1199,12 +1268,12 @@ def seccion_e(H, rng):
                                          lambda x: x["e"] is not None and x["ingenua"] is not None)["modelo"]
         sin_agr = muestras_agrupadas(H[nom]["ms"], agrupar_troceo=False)
         otro_sin = muestras_agrupadas(H[otro]["ms"], agrupar_troceo=False)
-        var["sin agrupar las troceadas"] = tabla_metricas(evaluar(sin_agr, sin_agr, otro_sin),
+        var["sin agrupar las troceadas (cambia las muestras)"] = tabla_metricas(evaluar(sin_agr, sin_agr, otro_sin),
                                                           lambda x: x["e"] is not None and x["ingenua"] is not None)["modelo"]
         for u in (30, 60, 90, None):
             su = muestras_agrupadas(H[nom]["ms"], u)
             so = muestras_agrupadas(H[otro]["ms"], u)
-            var[f"umbral {u} min" if u else "sin corte"] = tabla_metricas(evaluar(su, su, so),
+            var[f"umbral {u} min (cambia también el real)" if u else "sin corte (cambia también el real)"] = tabla_metricas(evaluar(su, su, so),
                                                                            lambda x: x["e"] is not None and x["ingenua"] is not None)["modelo"]
         for k, v in var.items():
             print(f"  variante {k}: {fmt_m(v)}")
@@ -1375,11 +1444,16 @@ def seccion_s(trabajo):
     caso("S2", "TASK-001 dice `terminada` en la rama de estado y su merge no está en `develop`",
          puede_empezar(car, "TASK-002"), (False, "predecesora-sin-merge"))
     # S3: el merge se empuja desde la maquina del companero
-    w.trabajo("companero", "TASK-001", {"core/a/uno.rs": "// TASK-001\n"}, merge=True, empujar=True)
-    caso("S3", "TASK-001 terminada y con su merge empujado a `develop`", puede_empezar(car, "TASK-002"), (True, "ok"))
+    w.trabajo("companero", "TASK-099", {"README.md": "otra tarea\n"}, merge=True, empujar=True,
+              mensaje="merge(feature): feature/task-099 -> develop\n\nTarea: TASK-001")
+    caso("S3", "un merge de otra tarea en `develop` copia el trailer `Tarea: TASK-001`; la rama de TASK-001 no está integrada",
+         puede_empezar(car, "TASK-002"), (False, "predecesora-sin-merge"))
+    w.integrar_rama("companero", "TASK-001")
+    caso("S4", "la rama de TASK-001 integrada en `develop` con un merge como los de la 0.16 (sin trailer)",
+         puede_empezar(car, "TASK-002"), (True, "ok"))
     # S4: sin red
     git(car, "remote", "set-url", "origin", os.path.join(trabajo, "s", "no-existe.git"))
-    caso("S4", "sin red, con la caché local diciendo que TASK-001 está terminada e integrada", puede_empezar(car, "TASK-002"),
+    caso("S5", "sin red, con la caché local diciendo que TASK-001 está terminada e integrada", puede_empezar(car, "TASK-002"),
          (False, "sin-red"))
     git(car, "remote", "set-url", "origin", w.remoto)
     # Solape
@@ -1399,9 +1473,17 @@ def seccion_s(trabajo):
     comprueba("S", any("TASK-004" in a and "sin zona" in a for a in av["TASK-006"]), "TASK-006 no avisa de TASK-004 sin zona")
     comprueba("S", not any("TASK-003" in a for a in av["TASK-006"]), "TASK-006 avisa de TASK-003 sin solapar")
     comprueba("S", any("TASK-003" in a and "fuera de su zona" in a for a in av["TASK-007"]), "TASK-007 no ve que TASK-003 toca core/b")
-    filas.append(f"| S5 | `start` de TASK-005 (zona `core/a/x/**`) con TASK-003 en curso en `core/a/**` | aviso: solapa con TASK-003 (companero) |")
-    filas.append(f"| S6 | `start` de TASK-006 (zona `web/**`) con TASK-004 en curso sin zona | aviso: TASK-004 sin zona choca con todas |")
-    filas.append(f"| S7 | `start` de TASK-007 (zona `core/b/**`); la rama de TASK-003 toca `core/b/dos.rs` fuera de su zona | aviso: cruce con el diff real |")
+    filas.append(f"| S6 | `start` de TASK-005 (zona `core/a/x/**`) con TASK-003 en curso en `core/a/**` | aviso: solapa con TASK-003 (companero) |")
+    filas.append(f"| S7 | `start` de TASK-006 (zona `web/**`) con TASK-004 en curso sin zona | aviso: TASK-004 sin zona choca con todas |")
+    filas.append(f"| S8 | `start` de TASK-007 (zona `core/b/**`); la rama de TASK-003 toca `core/b/dos.rs` fuera de su zona | aviso: cruce con el diff real |")
+    # S9: pertenencia de fichero a zona con comodin (review de una tarea en curso, F3-11)
+    w.trabajo("companero", "TASK-008", {"core/c.rs": "// en su zona\n", "core/a/uno.rs": "// 8 fuera de su zona\n"}, merge=False)
+    git(car, "fetch", "-q", "origin")
+    fz = fuera_de_zona(car, "origin/feature/task-008", ["core/*.rs"])
+    print(f"  S9 review de TASK-008 (zona `core/*.rs`): ficheros fuera de su zona {fz} ; con la funcion de solape "
+          f"(prefijo) saldrian {[f for f in ['core/a/uno.rs', 'core/c.rs'] if not solapan([f], ['core/*.rs'])]}")
+    comprueba("S", fz == ["core/a/uno.rs"], "S9: en_zona no ve core/a/uno.rs fuera de core/*.rs")
+    filas.append("| S9 | `review` de TASK-008 (zona `core/*.rs`), cuya rama toca `core/c.rs` y `core/a/uno.rs` | aviso: `core/a/uno.rs` fuera de su zona |")
     tabla = ["| ID | Caso | Resultado |", "|---|---|---|"] + filas
     print("\ntabla-start calculada:")
     for l in tabla:
@@ -1454,7 +1536,7 @@ def seccion_l(trabajo, d):
     if sys.platform == "win32":
         comprueba("L", l2.startswith("falla"), "L2: en Windows el rename con el lector abierto no falla")
         comprueba("L", usados > 0 and final == 3, "L2: el reintento no entra")
-    filas.append(f"| L2 | `os.replace` con la status line leyendo el fichero (Windows) | sin reintento {l2.split(' (')[0]}; con reintento entra |")
+    filas.append(f"| L2 | `os.replace` con un lector de Python abierto (Windows; sin `FILE_SHARE_DELETE`) | sin reintento {l2.split(' (')[0]}; con reintento entra |")
     # L3: escritura rota (intercalado determinista)
     c = os.path.join(raiz, "l3")
     os.makedirs(c)
@@ -1495,14 +1577,14 @@ def seccion_l(trabajo, d):
     rs = restante(d["est"]["TASK-075"], fase, tr)
     e = d["est"]["TASK-075"]
     datos = {"tarea": "TASK-075", "fase": fase, "faltan": faltan_, "restante": [rs["med"], rs["p80"]], "n": e["n"],
-             "nivel": e["nivel"], "calculado": AHORA, "quieto_min": round(quieto)}
+             "nivel": e["nivel"], "calculado": AHORA, "quieto_min": round(quieto), "desbordada": rs["desbordada"]}
     c = os.path.join(raiz, "l6")
     os.makedirs(c)
     escribir_estado(c, datos)
     dd, _, _, _ = leer_estado(c)
     print(f"  L5 TASK-075 a las {hm(AHORA)} UTC: fase {fase} desde {hm(min(t for t, f in x['trans'] if f == 'start'))}, "
           f"{round(tr)} min transcurridos ({round(quieto)} desde el ultimo commit o coste) ; estimacion total de su nivel: mediana {round(e['total'][0])} min, p80 {round(e['total'][1])} ; "
-          f"restante {'condicionado a las que pasaron de ' + str(round(tr)) + ' min' if rs['condicionada'] else 'sin condicionar'} (n={rs['n']})")
+          f"restante {'condicionado a las que pasaron de ' + str(round(tr)) + ' min' if rs['condicionada'] else 'sin condicionar'} (n={rs['n']}) ; parecidas por encima de lo transcurrido {rs['vivas']}: {'fase desbordada, cota inferior' if rs['desbordada'] else 'rango'}")
     print(f"  status line: {linea_estado(dd)}")
     print(f"  la estimacion del agente en el plan: {x['plan_min']} min")
     filas.append(f"| L5 | status line de TASK-075 a las {hm(AHORA)[11:]} UTC | `{linea_estado(dd)}` |")

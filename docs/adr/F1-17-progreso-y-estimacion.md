@@ -223,9 +223,16 @@ Lectura:
   (0,67 en ToolsaWeb y 0,72 en OpenDockTrading), y en OpenDockTrading el p80
   del error sube a 2,04. Una semilla de otro proyecto da poco: se enseña como
   «sin calibrar».
-- **Control de fuga**: estimando dentro de muestra el error baja (0,40 en
-  ToolsaWeb, 0,38 en OpenDockTrading), como tiene que pasar si la medida
-  fuera de muestra no tiene fuga.
+- **Control de fuga**: `disponibles` solo deja entrar las muestras que
+  terminaron antes de aprobarse el plan de la tarea estimada, y nunca la
+  propia. El control lo comprueba sobre lo que usó cada estimación: fuera de
+  muestra, 0 muestras posteriores en los dos repos. Con una fuga metida a
+  propósito (todo el pool menos la propia tarea) salen 2515 en ToolsaWeb y 734
+  en OpenDockTrading, y el control falla. La estimación dentro de muestra se
+  imprime solo como referencia y no prueba nada: en ToolsaWeb baja la mediana
+  (0,40 frente a 0,45) y sube el p80 (1,16 frente a 0,71), el p90 (2,04 frente
+  a 1,07) y el error medio (78,8 % frente a 61,6 %); además su n es otra (154
+  frente a 149).
 - **Tokens**: con las tareas que tienen `## Coste`, la cascada no gana a la
   mediana ingenua (ToolsaWeb 0,63 frente a 0,53; OpenDockTrading 0,37 frente
   a 0,37).
@@ -256,17 +263,18 @@ cascada y del corte, medidas igual:
 | solo carril | 0,48 | 52,3 % | 0,43 | 55,0 % |
 | solo repo (con semilla) | 0,52 | 47,7 % | 0,45 | 57,5 % |
 | semilla del carril antes que el repo | 0,45 | 55,0 % | 0,43 | 55,0 % |
-| sin agrupar las troceadas | 0,43 | 57,2 % | 0,37 | 59,6 % |
-| umbral 30 min | 0,43 | 55,7 % | 0,37 | 57,5 % |
-| umbral 60 min | 0,44 | 54,4 % | 0,47 | 52,5 % |
-| umbral 90 min | 0,45 | 55,0 % | 0,50 | 50,0 % |
-| sin corte | 0,51 | 49,0 % | 0,50 | 50,0 % |
+| sin agrupar las troceadas (cambia las muestras) | 0,43 | 57,2 % | 0,37 | 59,6 % |
+| umbral 30 min (cambia también el real) | 0,43 | 55,7 % | 0,37 | 57,5 % |
+| umbral 60 min (cambia también el real) | 0,44 | 54,4 % | 0,47 | 52,5 % |
+| umbral 90 min (cambia también el real) | 0,45 | 55,0 % | 0,50 | 50,0 % |
+| sin corte (cambia también el real) | 0,51 | 49,0 % | 0,50 | 50,0 % |
 <!-- tabla-variantes:fin -->
 
 Quitar niveles empeora poco a poco en ToolsaWeb; en OpenDockTrading da igual.
-Un umbral de 30 min da algo menos de error en los dos repos. No se cambia el
-de D6a, porque elegir el umbral con los mismos datos que lo evalúan sería
-ajustarlo dentro de muestra; queda como dato para F8-7.
+Las filas de umbral y de agrupado **no son comparables** con las demás: cambian
+también el real que se estima (o las muestras), así que un umbral más bajo
+acorta y homogeneiza el objetivo y baja el error relativo por construcción. No
+dicen qué umbral es mejor, y D6a no se toca.
 
 ### D — `resumen` y `repartir` sobre TaskCodeTwo
 
@@ -276,9 +284,10 @@ pendientes. Con la duración del plan donde la hay (solo TASK-012, 170 min) y
 25,8 y 19,3 h con 1 a 4 personas, sin mirar zonas.
 
 **Hoy** (`d9a5b10fd`), con la estimación de este ADR, hay 94 tareas, 18
-terminadas y 76 pendientes. Las 18 terminadas son ADR (17 erratas por el diff),
-así que para las 75 funcionalidades pendientes la cascada cae al nivel «repo»,
-que son esos ADR. Para tareas de código es una estimación floja, y se dice
+terminadas y 76 pendientes. De las 18 terminadas, 17 son ADR (erratas por el
+diff) y una, F1-0, es la creación del repo (funcionalidad por el diff). Para
+las 75 funcionalidades pendientes la cascada cae al nivel «repo», que son esas
+18. Para tareas de código es una estimación floja, y se dice
 («No verificado»). El `resumen` por sprint:
 
 <!-- tabla-resumen:inicio -->
@@ -324,17 +333,24 @@ el reparto real de TaskCodeTwo.
 |---|---|---|
 | S1 | TASK-002 con su predecesora TASK-001 en curso | se niega (`predecesora-sin-terminar`) |
 | S2 | TASK-001 dice `terminada` en la rama de estado y su merge no está en `develop` | se niega (`predecesora-sin-merge`) |
-| S3 | TASK-001 terminada y con su merge empujado a `develop` | arranca |
-| S4 | sin red, con la caché local diciendo que TASK-001 está terminada e integrada | se niega (`sin-red`) |
-| S5 | `start` de TASK-005 (zona `core/a/x/**`) con TASK-003 en curso en `core/a/**` | aviso: solapa con TASK-003 (companero) |
-| S6 | `start` de TASK-006 (zona `web/**`) con TASK-004 en curso sin zona | aviso: TASK-004 sin zona choca con todas |
-| S7 | `start` de TASK-007 (zona `core/b/**`); la rama de TASK-003 toca `core/b/dos.rs` fuera de su zona | aviso: cruce con el diff real |
+| S3 | un merge de otra tarea en `develop` copia el trailer `Tarea: TASK-001`; la rama de TASK-001 no está integrada | se niega (`predecesora-sin-merge`) |
+| S4 | la rama de TASK-001 integrada en `develop` con un merge como los de la 0.16 (sin trailer) | arranca |
+| S5 | sin red, con la caché local diciendo que TASK-001 está terminada e integrada | se niega (`sin-red`) |
+| S6 | `start` de TASK-005 (zona `core/a/x/**`) con TASK-003 en curso en `core/a/**` | aviso: solapa con TASK-003 (companero) |
+| S7 | `start` de TASK-006 (zona `web/**`) con TASK-004 en curso sin zona | aviso: TASK-004 sin zona choca con todas |
+| S8 | `start` de TASK-007 (zona `core/b/**`); la rama de TASK-003 toca `core/b/dos.rs` fuera de su zona | aviso: cruce con el diff real |
+| S9 | `review` de TASK-008 (zona `core/*.rs`), cuya rama toca `core/c.rs` y `core/a/uno.rs` | aviso: `core/a/uno.rs` fuera de su zona |
 <!-- tabla-start:fin -->
 
-La predecesora tiene que estar `terminada` en la rama de estado **y** tener su
-merge en `origin/develop` (un merge del primer padre con trailer
-`Tarea: TASK-NNN`), después de un `fetch`. Sin red, `start` se niega aunque la
-caché local diga que todo está integrado.
+La predecesora tiene que estar `terminada` en la rama de estado **y** estar
+integrada en `origin/develop` **por ascendencia**: la cabeza de su rama remota
+(`<tipo>/task-nnn-*`, que F1-3 conserva) es antecesora de `origin/develop`
+(`git merge-base --is-ancestor`), después de un `fetch`. No se mira el mensaje
+del merge: en los tres repos ningún merge del primer padre lleva un trailer
+`Tarea:` (0 de 50 en ToolsaWeb, 0 de 48 en OpenDockTrading y 0 de 18 en
+TaskCodeTwo, contado en la revisión 1), y un trailer copiado no prueba nada
+(S3). S4 usa un merge con el mensaje de la 0.16. Sin red, `start` se niega
+aunque la caché local diga que todo está integrado.
 
 ### L — Status line y escrituras concurrentes (D5a)
 
@@ -342,15 +358,18 @@ caché local diga que todo está integrado.
 | ID | Caso | Resultado |
 |---|---|---|
 | L1 | lectura de la status line con 10 y con 1000 tareas | 1 fichero y los mismos bytes en los dos casos |
-| L2 | `os.replace` con la status line leyendo el fichero (Windows) | sin reintento falla con PermissionError; con reintento entra |
+| L2 | `os.replace` con un lector de Python abierto (Windows; sin `FILE_SHARE_DELETE`) | sin reintento falla con PermissionError; con reintento entra |
 | L3 | `estado.json` a medio escribir | la status line enseña el último valor bueno con su antigüedad |
 | L4 | dos escritores añaden filas de `## Coste` a la vez | leer-añadir-reescribir pierde 1 de 2 filas; un fichero por fuente, ninguna de 400 |
-| L5 | status line de TASK-075 a las 12:00 UTC | `TASK-075 · implementacion · fases que faltan: rondas, cierre · faltan ≈31 min (p80 66) · n=17 carril+complejidad+tamano · sin actividad registrada hace 127 min` |
+| L5 | status line de TASK-075 a las 12:00 UTC | `TASK-075 · implementacion · fases que faltan: rondas, cierre · faltan ≥31 min (fase en curso por encima de sus parecidas) · n=17 carril+complejidad+tamano · sin actividad registrada hace 127 min` |
 <!-- tabla-statusline:fin -->
 
-En Windows, `os.replace` sobre un fichero que otro proceso tiene abierto
-falla con `PermissionError` (WinError 5). La escritura atómica necesita
-reintento, y el lector, una salida al último valor bueno. La línea de L5
+En Windows, `os.replace` sobre un fichero que un lector de Python tiene
+abierto falla con `PermissionError` (WinError 5): Python, como Node, abre sin
+`FILE_SHARE_DELETE`. Con un lector de Rust (`std::fs::File::open`, que abre con
+`FILE_SHARE_DELETE`) el rename entra; lo midió la revisión 1 con un fichero
+suelto. El reintento se queda como defensa ante otros lectores (Python, Node,
+un antivirus), y el lector tiene su salida al último valor bueno. La línea de L5
 compara la estimación del CLI para esta misma tarea (mediana 50 min y p80 96
 de 17 ADR parecidos) con los 300 min que puso el agente en el plan.
 
@@ -424,7 +443,11 @@ borrada) fallan cada una por su motivo.
    sigue la regla del real hasta el último evento, más el hueco abierto
    entero: alguien puede estar trabajando sin commit todavía, y la siguiente
    transición lo recalcula. Si ese hueco pasa de 45 min, la vista dice «sin
-   actividad registrada hace N min».
+   actividad registrada hace N min». **Si menos de 5 muestras pasaron de lo
+   transcurrido**, la fase en curso está desbordada: lo que queda de ella no
+   se sabe, y lo que se enseña es solo una cota inferior (la mediana de las
+   fases siguientes), como «faltan ≥31 min (fase en curso por encima de sus
+   parecidas)», nunca un número limpio con su p80 (L5).
 6. **Cuándo se recalcula**: en `approve`, en cada transición y en `finish`.
    En `finish` se registra el error (estimado frente a real por fase), que es
    la entrada de F8-7. Recalcularlo todo cuesta O(N) con N tareas y solo pasa
@@ -450,7 +473,9 @@ borrada) fallan cada una por su motivo.
      tarea, fase, fases que faltan, restante [mediana, p80], nivel, n, hora
      del cálculo y avisos. Antes de cada escritura se guarda el anterior como
      `estado.anterior.json`. Cada paso es temporal + rename **con reintento**,
-     porque en Windows el rename falla con el lector abierto (L2).
+     porque en Windows el rename falla si un lector lo tiene abierto sin
+     `FILE_SHARE_DELETE` (Python o Node, L2; el binario de Rust de F1-14 abre
+     con él y no lo necesita).
 8. **Vistas**, todas del CLI y sin tokens:
    - **status line** (F3-12): abre **un fichero** (`estado.json`), resta el
      reloj desde la hora del cálculo y pinta la tarea, la fase, las fases que
@@ -458,6 +483,11 @@ borrada) fallan cada una por su motivo.
      último valor bueno con su antigüedad (L3). Nunca recorre el histórico (L1);
    - **`tc2 status --seguir`**: la misma lectura, repetida al cambiar el
      fichero;
+   - **texto ajeno saneado**: lo que llega de `tarea.md`, de la rama de estado
+     o de un nombre de persona o de rama es texto no confiable (F1-15) y se
+     imprime sin caracteres de control ni secuencias de escape, y con longitud
+     acotada, en la status line, `status --seguir`, `resumen` y los avisos de
+     `start`. El caso de prueba es de F3-12;
    - **salida de cada transición**: una línea con lo mismo;
    - **`tc2 resumen`** (requisito 1; F3-5, F8-1): tabla por sprint con
      terminadas y pendientes, tiempo real y tokens (parcial y total) y lo que
@@ -482,14 +512,20 @@ borrada) fallan cada una por su motivo.
     el prefijo literal de un glob es prefijo, por componentes, del de otro. La
     zona es siempre un **aviso, nunca una garantía**: en `start` y en `review`
     se cruza con el diff real de cada rama en curso (F3-11), y lo que una rama
-    toca fuera de su zona también avisa (S7).
+    toca fuera de su zona también avisa (S8, S9). La pertenencia de un fichero
+    a su zona es el emparejamiento real del glob (`**` cruza carpetas, `*` no),
+    distinto de la comparación zona con zona: con el prefijo, `core/a/uno.rs`
+    estaría dentro de `core/*.rs` (S9).
 12. **Precondiciones de `start`** (D3a, requisito 2; código en F3-6). Primero,
-    `fetch` de `develop` y de la rama de estado. Cada predecesora tiene que
-    estar `terminada` en la rama de estado **y** tener su merge en
-    `origin/develop`. Si no, `Rechazada` (código 3 de F1-2) con el motivo
-    (`predecesora-sin-terminar`, `predecesora-sin-merge`). **Sin red se niega**
-    (`SinRed`, código 4) y explica por qué; nunca arranca a ciegas con la
-    caché. Después avisa del solape (punto 11), con nombres y personas.
+    `fetch` de `develop`, de la rama de estado y de las ramas. Cada predecesora
+    tiene que estar `terminada` en la rama de estado **y** integrada en
+    `origin/develop` por ascendencia: `git merge-base --is-ancestor` de su
+    `ultimo_commit_revisado` (2.0) o de la cabeza de su rama remota (historia
+    de la 0.16, cuyas ramas se conservan, F1-3) contra `origin/develop`. Nunca
+    por el mensaje del merge. Si no, `Rechazada` (código 3 de F1-2) con el
+    motivo (`predecesora-sin-terminar`, `predecesora-sin-merge`). **Sin red se
+    niega** (`SinRed`, código 4) y explica por qué; nunca arranca a ciegas con
+    la caché. Después avisa del solape (punto 11), con nombres y personas.
 13. **Aviso de cambios ajenos**: en cada transición, el CAS de F1-16 (la
     cabeza y el `status --porcelain` esperados). La status line solo enseña el
     aviso; la decisión no depende de ella.
@@ -547,10 +583,10 @@ borrada) fallan cada una por su motivo.
 | RR-19 resumen final, estimado frente a real | punto 14 (F8-7) | PoC E: error por fase |
 | Criterio de F1-17: probada contra ToolsaWeb y OpenDockTrading, con su error medio | puntos 3 y 4 | PoC E: `tabla-error` (error medio 69 y 38 min; mediana 0,45 y 0,43) |
 | Requisito (1) de Carlos: `resumen` | punto 8 | PoC D: `tabla-resumen` |
-| Requisito (2) de Carlos: paralelo sin pisarse | puntos 11 y 12 | PoC S1-S7 |
+| Requisito (2) de Carlos: paralelo sin pisarse | puntos 11 y 12 | PoC S1-S9 |
 | Requisito (3) de Carlos: `--personas N` | puntos 10 y 11 | PoC D: el prototipo reproducido; serie sin zonas (D4a) |
-| RR-12 `start` avisa del solape | punto 11 | PoC S5-S7 |
-| RR-12 estado más reciente | `fetch` antes de decidir; sin red se niega | PoC S4 |
+| RR-12 `start` avisa del solape | punto 11 | PoC S6-S9 |
+| RR-12 estado más reciente | `fetch` antes de decidir; sin red se niega | PoC S5 |
 | RR-01 lo hace el CLI | núcleo puro, sin hooks | toda la PoC |
 
 ## Consecuencias
@@ -607,7 +643,13 @@ borrada) fallan cada una por su motivo.
 - **Que los commits sean una señal de actividad suficiente**: un agente que
   trabaja más de 45 min sin commit ni coste pierde lo que pase del tope.
 - **El rename en Linux y macOS**: allí no falla con el lector abierto (POSIX);
-  no se ejecutó.
+  no se ejecutó. Que el binario de Rust de F1-14 abra con `FILE_SHARE_DELETE`
+  y el rename entre en Windows lo midió la revisión 1 con un fichero suelto,
+  no con el binario.
+- **La precondición por ascendencia en los pilotos reales**: se probó en el
+  remoto simulado (S2-S4); en los pilotos depende de que las ramas de las
+  tareas antiguas sigan en el remoto (F1-3 las conserva). Si una falta,
+  `start` se niega con `predecesora-sin-merge` (F3-6).
 - **La regla textual de troceo**: agrupa 8 grupos en ToolsaWeb y 4 en
   OpenDockTrading leyendo el objetivo; no se comprobó a mano que no falte
   ninguno.
