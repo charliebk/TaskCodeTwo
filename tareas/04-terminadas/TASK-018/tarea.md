@@ -109,3 +109,5 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - Estimada: — (no se entiende: 240 min (de la rama abierta al cierre con merge; señales:)
 - Real (de la rama abierta al cierre con merge, sin pausas): 90 min
 - Cierre (finish): 88 s, de 2026-11-15T14:53:02Z a 2026-11-15T14:54:30Z
+
+**CI tras el cierre**: run 43726922784 sobre develop (68fe12f), 4 jobs en success: codigo en ubuntu-latest, macos-latest y windows-latest, y comprobar-repo.
