@@ -1,10 +1,12 @@
 //! Nucleo del CLI `tc2` de TaskCodeTwo.
 //!
-//! Modulos: [`contrato`] (salida de toda operacion, ADR F1-4) y [`git`]
-//! (capa de operaciones Git deterministas, F2-2). Las capas que vienen
-//! (modelo de tarea de F2-5...) entran como modulos de esta biblioteca.
+//! Modulos: [`contrato`] (salida de toda operacion, ADR F1-4), [`git`]
+//! (capa de operaciones Git deterministas, F2-2) y [`estado`] (rama de
+//! estado `taskcode/tareas`, F2-3). Las capas que vienen (modelo de tarea de
+//! F2-5...) entran como modulos de esta biblioteca.
 
 pub mod contrato;
+pub mod estado;
 pub mod git;
 
 use contrato::{Informe, Resultado};

@@ -169,3 +169,24 @@ borrarlo a mano.
   estados de P1 bastan a los proyectos con `05-archivadas` (RF-71): quedan
   como preguntas abiertas para F1-2, F1-11 y F2-3. Este ADR se planificó con
   un solo rol (arquitectura).
+
+## Adenda (F2-3, TASK-018) — Git 2.42 deja de ser el mínimo
+
+La decisión 2 fijaba Git 2.42 por `worktree add --orphan`. F2-3 crea la rama
+huérfana con un commit raíz hecho con `commit-tree` (sin padre) y publicado
+por la misma transacción que cualquier escritura (`estado::montar`); después
+la monta con un `worktree add` normal. No necesita `--orphan`, así que la
+rama de estado ya no exige 2.42. Lo que sí queda sin verificar es Git
+anterior a 2.56 en general (lo anota F1-4). Además:
+
+- Si dos clones la crean a la vez, el segundo recibe non-fast-forward,
+  re-ejecuta, la ve creada y solo la monta.
+- La carpeta `tareas/` borrada a mano o con `git clean -ffdx` se vuelve a
+  montar con `montar` (poda el worktree y lo añade de nuevo); lo que no
+  estaba publicado en ella se pierde, como se dijo en «Requisitos y
+  evidencia».
+- `tareas/` ocupada por una carpeta normal (un repo de la 0.16) da `rechazada
+  motivo=tareas-ocupada`: la migración es de F9-2.
+- `tareas/` se añade a `info/exclude` del clon para que el worktree
+  principal no la vea como sin seguimiento; el `.gitignore` de las ramas de
+  código lo pone F3-1.

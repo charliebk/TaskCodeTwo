@@ -1,0 +1,47 @@
+//! Rama de estado `taskcode/tareas` (F2-3; ADR F1-1 y F1-2).
+//!
+//! - [`montar`] crea la rama huerfana si no existe y la monta como worktree
+//!   en `tareas/` del worktree principal (idempotente; la vuelve a montar si
+//!   se desmonto o se borro la carpeta).
+//! - [`transaccion`] es el **unico punto de escritura**: cerrojo local,
+//!   `fetch`, la operacion sobre el estado fresco, commit construido sin
+//!   tocar ningun worktree y `push` sin force; si el push se rechaza por
+//!   non-fast-forward, re-ejecuta la operacion sobre lo nuevo (nunca rebase).
+//!   Sin red, las operaciones que no reservan nada compartido quedan como
+//!   pendientes y se re-ejecutan en la siguiente transaccion con red.
+//! - [`leer`] da una vista del estado (lo ultimo traido del remoto, o la
+//!   rama local en un repo sin remoto).
+//!
+//! La correccion no depende de `tareas/`: se lee y se escribe sobre commits;
+//! la carpeta montada solo se adelanta (fast-forward) tras publicar.
+//!
+//! Salida con el contrato de F1-4 (`estado <resultado> clave=valor`) y los
+//! codigos de la tabla de `contrato.rs`.
+
+mod cerrojo;
+mod lectura;
+mod montaje;
+mod pendientes;
+mod transaccion;
+
+pub use crate::git::Cambio;
+pub use cerrojo::Cerrojo;
+pub use lectura::{Estado, Vista, leer};
+pub use montaje::{montar, montar_con};
+pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};
+
+/// Rama huerfana del estado (ADR F1-1).
+pub const RAMA: &str = "taskcode/tareas";
+
+/// Carpeta del worktree principal donde se monta (ADR F1-1).
+pub const CARPETA: &str = "tareas";
+
+/// Refs de las operaciones pendientes de publicar (sin red, D2b).
+pub const REFS_PENDIENTES: &str = "refs/taskcode/pendientes/";
+
+/// Refs de las pendientes que al re-ejecutarse ya no procedian: su contenido
+/// queda en un objeto de git y no se pierde (pregunta abierta de F1-2).
+pub const REFS_RECHAZADAS: &str = "refs/taskcode/rechazadas/";
+
+/// Nombre de la operacion en la linea de contrato.
+pub(crate) const OP: &str = "estado";

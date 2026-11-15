@@ -1,5 +1,6 @@
 //! Casos limite de la revision de la ronda 1 (IMPORTANTE-1, IMPORTANTE-2,
-//! MENOR-1 a MENOR-4), contra repos reales.
+//! MENOR-1 a MENOR-4), contra repos reales. Desde F2-3 un rechazo del
+//! remoto es `denegada` (8) y no se reintenta.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -101,7 +102,7 @@ fn quitar_worktree_con_head_suelto_no_pierde_commits() {
 }
 
 #[test]
-fn rechazo_persistente_del_remoto_es_agotada_y_no_sinred() {
+fn rechazo_del_remoto_es_denegada_sin_reintento() {
     let f = Fixture::nueva("limite-hook");
     let (bare, _clon, wt) = con_tarea(&f);
     let g = f.git();
@@ -118,9 +119,51 @@ fn rechazo_persistente_del_remoto_es_agotada_y_no_sinred() {
     contrato(&i);
     assert_eq!(
         i.linea(),
-        "push agotada rama=feature/task-007-login motivo=remoto-rechaza intentos=3"
+        "push denegada rama=feature/task-007-login motivo=remoto-rechaza intentos=1"
     );
-    assert_eq!(i.salida(false).codigo, 5);
+    assert_eq!(i.salida(false).codigo, 8);
+
+    // Lo mismo en las otras operaciones que publican (adenda de F1-4).
+    let i = git::tag_anotado(&g, &wt, "v9.9.9", "HEAD", &[std::time::Duration::ZERO; 2]);
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "tag-anotado denegada tag=v9.9.9 motivo=remoto-rechaza intentos=1"
+    );
+    std::fs::remove_file(&hook).unwrap();
+    assert_eq!(git::push(&g, &wt, &[]).resultado, Resultado::Ok);
+    std::fs::write(
+        &hook,
+        "#!/bin/sh
+echo protegida >&2
+exit 1
+",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    // develop avanza en el remoto (sin pasar por el hook: escribe el bare).
+    let otro = f.otro_clon(&bare, "otro");
+    escribir(
+        &otro, "base.txt", "base
+",
+    );
+    f.crudo(&otro, &["add", "base.txt"]);
+    f.crudo(&otro, &["commit", "-q", "-m", "base"]);
+    let develop = f.crudo(&otro, &["rev-parse", "HEAD"]);
+    f.crudo(
+        &bare,
+        &["fetch", "-q", otro.to_str().unwrap(), "develop:develop"],
+    );
+    assert_eq!(f.crudo(&bare, &["rev-parse", "develop"]), develop);
+    let i = git::actualizar_rama(&g, &wt, &[std::time::Duration::ZERO; 2]);
+    contrato(&i);
+    assert_eq!(i.resultado, Resultado::Denegada, "{}", i.linea());
+    assert_eq!(i.valor("motivo"), Some("remoto-rechaza"));
+    assert_eq!(i.valor("intentos"), Some("1"));
 }
 
 #[test]

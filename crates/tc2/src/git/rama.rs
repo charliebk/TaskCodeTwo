@@ -128,6 +128,11 @@ fn ruta_texto(op: &str, p: &Path) -> Paso<String> {
 /// Que `git status` del principal no muestre los worktrees de tarea:
 /// `/.taskcode/worktrees/` en `info/exclude` del repo comun (no versionado).
 fn excluir_worktrees(git: &Git, principal: &Path, op: &str) -> Paso<()> {
+    excluir(git, principal, op, &format!("/{CARPETA_WORKTREES}/"))
+}
+
+/// Anade `linea` a `info/exclude` del repo comun si no esta (no versionado).
+pub(crate) fn excluir(git: &Git, principal: &Path, op: &str, linea: &str) -> Paso<()> {
     let comun = exigir(
         git,
         principal,
@@ -138,7 +143,6 @@ fn excluir_worktrees(git: &Git, principal: &Path, op: &str) -> Paso<()> {
     let comun = principal.join(comun.trim());
     let info = comun.join("info");
     let fichero = info.join("exclude");
-    let linea = format!("/{CARPETA_WORKTREES}/");
     let error = |e: std::io::Error| {
         Informe::nuevo(op, Resultado::Error).diagnostico(format!("{}: {e}", fichero.display()))
     };
@@ -157,7 +161,7 @@ fn excluir_worktrees(git: &Git, principal: &Path, op: &str) -> Paso<()> {
     if !nuevo.is_empty() && !nuevo.ends_with('\n') {
         nuevo.push('\n');
     }
-    nuevo.push_str(&linea);
+    nuevo.push_str(linea);
     nuevo.push('\n');
     std::fs::write(&fichero, nuevo).map_err(error)
 }

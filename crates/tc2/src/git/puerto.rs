@@ -12,7 +12,8 @@ use std::path::Path;
 use std::process::Command;
 
 /// Subcomandos de `git` que la capa puede lanzar (lista permitida de F1-4 B2b,
-/// reducida a los que usan las operaciones de F2-2).
+/// reducida a los que usan las operaciones de F2-2 y la rama de estado de
+/// F2-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Subcomando {
     /// `git add`
@@ -21,14 +22,20 @@ pub enum Subcomando {
     Branch,
     /// `git commit`
     Commit,
+    /// `git commit-tree` (crea un objeto commit; no mueve ninguna rama)
+    CommitTree,
     /// `git diff`
     Diff,
     /// `git fetch`
     Fetch,
     /// `git for-each-ref`
     ForEachRef,
+    /// `git hash-object`
+    HashObject,
     /// `git ls-remote`
     LsRemote,
+    /// `git ls-tree`
+    LsTree,
     /// `git merge`
     Merge,
     /// `git merge-base`
@@ -37,16 +44,26 @@ pub enum Subcomando {
     Pull,
     /// `git push`
     Push,
+    /// `git read-tree` (solo con indice temporal)
+    ReadTree,
     /// `git rev-parse`
     RevParse,
+    /// `git show`
+    Show,
     /// `git show-ref`
     ShowRef,
     /// `git status`
     Status,
     /// `git tag`
     Tag,
+    /// `git update-index` (solo con indice temporal)
+    UpdateIndex,
+    /// `git update-ref` (solo bajo `refs/taskcode/`)
+    UpdateRef,
     /// `git worktree`
     Worktree,
+    /// `git write-tree` (solo con indice temporal)
+    WriteTree,
 }
 
 impl Subcomando {
@@ -56,22 +73,40 @@ impl Subcomando {
             Self::Add => "add",
             Self::Branch => "branch",
             Self::Commit => "commit",
+            Self::CommitTree => "commit-tree",
             Self::Diff => "diff",
             Self::Fetch => "fetch",
             Self::ForEachRef => "for-each-ref",
+            Self::HashObject => "hash-object",
             Self::LsRemote => "ls-remote",
+            Self::LsTree => "ls-tree",
             Self::Merge => "merge",
             Self::MergeBase => "merge-base",
             Self::Pull => "pull",
             Self::Push => "push",
+            Self::ReadTree => "read-tree",
             Self::RevParse => "rev-parse",
+            Self::Show => "show",
             Self::ShowRef => "show-ref",
             Self::Status => "status",
             Self::Tag => "tag",
+            Self::UpdateIndex => "update-index",
+            Self::UpdateRef => "update-ref",
             Self::Worktree => "worktree",
+            Self::WriteTree => "write-tree",
         }
     }
+
+    /// Los que trabajan sobre un indice: solo se lanzan con un indice
+    /// temporal ([`Git::ejecutar_con_indice`]), nunca sobre el del repo.
+    pub fn exige_indice_temporal(self) -> bool {
+        matches!(self, Self::ReadTree | Self::UpdateIndex | Self::WriteTree)
+    }
 }
+
+/// Prefijo de las unicas refs que puede escribir `update-ref` (pendientes y
+/// rechazadas de la rama de estado, F2-3). Nunca `refs/heads/*` (F1-4 D3).
+pub const PREFIJO_REFS_PROPIAS: &str = "refs/taskcode/";
 
 /// Lo que devolvio una llamada a `git` que llego a ejecutarse.
 #[derive(Debug, Clone)]
@@ -184,6 +219,47 @@ impl Git {
         sub: Subcomando,
         args: &[&str],
     ) -> Result<SalidaGit, ErrorGit> {
+        if sub.exige_indice_temporal() {
+            return Err(ErrorGit::Prohibido(format!(
+                "{} sin indice temporal",
+                sub.nombre()
+            )));
+        }
+        self.lanzar(dir, sub, args, None)
+    }
+
+    /// Como [`Git::ejecutar`], pero con `GIT_INDEX_FILE=indice`: solo para
+    /// `read-tree`, `update-index` y `write-tree`, que asi nunca tocan el
+    /// indice del repo. `indice` tiene que ser una ruta absoluta.
+    pub fn ejecutar_con_indice(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        indice: &Path,
+    ) -> Result<SalidaGit, ErrorGit> {
+        if !sub.exige_indice_temporal() {
+            return Err(ErrorGit::Prohibido(format!(
+                "{} con indice temporal",
+                sub.nombre()
+            )));
+        }
+        if !indice.is_absolute() {
+            return Err(ErrorGit::Prohibido(format!(
+                "{} con indice relativo",
+                sub.nombre()
+            )));
+        }
+        self.lanzar(dir, sub, args, Some(indice))
+    }
+
+    fn lanzar(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        indice: Option<&Path>,
+    ) -> Result<SalidaGit, ErrorGit> {
         comprobar_argumentos(sub, args)?;
         let mut cmd = Command::new(&self.binario);
         cmd.current_dir(dir)
@@ -198,6 +274,9 @@ impl Git {
         }
         for (k, v) in &self.entorno_extra {
             cmd.env(k, v);
+        }
+        if let Some(i) = indice {
+            cmd.env("GIT_INDEX_FILE", i);
         }
         self.registro
             .borrow_mut()
@@ -239,7 +318,26 @@ fn comprobar_argumentos(sub: Subcomando, args: &[&str]) -> Result<(), ErrorGit> 
     if sub == Subcomando::Pull && !args.contains(&"--ff-only") {
         return prohibido("sin --ff-only");
     }
+    if sub == Subcomando::UpdateRef && !forma_de_update_ref(args) {
+        return prohibido(&args.join(" "));
+    }
     Ok(())
+}
+
+/// `update-ref` solo con `<ref> <nuevo> [<viejo>]` o `-d <ref> <viejo>`, y la
+/// ref bajo [`PREFIJO_REFS_PROPIAS`]: nunca una rama, nunca `--stdin`.
+fn forma_de_update_ref(args: &[&str]) -> bool {
+    let propia = |r: &str| {
+        r.strip_prefix(PREFIJO_REFS_PROPIAS)
+            .is_some_and(|resto| !resto.is_empty() && !resto.contains(".."))
+    };
+    let valor = |v: &str| !v.is_empty() && !v.starts_with('-');
+    match args {
+        ["-d", r, viejo] => propia(r) && valor(viejo),
+        [r, nuevo] => propia(r) && valor(nuevo),
+        [r, nuevo, viejo] => propia(r) && valor(nuevo) && valor(viejo),
+        _ => false,
+    }
 }
 
 fn es_prohibido(sub: Subcomando, a: &str) -> bool {
@@ -262,6 +360,7 @@ fn es_prohibido(sub: Subcomando, a: &str) -> bool {
         Subcomando::Tag => matches!(a, "-d" | "-f" | "--delete"),
         Subcomando::Merge => a == "--abort",
         Subcomando::Commit => a == "--amend",
+        Subcomando::ReadTree => matches!(a, "-u" | "-m" | "--reset") || a.starts_with("--prefix"),
         _ => false,
     }
 }
@@ -316,6 +415,24 @@ mod tests {
             (Subcomando::Merge, &["--abort"]),
             (Subcomando::Commit, &["--amend", "-m", "x"]),
             (Subcomando::Pull, &["origin", "develop"]),
+            (Subcomando::UpdateRef, &["refs/heads/develop", "abc"]),
+            (Subcomando::UpdateRef, &["refs/remotes/origin/x", "abc"]),
+            (Subcomando::UpdateRef, &["-d", "refs/heads/develop", "abc"]),
+            (Subcomando::UpdateRef, &["--stdin"]),
+            (Subcomando::UpdateRef, &["-d", "refs/taskcode/p/1"]),
+            (Subcomando::UpdateRef, &["refs/taskcode/", "abc"]),
+            (Subcomando::UpdateRef, &["refs/taskcode/../heads/x", "abc"]),
+            (
+                Subcomando::UpdateRef,
+                &["--no-deref", "refs/taskcode/p/1", "abc"],
+            ),
+            (
+                Subcomando::UpdateRef,
+                &["refs/taskcode/p/1", "abc", "def", "x"],
+            ),
+            (Subcomando::ReadTree, &["abc"]),
+            (Subcomando::UpdateIndex, &["--add", "a"]),
+            (Subcomando::WriteTree, &[]),
         ];
         for (sub, args) in casos {
             let r = git.ejecutar(Path::new("."), *sub, args);
@@ -347,6 +464,44 @@ mod tests {
                 matches!(r, Err(ErrorGit::Lanzar(_))),
                 "{sub:?} {args:?}: {r:?}"
             );
+        }
+        // Con indice temporal solo los tres de indice, con ruta absoluta y
+        // sin las formas que tocarian el worktree.
+        let indice = std::env::temp_dir().join("indice-de-prueba");
+        let r = git.ejecutar_con_indice(Path::new("."), Subcomando::Commit, &[], &indice);
+        assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{r:?}");
+        let r = git.ejecutar_con_indice(
+            Path::new("."),
+            Subcomando::WriteTree,
+            &[],
+            Path::new("relativo"),
+        );
+        assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{r:?}");
+        for malo in ["-u", "-m", "--reset", "--prefix=x/"] {
+            let r = git.ejecutar_con_indice(
+                Path::new("."),
+                Subcomando::ReadTree,
+                &[malo, "abc"],
+                &indice,
+            );
+            assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{malo}: {r:?}");
+        }
+        let r = git.ejecutar_con_indice(
+            Path::new("."),
+            Subcomando::UpdateIndex,
+            &["--force-remove", "a"],
+            &indice,
+        );
+        assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{r:?}");
+        let r = git.ejecutar_con_indice(Path::new("."), Subcomando::ReadTree, &["abc"], &indice);
+        assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
+        for ok in [
+            &["refs/taskcode/pendientes/000001", "abc"][..],
+            &["refs/taskcode/pendientes/000001", "abc", "0000"][..],
+            &["-d", "refs/taskcode/pendientes/000001", "abc"][..],
+        ] {
+            let r = git.ejecutar(Path::new("."), Subcomando::UpdateRef, ok);
+            assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{ok:?}: {r:?}");
         }
         // Tras `--` en push no hay rutas: se sigue mirando.
         let r = git.ejecutar(Path::new("."), Subcomando::Push, &["origin", "--", "+r:r"]);

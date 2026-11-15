@@ -13,19 +13,29 @@ use tc2::git;
 
 const SIN_ESPERA: [Duration; 2] = [Duration::ZERO, Duration::ZERO];
 
-/// Hook del remoto que rechaza el primer push y acepta los siguientes.
-fn hook_que_falla_una_vez(bare: &std::path::Path) {
-    let hook = bare.join("hooks").join("pre-receive");
+/// Corte de transporte en el primer push (como una red que cae): el
+/// `receive-pack` del remoto muere sin responder la primera vez y despues
+/// funciona. No es un rechazo del remoto (`[remote rejected]`), que desde F2-3
+/// es `denegada` y no se reintenta.
+fn transporte_que_falla_una_vez(f: &Fixture, clon: &std::path::Path) {
+    let marca = f.raiz.join("fallado").to_str().unwrap().replace('\\', "/");
+    let guion = f.raiz.join("receive-pack.sh");
     std::fs::write(
-        &hook,
-        "#!/bin/sh\nif [ -f fallado ]; then exit 0; fi\ntouch fallado\necho fallo transitorio >&2\nexit 1\n",
+        &guion,
+        format!(
+            "#!/bin/sh\nif [ -f '{marca}' ]; then exec git receive-pack \"$@\"; fi\ntouch '{marca}'\nexit 1\n"
+        ),
     )
     .unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    let guion = guion.to_str().unwrap().replace('\\', "/");
+    f.crudo(
+        clon,
+        &[
+            "config",
+            "remote.origin.receivepack",
+            &format!("sh '{guion}'"),
+        ],
+    );
 }
 
 #[test]
@@ -41,7 +51,7 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
     git::guardar(&g, &wt, "feat(TASK-007): login", &["g.txt"]);
 
     // Fallo transitorio: el segundo intento entra.
-    hook_que_falla_una_vez(&bare);
+    transporte_que_falla_una_vez(&f, &clon);
     let i = git::push(&g, &wt, &SIN_ESPERA);
     contrato(&i);
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
@@ -102,7 +112,7 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
         "no se publico"
     );
 
-    // Sin remoto alcanzable.
+    // Remoto que no es un repositorio: `denegada` (8), sin reintento.
     f.crudo(
         &clon,
         &[
@@ -111,6 +121,24 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
             "origin",
             f.raiz.join("no-existe").to_str().unwrap(),
         ],
+    );
+    let i = git::fetch(&g, &clon);
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "fetch denegada remoto=origin motivo=remoto-no-existe"
+    );
+    assert_eq!(i.salida(false).codigo, 8);
+    let i = git::push(&g, &wt, &SIN_ESPERA);
+    contrato(&i);
+    assert_eq!(i.resultado, Resultado::Denegada, "{}", i.linea());
+    assert_eq!(i.valor("intentos"), Some("1"));
+
+    // Sin remoto alcanzable (nadie escucha en el puerto): `sinred`, con
+    // reintentos.
+    f.crudo(
+        &clon,
+        &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
     );
     let i = git::fetch(&g, &clon);
     contrato(&i);

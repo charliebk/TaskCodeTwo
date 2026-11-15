@@ -34,7 +34,123 @@ fn sinred(op: &str) -> Informe {
         .diagnostico(format!("{op}: no se pudo leer {REMOTO}; reintenta con red"))
 }
 
-/// Trae el remoto. Nada nuevo → `sin-cambios`; sin remoto → `sinred`.
+/// Por que fallo una llamada que habla con el remoto (F2-3: responde las
+/// preguntas abiertas de F1-2 sobre credenciales y rechazos del remoto).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FalloRemoto {
+    /// No hubo respuesta: red caida, DNS, servidor parado. Se reintenta.
+    SinRed,
+    /// El remoto respondio pero no acepta estas credenciales o permisos.
+    Credenciales,
+    /// La URL de `origin` no es un repositorio.
+    RemotoNoExiste,
+    /// El remoto existe pero no tiene la rama pedida.
+    RamaInexistente,
+    /// Fallo del propio clon, no del remoto (p. ej. sin permiso para
+    /// escribir en `.git`): `error`, ni red ni credenciales.
+    Local,
+}
+
+impl FalloRemoto {
+    /// Valor de `motivo=` en la linea de contrato.
+    pub fn motivo(self) -> &'static str {
+        match self {
+            Self::SinRed => "sin-red",
+            Self::Credenciales => "credenciales",
+            Self::RemotoNoExiste => "remoto-no-existe",
+            Self::RamaInexistente => "rama-no-existe",
+            Self::Local => "error-local",
+        }
+    }
+}
+
+/// Clasifica el stderr de `fetch`, `push` o `ls-remote` (en `LC_ALL=C`, que
+/// fija el puerto). Lo que no se reconoce es `SinRed`: manda reintentar, que
+/// es lo prudente ante un texto desconocido.
+pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
+    let t = stderr.to_ascii_lowercase();
+    let alguno = |patrones: &[&str]| patrones.iter().any(|p| t.contains(p));
+    // Marcas del transporte: curl o ssh que no llegan a conectar. Con ellas,
+    // un `permission denied` es EACCES de la red (firewall, SELinux).
+    let transporte = alguno(&[
+        "unable to access",
+        "failed to connect",
+        "connect to host",
+        "could not resolve",
+        "couldn't connect",
+    ]);
+    if alguno(&["couldn't find remote ref", "could not find remote ref"]) {
+        FalloRemoto::RamaInexistente
+    } else if alguno(&[
+        "authentication failed",
+        "permission denied (publickey",
+        "could not read username",
+        "could not read password",
+        "terminal prompts disabled",
+        "returned error: 401",
+        "returned error: 403",
+        "remote: permission to ",
+        "access denied",
+    ]) || (t.contains("permission denied")
+        && t.contains("could not read from remote repository")
+        && !transporte)
+    {
+        // `permission denied` suelto tambien lo da el sistema de ficheros
+        // local (no poder escribir en `.git`): solo cuenta como credenciales
+        // si git dice ademas que no pudo leer del remoto.
+        FalloRemoto::Credenciales
+    } else if alguno(&[
+        "does not appear to be a git repository",
+        "repository not found",
+        "not a git repository",
+        "returned error: 404",
+    ]) {
+        FalloRemoto::RemotoNoExiste
+    } else if t.contains("permission denied") && !transporte {
+        // Sin las marcas del remoto de arriba ni las del transporte (curl o
+        // ssh con EACCES, p. ej. un firewall, son la red), es el sistema de
+        // ficheros del clon (`cannot open .git/FETCH_HEAD: Permission denied`).
+        FalloRemoto::Local
+    } else {
+        FalloRemoto::SinRed
+    }
+}
+
+/// Informe de un fallo del remoto que no es de red: `denegada` (8).
+pub(crate) fn denegada(op: &str, fallo: FalloRemoto, detalle: &str) -> Informe {
+    let que_hacer = match fallo {
+        FalloRemoto::Credenciales => "revisa tus credenciales o permisos en el remoto",
+        FalloRemoto::RemotoNoExiste => "revisa la URL de origin",
+        _ => "revisa las reglas del remoto o avisa a la persona",
+    };
+    Informe::nuevo(op, Resultado::Denegada)
+        .con("remoto", REMOTO)
+        .con("motivo", fallo.motivo())
+        .diagnostico(format!("{op}: {detalle}; {que_hacer}"))
+}
+
+/// Fallo del propio clon al hablar con el remoto: `error` (1).
+pub(crate) fn error_local(op: &str, detalle: &str) -> Informe {
+    Informe::nuevo(op, Resultado::Error)
+        .con("motivo", FalloRemoto::Local.motivo())
+        .diagnostico(format!(
+            "{op}: {detalle}; fallo local de git: revisa los permisos de la carpeta del repo"
+        ))
+}
+
+/// Que hacer tras un push que no salio, segun el resultado.
+pub(crate) fn que_hacer_al_publicar(r: Resultado) -> &'static str {
+    match r {
+        Resultado::Denegada => {
+            "el remoto deniega el push: revisa sus reglas, tus permisos o avisa a la persona"
+        }
+        Resultado::Error => "fallo local de git: revisa los permisos de la carpeta del repo",
+        _ => "reintenta con red",
+    }
+}
+
+/// Trae el remoto. Nada nuevo → `sin-cambios`; sin red → `sinred`; remoto
+/// inexistente o sin permiso → `denegada`.
 pub fn fetch(git: &Git, dir: &Path) -> Informe {
     traer(git, dir, "fetch").unwrap_or_else(|i| i)
 }
@@ -43,7 +159,11 @@ fn traer(git: &Git, dir: &Path, op: &str) -> Paso<Informe> {
     let antes = refs_remotas(git, dir, op)?;
     let s = correr(git, dir, op, Subcomando::Fetch, &["-q", REMOTO])?;
     if !s.exito() {
-        return Err(sinred(op));
+        return Err(match clasificar_fallo_remoto(&s.stderr) {
+            FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(op),
+            FalloRemoto::Local => error_local(op, &s.primera_linea_error()),
+            otro => denegada(op, otro, &s.primera_linea_error()),
+        });
     }
     let despues = refs_remotas(git, dir, op)?;
     let r = if antes == despues {
@@ -59,9 +179,12 @@ enum Intento {
     Publicado,
     AlDia,
     NoFastForward,
-    /// Fallo con su resumen; `true` si el remoto respondio y lo rechazo
-    /// (`[remote rejected]`: un hook o una regla), no un fallo de red.
-    Fallo(String, bool),
+    /// Fallo con su resumen y, si el remoto respondio denegandolo
+    /// (`[remote rejected]` por un hook o una regla, credenciales, remoto
+    /// inexistente), el motivo: eso no se arregla reintentando.
+    Fallo(String, Option<&'static str>),
+    /// Fallo del propio clon (permisos en `.git`): no es del remoto.
+    Local(String),
 }
 
 fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento> {
@@ -83,46 +206,101 @@ fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento>
         Some('=') if s.exito() => Intento::AlDia,
         Some(' ' | '*') if s.exito() => Intento::Publicado,
         Some('!') if resumen.starts_with("[rejected]") => Intento::NoFastForward,
-        _ if resumen.is_empty() => Intento::Fallo(s.primera_linea_error(), false),
-        _ => Intento::Fallo(resumen.to_owned(), resumen.starts_with("[remote rejected]")),
+        _ if resumen.starts_with("[remote rejected]") && es_contencion(resumen) => {
+            Intento::NoFastForward
+        }
+        _ if resumen.starts_with("[remote rejected]") => {
+            Intento::Fallo(resumen.to_owned(), Some("remoto-rechaza"))
+        }
+        _ => {
+            let detalle = if resumen.is_empty() {
+                s.primera_linea_error()
+            } else {
+                resumen.to_owned()
+            };
+            match clasificar_fallo_remoto(&s.stderr) {
+                FalloRemoto::SinRed | FalloRemoto::RamaInexistente => Intento::Fallo(detalle, None),
+                FalloRemoto::Local => Intento::Local(detalle),
+                otro => Intento::Fallo(detalle, Some(otro.motivo())),
+            }
+        }
     })
 }
 
-/// Publica `refspec` con reintentos ante fallos transitorios. Un
-/// non-fast-forward no se reintenta. Agotados los intentos: `agotada` si el
-/// remoto respondio rechazando (hook o regla: con red no se arregla) y
-/// `sinred` si no. Devuelve el resultado, los intentos y el ultimo fallo.
+/// `[remote rejected]` por contencion: otro push actualizo la misma ref a la
+/// vez y el remoto no pudo tomar su cerrojo (visto en F2-3 con dos procesos
+/// contra el mismo remoto). Es lo mismo que un non-fast-forward: la ref se
+/// movio; no es una denegacion.
+fn es_contencion(resumen: &str) -> bool {
+    let t = resumen.to_ascii_lowercase();
+    [
+        "cannot lock ref",
+        "failed to lock",
+        "unable to lock",
+        "failed to update ref",
+        "but expected",
+        "incorrect old value",
+    ]
+    .iter()
+    .any(|p| t.contains(p))
+}
+
+/// Como termino [`publicar`].
+pub(crate) struct Publicacion {
+    /// `Ok`, `SinCambios`, `Rechazada` (non-fast-forward), `Denegada`,
+    /// `Error` (fallo local) o `Sinred`.
+    pub resultado: Resultado,
+    /// Intentos hechos.
+    pub intentos: usize,
+    /// Ultimo fallo, para el diagnostico.
+    pub ultimo: String,
+    /// Motivo de una `Denegada` o un `Error` local.
+    pub motivo: &'static str,
+}
+
+/// Publica `refspec` con reintentos ante fallos transitorios (sin red). Un
+/// non-fast-forward (`rechazada`) y una denegacion del remoto (`denegada`:
+/// hook, regla, credenciales; reintentar no la arregla) no se reintentan.
+/// Agotados los intentos sin red: `sinred`.
 pub(crate) fn publicar(
     git: &Git,
     dir: &Path,
     op: &str,
     refspec: &str,
     esperas: &[Duration],
-) -> Paso<(Resultado, usize, String)> {
+) -> Paso<Publicacion> {
+    let fin = |resultado, intentos, ultimo: String, motivo| Publicacion {
+        resultado,
+        intentos,
+        ultimo,
+        motivo,
+    };
     let mut ultimo = String::new();
-    let mut rechazo_remoto = false;
     for intento in 0..=esperas.len() {
         match intento_push(git, dir, op, refspec)? {
-            Intento::AlDia => return Ok((Resultado::SinCambios, intento + 1, String::new())),
-            Intento::Publicado => return Ok((Resultado::Ok, intento + 1, String::new())),
+            Intento::AlDia => return Ok(fin(Resultado::SinCambios, intento + 1, ultimo, "")),
+            Intento::Publicado => return Ok(fin(Resultado::Ok, intento + 1, ultimo, "")),
             Intento::NoFastForward => {
-                return Ok((Resultado::Rechazada, intento + 1, String::new()));
+                return Ok(fin(Resultado::Rechazada, intento + 1, ultimo, ""));
             }
-            Intento::Fallo(m, remoto) => {
-                ultimo = m;
-                rechazo_remoto = remoto;
+            Intento::Fallo(m, Some(motivo)) => {
+                return Ok(fin(Resultado::Denegada, intento + 1, m, motivo));
             }
+            Intento::Local(m) => {
+                return Ok(fin(
+                    Resultado::Error,
+                    intento + 1,
+                    m,
+                    FalloRemoto::Local.motivo(),
+                ));
+            }
+            Intento::Fallo(m, None) => ultimo = m,
         }
         if let Some(e) = esperas.get(intento) {
             std::thread::sleep(*e);
         }
     }
-    let r = if rechazo_remoto {
-        Resultado::Agotada
-    } else {
-        Resultado::Sinred
-    };
-    Ok((r, esperas.len() + 1, ultimo))
+    Ok(fin(Resultado::Sinred, esperas.len() + 1, ultimo, ""))
 }
 
 /// Publica la rama actual en `origin` con el mismo nombre, sin force.
@@ -135,7 +313,8 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
     let rama = rama_de_tarea(git, dir, op)?;
     let head = commit_de(git, dir, op, "HEAD")?.unwrap_or_default();
     let refspec = format!("refs/heads/{rama}:refs/heads/{rama}");
-    let (r, intentos, ultimo) = publicar(git, dir, op, &refspec, esperas)?;
+    let p = publicar(git, dir, op, &refspec, esperas)?;
+    let (r, intentos, ultimo) = (p.resultado, p.intentos, p.ultimo);
     let i = Informe::nuevo(op, r).con("rama", rama.as_str());
     Ok(match r {
         Resultado::Ok => i
@@ -145,15 +324,13 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
             .diagnostico("lanza actualizar-rama"),
-        Resultado::Agotada => i
-            .con("motivo", "remoto-rechaza")
+        Resultado::Denegada | Resultado::Error => i
+            .con("motivo", p.motivo)
             .con("intentos", intentos.to_string())
-            .diagnostico(format!(
-                "push: {ultimo}; el remoto rechaza el push: revisa sus reglas o avisa a la persona"
-            )),
+            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
         _ => i
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; reintenta con red")),
+            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
     })
 }
 
@@ -274,7 +451,8 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
     let mut publicada = false;
     if hay_remota && !es_ancestro(git, dir, OP, "HEAD", &remota)? {
         let refspec = format!("refs/heads/{rama}:refs/heads/{rama}");
-        let (r, intentos, ultimo) = publicar(git, dir, OP, &refspec, esperas)?;
+        let p = publicar(git, dir, OP, &refspec, esperas)?;
+        let (r, intentos, ultimo) = (p.resultado, p.intentos, p.ultimo);
         match r {
             Resultado::Ok | Resultado::SinCambios => publicada = true,
             Resultado::Rechazada => {
@@ -286,17 +464,14 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                     ));
             }
             otro => {
-                let que_hacer = if otro == Resultado::Agotada {
-                    "el remoto rechaza el push: revisa sus reglas o avisa a la persona"
-                } else {
-                    "reintenta con red"
-                };
-                return Ok(Informe::nuevo(OP, otro)
-                    .con("rama", rama.as_str())
-                    .con("intentos", intentos.to_string())
-                    .diagnostico(format!(
-                        "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
-                    )));
+                let que_hacer = que_hacer_al_publicar(otro);
+                let mut i = Informe::nuevo(OP, otro).con("rama", rama.as_str());
+                if matches!(otro, Resultado::Denegada | Resultado::Error) {
+                    i = i.con("motivo", p.motivo);
+                }
+                return Ok(i.con("intentos", intentos.to_string()).diagnostico(format!(
+                    "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
+                )));
             }
         }
     }
@@ -357,4 +532,103 @@ fn actualizar_principal_paso(git: &Git, dir: &Path, rama: &str) -> Paso<Informe>
     Ok(Informe::nuevo(OP, Resultado::Ok)
         .con("rama", rama)
         .con("commit", corto(&r)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FalloRemoto, clasificar_fallo_remoto, es_contencion};
+
+    #[test]
+    fn clasifica_los_fallos_del_remoto() {
+        let casos = [
+            (
+                "fatal: couldn't find remote ref refs/heads/taskcode/tareas",
+                FalloRemoto::RamaInexistente,
+            ),
+            (
+                "remote: Invalid username or password.\nfatal: Authentication failed for 'https://github.com/a/b.git/'",
+                FalloRemoto::Credenciales,
+            ),
+            (
+                "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+                FalloRemoto::Credenciales,
+            ),
+            (
+                "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+                FalloRemoto::Credenciales,
+            ),
+            (
+                "remote: Permission to a/b.git denied to c.\nfatal: unable to access 'https://github.com/a/b.git/': The requested URL returned error: 403",
+                FalloRemoto::Credenciales,
+            ),
+            (
+                "fatal: '/x/no-existe' does not appear to be a git repository\nfatal: Could not read from remote repository.",
+                FalloRemoto::RemotoNoExiste,
+            ),
+            (
+                "remote: Repository not found.\nfatal: repository 'https://github.com/a/b.git/' not found",
+                FalloRemoto::RemotoNoExiste,
+            ),
+            (
+                "fatal: unable to access 'http://127.0.0.1:1/x.git/': Failed to connect to 127.0.0.1 port 1",
+                FalloRemoto::SinRed,
+            ),
+            (
+                "ssh: Could not resolve hostname github.com: Name or service not known\nfatal: Could not read from remote repository.",
+                FalloRemoto::SinRed,
+            ),
+            ("algo que no se reconoce", FalloRemoto::SinRed),
+        ];
+        for (stderr, esperado) in casos {
+            assert_eq!(clasificar_fallo_remoto(stderr), esperado, "{stderr}");
+        }
+    }
+
+    #[test]
+    fn permiso_local_no_es_de_credenciales() {
+        let local = "error: cannot open .git/FETCH_HEAD: Permission denied";
+        assert_eq!(clasificar_fallo_remoto(local), FalloRemoto::Local);
+        // Una denegacion del remoto sigue siendo de credenciales.
+        for remoto in [
+            "remote: access denied",
+            "fatal: unable to access 'https://host/a.git/': access denied",
+            "remote: Access denied.\nfatal: Could not read from remote repository.",
+        ] {
+            assert_eq!(
+                clasificar_fallo_remoto(remoto),
+                FalloRemoto::Credenciales,
+                "{remoto}"
+            );
+        }
+    }
+
+    #[test]
+    fn red_bloqueada_con_permiso_denegado_es_sin_red() {
+        // curl con EACCES (firewall, SELinux): es la red, no el clon.
+        for t in [
+            "fatal: unable to access 'https://host/a.git/': Failed to connect to host port 443 after 3 ms: Permission denied",
+            "ssh: connect to host github.com port 22: Permission denied\nfatal: Could not read from remote repository.",
+        ] {
+            assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::SinRed, "{t}");
+        }
+        // Un `Connection closed` tras rechazar la contrasena no es la red.
+        let t = "git@h: Permission denied, please try again.\ngit@h: Permission denied (password).\nConnection closed by 1.2.3.4 port 22\nfatal: Could not read from remote repository.";
+        assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::Credenciales);
+        let t = "error: cannot lock ref 'refs/heads/x': Permission denied\nhint: connection lost";
+        assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::Local);
+    }
+
+    #[test]
+    fn contencion_frente_a_denegacion() {
+        assert!(es_contencion(
+            "[remote rejected] (cannot lock ref 'refs/heads/taskcode/tareas': is at 1a but expected 2b)"
+        ));
+        assert!(es_contencion("[remote rejected] (failed to update ref)"));
+        assert!(!es_contencion(
+            "[remote rejected] (pre-receive hook declined)"
+        ));
+        assert!(!es_contencion(
+            "[remote rejected] (protected branch hook declined)"
+        ));
+    }
 }
