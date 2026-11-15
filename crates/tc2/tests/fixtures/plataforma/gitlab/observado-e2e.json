@@ -1,0 +1,14 @@
+{
+ "origen": "E2E de TASK-022 contra charlie.bk/taskcodetwo-e2e-gitlab (gitlab.com, plan Free, proyecto publico), 2026-11-15; ver tareas/*/TASK-022/evidencia/e2e-gitlab.log",
+ "hechos": {
+  "E2E-GL-01": "GET /projects/:id/approval_rules responde 200 con [] en Free (F1-13 suponia 403): no distingue Free de Premium sin reglas",
+  "E2E-GL-02": "POST /projects/:id/merge_requests/:iid/approve del autor del MR responde 201 en Free: el autor puede aprobar su MR",
+  "E2E-GL-03": "PUT /projects/:id/merge_requests/:iid/merge con conflictos responde 405 «405 Method Not Allowed» (no 406)",
+  "E2E-GL-04": "PUT .../merge con sha distinto: el adaptador lo corta antes (head-cambiado, sin PUT); con el sha bueno, 200 con state=merged y merge_commit_sha",
+  "E2E-GL-05": "GET .../repository/commits/:sha/signature de un merge commit hecho por la API: 404 (sin firma) y el commit existe",
+  "E2E-GL-06": "Authorization: Bearer <token personal> vale para la API v4; GET /user no trae el campo bot en una cuenta normal (se toma como User)",
+  "E2E-GL-07": "include_diverged_commits_count da diverged_commits_count > 0 en una rama por detras; has_conflicts pasa a true en segundo plano (hace falta repetir la lectura)",
+  "E2E-GL-08": "POST /projects/:id/statuses/:sha publica un estado con author.id del token: el adaptador lo filtra por autor (G09)",
+  "E2E-GL-09": "GET /user puede responder 429 con cuerpo no JSON tras varias ejecuciones seguidas del E2E"
+ }
+}
