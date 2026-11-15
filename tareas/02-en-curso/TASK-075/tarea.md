@@ -34,6 +34,10 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 - [ ] Estimación probada contra las tareas terminadas de ToolsaWeb y OpenDockTrading, con su error medio
 - [ ] Cumple lo que pide la tarea F1-17 del plan y los requisitos que cita
 
+## Autorrevision
+
+- code-quality-reviewer — 18f6f7c
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
