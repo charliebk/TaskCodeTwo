@@ -75,13 +75,22 @@ fn tag_paso(
     }
     if remoto.is_none() {
         let refspec = format!("refs/tags/{tag}:refs/tags/{tag}");
-        let (r, intentos, ultimo) = publicar(git, dir, OP, &refspec, esperas)?;
-        if !r.es_exito() {
-            return Ok(Informe::nuevo(OP, r)
-                .con("tag", tag)
-                .con("intentos", intentos.to_string())
+        let p = publicar(git, dir, OP, &refspec, esperas)?;
+        if !p.resultado.es_exito() {
+            let que_hacer = if p.resultado == Resultado::Denegada {
+                "el remoto lo deniega: revisa sus reglas o tus permisos"
+            } else {
+                "relanza con red"
+            };
+            let mut i = Informe::nuevo(OP, p.resultado).con("tag", tag);
+            if p.resultado == Resultado::Denegada {
+                i = i.con("motivo", p.motivo);
+            }
+            return Ok(i
+                .con("intentos", p.intentos.to_string())
                 .diagnostico(format!(
-                    "no se pudo publicar el tag: {ultimo}; el tag queda en local, relanza con red"
+                    "no se pudo publicar el tag: {}; el tag queda en local, {que_hacer}",
+                    p.ultimo
                 )));
         }
     }

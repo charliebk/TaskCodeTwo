@@ -381,3 +381,37 @@ resuelven en F2-3 y F3-10 salvo que se diga otra cosa:
 - **Rendimiento**: contención medida solo con 3 clones en una máquina; la
   ráfaga de altas seguidas de un mismo clon es el peor caso (en uso real
   sería un `import`, una sola operación).
+
+## Adenda (F2-3, TASK-018) — preguntas abiertas resueltas
+
+El punto único de escritura está en `crates/tc2/src/estado/` y se prueba en
+`crates/tc2/tests/estado_concurrencia.rs` y `estado_casos.rs`.
+
+| Pregunta abierta | Respuesta de F2-3 | Evidencia |
+|---|---|---|
+| Error de autenticación confundido con «sin red» | `clasificar_fallo_remoto` separa red caída (`sinred`, 4), credenciales y remoto inexistente (`denegada`, 8) y rama inexistente; lo no reconocido es `sinred` | test unitario con textos de Git y de GitHub; F2-2 `fetch` con una ruta que no es un repo |
+| Hook o regla que rechaza el push | `denegada` (8) en el primer intento, sin reintento | test con `pre-receive` que rechaza: un solo push |
+| Cerrojo local huérfano | cerrojo del sistema operativo sobre `.git/taskcode-estado.lock` (`File::try_lock`): si el proceso muere, el sistema lo suelta; espera máxima 60 s y después `agotada motivo=cerrojo` | test de dos procesos del mismo clon sin remoto (solo los separa el cerrojo) |
+| Worktree `tareas/` desmontado o borrado | la transacción no depende de `tareas/` (lee y escribe commits); tras publicar adelanta la rama local y dice `tareas=sin-montar`; `montar` la vuelve a montar | test de montaje |
+| Pendiente sin red frente a un cambio de otro | al re-ejecutarla con red, si ya no procede, su ref pasa a `refs/taskcode/rechazadas/NNNNNN` y la línea dice `rechazadas=N`; el contenido sigue en un objeto de git | test sin red: `crear-unico` que otro hizo antes |
+| Cerrojo con varios procesos del mismo clon (No verificado de la PoC) | verificado | mismo test del cerrojo |
+
+Cómo quedan las pendientes (D2b): una operación con `exige_red()=false` sin
+red se guarda como commit en `refs/taskcode/pendientes/NNNNNN`, con la
+operación anotada en el mensaje (`Operacion: …`), y devuelve `sinred
+pendiente=si`. La siguiente transacción con red no publica ese commit: la
+reconstruye con el catálogo de operaciones y la **re-ejecuta** sobre el estado
+nuevo, en el mismo commit que la operación nueva. Si la operación nueva se
+rechaza, las pendientes no se publican y siguen ahí.
+
+**Divergencia con la decisión 2**: no hay commit local que descartar tras un
+rechazo (el commit sale de `commit-tree`, F1-4 divergencia 2), y el cerrojo se
+suelta durante la espera para que otro proceso del clon avance.
+
+**Valores por defecto**: se mantienen 5 intentos y base 2 s (`Politica`). Los
+tests usan base corta. No se ha medido la duración de una transacción del CLI
+contra la plataforma: sigue en F9-4.
+
+**Contención en el remoto** (nuevo): dos pushes simultáneos al mismo remoto
+local pueden dar `[remote rejected] (cannot lock ref …)` en vez de
+non-fast-forward; se trata como contención (ver la adenda de F1-4).

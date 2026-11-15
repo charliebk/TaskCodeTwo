@@ -6,6 +6,8 @@
 #![allow(dead_code)] // cada fichero de tests usa una parte
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+pub mod ops;
+
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -160,6 +162,7 @@ pub fn contrato(i: &Informe) {
             "agotada",
             "conflicto",
             "esperando",
+            "denegada",
             "uso",
             "error"
         ]
@@ -209,23 +212,31 @@ pub fn dos_veces(f: &Fixture, bare: &Path, clon: &Path, op: impl Fn() -> Informe
 /// Detector independiente por lista permitida (F1-4 B2b): cada linea del
 /// registro es un subcomando permitido sin argumentos prohibidos.
 pub fn registro_permitido(registro: &[String]) {
-    const PERMITIDOS: [&str; 16] = [
+    const PERMITIDOS: [&str; 24] = [
         "add",
         "branch",
         "commit",
+        "commit-tree",
         "diff",
         "fetch",
         "for-each-ref",
+        "hash-object",
         "ls-remote",
+        "ls-tree",
         "merge",
         "merge-base",
         "pull",
         "push",
+        "read-tree",
         "rev-parse",
+        "show",
         "show-ref",
         "status",
         "tag",
+        "update-index",
+        "update-ref",
         "worktree",
+        "write-tree",
     ];
     assert!(!registro.is_empty());
     for l in registro {
@@ -250,6 +261,10 @@ pub fn registro_permitido(registro: &[String]) {
                 "merge" => *a == "--abort",
                 "commit" => *a == "--amend",
                 "add" => ["-A", "--all", "."].contains(a),
+                "read-tree" => ["-u", "-m", "--reset"].contains(a),
+                "update-ref" => {
+                    *a == "--stdin" || (a.starts_with("refs/") && !a.starts_with("refs/taskcode/"))
+                }
                 _ => false,
             };
             assert!(!malo, "argumento prohibido: {l}");

@@ -1,5 +1,6 @@
 //! Casos limite de la revision de la ronda 1 (IMPORTANTE-1, IMPORTANTE-2,
-//! MENOR-1 a MENOR-4), contra repos reales.
+//! MENOR-1 a MENOR-4), contra repos reales. Desde F2-3 un rechazo del
+//! remoto es `denegada` (8) y no se reintenta.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -101,7 +102,7 @@ fn quitar_worktree_con_head_suelto_no_pierde_commits() {
 }
 
 #[test]
-fn rechazo_persistente_del_remoto_es_agotada_y_no_sinred() {
+fn rechazo_del_remoto_es_denegada_sin_reintento() {
     let f = Fixture::nueva("limite-hook");
     let (bare, _clon, wt) = con_tarea(&f);
     let g = f.git();
@@ -118,9 +119,9 @@ fn rechazo_persistente_del_remoto_es_agotada_y_no_sinred() {
     contrato(&i);
     assert_eq!(
         i.linea(),
-        "push agotada rama=feature/task-007-login motivo=remoto-rechaza intentos=3"
+        "push denegada rama=feature/task-007-login motivo=remoto-rechaza intentos=1"
     );
-    assert_eq!(i.salida(false).codigo, 5);
+    assert_eq!(i.salida(false).codigo, 8);
 }
 
 #[test]

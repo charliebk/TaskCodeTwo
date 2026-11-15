@@ -5,8 +5,9 @@
 //! diagnostico va a stderr y solo si la operacion no salio bien. Con `--json`
 //! la misma informacion sale como un objeto JSON en una linea.
 //!
-//! La tabla de codigos de salida vive aqui y solo aqui: la propone F1-4 y la
-//! fija F2-3, que solo tendra que tocar este fichero.
+//! La tabla de codigos de salida vive aqui y solo aqui: la propuso F1-4 y la
+//! fija F2-3 (0 ok y sin-cambios, 1 error, 2 uso, 3 rechazada, 4 sinred,
+//! 5 agotada, 6 conflicto, 7 esperando, 8 denegada).
 
 use crate::Salida;
 
@@ -27,6 +28,9 @@ pub enum Resultado {
     Conflicto,
     /// Puertas pendientes en la plataforma (lo emite el puerto Plataforma).
     Esperando,
+    /// El remoto deniega la operacion (credenciales, permisos, un hook o una
+    /// regla, o no existe): no se reintenta, se avisa a la persona (F2-3).
+    Denegada,
     /// La llamada esta mal formada.
     Uso,
     /// Fallo interno: no se reintenta, se avisa a la persona.
@@ -44,12 +48,13 @@ impl Resultado {
             Self::Agotada => "agotada",
             Self::Conflicto => "conflicto",
             Self::Esperando => "esperando",
+            Self::Denegada => "denegada",
             Self::Uso => "uso",
             Self::Error => "error",
         }
     }
 
-    /// Codigo de salida del proceso (tabla de F1-4, decision 5).
+    /// Codigo de salida del proceso (tabla de F1-4, decision 5, fijada en F2-3).
     pub fn codigo(self) -> u8 {
         match self {
             Self::Ok | Self::SinCambios => 0,
@@ -60,6 +65,7 @@ impl Resultado {
             Self::Agotada => 5,
             Self::Conflicto => 6,
             Self::Esperando => 7,
+            Self::Denegada => 8,
         }
     }
 
@@ -261,7 +267,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn codigos_de_la_tabla_de_f1_4() {
+    fn codigos_de_la_tabla_fijada_en_f2_3() {
         let tabla = [
             (Resultado::Ok, "ok", 0),
             (Resultado::SinCambios, "sin-cambios", 0),
@@ -272,6 +278,7 @@ mod tests {
             (Resultado::Agotada, "agotada", 5),
             (Resultado::Conflicto, "conflicto", 6),
             (Resultado::Esperando, "esperando", 7),
+            (Resultado::Denegada, "denegada", 8),
         ];
         for (r, t, c) in tabla {
             assert_eq!((r.texto(), r.codigo()), (t, c));

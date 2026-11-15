@@ -521,3 +521,39 @@ Este ADR se planificó con un solo rol (arquitectura). Quedan sin cubrir:
   plataforma; aquí solo se prueba el contrato.
 - **Línea base medida en tareas de ADR**, no de código: puede quedarse corta
   frente a ToolsaWeb y OpenDockTrading; la recalibran F8-2 y F9-7.
+
+## Adenda (F2-3, TASK-018) — lista permitida ampliada y códigos fijados
+
+Lo que la implementación de la rama de estado (F2-3) cambia de este ADR,
+con su evidencia en los tests de `crates/tc2/tests/estado_*.rs`:
+
+1. **Lista permitida ampliada** (`git/puerto.rs`) para `commit-estado`:
+   `commit-tree`, `hash-object`, `ls-tree`, `show`, `read-tree`,
+   `update-index`, `write-tree` y `update-ref`. No relaja la decisión 3:
+   - `read-tree`, `update-index` y `write-tree` solo se lanzan con un índice
+     temporal (`Git::ejecutar_con_indice`, ruta absoluta); con `ejecutar`
+     normal se rechazan sin lanzar nada, así que nunca tocan el índice del
+     repo. `read-tree -u|-m|--reset|--prefix` sigue prohibido.
+   - `update-ref` solo con las formas `<ref> <nuevo> [<viejo>]` y
+     `-d <ref> <viejo>`, y la ref bajo `refs/taskcode/` (pendientes,
+     rechazadas y una ref temporal). Nunca `refs/heads/*`, nunca `--stdin`.
+   - Las ramas solo se adelantan por fast-forward: `merge --ff-only` en
+     `tareas/` o `fetch . <ref>:<rama>` sin `+`.
+2. **Códigos fijados** (tabla de la decisión 5, ya no propuesta): se añade
+   **8 `denegada`**: el remoto deniega la operación por credenciales,
+   permisos, un hook o una regla, o la URL no es un repositorio. No se
+   reintenta; `motivo=credenciales|remoto-rechaza|remoto-no-existe`. Resuelve
+   las preguntas abiertas de «token caducado» y «push rechazado por reglas».
+3. **`[remote rejected]` ya no es siempre un rechazo**: con dos pushes
+   simultáneos al mismo remoto, el perdedor recibe `[remote rejected]
+   (cannot lock ref …: is at X but expected Y)`. Eso es **contención** (la
+   ref se movió), igual que un non-fast-forward, y se trata como tal. El
+   resto de `[remote rejected]` es `denegada`. Observado en el test de dos
+   clones a la vez; antes de esta distinción daba un falso `denegada`.
+4. **Cambio de comportamiento en `push`, `actualizar-rama` y
+   `tag-anotado`** (F2-2): un rechazo del remoto pasa de reintentarse y
+   acabar en `agotada` a `denegada` en el primer intento. Los fallos de
+   transporte (red caída, corte de conexión) siguen reintentándose y acaban en
+   `sinred`. El test de F2-2 que simulaba lo transitorio con un hook que
+   rechaza una vez pasa a simularlo con un `receive-pack` que muere la
+   primera vez.
