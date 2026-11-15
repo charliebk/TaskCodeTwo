@@ -34,6 +34,10 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci�
 - [ ] Diseño probado a mano con un lote real de ToolsaWeb
 - [ ] Cumple lo que pide la tarea F1-16 del plan y los requisitos que cita
 
+## Autorrevision
+
+- code-quality-reviewer — 8b7ecd7
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
