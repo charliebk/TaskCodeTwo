@@ -561,3 +561,336 @@ fn errores_dirigidos_a_la_persona() {
         .salida(false);
     assert_eq!(s.codigo, Resultado::Rechazada.codigo());
 }
+
+fn con_personas(mock: &Mock, roles: &[Rol], personas: &[u64]) -> GitHub {
+    let mut c = CredencialesFijas::nuevas();
+    for r in roles {
+        c = c.con(*r, Secreto::nuevo(TOKEN));
+    }
+    GitHub::nuevo(
+        Base::nueva(&mock.base()).unwrap(),
+        "o/r",
+        Box::new(c),
+        Personas::nuevas(personas.iter().copied()),
+    )
+    .unwrap()
+}
+
+fn pr_con_estado(mergeable: &str) -> String {
+    pr(12, false, "open").replace("\"clean\"", &format!("\"{mergeable}\""))
+}
+
+/// Servidor con un PR 12 abierto, sin reglas, y los check-runs y reviews
+/// dados.
+fn puertas(pr_json: &str, runs: &str, reviews: &str) -> Mock {
+    let mock = Mock::nuevo();
+    mock.responder("GET", "/repos/o/r/pulls/12", Simulada::json(200, pr_json));
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[]"),
+    );
+    mock.responder(
+        "GET",
+        &format!("/repos/o/r/commits/{SHA}/check-runs"),
+        Simulada::json(200, &format!("{{\"check_runs\":{runs}}}")),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12/reviews",
+        Simulada::json(200, reviews),
+    );
+    mock
+}
+
+fn run(nombre: &str, app: u64, status: &str, conclusion: &str) -> String {
+    format!(
+        "{{\"name\":\"{nombre}\",\"app\":{{\"id\":{app}}},\"status\":\"{status}\",\"conclusion\":{conclusion}}}"
+    )
+}
+
+fn review(estado: &str, login: &str, id: u64, tipo: &str) -> String {
+    format!(
+        "{{\"state\":\"{estado}\",\"user\":{{\"login\":\"{login}\",\"id\":{id},\"type\":\"{tipo}\"}}}}"
+    )
+}
+
+/// Protecciones de F1-6 y F1-13 que el E2E no ejerce, con un caso que se
+/// pone rojo si se quitan: origen del check (G09), persona = `User` de la
+/// lista y no `web-flow` (reglas 3, 4 y 6), contrato del firmante, la CI no
+/// aprueba (G16), lectura de reglas con aviso de plan, y los bordes de
+/// `estado-puertas` y `merge-pr`.
+#[test]
+fn protecciones_y_bordes() {
+    let verdes = format!(
+        "[{},{}]",
+        run("verificacion", 15368, "completed", "\"success\""),
+        run("carril", 15368, "completed", "\"neutral\"")
+    );
+    let modelo_ia = modelo(&[]);
+
+    // G09: un `revision-ia` verde publicado por otra App no cuenta.
+    let runs = format!(
+        "[{},{},{}]",
+        run("verificacion", 15368, "completed", "\"success\""),
+        run("carril", 15368, "completed", "\"skipped\""),
+        run("revision-ia", 55555, "completed", "\"success\"")
+    );
+    let aprobada = format!("[{}]", review("APPROVED", "carlos", PERSONA, "User"));
+    let mock = puertas(&pr(12, false, "open"), &runs, &aprobada);
+    assert_eq!(
+        adaptador(&mock, &[Rol::Agente])
+            .estado_puertas(Rol::Agente, 12, &modelo_ia)
+            .linea(),
+        "estado-puertas esperando pr=12 aprobaciones=1 ignoradas=0 falta=revision-ia"
+    );
+    // ... y uno de su App en rojo deja el check rojo.
+    let runs = format!(
+        "[{}]",
+        run("revision-ia", 99001, "completed", "\"failure\"")
+    );
+    let mock = puertas(&pr(12, false, "open"), &runs, &aprobada);
+    assert_eq!(
+        adaptador(&mock, &[Rol::Agente])
+            .estado_puertas(Rol::Agente, 12, &modelo_ia)
+            .linea(),
+        "estado-puertas rechazada pr=12 motivo=check-rojo checks=revision-ia"
+    );
+
+    // Reglas 3, 4 y 6: `web-flow` y un Bot no cuentan aunque esten en la
+    // lista; un comentario posterior no retira una aprobacion.
+    let reviews = format!(
+        "[{},{},{},{}]",
+        review("APPROVED", "web-flow", 19864447, "User"),
+        review("APPROVED", "app[bot]", 2001, "Bot"),
+        review("APPROVED", "carlos", PERSONA, "User"),
+        review("COMMENTED", "carlos", PERSONA, "User")
+    );
+    let mock = puertas(&pr(12, false, "open"), &verdes, &reviews);
+    let gh = con_personas(&mock, &[Rol::Agente], &[PERSONA, 19864447, 2001]);
+    let sin_ia = ModeloPuertas {
+        checks: vec![("verificacion".into(), 15368), ("carril".into(), 15368)],
+        exigir_impuestas: Vec::new(),
+    };
+    assert_eq!(
+        gh.estado_puertas(Rol::Agente, 12, &sin_ia).linea(),
+        "estado-puertas ok pr=12 aprobaciones=1 ignoradas=2"
+    );
+
+    // Rama por detras de la base y con conflictos.
+    for (estado, falta) in [("behind", "al-dia"), ("dirty", "sin-conflictos")] {
+        let mock = puertas(&pr_con_estado(estado), &verdes, &aprobada);
+        assert_eq!(
+            adaptador(&mock, &[Rol::Agente])
+                .estado_puertas(Rol::Agente, 12, &sin_ia)
+                .linea(),
+            format!("estado-puertas esperando pr=12 aprobaciones=1 ignoradas=0 falta={falta}")
+        );
+    }
+
+    // PR cerrado sin mergear: estado-puertas y merge-pr lo dicen.
+    let mock = Mock::nuevo();
+    persona_en(&mock, PERSONA);
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12",
+        Simulada::json(200, &pr(12, false, "closed")),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente, Rol::Persona]);
+    assert_eq!(
+        gh.estado_puertas(Rol::Agente, 12, &sin_ia).linea(),
+        "estado-puertas rechazada pr=12 motivo=pr-cerrado"
+    );
+    assert_eq!(
+        gh.merge_pr(12, SHA).linea(),
+        "merge-pr rechazada pr=12 motivo=pr-cerrado"
+    );
+    // sha incompleto: uso, sin llamar a la API.
+    let antes = mock.recibidas().len();
+    assert_eq!(
+        gh.merge_pr(12, "abc").linea(),
+        "merge-pr uso motivo=sha-invalido"
+    );
+    assert_eq!(mock.recibidas().len(), antes);
+
+    // Merge hecho cuya respuesta no trae sha: ok, sin inventar el commit.
+    let mock = Mock::nuevo();
+    persona_en(&mock, PERSONA);
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/5",
+        Simulada::json(200, &pr(5, false, "open")),
+    );
+    mock.responder(
+        "PUT",
+        "/repos/o/r/pulls/5/merge",
+        Simulada::json(200, "{\"merged\":true,\"sha\":null}"),
+    );
+    assert_eq!(
+        adaptador(&mock, &[Rol::Persona]).merge_pr(5, SHA).linea(),
+        "merge-pr ok pr=5"
+    );
+
+    // G16: la CI no aprueba.
+    for (puede, linea) in [
+        (false, "leer-permisos-ci ok ci-aprueba=false permisos=read"),
+        (
+            true,
+            "leer-permisos-ci rechazada motivo=ci-puede-aprobar permisos=read",
+        ),
+    ] {
+        let mock = Mock::nuevo();
+        persona_en(&mock, PERSONA);
+        mock.responder(
+            "GET",
+            "/repos/o/r/actions/permissions/workflow",
+            Simulada::json(
+                200,
+                &format!("{{\"default_workflow_permissions\":\"read\",\"can_approve_pull_request_reviews\":{puede}}}"),
+            ),
+        );
+        assert_eq!(
+            adaptador(&mock, &[Rol::Persona]).leer_permisos_ci().linea(),
+            linea
+        );
+    }
+
+    // Contrato del firmante (reglas 1 a 4).
+    let commit = |verificado: bool, committer: &str| {
+        format!(
+            "{{\"commit\":{{\"verification\":{{\"verified\":{verificado},\"reason\":\"valid\"}}}},\"committer\":{committer}}}"
+        )
+    };
+    let persona = "{\"login\":\"carlos\",\"id\":1001,\"type\":\"User\"}";
+    let webflow = "{\"login\":\"web-flow\",\"id\":19864447,\"type\":\"User\"}";
+    let bot = "{\"login\":\"app[bot]\",\"id\":2001,\"type\":\"Bot\"}";
+    for (verificado, committer, cuenta) in [
+        (true, persona, true),
+        (false, persona, false),
+        (true, webflow, false),
+        (true, bot, false),
+        (true, "null", false),
+    ] {
+        let mock = Mock::nuevo();
+        mock.responder(
+            "GET",
+            &format!("/repos/o/r/commits/{SHA}"),
+            Simulada::json(200, &commit(verificado, committer)),
+        );
+        let gh = con_personas(&mock, &[Rol::Agente], &[PERSONA, 19864447, 2001]);
+        let f = gh.firma_commit(SHA).unwrap();
+        assert_eq!(
+            f.cuenta_como_aprobacion(&Personas::nuevas([PERSONA, 19864447, 2001])),
+            cuenta,
+            "{verificado} {committer}"
+        );
+    }
+
+    // leer-puertas: con aviso de plan no hay reglas y no se sigue leyendo.
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(403, "{\"message\":\"Upgrade to GitHub Pro or make this repository public to enable this feature.\"}"),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let r = gh.leer_puertas(Rol::Agente, "develop").unwrap();
+    assert!(!r.plan_da_reglas && r.rulesets.is_empty());
+    assert_eq!(mock.recibidas().len(), 1);
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(200, "[{\"id\":1,\"name\":\"taskcodetwo-develop\"}]"),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[{\"type\":\"pull_request\"}]"),
+    );
+    let r = adaptador(&mock, &[Rol::Agente])
+        .leer_puertas(Rol::Agente, "develop")
+        .unwrap();
+    assert_eq!(
+        (r.plan_da_reglas, r.rulesets, r.reglas_rama),
+        (
+            true,
+            vec!["taskcodetwo-develop".to_owned()],
+            vec!["pull_request".to_owned()]
+        )
+    );
+
+    // Limite primario (con reinicio) y secundario (sin cabeceras).
+    let reinicio = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 600;
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/user",
+        Simulada::json(403, "{\"message\":\"API rate limit exceeded\"}")
+            .con("x-ratelimit-remaining", "0")
+            .con("x-ratelimit-reset", &reinicio.to_string()),
+    );
+    let i = adaptador(&mock, &[Rol::Agente])
+        .identidad(Rol::Agente)
+        .unwrap_err();
+    let espera: u64 = i.valor("reintenta-en").unwrap().parse().unwrap();
+    assert!((590..=600).contains(&espera), "{}", i.linea());
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/user",
+        Simulada::json(
+            403,
+            "{\"message\":\"You have exceeded a secondary rate limit.\"}",
+        ),
+    );
+    let i = adaptador(&mock, &[Rol::Agente])
+        .identidad(Rol::Agente)
+        .unwrap_err();
+    assert_eq!(
+        i.linea(),
+        "identidad agotada motivo=limite-peticiones reintenta-en=60"
+    );
+
+    // Tope de paginas: una lista que no acaba no se evalua a medias.
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12",
+        Simulada::json(200, &pr(12, false, "open")),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[]"),
+    );
+    mock.responder(
+        "GET",
+        &format!("/repos/o/r/commits/{SHA}/check-runs"),
+        Simulada::json(200, "{\"check_runs\":[]}"),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12/reviews",
+        Simulada::json(200, "[]").con(
+            "Link",
+            &format!(
+                "<{}/repos/o/r/pulls/12/reviews?page=2>; rel=\"next\"",
+                mock.base()
+            ),
+        ),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let i = gh.estado_puertas(Rol::Agente, 12, &sin_ia);
+    assert_eq!(i.linea(), "estado-puertas error motivo=demasiadas-paginas");
+    let paginas = gh
+        .registro()
+        .iter()
+        .filter(|l| l.contains("/reviews"))
+        .count();
+    assert_eq!(paginas, 10);
+}

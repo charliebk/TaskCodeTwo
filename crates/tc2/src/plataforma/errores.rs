@@ -40,8 +40,13 @@ pub fn es_aviso_de_plan(r: &Respuesta) -> bool {
 
 /// Si la respuesta es un limite de peticiones agotado.
 fn es_limite(r: &Respuesta) -> bool {
+    // El limite secundario de GitHub puede llegar sin cabeceras: entonces lo
+    // dice el mensaje.
     (r.estado == 403 || r.estado == 429)
-        && (r.restantes.as_deref() == Some("0") || r.reintentar.is_some())
+        && (r.restantes.as_deref() == Some("0")
+            || r.reintentar.is_some()
+            || r.estado == 429
+            || mensaje_api(r).to_ascii_lowercase().contains("rate limit"))
 }
 
 /// Segundos de espera que da la API, si los da.

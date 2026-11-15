@@ -71,21 +71,29 @@ impl Base {
         let resto = if let Some(r) = url.strip_prefix("https://") {
             r
         } else if let Some(r) = url.strip_prefix("http://127.0.0.1:") {
-            if r.is_empty() || !r.bytes().all(|b| b.is_ascii_digit()) {
+            if !puerto_valido(r) {
                 return Err("http solo vale para 127.0.0.1 con un puerto y sin ruta".into());
             }
             return Ok(Self(url.to_owned()));
         } else {
             return Err("la URL de la API tiene que ser https".into());
         };
-        let (host, ruta) = resto.split_once('/').unwrap_or((resto, ""));
+        let (autoridad, ruta) = resto.split_once('/').unwrap_or((resto, ""));
+        let (host, puerto) = match autoridad.split_once(':') {
+            Some((h, p)) => (h, Some(p)),
+            None => (autoridad, None),
+        };
         let host_valido = !host.is_empty()
             && host
                 .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b':')
-            && !host.starts_with(['.', '-', ':']);
+                .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+            && !host.starts_with(['.', '-'])
+            && puerto.is_none_or(puerto_valido);
         if !host_valido {
             return Err("host de la API no valido (sin usuario ni contrasena)".into());
+        }
+        if ruta.contains('?') || ruta.contains('#') {
+            return Err("el prefijo de la API no lleva consulta ni fragmento".into());
         }
         if !ruta.is_empty() && validar_ruta(&format!("/{ruta}")).is_err() {
             return Err("prefijo de la API no valido".into());
@@ -97,6 +105,14 @@ impl Base {
     pub fn texto(&self) -> &str {
         &self.0
     }
+}
+
+/// Puerto decimal entre 1 y 65535.
+fn puerto_valido(p: &str) -> bool {
+    !p.is_empty()
+        && p.len() <= 5
+        && p.bytes().all(|b| b.is_ascii_digit())
+        && p.parse::<u32>().is_ok_and(|n| (1..=65535).contains(&n))
 }
 
 /// Respuesta ya leida: estado, cuerpo y las cabeceras que se usan.
@@ -246,6 +262,16 @@ impl Cliente {
         let restantes = cabecera("x-ratelimit-remaining");
         let reintentar = cabecera("retry-after");
         let reinicio = cabecera("x-ratelimit-reset");
+        // Si la respuesta declara su tamano y pasa del limite, no se lee:
+        // cortar la lectura a medias deja la conexion en un estado que el
+        // sistema puede notificar como desconexion (y se veria `sinred`).
+        let declarado = cabecera("content-length").and_then(|v| v.trim().parse::<u64>().ok());
+        if declarado.is_some_and(|n| n > LIMITE_CUERPO) {
+            return Err(FalloHttp::RespuestaInvalida(format!(
+                "la respuesta declara mas de {LIMITE_CUERPO} bytes"
+            )));
+        }
+        // Sin tamano declarado (chunked), el limite corta al leer.
         let cuerpo = r
             .body_mut()
             .with_config()
@@ -389,6 +415,11 @@ mod tests {
             "https://",
             "ftp://x",
             "https://host/../x",
+            "https://host/api?x=1",
+            "https://host:0",
+            "https://host:99999",
+            "https://host:8a",
+            "http://127.0.0.1:70000",
         ] {
             assert!(Base::nueva(b).is_err(), "{b}");
         }

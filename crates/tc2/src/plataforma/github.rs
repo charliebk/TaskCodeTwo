@@ -149,7 +149,7 @@ struct ReviewApi {
 struct MergeApi {
     merged: bool,
     #[serde(default)]
-    sha: String,
+    sha: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -515,7 +515,12 @@ impl Plataforma for GitHub {
                     .map_or(EstadoCheck::Pendiente, |r| {
                         if r.status != "completed" {
                             EstadoCheck::Pendiente
-                        } else if r.conclusion.as_deref() == Some("success") {
+                        } else if matches!(
+                            r.conclusion.as_deref(),
+                            Some("success" | "neutral" | "skipped")
+                        ) {
+                            // GitHub da por cumplido un check obligatorio
+                            // que acaba neutral o saltado.
                             EstadoCheck::Ok
                         } else {
                             EstadoCheck::Fallo
@@ -530,10 +535,16 @@ impl Plataforma for GitHub {
                 Err(i) => return i,
             };
         // Las reviews vienen de la mas vieja a la mas nueva: cuenta la ultima
-        // de cada cuenta, por id (F1-6, regla 6).
+        // de cada cuenta, por id (F1-6, regla 6). Solo cambian el estado las
+        // que deciden: un comentario o una review pendiente no retiran una
+        // aprobacion anterior (como en GitHub).
         let mut ultima: BTreeMap<u64, (String, Usuario)> = BTreeMap::new();
         for rv in reviews {
-            if let Some(u) = rv.user {
+            let decide = matches!(
+                rv.state.as_str(),
+                "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED"
+            );
+            if let Some(u) = rv.user.filter(|_| decide) {
                 ultima.insert(u.id, (rv.state, u.into()));
             }
         }
@@ -552,6 +563,9 @@ impl Plataforma for GitHub {
             aprobaciones,
             ignoradas: aprobadas.len() - aprobaciones,
             al_dia: p.mergeable_state.as_deref() != Some("behind"),
+            // `unknown` (GitHub aun calculando) no se da por conflicto:
+            // `merge-pr` lo vuelve a comprobar en la plataforma (405).
+            sin_conflictos: p.mergeable_state.as_deref() != Some("dirty"),
         })
     }
 
@@ -600,10 +614,16 @@ impl Plataforma for GitHub {
             return i;
         }
         match parsear::<MergeApi>(MERGE_PR, &r.cuerpo) {
-            Ok(m) if m.merged && sha_valido(&m.sha) => Informe::nuevo(MERGE_PR, Resultado::Ok)
+            Ok(MergeApi {
+                merged: true,
+                sha: Some(s),
+            }) if sha_valido(&s) => Informe::nuevo(MERGE_PR, Resultado::Ok)
                 .con("pr", pr.to_string())
-                .con("commit", corto(&m.sha)),
-            Ok(_) => errores::respuesta_invalida(MERGE_PR, "merged o sha"),
+                .con("commit", corto(&s)),
+            // Mergeado aunque la respuesta no traiga un sha legible: se dice
+            // que esta hecho, sin inventar el commit.
+            Ok(m) if m.merged => Informe::nuevo(MERGE_PR, Resultado::Ok).con("pr", pr.to_string()),
+            Ok(_) => errores::respuesta_invalida(MERGE_PR, "merged"),
             Err(i) => i,
         }
     }

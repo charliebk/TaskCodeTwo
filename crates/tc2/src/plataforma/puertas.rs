@@ -31,6 +31,8 @@ pub struct Lecturas {
     pub ignoradas: usize,
     /// Si la rama esta al dia con la base.
     pub al_dia: bool,
+    /// Si la rama se puede mergear sin conflictos.
+    pub sin_conflictos: bool,
 }
 
 /// `EstadoPuertas` neutral: rojo si un check fallo; esperando si falta algo;
@@ -64,6 +66,9 @@ pub fn evaluar(l: &Lecturas) -> Informe {
     if !l.al_dia {
         falta.push("al-dia".into());
     }
+    if !l.sin_conflictos {
+        falta.push("sin-conflictos".into());
+    }
     let resultado = if falta.is_empty() {
         Resultado::Ok
     } else {
@@ -77,7 +82,7 @@ pub fn evaluar(l: &Lecturas) -> Informe {
         i
     } else {
         let diag = format!(
-            "faltan puertas: {}; espera o atiende lo que falta (al-dia: lanza actualizar-rama)",
+            "faltan puertas: {}; espera o atiende lo que falta (al-dia o sin-conflictos: lanza actualizar-rama)",
             falta.join(", ")
         );
         i.con_lista("falta", falta).diagnostico(diag)
@@ -113,6 +118,7 @@ mod tests {
             aprobaciones: aprob,
             ignoradas: 0,
             al_dia,
+            sin_conflictos: al_dia,
         }
     }
 
@@ -130,7 +136,7 @@ mod tests {
         let i = evaluar(&l(&[("c", EstadoCheck::Pendiente)], 0, false));
         assert_eq!(
             i.linea(),
-            "estado-puertas esperando pr=7 aprobaciones=0 ignoradas=0 falta=c,aprobacion,al-dia"
+            "estado-puertas esperando pr=7 aprobaciones=0 ignoradas=0 falta=c,aprobacion,al-dia,sin-conflictos"
         );
         assert_eq!(i.resultado.codigo(), 7);
         let i = evaluar(&l(&[("c", EstadoCheck::Ok)], 1, true));

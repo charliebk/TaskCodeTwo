@@ -78,12 +78,19 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
                 d.nombre()
             )));
         }
-        (Some(h), Some((_, base))) => (h, base),
-        (Some(Proveedor::GitHub), None) => (Proveedor::GitHub, Base::github()),
-        (Some(Proveedor::GitLab), None) => (
-            Proveedor::GitLab,
-            Base::nueva("https://gitlab.com/api/v4").map_err(|m| rechazo(&m))?,
-        ),
+        // Con un host conocido, la API es la oficial: una clave que apunte a
+        // otra mandaria los tokens fuera (falla cerrado, decision 7).
+        (Some(h), Some((_, base))) => {
+            let oficial = api_oficial(h).map_err(|m| rechazo(&m))?;
+            if base != oficial {
+                return Err(rechazo(&format!(
+                    "origin es de {host} y su API es {}: la clave de la configuracion no puede cambiarla",
+                    oficial.texto()
+                )));
+            }
+            (h, base)
+        }
+        (Some(h), None) => (h, api_oficial(h).map_err(|m| rechazo(&m))?),
         (None, Some((d, base))) => (d, base),
         (None, None) => {
             return Err(rechazo(&format!(
@@ -100,6 +107,14 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
         proyecto,
         api,
     })
+}
+
+/// API publica de un host conocido.
+fn api_oficial(p: Proveedor) -> Result<Base, String> {
+    match p {
+        Proveedor::GitHub => Ok(Base::github()),
+        Proveedor::GitLab => Base::nueva("https://gitlab.com/api/v4"),
+    }
 }
 
 fn rechazo(m: &str) -> Informe {
@@ -193,6 +208,14 @@ mod tests {
                 Some(("bitbucket", "https://x")),
             ),
             ("https://git.empresa.com/o/r", Some(("github", "http://x"))),
+            (
+                "https://github.com/o/r",
+                Some(("github", "https://api.evil.example")),
+            ),
+            (
+                "git@gitlab.com:g/p.git",
+                Some(("gitlab", "https://evil.example/api/v4")),
+            ),
             ("https://github.com/o/r/s", None),
             ("https://github.com/o", None),
             ("file:///c/repo", None),
