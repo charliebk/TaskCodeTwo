@@ -17,7 +17,9 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
-use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario};
+use super::{
+    Clave, Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario,
+};
 use crate::contrato::{Informe, Resultado, Valor, corto};
 
 const ABRIR_PR: &str = "abrir-pr";
@@ -97,7 +99,7 @@ impl Endpoint<'_> {
             Self::RamasProtegidas => (Metodo::Get, format!("{p}/protected_branches?per_page=100")),
             Self::Estados(sha) => (
                 Metodo::Get,
-                format!("{p}/repository/commits/{sha}/statuses?per_page=100"),
+                format!("{p}/repository/commits/{sha}/statuses?all=true&per_page=100"),
             ),
             Self::Aprobaciones(n) => (Metodo::Get, format!("{p}/merge_requests/{n}/approvals")),
             Self::Firma(sha) => (
@@ -146,6 +148,8 @@ struct MrPuertasApi {
     target_branch: String,
     has_conflicts: bool,
     diverged_commits_count: u64,
+    #[serde(default)]
+    detailed_merge_status: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -208,6 +212,8 @@ struct ClaveApi {
 
 #[derive(Deserialize)]
 struct FirmaApi {
+    #[serde(default)]
+    signature_type: String,
     verification_status: String,
     #[serde(default)]
     gpg_key_id: Option<u64>,
@@ -549,7 +555,14 @@ impl Plataforma for GitLab {
             aprobaciones,
             ignoradas: aprobadores.len() - aprobaciones,
             al_dia: m.diverged_commits_count == 0,
-            sin_conflictos: !m.has_conflicts,
+            // `has_conflicts` se calcula en segundo plano: mientras GitLab
+            // comprueba el MR no se da por libre de conflictos (falla
+            // cerrado; la siguiente lectura lo resuelve).
+            sin_conflictos: !m.has_conflicts
+                && !matches!(
+                    m.detailed_merge_status.as_deref(),
+                    Some("checking" | "unchecked" | "preparing" | "conflict")
+                ),
         })
     }
 
@@ -604,6 +617,18 @@ impl Plataforma for GitLab {
             Ok(r) => r,
             Err(i) => return i,
         };
+        if r.estado == 401 {
+            // El token de persona ya se valido con `GET /user`: GitLab da
+            // 401 en el merge cuando la cuenta no puede mergear.
+            return Informe::nuevo(MERGE_PR, Resultado::Denegada)
+                .con("pr", pr.to_string())
+                .con("motivo", "permisos")
+                .con("rol", Rol::Persona.nombre())
+                .diagnostico(format!(
+                    "GitLab no deja mergear a esta cuenta: necesita {PERMISO_MERGE} (GitLab: «{}»)",
+                    errores::mensaje_api(&r)
+                ));
+        }
         if !r.exito() {
             let mut i = self.con.traducir(MERGE_PR, Rol::Persona, PERMISO_MERGE, &r);
             i.claves
@@ -738,7 +763,11 @@ impl Plataforma for GitLab {
             verificada: f.verification_status == "verified",
             motivo: errores::sanear(&f.verification_status),
             committer: None,
-            clave: f.key.map(|k| k.id).or(f.gpg_key_id),
+            clave: match f.signature_type.as_str() {
+                "SSH" => f.key.map(|k| Clave::Ssh(k.id)),
+                "PGP" => f.gpg_key_id.map(Clave::Gpg),
+                _ => None,
+            },
         })
     }
 

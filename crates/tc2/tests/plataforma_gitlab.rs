@@ -11,7 +11,8 @@ use comun::http_mock::{Mock, Simulada};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
 use tc2::plataforma::{
-    CredencialesFijas, GitHub, GitLab, ModeloPuertas, Personas, Plataforma, Proveedor, Rol, Secreto,
+    Clave, CredencialesFijas, GitHub, GitLab, ModeloPuertas, Personas, Plataforma, Proveedor, Rol,
+    Secreto,
 };
 
 const TOKEN: &str = "glpat_token_de_prueba_que_no_debe_salir";
@@ -38,7 +39,7 @@ fn gitlab(mock: &Mock, roles: &[Rol]) -> GitLab {
         base(mock),
         "7",
         Box::new(credenciales(roles)),
-        Personas::nuevas([PERSONA]).con_claves([CLAVE]),
+        Personas::nuevas([PERSONA]).con_claves([Clave::Ssh(CLAVE)]),
     )
     .unwrap()
 }
@@ -491,6 +492,7 @@ fn envoltorio_y_errores_de_gitlab() {
 
     // Merge: 405 y 406 (no mergeable) y 409 (sha distinto en la plataforma).
     for (estado, linea) in [
+        (401, "merge-pr denegada pr=5 motivo=permisos rol=persona"),
         (405, "merge-pr rechazada pr=5 motivo=no-mergeable"),
         (406, "merge-pr rechazada pr=5 motivo=no-mergeable"),
         (409, "merge-pr rechazada pr=5 motivo=head-cambiado"),
@@ -641,6 +643,22 @@ fn protecciones_de_gitlab() {
         puertas(&|f| mr_de(f)["author"]["id"] = PERSONA.into()),
         "estado-puertas esperando pr=12 aprobaciones=0 ignoradas=1 falta=aprobacion"
     );
+    // Mientras GitLab comprueba el MR, no se da por libre de conflictos.
+    assert_eq!(
+        puertas(&|f| mr_de(f)["detailed_merge_status"] = "checking".into()),
+        "estado-puertas esperando pr=12 aprobaciones=1 ignoradas=0 falta=sin-conflictos"
+    );
+    // G01 con un segundo nivel de merge (Developers ademas de Maintainers).
+    assert_eq!(
+        puertas(&|f| {
+            f["respuestas"][format!("{P}/protected_branches/develop")]["cuerpo"]
+                ["merge_access_levels"]
+                .as_array_mut()
+                .unwrap()
+                .push(serde_json::json!({"access_level": 30}));
+        }),
+        "estado-puertas rechazada pr=12 motivo=config garantia=G01"
+    );
     // Campo ausente: respuesta invalida, no un verde por defecto.
     assert_eq!(
         puertas(&|f| {
@@ -700,7 +718,7 @@ fn protecciones_de_gitlab() {
     );
 
     // Contrato del firmante por clave (F1-13, decision 6).
-    let personas = Personas::nuevas([PERSONA]).con_claves([CLAVE]);
+    let personas = Personas::nuevas([PERSONA]).con_claves([Clave::Ssh(CLAVE)]);
     let firma = |respuesta: Simulada, commit: Simulada| {
         let mock = Mock::nuevo();
         mock.responder(
@@ -729,7 +747,7 @@ fn protecciones_de_gitlab() {
         commit(),
     )
     .unwrap();
-    assert_eq!(f.clave, Some(777));
+    assert_eq!(f.clave, Some(Clave::Gpg(777)));
     assert!(
         !f.cuenta_como_aprobacion(&personas),
         "clave fuera de la lista"
@@ -745,6 +763,19 @@ fn protecciones_de_gitlab() {
     assert!(
         !f.cuenta_como_aprobacion(&personas),
         "la firma de GitLab no es de una persona"
+    );
+    // El id de una clave GPG no se confunde con el de una SSH de la lista.
+    let f = firma(
+        Simulada::json(
+            200,
+            &format!("{{\"signature_type\":\"PGP\",\"verification_status\":\"verified\",\"gpg_key_id\":{CLAVE}}}"),
+        ),
+        commit(),
+    )
+    .unwrap();
+    assert!(
+        !f.cuenta_como_aprobacion(&personas),
+        "tipo de clave distinto"
     );
     let f = firma(
         Simulada::json(404, "{\"message\":\"404 Signature Not Found\"}"),

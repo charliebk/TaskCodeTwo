@@ -68,7 +68,18 @@ impl Proveedor {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Personas {
     ids: BTreeSet<u64>,
-    claves: BTreeSet<u64>,
+    claves: BTreeSet<Clave>,
+}
+
+/// Clave de firma registrada en la plataforma, con su tipo: los ids de las
+/// claves SSH y GPG de GitLab son espacios distintos y no se comparan entre
+/// si.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Clave {
+    /// Clave SSH (`key.id`).
+    Ssh(u64),
+    /// Clave GPG (`gpg_key_id`).
+    Gpg(u64),
 }
 
 impl Personas {
@@ -80,10 +91,9 @@ impl Personas {
         }
     }
 
-    /// La misma lista con estas claves de firma (ids de clave GPG o SSH de
-    /// la plataforma).
+    /// La misma lista con estas claves de firma.
     #[must_use]
-    pub fn con_claves(mut self, claves: impl IntoIterator<Item = u64>) -> Self {
+    pub fn con_claves(mut self, claves: impl IntoIterator<Item = Clave>) -> Self {
         self.claves = claves.into_iter().collect();
         self
     }
@@ -94,7 +104,7 @@ impl Personas {
     }
 
     /// Si la clave de firma es de una persona de la lista.
-    pub fn contiene_clave(&self, clave: u64) -> bool {
+    pub fn contiene_clave(&self, clave: Clave) -> bool {
         self.claves.contains(&clave)
     }
 }
@@ -140,7 +150,7 @@ pub struct Firma {
     /// La cuenta `committer`, si la plataforma la asocia (GitHub).
     pub committer: Option<Usuario>,
     /// Id de la clave que firmo, si la plataforma lo da (GitLab).
-    pub clave: Option<u64>,
+    pub clave: Option<Clave>,
 }
 
 impl Firma {
