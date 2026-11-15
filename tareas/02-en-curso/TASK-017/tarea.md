@@ -29,9 +29,9 @@ Capa de operaciones Git deterministas: rama, worktree, commit de lo escrito, pus
 Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-4, F2-1.
 
 ## Criterios de aceptacion
-- [ ] Tests contra repos reales
-- [ ] salida ≤ 5 líneas en el caso normal
-- [ ] Cumple lo que pide la tarea F2-2 del plan y los requisitos que cita
+- [x] Tests contra repos reales
+- [x] salida ≤ 5 líneas en el caso normal
+- [x] Cumple lo que pide la tarea F2-2 del plan y los requisitos que cita
 
 ## Transiciones
 
@@ -46,3 +46,7 @@ Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-15T12:33:18Z | diseno | agente:a5e8e6789a0fd006c | 14 | 43470 | 180062 | 11701 | 15 | 235247 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 743a5d3
