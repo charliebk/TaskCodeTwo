@@ -96,6 +96,14 @@ pub fn mergeado(pr: u64) -> Informe {
         .con("estado", "mergeado")
 }
 
+/// PR cerrado sin mergear.
+pub fn pr_cerrado(pr: u64) -> Informe {
+    Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
+        .con("pr", pr.to_string())
+        .con("motivo", "pr-cerrado")
+        .diagnostico("el PR esta cerrado sin mergear: reabrelo o abre otro")
+}
+
 /// La politica exige impuesta una garantia que el plan no da.
 pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)

@@ -4,11 +4,14 @@
 //! Toda llamada a la API sale por [`Cliente::llamar`], que comprueba antes de
 //! abrir la red:
 //! - el metodo: solo los de [`Metodo`] (lista cerrada por tipo);
-//! - el destino: la ruta es relativa a una [`Base`] fija (la API de GitHub,
-//!   la que diga la configuracion o, solo para tests, `http://127.0.0.1`);
+//! - el destino: la ruta es relativa a una [`Base`] fija (la API de GitHub o
+//!   GitLab, la que diga la configuracion o, solo para tests,
+//!   `http://127.0.0.1`);
 //! - la ruta: empieza por `/`, sin segmentos `.` ni `..`, sin `\`, sin
 //!   `%2e` ni `%25` (tampoco codificados dos veces) y sin caracteres fuera
-//!   de los no reservados.
+//!   de los no reservados. Con GitLab admite ademas `%2F` (el id de un
+//!   proyecto con nombre), y los segmentos se comprueban con la barra ya
+//!   decodificada.
 //!
 //! No sigue redirecciones, limita el tamano de la respuesta y los tiempos de
 //! espera, y lleva un registro `METODO ruta` sin cabeceras. El token nunca
@@ -17,6 +20,7 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
+use super::Proveedor;
 use super::credenciales::Secreto;
 
 /// Tamano maximo del cuerpo de una respuesta.
@@ -71,8 +75,15 @@ impl Base {
         let resto = if let Some(r) = url.strip_prefix("https://") {
             r
         } else if let Some(r) = url.strip_prefix("http://127.0.0.1:") {
-            if !puerto_valido(r) {
-                return Err("http solo vale para 127.0.0.1 con un puerto y sin ruta".into());
+            let (puerto, ruta) = r.split_once('/').unwrap_or((r, ""));
+            let valida = puerto_valido(puerto)
+                && !ruta.contains(['?', '#'])
+                && (ruta.is_empty() || validar_ruta(&format!("/{ruta}")).is_ok());
+            if !valida {
+                return Err(
+                    "http solo vale para 127.0.0.1 con un puerto y, si acaso, un prefijo valido"
+                        .into(),
+                );
             }
             return Ok(Self(url.to_owned()));
         } else {
@@ -124,11 +135,12 @@ pub struct Respuesta {
     pub cuerpo: String,
     /// `Link` (paginacion).
     pub link: Option<String>,
-    /// `x-ratelimit-remaining`.
+    /// `x-ratelimit-remaining` (GitHub) o `ratelimit-remaining` (GitLab).
     pub restantes: Option<String>,
     /// `retry-after`, en segundos.
     pub reintentar: Option<String>,
-    /// `x-ratelimit-reset`, en segundos desde 1970.
+    /// `x-ratelimit-reset` (GitHub) o `ratelimit-reset` (GitLab), en
+    /// segundos desde 1970.
     pub reinicio: Option<String>,
 }
 
@@ -167,22 +179,32 @@ pub enum FalloHttp {
     Otro(String),
 }
 
-/// Cliente HTTP con su base fija.
+/// Cliente HTTP con su base fija y la plataforma a la que habla.
 pub struct Cliente {
     base: Base,
+    proveedor: Proveedor,
     agente: ureq::Agent,
     registro: RefCell<Vec<String>>,
 }
 
 impl std::fmt::Debug for Cliente {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Cliente").field("base", &self.base).finish()
+        f.debug_struct("Cliente")
+            .field("base", &self.base)
+            .field("proveedor", &self.proveedor)
+            .finish()
     }
 }
 
 impl Cliente {
-    /// Cliente para una base ya validada.
+    /// Cliente de GitHub para una base ya validada.
     pub fn nuevo(base: Base) -> Self {
+        Self::para(base, Proveedor::GitHub)
+    }
+
+    /// Cliente para una base ya validada y su plataforma (que decide las
+    /// cabeceras y si la ruta admite `%2F`).
+    pub fn para(base: Base, proveedor: Proveedor) -> Self {
         let tls = ureq::tls::TlsConfig::builder()
             .root_certs(ureq::tls::RootCerts::PlatformVerifier)
             .build();
@@ -199,6 +221,7 @@ impl Cliente {
             .into();
         Self {
             base,
+            proveedor,
             agente,
             registro: RefCell::new(Vec::new()),
         }
@@ -231,7 +254,8 @@ impl Cliente {
         token: Option<&Secreto>,
         cuerpo: Option<&str>,
     ) -> Result<Respuesta, FalloHttp> {
-        validar_ruta(ruta).map_err(FalloHttp::Rechazada)?;
+        validar_ruta_con(ruta, self.proveedor == Proveedor::GitLab)
+            .map_err(FalloHttp::Rechazada)?;
         self.registro
             .borrow_mut()
             .push(format!("{} {}", metodo.nombre(), ruta));
@@ -259,9 +283,9 @@ impl Cliente {
                 .map(str::to_owned)
         };
         let link = cabecera("link");
-        let restantes = cabecera("x-ratelimit-remaining");
+        let restantes = cabecera("x-ratelimit-remaining").or_else(|| cabecera("ratelimit-remaining"));
         let reintentar = cabecera("retry-after");
-        let reinicio = cabecera("x-ratelimit-reset");
+        let reinicio = cabecera("x-ratelimit-reset").or_else(|| cabecera("ratelimit-reset"));
         // Si la respuesta declara su tamano y pasa del limite, no se lee:
         // cortar la lectura a medias deja la conexion en un estado que el
         // sistema puede notificar como desconexion (y se veria `sinred`).
@@ -293,9 +317,12 @@ impl Cliente {
         p: ureq::RequestBuilder<B>,
         token: Option<&Secreto>,
     ) -> ureq::RequestBuilder<B> {
-        let p = p
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28");
+        let p = match self.proveedor {
+            Proveedor::GitHub => p
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28"),
+            Proveedor::GitLab => p.header("Accept", "application/json"),
+        };
         match token {
             Some(t) => p.header("Authorization", format!("Bearer {}", t.exponer())),
             None => p,
@@ -330,8 +357,15 @@ fn tipo_error(e: &ureq::Error) -> String {
     t.chars().filter(|c| !c.is_control()).take(200).collect()
 }
 
-/// Comprueba la ruta (con su consulta) antes de la red.
+/// Comprueba la ruta (con su consulta) antes de la red, sin admitir `%2F`.
 pub fn validar_ruta(ruta: &str) -> Result<(), String> {
+    validar_ruta_con(ruta, false)
+}
+
+/// Comprueba la ruta. Con `admite_barra_codificada` (GitLab) acepta la
+/// secuencia exacta `%2F` en el camino y comprueba los segmentos con ella ya
+/// decodificada: `a%2F..` es un `..` y `%2f` o `%252F` siguen rechazados.
+pub fn validar_ruta_con(ruta: &str, admite_barra_codificada: bool) -> Result<(), String> {
     let (camino, consulta) = ruta.split_once('?').unwrap_or((ruta, ""));
     if !camino.starts_with('/') || camino.starts_with("//") {
         return Err("la ruta tiene que ser relativa a la API".into());
@@ -340,6 +374,13 @@ pub fn validar_ruta(ruta: &str) -> Result<(), String> {
     if ruta.contains('\\') || minus.contains("%2e") || minus.contains("%25") {
         return Err("ruta con barra invertida o puntos codificados".into());
     }
+    let decodificado;
+    let camino = if admite_barra_codificada {
+        decodificado = camino.replace("%2F", "/");
+        decodificado.as_str()
+    } else {
+        camino
+    };
     if camino[1..]
         .split('/')
         .any(|s| s.is_empty() || s == "." || s == "..")
@@ -394,6 +435,24 @@ mod tests {
             assert!(validar_ruta(r).is_err(), "{r}");
         }
         for r in [
+            "/projects/g%2Fp",
+            "/projects/g%2Fs%2Fp/merge_requests?source_branch=a%2Fb",
+        ] {
+            assert!(validar_ruta_con(r, true).is_ok(), "{r}");
+        }
+        for r in [
+            "/projects/g%2fp",
+            "/projects/g%252Fp",
+            "/projects/g%2F..",
+            "/projects/g%2F.%2Fp",
+            "/projects/%2Fp",
+            "/projects/g%2F",
+            "/projects/g%2F%2Fp",
+            "/projects/g%3Fp",
+        ] {
+            assert!(validar_ruta_con(r, true).is_err(), "{r}");
+        }
+        for r in [
             "/user",
             "/repos/o/r/pulls?head=o%3Afeature%2Fx&state=open",
             "/repos/o/r/rules/branches/feature/task-1",
@@ -407,9 +466,12 @@ mod tests {
         assert!(Base::nueva("https://api.github.com").is_ok());
         assert!(Base::nueva("https://git.empresa.com/api/v3/").is_ok());
         assert!(Base::nueva("http://127.0.0.1:8080").is_ok());
+        assert!(Base::nueva("http://127.0.0.1:8080/api/v4").is_ok());
         for b in [
             "http://api.github.com",
-            "http://127.0.0.1:80/x",
+            "http://127.0.0.1:80/../x",
+            "http://127.0.0.1:80/x?y",
+            "http://127.0.0.1:80/a%2Fb",
             "http://localhost:80",
             "https://user:pw@host",
             "https://",

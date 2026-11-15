@@ -12,24 +12,7 @@ use crate::contrato::{Informe, Resultado};
 /// Nombre de la operacion en los errores.
 const OP: &str = "detectar-plataforma";
 
-/// Plataforma soportada.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Proveedor {
-    /// GitHub.
-    GitHub,
-    /// GitLab.
-    GitLab,
-}
-
-impl Proveedor {
-    /// Nombre en la configuracion y en la linea.
-    pub fn nombre(self) -> &'static str {
-        match self {
-            Self::GitHub => "github",
-            Self::GitLab => "gitlab",
-        }
-    }
-}
+pub use super::Proveedor;
 
 /// A donde habla el puerto.
 #[derive(Debug, Clone, PartialEq, Eq)]
