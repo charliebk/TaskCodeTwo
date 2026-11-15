@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 351031
 tokens_implementacion: 11772269
-tokens_revision: 26299473
+tokens_revision: 29508739
 creado: 2026-11-14
 actualizado: 2026-11-15
 dependencias: [TASK-002, TASK-003, TASK-017]
@@ -57,6 +57,8 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-15T14:29:30Z | revision | agente:a234246fefe90c88a | 34 | 135312 | 1805947 | 23206 | 1 | 1964499 | 2 | rust-wasm-reviewer |
 | 2026-11-15T14:41:31Z | revision | agente:a4bb1806bca1301ea | 50 | 143472 | 2529559 | 20797 | 2 | 2693878 | 3 | code-quality-reviewer |
 | 2026-11-15T14:41:31Z | revision | agente:a07493d29b6b10a53 | 34 | 130249 | 1763848 | 21128 | 2 | 1915259 | 3 | rust-wasm-reviewer |
+| 2026-11-15T14:49:59Z | revision | agente:aaf68033a523f6908 | 32 | 119699 | 1347493 | 18736 | 1 | 1485960 | 4 | code-quality-reviewer |
+| 2026-11-15T14:49:59Z | revision | agente:af65c249616d7d696 | 32 | 122744 | 1577084 | 23446 | 2 | 1723306 | 4 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -73,3 +75,7 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 
 - Ronda 3: la decide Carlos (persona) al llegar al tope: la ronda 2 abrió dos IMPORTANTES introducidos por las correcciones de la ronda 1 (IMPORTANTE-2 de calidad y R2-01 de Rust), con arreglos acotados y test.
 - Ronda 4: la decide Carlos (persona) al llegar otra vez al tope: la ronda 3 abrió el IMPORTANTE-3 (un `permission denied` de la red clasificado como fallo local, introducido por la corrección de la ronda 2), confirmado con un test que falla; arreglo acotado con test, junto al MENOR R3-01.
+
+## Verificacion ligera
+
+- 2026-11-15T14:50:48Z: ronda 4; commit revisado b2f565d50585629c79df41974f1d7af5ee648930; commit verificado 152c4ee1a79fa50ed34e539fd402bf4c3330ea2e; ficheros: crates/tc2/src/git/remoto.rs; corregidos: MENOR-1, R4-01; pendientes: ninguno
