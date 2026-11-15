@@ -154,3 +154,5 @@ Tarea F2-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - Estimada: 240 min
 - Real (de la rama abierta al cierre con merge, sin pausas): 56 min
 - Cierre (finish): 187 s, de 2026-11-15T22:16:12Z a 2026-11-15T22:19:19Z
+
+**Tras el cierre.** CI de develop en verde: run 43768661055, los 4 jobs en success (comprobar-repo, codigo en ubuntu, windows y macos).
