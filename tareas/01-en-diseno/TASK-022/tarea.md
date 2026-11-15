@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-022-f2-9-adaptador-gitlab
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1000511
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F2-9 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-15T18:32:06Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-15T18:39:10Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-15T18:39:10Z | diseno | agente:ad130294f602facaa | 28 | 109657 | 864223 | 26603 | 24 | 1000511 | - | - |
