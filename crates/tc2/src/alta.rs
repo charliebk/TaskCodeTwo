@@ -127,9 +127,13 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
     titulo_valido(titulo).then(|| Box::new(Alta::nueva(titulo)) as Box<dyn Operacion>)
 }
 
-/// Si `titulo` vale: no vacio y sin saltos de linea ni caracteres de control.
+/// Si `titulo` vale: no vacio y sin saltos de linea ni caracteres de control
+/// (tampoco los separadores U+2028 y U+2029, que YAML lee como salto).
 pub fn titulo_valido(titulo: &str) -> bool {
-    !titulo.trim().is_empty() && !titulo.chars().any(char::is_control)
+    !titulo.trim().is_empty()
+        && !titulo
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
 }
 
 /// `TASK-NNN` con al menos tres cifras (`TASK-1000` sin renumerar).
@@ -288,6 +292,8 @@ mod tests {
         assert!(desde_anotacion("newx|t").is_none());
         assert!(!titulo_valido("a\nb"));
         assert!(!titulo_valido("a\tb"));
+        assert!(!titulo_valido("a\u{2028}b"));
+        assert!(!titulo_valido("a\u{85}b"));
         assert!(!titulo_valido("   "));
         assert!(titulo_valido("Título con ñ"));
     }
