@@ -527,7 +527,9 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
                 Subcomando::Fetch,
                 &["-q", ".", &format!("{tmp}:{}", rama_local())],
             );
-            let _ = correr(
+            // La ref temporal se borra tambien si el fetch fallo; si no se
+            // puede borrar, se dice (no se deja basura sin avisar).
+            let borrado = exigir(
                 git,
                 principal,
                 OP,
@@ -541,6 +543,7 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
                     s.primera_linea_error()
                 )));
             }
+            borrado?;
         }
     }
     Ok(Tareas::SinMontar)
