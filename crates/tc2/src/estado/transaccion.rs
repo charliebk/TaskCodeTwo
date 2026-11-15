@@ -278,6 +278,12 @@ fn intento(
                 FalloRemoto::SinRed => {
                     return sin_red(c, op, anotacion, principal, &s.primera_linea_error());
                 }
+                FalloRemoto::Local => {
+                    return Err(crate::git::remoto::error_local(
+                        OP,
+                        &s.primera_linea_error(),
+                    ));
+                }
                 otro => return Ok(Intento::Hecho(denegada(op, otro.motivo(), &s.stderr))),
             }
         }
@@ -296,6 +302,11 @@ fn intento(
                 continue;
             };
             match o.aplicar(&vista) {
+                // Una pendiente que choca por mayusculas con lo publicado ya
+                // no procede: si se quedara, bloquearia cada operacion.
+                Ok(cambios) if choque(&vista.rutas(), &cambios).is_some() => {
+                    destinos.push((p, Destino::Rechazada));
+                }
                 Ok(cambios) => {
                     vista.superponer(cambios);
                     anotaciones.push(o.anotacion());
@@ -309,7 +320,12 @@ fn intento(
         }
     }
     match op.aplicar(&vista) {
-        Ok(cambios) => vista.superponer(cambios),
+        Ok(cambios) => {
+            if let Some(i) = duplicada(&vista.rutas(), &cambios, op) {
+                return Ok(Intento::Hecho(i));
+            }
+            vista.superponer(cambios);
+        }
         Err(Fallo::Rechazada {
             motivo,
             diagnostico,
@@ -328,9 +344,6 @@ fn intento(
         vista.superponer(vec![Cambio::nuevo("ROADMAP.md", texto)]);
     }
 
-    if let Some(i) = choque_de_mayusculas(&vista, op) {
-        return Ok(Intento::Hecho(i));
-    }
     let mensaje = mensaje(op.nombre(), &anotaciones);
     let Some(sha) = construir_commit(
         git,
@@ -374,27 +387,33 @@ fn intento(
         }
         Resultado::Rechazada => Ok(Intento::Reintentar),
         Resultado::Denegada => Ok(Intento::Hecho(denegada(op, p.motivo, &p.ultimo))),
+        // Fallo del propio clon al publicar: ni sin red ni pendiente.
+        Resultado::Error => Err(crate::git::remoto::error_local(OP, &p.ultimo)),
         _ => sin_red(c, op, anotacion, principal, &p.ultimo),
     }
 }
 
-/// Una ruta escrita que solo difiere en mayusculas de otra de la rama: en
-/// Windows o macOS las dos chocarian al sacarlas al worktree.
-fn choque_de_mayusculas(vista: &Vista<'_>, op: &dyn Operacion) -> Option<Informe> {
-    let rutas = vista.rutas();
-    vista.cambios().into_iter().find_map(|c| {
+/// Primera ruta de `cambios` que solo difiere en mayusculas de otra ya
+/// presente en `rutas` (en Windows o macOS las dos chocarian al sacarlas al
+/// worktree): (la nueva, la que estaba).
+fn choque(rutas: &[String], cambios: &[Cambio]) -> Option<(String, String)> {
+    cambios.iter().find_map(|c| {
         let minus = c.ruta.to_lowercase();
         rutas
             .iter()
             .find(|r| **r != c.ruta && r.to_lowercase() == minus)
-            .map(|otra| {
-                informe(Resultado::Rechazada, op)
-                    .con("motivo", "ruta-duplicada")
-                    .diagnostico(format!(
-                        "{} solo difiere en mayusculas de {otra}: chocarian en Windows y macOS",
-                        c.ruta
-                    ))
-            })
+            .map(|otra| (c.ruta.clone(), otra.clone()))
+    })
+}
+
+/// `rechazada motivo=ruta-duplicada` si los cambios de la operacion chocan.
+fn duplicada(rutas: &[String], cambios: &[Cambio], op: &dyn Operacion) -> Option<Informe> {
+    choque(rutas, cambios).map(|(nueva, otra)| {
+        informe(Resultado::Rechazada, op)
+            .con("motivo", "ruta-duplicada")
+            .diagnostico(format!(
+                "{nueva} solo difiere en mayusculas de {otra}: chocarian en Windows y macOS"
+            ))
     })
 }
 
@@ -466,7 +485,12 @@ fn sin_red(
     };
     let mut vista = Vista::nueva(git, principal, conocida.clone())?;
     match op.aplicar(&vista) {
-        Ok(cambios) => vista.superponer(cambios),
+        Ok(cambios) => {
+            if let Some(i) = duplicada(&vista.rutas(), &cambios, op) {
+                return Ok(Intento::Hecho(i));
+            }
+            vista.superponer(cambios);
+        }
         Err(Fallo::Rechazada {
             motivo,
             diagnostico,
@@ -478,9 +502,6 @@ fn sin_red(
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
-    }
-    if let Some(i) = choque_de_mayusculas(&vista, op) {
-        return Ok(Intento::Hecho(i));
     }
     let mensaje = mensaje(op.nombre(), &[anotacion.to_owned()]);
     let Some(sha) = construir_commit(

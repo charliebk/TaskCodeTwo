@@ -77,13 +77,9 @@ fn tag_paso(
         let refspec = format!("refs/tags/{tag}:refs/tags/{tag}");
         let p = publicar(git, dir, OP, &refspec, esperas)?;
         if !p.resultado.es_exito() {
-            let que_hacer = if p.resultado == Resultado::Denegada {
-                "el remoto lo deniega: revisa sus reglas o tus permisos"
-            } else {
-                "relanza con red"
-            };
+            let que_hacer = super::remoto::que_hacer_al_publicar(p.resultado);
             let mut i = Informe::nuevo(OP, p.resultado).con("tag", tag);
-            if p.resultado == Resultado::Denegada {
+            if matches!(p.resultado, Resultado::Denegada | Resultado::Error) {
                 i = i.con("motivo", p.motivo);
             }
             return Ok(i

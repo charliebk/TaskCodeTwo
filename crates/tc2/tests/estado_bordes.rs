@@ -317,3 +317,79 @@ fn pendientes_que_ya_no_proceden_o_fallan_van_a_rechazadas_sin_reutilizar_numero
     assert!(ficheros(&f, &bare).contains("notas/h.md"));
     registro_permitido(&g.registro());
 }
+
+#[test]
+fn pendiente_que_choca_por_mayusculas_no_bloquea_el_clon() {
+    let f = Fixture::nueva("bordes-choque-pendiente");
+    let (bare, clon) = f.remoto_y_clon();
+    let g = f.git();
+    assert!(estado::montar(&g, &clon).resultado.es_exito());
+    let otro = f.otro_clon(&bare, "otro");
+    assert!(estado::montar(&g, &otro).resultado.es_exito());
+    let url = bare.to_str().unwrap().to_owned();
+
+    f.crudo(
+        &clon,
+        &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
+    );
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/Mayus.md", false));
+    assert_eq!(i.valor("pendiente"), Some("si"), "{}", i.linea());
+    let i = escribir_estado(&g, &otro, &Anotar::nueva("notas/mayus.md", true));
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    f.crudo(&clon, &["remote", "set-url", "origin", &url]);
+
+    // La pendiente ya no procede (chocaria con lo publicado): va a
+    // rechazadas y las escrituras siguientes del clon se publican.
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/g.md", true));
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert_eq!(i.valor("rechazadas"), Some("1"), "{}", i.linea());
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/h.md", true));
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert_eq!(i.valor("rechazadas"), None, "{}", i.linea());
+    let publicados = ficheros(&f, &bare);
+    assert!(publicados.contains("notas/g.md") && publicados.contains("notas/h.md"));
+    assert!(!publicados.contains("notas/Mayus.md"), "{publicados}");
+    assert_eq!(
+        f.crudo(
+            &clon,
+            &["for-each-ref", "--format=%(refname)", "refs/taskcode/"]
+        ),
+        "refs/taskcode/rechazadas/000001\n"
+    );
+}
+
+#[test]
+fn remoto_que_responde_access_denied_es_denegada_por_credenciales() {
+    let f = Fixture::nueva("bordes-access-denied");
+    let (_bare, clon) = f.remoto_y_clon();
+    let g = f.git();
+    assert!(estado::montar(&g, &clon).resultado.es_exito());
+    // Un servidor ssh que responde y deniega el acceso.
+    let guion = f.raiz.join("ssh.sh");
+    std::fs::write(
+        &guion,
+        "#!/bin/sh\necho 'remote: access denied' >&2\nexit 1\n",
+    )
+    .unwrap();
+    let guion = guion.to_str().unwrap().replace('\\', "/");
+    f.crudo(
+        &clon,
+        &["config", "core.sshCommand", &format!("sh '{guion}'")],
+    );
+    f.crudo(
+        &clon,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "ssh://servidor.invalid/x.git",
+        ],
+    );
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/a.md", false));
+    assert_eq!(
+        i.linea(),
+        "estado denegada operacion=anotar motivo=credenciales"
+    );
+    assert_eq!(i.salida(false).codigo, 8);
+    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
+}

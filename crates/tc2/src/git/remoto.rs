@@ -46,6 +46,9 @@ pub enum FalloRemoto {
     RemotoNoExiste,
     /// El remoto existe pero no tiene la rama pedida.
     RamaInexistente,
+    /// Fallo del propio clon, no del remoto (p. ej. sin permiso para
+    /// escribir en `.git`): `error`, ni red ni credenciales.
+    Local,
 }
 
 impl FalloRemoto {
@@ -56,6 +59,7 @@ impl FalloRemoto {
             Self::Credenciales => "credenciales",
             Self::RemotoNoExiste => "remoto-no-existe",
             Self::RamaInexistente => "rama-no-existe",
+            Self::Local => "error-local",
         }
     }
 }
@@ -77,6 +81,7 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         "returned error: 401",
         "returned error: 403",
         "remote: permission to ",
+        "access denied",
     ]) || (t.contains("permission denied")
         && t.contains("could not read from remote repository"))
     {
@@ -91,6 +96,10 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         "returned error: 404",
     ]) {
         FalloRemoto::RemotoNoExiste
+    } else if t.contains("permission denied") {
+        // Sin las marcas del remoto de arriba, es el sistema de ficheros del
+        // clon (`cannot open .git/FETCH_HEAD: Permission denied`).
+        FalloRemoto::Local
     } else {
         FalloRemoto::SinRed
     }
@@ -109,6 +118,26 @@ pub(crate) fn denegada(op: &str, fallo: FalloRemoto, detalle: &str) -> Informe {
         .diagnostico(format!("{op}: {detalle}; {que_hacer}"))
 }
 
+/// Fallo del propio clon al hablar con el remoto: `error` (1).
+pub(crate) fn error_local(op: &str, detalle: &str) -> Informe {
+    Informe::nuevo(op, Resultado::Error)
+        .con("motivo", FalloRemoto::Local.motivo())
+        .diagnostico(format!(
+            "{op}: {detalle}; fallo local de git: revisa los permisos de la carpeta del repo"
+        ))
+}
+
+/// Que hacer tras un push que no salio, segun el resultado.
+pub(crate) fn que_hacer_al_publicar(r: Resultado) -> &'static str {
+    match r {
+        Resultado::Denegada => {
+            "el remoto deniega el push: revisa sus reglas, tus permisos o avisa a la persona"
+        }
+        Resultado::Error => "fallo local de git: revisa los permisos de la carpeta del repo",
+        _ => "reintenta con red",
+    }
+}
+
 /// Trae el remoto. Nada nuevo → `sin-cambios`; sin red → `sinred`; remoto
 /// inexistente o sin permiso → `denegada`.
 pub fn fetch(git: &Git, dir: &Path) -> Informe {
@@ -121,6 +150,7 @@ fn traer(git: &Git, dir: &Path, op: &str) -> Paso<Informe> {
     if !s.exito() {
         return Err(match clasificar_fallo_remoto(&s.stderr) {
             FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(op),
+            FalloRemoto::Local => error_local(op, &s.primera_linea_error()),
             otro => denegada(op, otro, &s.primera_linea_error()),
         });
     }
@@ -142,6 +172,8 @@ enum Intento {
     /// (`[remote rejected]` por un hook o una regla, credenciales, remoto
     /// inexistente), el motivo: eso no se arregla reintentando.
     Fallo(String, Option<&'static str>),
+    /// Fallo del propio clon (permisos en `.git`): no es del remoto.
+    Local(String),
 }
 
 fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento> {
@@ -177,6 +209,7 @@ fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento>
             };
             match clasificar_fallo_remoto(&s.stderr) {
                 FalloRemoto::SinRed | FalloRemoto::RamaInexistente => Intento::Fallo(detalle, None),
+                FalloRemoto::Local => Intento::Local(detalle),
                 otro => Intento::Fallo(detalle, Some(otro.motivo())),
             }
         }
@@ -203,14 +236,14 @@ fn es_contencion(resumen: &str) -> bool {
 
 /// Como termino [`publicar`].
 pub(crate) struct Publicacion {
-    /// `Ok`, `SinCambios`, `Rechazada` (non-fast-forward), `Denegada` o
-    /// `Sinred`.
+    /// `Ok`, `SinCambios`, `Rechazada` (non-fast-forward), `Denegada`,
+    /// `Error` (fallo local) o `Sinred`.
     pub resultado: Resultado,
     /// Intentos hechos.
     pub intentos: usize,
     /// Ultimo fallo, para el diagnostico.
     pub ultimo: String,
-    /// Motivo de una `Denegada`.
+    /// Motivo de una `Denegada` o un `Error` local.
     pub motivo: &'static str,
 }
 
@@ -242,6 +275,14 @@ pub(crate) fn publicar(
             Intento::Fallo(m, Some(motivo)) => {
                 return Ok(fin(Resultado::Denegada, intento + 1, m, motivo));
             }
+            Intento::Local(m) => {
+                return Ok(fin(
+                    Resultado::Error,
+                    intento + 1,
+                    m,
+                    FalloRemoto::Local.motivo(),
+                ));
+            }
             Intento::Fallo(m, None) => ultimo = m,
         }
         if let Some(e) = esperas.get(intento) {
@@ -272,15 +313,13 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
             .diagnostico("lanza actualizar-rama"),
-        Resultado::Denegada => i
+        Resultado::Denegada | Resultado::Error => i
             .con("motivo", p.motivo)
             .con("intentos", intentos.to_string())
-            .diagnostico(format!(
-                "push: {ultimo}; el remoto deniega el push: revisa sus reglas, tus permisos o avisa a la persona"
-            )),
+            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
         _ => i
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; reintenta con red")),
+            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
     })
 }
 
@@ -414,13 +453,9 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                     ));
             }
             otro => {
-                let que_hacer = if otro == Resultado::Denegada {
-                    "el remoto deniega el push: revisa sus reglas, tus permisos o avisa a la persona"
-                } else {
-                    "reintenta con red"
-                };
+                let que_hacer = que_hacer_al_publicar(otro);
                 let mut i = Informe::nuevo(OP, otro).con("rama", rama.as_str());
-                if otro == Resultado::Denegada {
+                if matches!(otro, Resultado::Denegada | Resultado::Error) {
                     i = i.con("motivo", p.motivo);
                 }
                 return Ok(i.con("intentos", intentos.to_string()).diagnostico(format!(
@@ -541,7 +576,19 @@ mod tests {
     #[test]
     fn permiso_local_no_es_de_credenciales() {
         let local = "error: cannot open .git/FETCH_HEAD: Permission denied";
-        assert_eq!(clasificar_fallo_remoto(local), FalloRemoto::SinRed);
+        assert_eq!(clasificar_fallo_remoto(local), FalloRemoto::Local);
+        // Una denegacion del remoto sigue siendo de credenciales.
+        for remoto in [
+            "remote: access denied",
+            "fatal: unable to access 'https://host/a.git/': access denied",
+            "remote: Access denied.\nfatal: Could not read from remote repository.",
+        ] {
+            assert_eq!(
+                clasificar_fallo_remoto(remoto),
+                FalloRemoto::Credenciales,
+                "{remoto}"
+            );
+        }
     }
 
     #[test]

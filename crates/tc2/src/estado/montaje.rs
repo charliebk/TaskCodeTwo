@@ -157,6 +157,12 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
                                 s.primera_linea_error()
                             )));
                     }
+                    FalloRemoto::Local => {
+                        return Err(crate::git::remoto::error_local(
+                            OP,
+                            &s.primera_linea_error(),
+                        ));
+                    }
                     otro => {
                         return Ok(Informe::nuevo(OP, Resultado::Denegada)
                             .con("motivo", otro.motivo())

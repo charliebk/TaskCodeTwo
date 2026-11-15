@@ -445,3 +445,15 @@ non-fast-forward; se trata como contención (ver la adenda de F1-4).
   lock ref» o «failed to update ref» se trata siempre como contención; si un
   servidor lo diera de forma permanente, acabaría en `agotada` tras los
   intentos (acotado), no en `denegada`. No visto en ningún servidor real.
+
+### Tras la revisión de la ronda 2 de TASK-018
+
+- **Fallo local frente a remoto**: un `permission denied` sin las marcas del
+  remoto (`publickey`, «could not read from remote repository») es del
+  sistema de ficheros del clon y da `error` (1) con `motivo=error-local`; no
+  `sinred` (que mandaría reintentar) ni `credenciales`. `access denied`
+  sigue siendo de credenciales.
+- **Choque por mayúsculas por etapas**: una pendiente que al re-ejecutarse
+  chocaría con lo ya publicado va a `rechazadas`; solo la operación actual
+  puede devolver `rechazada motivo=ruta-duplicada`. Antes, la pendiente
+  bloqueaba todas las escrituras del clon.
