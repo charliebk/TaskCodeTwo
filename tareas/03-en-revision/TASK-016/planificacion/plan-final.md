@@ -73,3 +73,8 @@ Pendientes:
 - Aprobar este plan entero con `taskctl approve` — ningún rol ni el unificador aprueban.
 
 Resuelta con la opción recomendada (consigna de la persona): `taskctl` 0.16.1 no edita filas del plan, así que la fila F2-1, BOARD y el título/objetivo de la tarea se corrigen a mano en la rama, en commit propio y revisado.
+
+## Cambios de la persona tras aprobar
+
+- 2026-11-15, al abrir la rama: «Solo lo mediremos en Windows, ahorrate la version de Linux y mac». La comparacion de sha256 (C3) corre solo en windows-latest; en ubuntu y macos el job `codigo` hace fmt, clippy, build y tests (perfil `rapida` + tests) sin medir reproducibilidad. La reproducibilidad en Linux/macOS queda «no verificado».
+

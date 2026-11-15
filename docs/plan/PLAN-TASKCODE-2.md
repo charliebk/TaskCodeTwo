@@ -324,7 +324,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 
 | ID | Tarea | Criterio de aceptación | Dep. |
 |---|---|---|---|
-| F2-1 | Esqueleto: TypeScript, build reproducible (sin `dist` versionado), lint, CI en Linux/macOS/Windows | CI verde en los tres desde el primer commit | F1-* |
+| F2-1 | Esqueleto: Rust (`Cargo.lock` versionado, sin binarios en el repo, `/Brepro` en Windows), `cargo fmt` y `clippy`, CI en Linux/macOS/Windows (F1-14, divergencia 1) | CI verde en los tres desde el primer commit y dos builds en limpio con el mismo sha256 en Windows (Linux y macOS sin medir, decision de la persona) | F1-* |
 | F2-2 | Capa de operaciones Git deterministas: rama, worktree, commit de lo escrito, push con reintento, tag (P5) | Tests contra repos reales; salida ≤ 5 líneas en el caso normal | F1-4, F2-1 |
 | F2-3 | Rama de estado: crear, montar como worktree en `tareas/`, leer y escribir de forma atómica (P1, P2) | Dos procesos escriben a la vez sin perder nada; test | F1-1, F1-2, F2-2 |
 | F2-4 | Reserva de IDs por push atómico | Dos clones crean tarea a la vez → IDs distintos; test E2E | F2-3 |
