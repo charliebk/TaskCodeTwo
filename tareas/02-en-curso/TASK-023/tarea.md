@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-023-f2-7-configuracion-minima-con-esquema-va
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Tarea F2-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T21:13:01Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T21:23:05Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T21:23:08Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
