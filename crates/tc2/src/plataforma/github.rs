@@ -17,7 +17,7 @@ use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Cliente, Metodo, Respuesta, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, ReglasLeidas, Usuario};
-use crate::contrato::{Informe, Resultado, corto};
+use crate::contrato::{Informe, Resultado, Valor, corto};
 
 const ABRIR_PR: &str = "abrir-pr";
 const MERGE_PR: &str = "merge-pr";
@@ -594,8 +594,10 @@ impl Plataforma for GitHub {
             Err(i) => return i,
         };
         if !r.exito() {
-            return errores::traducir(MERGE_PR, Rol::Persona, permiso, &r)
-                .con("pr", pr.to_string());
+            let mut i = errores::traducir(MERGE_PR, Rol::Persona, permiso, &r);
+            i.claves
+                .insert(0, ("pr".to_owned(), Valor::Texto(pr.to_string())));
+            return i;
         }
         match parsear::<MergeApi>(MERGE_PR, &r.cuerpo) {
             Ok(m) if m.merged && sha_valido(&m.sha) => Informe::nuevo(MERGE_PR, Resultado::Ok)

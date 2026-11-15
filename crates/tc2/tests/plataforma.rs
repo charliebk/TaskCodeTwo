@@ -426,8 +426,8 @@ fn errores_dirigidos_a_la_persona() {
 
     // Merge: 405 (no mergeable) y 409 (head cambiado en la plataforma).
     for (estado, linea) in [
-        (405, "merge-pr rechazada motivo=no-mergeable pr=5"),
-        (409, "merge-pr rechazada motivo=head-cambiado pr=5"),
+        (405, "merge-pr rechazada pr=5 motivo=no-mergeable"),
+        (409, "merge-pr rechazada pr=5 motivo=head-cambiado"),
     ] {
         let mock = Mock::nuevo();
         persona_en(&mock, PERSONA);

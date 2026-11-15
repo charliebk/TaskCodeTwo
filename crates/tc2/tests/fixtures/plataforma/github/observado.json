@@ -1,4 +1,61 @@
 {
+ "E2E-01": {
+  "estado": 200,
+  "hechos": {
+   "claves_review": [
+    "_links",
+    "author_association",
+    "body",
+    "commit_id",
+    "copilot_code_review_effort",
+    "html_url",
+    "id",
+    "is_copilot_code_review",
+    "node_id",
+    "pull_request_url",
+    "state",
+    "submitted_at",
+    "user"
+   ],
+   "state": "COMMENTED",
+   "user.id_numerico": true,
+   "user.type": "User"
+  },
+  "url": "GET /repos/{repo}/pulls/{n}/reviews (TASK-021, E2E b)"
+ },
+ "E2E-02": {
+  "estado": 422,
+  "hechos": {
+   "errors": [
+    "Review Can not approve your own pull request"
+   ]
+  },
+  "url": "POST /repos/{repo}/pulls/{n}/reviews event=APPROVE del autor (TASK-021, E2E b)"
+ },
+ "E2E-03": {
+  "estado": 405,
+  "hechos": {
+   "message_contiene": "Repository rule violations found"
+  },
+  "url": "PUT /repos/{repo}/pulls/{n}/merge con ruleset de 1 aprobacion (TASK-021, E2E b)"
+ },
+ "E2E-04": {
+  "estado": 200,
+  "hechos": {
+   "commit.verification.reason": "valid",
+   "commit.verification.verified": true,
+   "committer.login": "web-flow",
+   "committer.type": "User"
+  },
+  "url": "GET /repos/{repo}/commits/{sha} del merge commit (TASK-021, E2E a)"
+ },
+ "E2E-05": {
+  "estado": 422,
+  "hechos": {
+   "errors_contiene": "No commits between"
+  },
+  "url": "POST /repos/{repo}/pulls de una rama sin commits nuevos (TASK-021, E2E a)"
+ },
  "GH-01": {
   "estado": 200,
   "hechos": {
