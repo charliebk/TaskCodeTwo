@@ -29,9 +29,9 @@ Rama de estado: crear, montar como worktree en `tareas/`, leer y escribir de for
 Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-1, F1-2, F2-2.
 
 ## Criterios de aceptacion
-- [ ] Dos procesos escriben a la vez sin perder nada
-- [ ] test
-- [ ] Cumple lo que pide la tarea F2-3 del plan y los requisitos que cita
+- [x] Dos procesos escriben a la vez sin perder nada (`tests/estado_concurrencia.rs`: dos clones y dos procesos del mismo clon)
+- [x] test (`cargo xtask verificar --perfil completa` en verde: 33 tests de tc2)
+- [x] Cumple lo que pide la tarea F2-3 del plan y los requisitos que cita (`tests/estado_casos.rs`; adendas en F1-1, F1-2 y F1-4)
 
 ## Transiciones
 
@@ -46,3 +46,8 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-15T13:24:44Z | diseno | agente:ad963b707cfa50972 | 14 | 77235 | 250282 | 23500 | 15 | 351031 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — d78931e
+- code-quality-reviewer — d78931e
