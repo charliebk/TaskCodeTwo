@@ -71,6 +71,10 @@ con las firmas reales de la 0.16 (D7a): entran 5, no entran 12
   siguiente_paso, tope con solo MENOR: integrar  -> ok
   siguiente_paso, sin margen de lote: parar presupuesto-de-lote -> ok
   siguiente_paso, [DECIDE CARLOS] durante el lote: apartar decide-durante-el-lote -> ok
+  siguiente_paso, carril del diff sube a riesgo alto: apartar carril-subio -> ok
+  siguiente_paso, develop movido por la App del agente: parar develop-movido-por-agente -> ok
+  siguiente_paso, escritura no declarada en el worktree: apartar escritura-no-declarada -> ok
+  nucleo de tarea.md: escritura del CLI cambia el blob (True) y no el nucleo (True); una frase en ## Objetivo cambia el nucleo (True)
 
 === A: lote limpio ===
 A0 replica fiel del primer padre de develop desde TASK-173 hasta TASK-210 con merge-tree: 219 de 219 arboles iguales
@@ -104,8 +108,8 @@ B1 apartado en cascada si cada tarea saliera en rojo (cierre transitivo sobre la
   media 3.88 dependientes (22,8 % del lote), maximo 14 (82,4 %, TASK-174), sin dependientes 6 de 17
   ejecucion con TASK-174 en rojo: fin; apartadas 15 (88,2 %; en cascada 14, 82,4 %): TASK-174 por verificacion-en-rojo, dependientes 175 176 177 178 179 180 181 182 187 188 189 190 191 205; integradas 2; rojo integrado: False
   ejecucion con TASK-187 en rojo: fin; apartadas 2 (11,8 %; en cascada 1, 5,9 %): TASK-187 por verificacion-en-rojo, dependientes 205; integradas 13; rojo integrado: False
-B2 sublote TASK-187, TASK-205 sobre develop en a831326a0 (TASK-174 terminada): 41 acciones atomicas
-B2 41 cortes, uno antes de cada accion, y --reanudar: todos terminan con el mismo arbol, las mismas 2 integraciones y sin repetir ni saltar puertas: True; ronda repetida entera (y contada con la mediana) en 4 cortes: diario:ronda:TASK-187, diario:ronda:TASK-187, diario:ronda:TASK-205, diario:ronda:TASK-205
+B2 sublote TASK-187, TASK-205 sobre develop en a831326a0 (TASK-174 terminada): 49 acciones atomicas
+B2 49 cortes, uno antes de cada accion, y --reanudar: todos terminan con el mismo arbol, las mismas 2 integraciones y sin repetir ni saltar puertas: True; ronda repetida entera (y contada con la mediana) en 4 cortes: diario:ronda:TASK-187, diario:ronda:TASK-187, diario:ronda:TASK-205, diario:ronda:TASK-205
 B3 presupuesto de 47645803 tokens (las 9 primeras rondas y una mediana menos 1): presupuesto-de-lote (quedan 3045407 tokens y una ronda mediana son 3045408); integradas 4, empezada sin integrar ['TASK-177'], usados 44600396 <= 47645803: True; rondas cortadas: 0
 B3 --reanudar con presupuesto ampliado por la persona: fin; integradas 15; arbol igual a A2: True; rondas repetidas: 0
 B3 presupuesto de tiempo 9:15 (las 4 primeras tareas y una ronda mediana menos 1 s): presupuesto-de-lote (quedan 576 s y una ronda mediana son 577 s); integradas 4
@@ -122,22 +126,29 @@ C1 commit ajeno en el worktree de la tarea: fin; TASK-187 interferida-rama antes
 C2 cambio sin commit en el worktree de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
 C3 commit ajeno empujado a la rama de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
 C4 commit ajeno empujado a lote/* sin ruleset: lote-con-commits-ajenos; el lote para antes de empezar TASK-205 (eb17d18b46 no es un merge (companero@personas.invalid)); integradas ['TASK-187']
+C4c --reanudar sin decidir nada: lote-con-commits-ajenos; la persona acepta el commit ajeno eb17d18b46 (evento ajeno-aceptado) y reanuda: fin, integradas 3; el informe lo nombra: True
 C4b el mismo push con el ruleset taskcodetwo-lote impuesto: rechazado por la plataforma (codigo 1); el lote sigue: fin, integradas 3
+C6c escrituras legitimas del CLI en tarea.md durante ese lote: 11 (estado, asignado_a, transiciones, ultimo_commit_revisado); tarea.md con otro blob: 3 de 3; apartadas por manifiesto-cambiado: 0
 C5 push directo a lote/* tras la ultima tarea: lote-con-commits-ajenos; PR final abierto: False
 C5b merge falsificado con trailer «Tarea: TASK-210» y committer de la plataforma: lote-con-commits-ajenos (bf9c850b3a integra a831326a0a y lo revisado de TASK-210 es 63ccb2669c)
+C5c merge con los mismos padres, trailer y committer pero otro arbol (un fichero que nadie reviso): lote-con-commits-ajenos (757ed26be9 tiene un arbol distinto del merge de sus padres (1f8f7a253d y se espera 134a025cf1))
 C6 tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de empezar): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
 C6b tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de la ronda 1): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
 C7 head de TASK-187 movido entre la guarda y el merge: fin; TASK-187 interferida-cas (409: el head de fix/task-187 es c2a47be202 y se pidio a3d18bd818); dependientes ['TASK-205']; integradas ['TASK-210']
 C7b lote/* movido entre la guarda y el merge de TASK-205 (la API no compara la base): el merge entra; siguiente paso: lote-con-commits-ajenos; PR final abierto: False
+C9 el trabajo de TASK-187 trae .github/workflows/evil.yml: fin; TASK-187 carril-subio antes de la ronda 1 (el diff de la tarea es riesgo-alto y el manifiesto dice fix (.github/workflows/evil.yml)); dependientes ['TASK-205']; integradas ['TASK-210']
+C10 escritura concurrente en un fichero que el agente no toca: fin; TASK-187 escritura-no-declarada (el worktree cambio fuera de lo que declaro el agente: notas-de-carlos.txt); integradas ['TASK-210']
+C10b escritura concurrente en un fichero que el agente tambien escribe (core/tw-alineacion/src/convertir.rs): fin; detectada: False; la linea de Carlos entra en el commit de la ronda 1 como trabajo del agente y es lo que revisa la ronda 1: True; integradas ['TASK-187', 'TASK-205', 'TASK-210']
+C11 la App del agente mueve develop durante la noche: develop-movido-por-agente (900b306491 de agente@taskcodetwo.invalid); PR final abierto: False
 C8 dos lanzamientos con el mismo nombre desde la misma base: primero True, segundo False (CAS); al releer, la reserva existe: True; `start` de un companero sobre TASK-205 rechazado (asignada al lote): True
 
 === I: informe de la manana (funcion pura sobre el diario de A2) ===
-informe: 51 lineas; hash 8fdc91663c99; igual tras escribir y releer el diario: True
+informe: 51 lineas; hash 3eea0e7a73cf; igual tras escribir y releer el diario: True
 PR final del lote: lote/noche-173-210 -> develop, descripcion = informe: True
 
 # Informe del lote `noche-173-210`
 
-- Base: `develop` en `389e193d7d`; manifiesto `7804958a133c`; tope de rondas 2.
+- Base: `develop` en `389e193d7d`; manifiesto `d3156af99b48`; tope de rondas 2.
 - Tareas en el manifiesto: 17; terminadas: 15; apartadas: 2 (0 en cascada); fuera desde el lanzamiento: 0.
 - Tokens de revisión: 120203077; tiempo de agente y revisión: 38:20.
 
@@ -185,7 +196,7 @@ TASK-174: 4 MENOR; TASK-176: 2 MENOR; TASK-182: 2 MENOR; TASK-188: 3 MENOR; TASK
 ## Paradas y reanudaciones
 
 ninguna
-Reanudaciones: 0; hechos reconciliados desde Git: 0.
+Reanudaciones: 0; hechos reconciliados desde Git: 0; commits ajenos aceptados por la persona: 0.
 
 
 tabla-inyecciones calculada:
@@ -193,7 +204,7 @@ tabla-inyecciones calculada:
 |---|---|---|---|---|
 | B1 | `verificacion` en rojo en TASK-174 | sí | antes de integrar | se aparta con 14 dependientes; el lote sigue |
 | B1b | `verificacion` en rojo en TASK-187 | sí | antes de integrar | se aparta con 1 dependiente; el lote sigue |
-| B2 | corte antes de cada una de las 41 acciones atómicas | sí | al reanudar | `--reanudar` termina igual, sin repetir ni saltar puertas; 4 rondas cortadas se repiten enteras |
+| B2 | corte antes de cada una de las 49 acciones atómicas | sí | al reanudar | `--reanudar` termina igual, sin repetir ni saltar puertas; 4 rondas cortadas se repiten enteras |
 | B3 | presupuesto de tokens y de tiempo | sí | antes de empezar una ronda | para limpio, sin apartar; se reanuda con el presupuesto ampliado por la persona |
 | B4 | límite de uso del proveedor | sí | durante la ronda | para sin apartar; la ronda se repite entera y sus tokens cuentan |
 | B5 | `develop` avanza durante la noche | sí | al final | 12 conflictos al informe; ninguno resuelto de noche |
@@ -202,13 +213,20 @@ tabla-inyecciones calculada:
 | C3 | commit ajeno empujado a la rama de la tarea | sí | antes de `review` | la tarea se aparta como interferida con su dependiente |
 | C4 | commit ajeno empujado a `lote/*` sin ruleset | sí | antes de la tarea siguiente | el lote para |
 | C4b | el mismo push con el ruleset impuesto | sí | en el push | lo rechaza la plataforma; el lote sigue |
+| C4c | la persona acepta el commit ajeno de C4 (`ajeno-aceptado`) | no aplica | al reanudar | el lote termina y el informe nombra el commit |
 | C5 | push directo a `lote/*` tras la última tarea | sí | antes del PR final | el lote para sin abrir el PR |
 | C5b | merge falsificado con trailer `Tarea:` | sí | antes del PR final | el lote para sin abrir el PR |
+| C5c | merge con los mismos padres, trailer y committer y otro árbol | sí | antes del PR final | el lote para sin abrir el PR |
 | C6 | `tarea.md` cambiado antes de empezar | sí | antes de empezar la tarea | la tarea se aparta (manifiesto) |
 | C6b | `tarea.md` cambiado a mitad de la tarea | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C6c | escrituras legítimas del CLI en `tarea.md` (estado, transiciones) | no aplica | en cada vuelta | no apartan: el núcleo no cambia |
 | C7 | head de la tarea movido entre la guarda y el merge | sí | en el merge (CAS del `sha`) | la tarea se aparta como interferida con su dependiente |
 | C7b | `lote/*` movido entre la guarda y el merge | sí | en el paso siguiente | el lote para sin abrir el PR |
 | C8 | segundo lanzamiento con el mismo nombre | sí | al reservar | rechazado por el CAS de la rama de estado |
+| C9 | el diff del agente trae un workflow | sí | antes de `review` | la tarea se aparta (`carril-subio`) con su dependiente |
+| C10 | escritura concurrente con el agente en otro fichero | sí | antes del commit del CLI | la tarea se aparta (`escritura-no-declarada`) |
+| C10b | escritura concurrente con el agente en un fichero que él también escribe | no | no se detecta | entra como trabajo del agente y llega a la revisión |
+| C11 | la App del agente mueve `develop` | sí | antes del PR final | el lote para sin abrir el PR |
 
 frases de la prosa calculadas:
   «17 tareas reales de ToolsaWeb»
@@ -221,10 +239,12 @@ frases de la prosa calculadas:
   «3 tareas que en la realidad tuvieron una tercera o cuarta ronda»
   «7 MENOR sin corregir»
   «14007657 tokens de revisión»
-  «22,8 % del lote de media»
+  «22,8 % del lote de media en dependientes»
+  «28,7 % del lote de media contando la tarea en rojo»
+  «88,2 % del lote con TASK-174 y sus dependientes»
   «82,4 % con TASK-174»
   «6 de 17 tareas no tienen dependientes»
-  «41 cortes»
+  «49 cortes»
   «51 commits directos»
 
 === G: el ADR (tablas, IDs, enlaces, secciones, prosa por contexto) y sus mutaciones de control ===
@@ -243,8 +263,14 @@ errores del ADR: 0
   mutacion divergencia-sin-f1-6: falla como se espera («Divergencias con el plan» no trata F1-6)
   mutacion no-verificado-sin-gitlab: falla como se espera («No verificado» no nombra «GitLab»)
   mutacion prosa-replica: falla como se espera (prosa: falta la frase «219 de 219 árboles iguales»)
-  mutacion prosa-cifra-suelta: falla como se espera (prosa: «3 de 17 tareas» fuera de una frase que diga a qué corresponde (…enían el `approve` firmado p)
+  mutacion prosa-cifra-suelta: falla como se espera (prosa: «3 de 17 tareas» fuera de una frase que diga a qué corresponde (…na IA mergea en `develop`» ()
   mutacion sin-procedencia: falla como se espera (falta la regla: `comprobar_procedencia`)
+  mutacion c10b-marcado-detectado: falla como se espera (tabla-inyecciones: falta o cambia la fila | C10b | escritura concurrente con el ag)
+  mutacion parada-carril-subio-quitada: falla como se espera (tabla-paradas: falta carril-subio)
+  mutacion informe-filas-mas: falla como se espera (informe de ejemplo: dice 99 filas más y son 12)
+  mutacion informe-fila-inventada: falla como se espera (informe de ejemplo: «TASK-999» no está en el informe calculado)
+  mutacion divergencia-sin-f1-10: falla como se espera («Divergencias con el plan» no trata F1-10)
+  mutacion no-verificado-sin-mismo-fichero: falla como se espera («No verificado» no nombra «mismo fichero»)
 
 carpeta de trabajo borrada al terminar: si
 

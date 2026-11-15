@@ -10,18 +10,18 @@ Pase generico (el diff es un ADR, una PoC en Python y su log; ningun revisor de 
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:454 (tabla-paradas) y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:343 (`siguiente_paso`) | plan |
-| IMP-2 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:486 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:285 (`comprobar_primer_padre`) | plan |
-| IMP-3 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:412 y :464, tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:378 y :674 | plan |
-| IMP-4 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:438 y :492, tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:961 | plan |
-| IMP-5 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:539 y :385 | plan |
-| MEN-1 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:326 | implementacion |
-| MEN-2 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:204 | implementacion |
-| MEN-3 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:537 y :69 | implementacion |
-| MEN-4 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:388 | implementacion |
-| MEN-5 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:255 y :623 | implementacion |
-| MEN-6 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:470 | plan |
-| MEN-7 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:237 | implementacion |
+| IMP-1 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:454 (tabla-paradas) y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:343 (`siguiente_paso`) | plan |
+| IMP-2 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:486 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:285 (`comprobar_primer_padre`) | plan |
+| IMP-3 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:412 y :464, tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:378 y :674 | plan |
+| IMP-4 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:438 y :492, tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:961 | plan |
+| IMP-5 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:539 y :385 | plan |
+| MEN-1 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:326 | implementacion |
+| MEN-2 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:204 | implementacion |
+| MEN-3 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:537 y :69 | implementacion |
+| MEN-4 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:388 | implementacion |
+| MEN-5 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:255 y :623 | implementacion |
+| MEN-6 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:470 | plan |
+| MEN-7 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:237 | implementacion |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
 plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el
