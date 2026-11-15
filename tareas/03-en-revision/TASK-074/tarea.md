@@ -41,6 +41,7 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci�
 ## Rondas extra
 
 - Ronda 3: Carlos (consigna «opcion recomendada» y fidelidad sobre coste); la ronda 2 encontro un IMPORTANTE introducido por la correccion (NUE-1, nucleo del manifiesto por lista blanca), ya corregido en d574e7f.
+- Ronda 4: Carlos (consigna «opcion recomendada» y fidelidad sobre coste); la ronda 3 encontro dos IMPORTANTE introducidos por la correccion (NUE-5 lista de escrituras del CLI medida solo en ToolsaWeb, NUE-6 reversion parcial sin caso), ya corregidos en da557fc.
 
 ## Transiciones
 
