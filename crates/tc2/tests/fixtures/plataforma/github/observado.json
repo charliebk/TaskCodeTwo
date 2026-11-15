@@ -1,0 +1,447 @@
+{
+ "GH-01": {
+  "estado": 200,
+  "hechos": {
+   "owner.type": "User",
+   "visibility": "public"
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo"
+ },
+ "GH-02": {
+  "estado": 200,
+  "hechos": {
+   "lista_vacia": true
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/rulesets"
+ },
+ "GH-03": {
+  "estado": 200,
+  "hechos": {
+   "lista_vacia": true
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/rules/branches/develop"
+ },
+ "GH-04": {
+  "estado": 404,
+  "hechos": {
+   "message": "Branch not protected"
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/branches/develop/protection"
+ },
+ "GH-05": {
+  "estado": 200,
+  "hechos": {
+   "claves_check_run": [
+    "app",
+    "check_suite",
+    "completed_at",
+    "conclusion",
+    "details_url",
+    "external_id",
+    "head_sha",
+    "html_url",
+    "id",
+    "name",
+    "node_id",
+    "output",
+    "pull_requests",
+    "started_at",
+    "status",
+    "url"
+   ],
+   "runs": [
+    "comprobar-repo<-15368:success"
+   ],
+   "total_count": 1
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc/check-runs"
+ },
+ "GH-06": {
+  "estado": 200,
+  "hechos": {
+   "state": "pending",
+   "total_count": 0
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc/status"
+ },
+ "GH-07": {
+  "estado": 200,
+  "hechos": {
+   "verification.reason": "unsigned",
+   "verification.verified": false
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/commits/e8ee970802d968a3c8ae0599bc1e7ad62f69f8bc"
+ },
+ "GH-08": {
+  "estado": 200,
+  "hechos": {
+   "prs": 0
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/pulls?state=all&per_page=5"
+ },
+ "GH-09": {
+  "estado": 200,
+  "hechos": {
+   "can_approve_pull_request_reviews": false,
+   "default_workflow_permissions": "read"
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/actions/permissions/workflow"
+ },
+ "GH-10": {
+  "estado": 200,
+  "hechos": {
+   "id": 15368
+  },
+  "url": "https://api.github.com/apps/github-actions"
+ },
+ "GH-11": {
+  "estado": 200,
+  "hechos": {
+   "con_previous_filename": 4,
+   "renombrados": 4
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/commits/03f0c42464c6b5bd2e9d3cc46a0e51f4629e0a15"
+ },
+ "GH-12": {
+  "estado": 403,
+  "hechos": {
+   "aviso_de_plan": true
+  },
+  "url": "https://api.github.com/repos/charliebk/taskcodetwo-poc-f1-1/rulesets"
+ },
+ "GH-13": {
+  "estado": 403,
+  "hechos": {
+   "aviso_de_plan": true
+  },
+  "url": "https://api.github.com/repos/charliebk/taskcodetwo-poc-f1-1/branches/develop/protection"
+ },
+ "GH-14": {
+  "estado": 404,
+  "hechos": {
+   "message": "Not Found"
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/codeowners/errors"
+ },
+ "GH-15": {
+  "estado": 404,
+  "hechos": {
+   "message": "Not Found"
+  },
+  "url": "https://api.github.com/repos/charliebk/TaskCodeTwo/pulls/1/reviews"
+ },
+ "GL-01": {
+  "estado": 200,
+  "hechos": {
+   "merge_method_visible_anonimo": false,
+   "only_allow_merge_if_pipeline_succeeds_visible_anonimo": false,
+   "visibility": "public"
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964"
+ },
+ "GL-02": {
+  "estado": 200,
+  "hechos": {
+   "claves_rama": [
+    "allow_force_push",
+    "code_owner_approval_required",
+    "id",
+    "inherited",
+    "merge_access_levels",
+    "name",
+    "push_access_levels",
+    "unprotect_access_levels"
+   ],
+   "es_lista": true
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/protected_branches"
+ },
+ "GL-03": {
+  "estado": 200,
+  "hechos": {
+   "allow_force_push": false,
+   "claves_rama": [
+    "allow_force_push",
+    "code_owner_approval_required",
+    "id",
+    "inherited",
+    "merge_access_levels",
+    "name",
+    "push_access_levels",
+    "unprotect_access_levels"
+   ]
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/protected_branches/master"
+ },
+ "GL-04": {
+  "estado": 403,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/protected_tags"
+ },
+ "GL-05": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/approval_rules"
+ },
+ "GL-06": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/approvals"
+ },
+ "GL-07": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/push_rule"
+ },
+ "GL-08": {
+  "estado": 200,
+  "hechos": {
+   "claves_mr": [
+    "approvals_before_merge",
+    "assignee",
+    "assignees",
+    "author",
+    "blocking_discussions_resolved",
+    "changes_count",
+    "closed_at",
+    "closed_by",
+    "created_at",
+    "description",
+    "detailed_merge_status",
+    "diff_refs",
+    "discussion_locked",
+    "diverged_commits_count",
+    "downvotes",
+    "draft",
+    "first_contribution",
+    "first_deployed_to_production_at",
+    "force_remove_source_branch",
+    "has_conflicts",
+    "head_pipeline",
+    "id",
+    "iid",
+    "imported",
+    "imported_from",
+    "labels",
+    "latest_build_finished_at",
+    "latest_build_started_at",
+    "merge_after",
+    "merge_commit_sha",
+    "merge_error",
+    "merge_status",
+    "merge_user",
+    "merge_when_pipeline_succeeds",
+    "merged_at",
+    "merged_by",
+    "milestone",
+    "pipeline",
+    "prepared_at",
+    "project_id",
+    "reference",
+    "references",
+    "reviewers",
+    "sha",
+    "should_remove_source_branch",
+    "source_branch",
+    "source_project_id",
+    "squash",
+    "squash_commit_sha",
+    "squash_on_merge",
+    "state",
+    "subscribed",
+    "target_branch",
+    "target_project_id",
+    "task_completion_status",
+    "time_stats",
+    "title",
+    "updated_at",
+    "upvotes",
+    "user",
+    "user_notes_count",
+    "web_url",
+    "work_in_progress"
+   ],
+   "state": "merged"
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075?include_diverged_commits_count=true"
+ },
+ "GL-09": {
+  "estado": 200,
+  "hechos": {
+   "aprobador_bot_de_proyecto": true,
+   "campo_bot_en_aprobador": false,
+   "claves": [
+    "approval_rules_left",
+    "approvals_left",
+    "approvals_required",
+    "approved",
+    "approved_by",
+    "approver_groups",
+    "approvers",
+    "created_at",
+    "description",
+    "has_approval_rules",
+    "id",
+    "iid",
+    "invalid_approvers_rules",
+    "merge_request_approvers_available",
+    "merge_status",
+    "multiple_approval_rules_available",
+    "project_id",
+    "require_password_to_approve",
+    "state",
+    "suggested_approvers",
+    "title",
+    "updated_at",
+    "user_can_approve",
+    "user_has_approved"
+   ],
+   "claves_usuario_aprobador": [
+    "avatar_url",
+    "id",
+    "locked",
+    "name",
+    "public_email",
+    "state",
+    "username",
+    "web_url"
+   ]
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approvals"
+ },
+ "GL-10": {
+  "estado": 200,
+  "hechos": {
+   "claves": [
+    "approval_rules_overwritten",
+    "rules"
+   ],
+   "rule_types": [
+    "any_approver",
+    "code_owner"
+   ]
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approval_state"
+ },
+ "GL-11": {
+  "estado": 200,
+  "hechos": {
+   "es_lista": true
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/approval_rules"
+ },
+ "GL-12": {
+  "estado": 200,
+  "hechos": {
+   "ref_de_tren": true,
+   "sources": [
+    "merge_request_event"
+   ]
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/pipelines"
+ },
+ "GL-13": {
+  "estado": 200,
+  "hechos": {
+   "claves_pipeline": [
+    "created_at",
+    "id",
+    "iid",
+    "name",
+    "project_id",
+    "ref",
+    "sha",
+    "source",
+    "status",
+    "updated_at",
+    "web_url"
+   ],
+   "es_lista": true
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/pipelines?sha=e5b0c3022386a560e8377e9cd057dc883316cfeb"
+ },
+ "GL-14": {
+  "estado": 200,
+  "hechos": {
+   "claves_diff": [
+    "a_mode",
+    "b_mode",
+    "collapsed",
+    "deleted_file",
+    "diff",
+    "generated_file",
+    "new_file",
+    "new_path",
+    "old_path",
+    "renamed_file",
+    "too_large"
+   ]
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/diffs?per_page=5"
+ },
+ "GL-15": {
+  "estado": 200,
+  "hechos": {
+   "claves": [
+    "commit_source",
+    "key",
+    "signature_type",
+    "verification_status"
+   ],
+   "claves_key": [
+    "created_at",
+    "expires_at",
+    "id",
+    "key",
+    "last_used_at",
+    "title",
+    "usage_type"
+   ],
+   "signature_type": "SSH",
+   "verification_status": "verified_system"
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/repository/commits/e5b0c3022386a560e8377e9cd057dc883316cfeb/signature"
+ },
+ "GL-16": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/repository/commits/e5b0c3022386a560e8377e9cd057dc883316cfeb/statuses"
+ },
+ "GL-17": {
+  "estado": 200,
+  "hechos": {
+   "es_lista": true
+  },
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_trains"
+ },
+ "GL-18": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/external_status_checks"
+ },
+ "GL-19": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/merge_requests/271075/status_checks"
+ },
+ "GL-20": {
+  "estado": 403,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/users/26073976"
+ },
+ "GL-21": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/runners"
+ },
+ "GL-22": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/variables"
+ },
+ "GL-23": {
+  "estado": 401,
+  "hechos": {},
+  "url": "https://gitlab.com/api/v4/projects/278964/access_tokens"
+ }
+}
