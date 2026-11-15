@@ -230,10 +230,13 @@ fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento>
 /// `[remote rejected]` por contencion: otro push actualizo la misma ref a la
 /// vez y el remoto no pudo tomar su cerrojo (visto en F2-3 con dos procesos
 /// contra el mismo remoto). Es lo mismo que un non-fast-forward: la ref se
-/// movio; no es una denegacion.
+/// movio; no es una denegacion. `reference already exists`: dos clones
+/// crean a la vez una ref que no existia (la rama de estado en el primer
+/// `new`, visto en F2-4) y el remoto rechaza al segundo.
 fn es_contencion(resumen: &str) -> bool {
     let t = resumen.to_ascii_lowercase();
     [
+        "reference already exists",
         "cannot lock ref",
         "failed to lock",
         "unable to lock",
@@ -624,6 +627,9 @@ mod tests {
             "[remote rejected] (cannot lock ref 'refs/heads/taskcode/tareas': is at 1a but expected 2b)"
         ));
         assert!(es_contencion("[remote rejected] (failed to update ref)"));
+        assert!(es_contencion(
+            "[remote rejected] (reference already exists)"
+        ));
         assert!(!es_contencion(
             "[remote rejected] (pre-receive hook declined)"
         ));

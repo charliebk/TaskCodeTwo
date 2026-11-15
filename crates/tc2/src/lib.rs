@@ -2,9 +2,11 @@
 //!
 //! Modulos: [`contrato`] (salida de toda operacion, ADR F1-4), [`git`]
 //! (capa de operaciones Git deterministas, F2-2) y [`estado`] (rama de
-//! estado `taskcode/tareas`, F2-3). Las capas que vienen (modelo de tarea de
-//! F2-5...) entran como modulos de esta biblioteca.
+//! estado `taskcode/tareas`, F2-3) y [`alta`] (alta de tareas con reserva de
+//! ID, F2-4). Las capas que vienen (modelo de tarea de F2-5...) entran como
+//! modulos de esta biblioteca.
 
+pub mod alta;
 pub mod contrato;
 pub mod estado;
 pub mod git;
@@ -27,7 +29,7 @@ pub struct Salida {
 }
 
 /// Uso del binario, para los mensajes de error.
-const USO: &str = "Uso: tc2 --version | tc2 guardar [--json] \"<mensaje>\" <rutas...> | tc2 actualizar-rama [--json]";
+const USO: &str = "Uso: tc2 --version | tc2 guardar [--json] \"<mensaje>\" <rutas...> | tc2 actualizar-rama [--json] | tc2 new [--json] \"<titulo>\"";
 
 /// Interpreta los argumentos (sin el nombre del programa) y ejecuta la orden
 /// en la carpeta actual.
@@ -52,6 +54,13 @@ where
                 r => (false, r),
             };
             orden_git(orden, resto).salida(json)
+        }
+        [orden, resto @ ..] if orden == alta::NOMBRE => {
+            let (json, resto) = match resto {
+                [j, r @ ..] if j == "--json" => (true, r),
+                r => (false, r),
+            };
+            orden_new(resto).salida(json)
         }
         [] => Salida {
             codigo: 2,
@@ -99,9 +108,75 @@ fn orden_git(orden: &str, args: &[String]) -> Informe {
     }
 }
 
+/// Catalogo de produccion: reconstruye las operaciones de la rama de estado
+/// desde su anotacion. Las operaciones nuevas se anaden aqui.
+fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
+    alta::desde_anotacion(anotacion)
+}
+
+/// `new "<titulo>"`: alta de una tarea con su ID reservado por el push de la
+/// rama de estado (F2-4). Sale `new ok id=TASK-NNN ...`.
+fn orden_new(args: &[String]) -> Informe {
+    let titulo = match args {
+        [t] if alta::titulo_valido(t) => t,
+        [_] => {
+            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
+                .con("motivo", "titulo-invalido")
+                .diagnostico(
+                    "el titulo no puede estar vacio ni llevar saltos de linea, tabuladores ni otros caracteres de control",
+                );
+        }
+        [] => {
+            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
+                .con("motivo", "sin-titulo")
+                .diagnostico("uso: new [--json] \"<titulo>\"");
+        }
+        _ => {
+            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
+                .con("motivo", "argumentos-de-mas")
+                .diagnostico("pon el titulo entre comillas: new [--json] \"<titulo>\"");
+        }
+    };
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(alta::NOMBRE, Resultado::Error)
+                .diagnostico(format!("no se puede leer la carpeta actual: {e}"));
+        }
+    };
+    let g = git::Git::nuevo();
+    let op = alta::Alta::nueva(titulo);
+    let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
+    let mut i = estado::transaccion(&c, &op);
+    alta::NOMBRE.clone_into(&mut i.comando);
+    if i.resultado == Resultado::Ok
+        && let Some(id) = op.id()
+    {
+        i.claves
+            .insert(0, ("id".to_owned(), contrato::Valor::Texto(id)));
+    }
+    i
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_sin_titulo_o_con_salto_de_linea_es_uso() {
+        for (args, motivo) in [
+            (vec!["new"], "sin-titulo"),
+            (vec!["new", "--json"], "sin-titulo"),
+            (vec!["new", "a", "b"], "argumentos-de-mas"),
+            (vec!["new", "a\tb"], "titulo-invalido"),
+            (vec!["new", "linea\notra"], "titulo-invalido"),
+            (vec!["new", "  "], "titulo-invalido"),
+        ] {
+            let s = ejecutar(&args);
+            assert_eq!(s.codigo, 2, "{args:?}");
+            assert!(s.stdout.contains(motivo), "{args:?}: {}", s.stdout);
+        }
+    }
 
     #[test]
     fn version_corta_y_larga() {
