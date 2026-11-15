@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-021-f2-6-adaptador-github
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F2-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T16:50:45Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T16:58:01Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T16:58:09Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
