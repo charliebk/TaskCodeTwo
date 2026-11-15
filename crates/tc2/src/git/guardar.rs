@@ -75,11 +75,11 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
             Subcomando::Status,
             &["--porcelain", "-z", "--untracked-files=all"],
         )?;
-        let utiles = conocidas(dir, rutas, &desde_raiz, &entradas_status(&estado));
-        if !utiles.is_empty() {
-            let mut add = vec!["--"];
-            add.extend_from_slice(&utiles);
-            exigir(git, dir, OP, Subcomando::Add, &add)?;
+        let (add, _) = repartir(dir, rutas, &desde_raiz, &entradas_con_origen(&estado));
+        if !add.is_empty() {
+            let mut a = vec!["--"];
+            a.extend_from_slice(&add);
+            exigir(git, dir, OP, Subcomando::Add, &a)?;
         }
         // Durante un merge el commit es del indice entero (el merge), no
         // parcial: git no admite rutas aqui.
@@ -94,22 +94,23 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
 
     let mut status = vec!["--porcelain", "-z", "--untracked-files=all"];
     status.extend_from_slice(&args);
-    let entradas = entradas_status(&exigir(git, dir, OP, Subcomando::Status, &status)?);
-    let cambios = entradas.len();
+    let salida = exigir(git, dir, OP, Subcomando::Status, &status)?;
+    let cambios = entradas_status(&salida).len();
     if cambios == 0 {
         return Ok(Informe::nuevo(OP, Resultado::SinCambios)
             .con("sin-guardar", sin_guardar(git, dir)?.to_string()));
     }
-    // Solo las rutas que git conoce o que existen: una ruta sin cambios ni
-    // fichero haria fallar el `add` entero. `add -- <rutas>` recoge tambien
-    // los borrados (git >= 2.0) y nunca toca otras rutas.
-    let utiles = conocidas(dir, rutas, &desde_raiz, &entradas);
-    let mut add = vec!["--"];
-    add.extend_from_slice(&utiles);
-    exigir(git, dir, OP, Subcomando::Add, &add)?;
-    let mut commit = vec!["-q", "-m", mensaje, "--only", "--"];
-    commit.extend_from_slice(&utiles);
-    exigir(git, dir, OP, Subcomando::Commit, &commit)?;
+    let (add, commit) = repartir(dir, rutas, &desde_raiz, &entradas_con_origen(&salida));
+    if !add.is_empty() {
+        let mut a = vec!["--"];
+        a.extend_from_slice(&add);
+        exigir(git, dir, OP, Subcomando::Add, &a)?;
+    }
+    // `--only`: el commit lleva solo estas rutas aunque haya otras en el
+    // indice (RF-23).
+    let mut c = vec!["-q", "-m", mensaje, "--only", "--"];
+    c.extend_from_slice(&commit);
+    exigir(git, dir, OP, Subcomando::Commit, &c)?;
     let head = commit_de(git, dir, OP, "HEAD")?.unwrap_or_default();
     Ok(Informe::nuevo(OP, Resultado::Ok)
         .con("commit", corto(&head))
@@ -117,26 +118,60 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
         .con("sin-guardar", sin_guardar(git, dir)?.to_string()))
 }
 
-/// Rutas que existen en disco o que aparecen en el status (borradas).
-fn conocidas<'a>(
+/// Reparte las rutas pedidas en las que hay que pasar al indice (`add`) y
+/// las que entran en el commit:
+/// - en disco: `add` y commit;
+/// - borrada en el worktree sin pasar al indice (` D`): `add` y commit;
+/// - borrada ya en el indice (`git rm`, origen de un `git mv`): solo commit,
+///   porque `add` de una ruta que no esta ni en disco ni en el indice falla;
+/// - desconocida para git y ausente del disco: se ignora (nada que guardar).
+fn repartir<'a>(
     dir: &Path,
     rutas: &[&'a str],
     desde_raiz: &[String],
     status: &[(String, String)],
-) -> Vec<&'a str> {
-    rutas
-        .iter()
-        .zip(desde_raiz)
-        .filter(|(r, raiz)| {
-            dir.join(r).symlink_metadata().is_ok()
-                || status.iter().any(|(_, s)| {
-                    s == *raiz
-                        || s.strip_prefix(raiz.as_str())
-                            .is_some_and(|resto| resto.starts_with('/'))
-                })
-        })
-        .map(|(r, _)| *r)
-        .collect()
+) -> (Vec<&'a str>, Vec<&'a str>) {
+    let (mut add, mut commit) = (Vec::new(), Vec::new());
+    for (r, raiz) in rutas.iter().zip(desde_raiz) {
+        let estados: Vec<&str> = status
+            .iter()
+            .filter(|(_, s)| {
+                s == raiz
+                    || s.strip_prefix(raiz.as_str())
+                        .is_some_and(|resto| resto.starts_with('/'))
+            })
+            .map(|(xy, _)| xy.as_str())
+            .collect();
+        if dir.join(r).symlink_metadata().is_ok() || estados.iter().any(|xy| xy.ends_with('D')) {
+            add.push(*r);
+            commit.push(*r);
+        } else if !estados.is_empty() {
+            commit.push(*r);
+        }
+    }
+    (add, commit)
+}
+
+/// Como [`entradas_status`], pero un renombrado tambien aporta su ruta de
+/// origen, como borrada en el indice (`D `).
+fn entradas_con_origen(salida: &str) -> Vec<(String, String)> {
+    let mut v = Vec::new();
+    let mut campos = salida.split('\0').filter(|c| !c.is_empty());
+    while let Some(c) = campos.next() {
+        let xy = c.get(..2).unwrap_or(c).to_owned();
+        let ruta = c.get(3..).unwrap_or("").to_owned();
+        // La copia (`C`) tambien trae el origen, pero el origen sigue ahi.
+        let origen = if xy.starts_with('R') || xy.starts_with('C') {
+            campos.next()
+        } else {
+            None
+        };
+        if let (Some(o), true) = (origen, xy.starts_with('R')) {
+            v.push(("D ".to_owned(), o.to_owned()));
+        }
+        v.push((xy, ruta));
+    }
+    v
 }
 
 /// Cambios que quedan en el worktree sin guardar (se informan, no se tocan).

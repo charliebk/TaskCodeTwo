@@ -212,35 +212,27 @@ impl Git {
 }
 
 /// Argumentos prohibidos dentro de los subcomandos permitidos (F1-4,
-/// decision 3). Se mira cada argumento entero, no subcadenas (H9).
+/// decision 3). Se mira cada argumento entero, no subcadenas (H9). No se
+/// miran el texto de un mensaje (`-m <texto>` en `commit` y `tag`) ni las
+/// rutas tras `--` en los subcomandos que las aceptan (`add`, `commit`,
+/// `status`, `diff`): ahi una palabra como `--force` es dato, no opcion.
 fn comprobar_argumentos(sub: Subcomando, args: &[&str]) -> Result<(), ErrorGit> {
     let prohibido = |a: &str| Err(ErrorGit::Prohibido(format!("{} {a}", sub.nombre())));
-    for &a in args {
-        if a.starts_with("--force") {
-            return prohibido(a);
+    let con_rutas = matches!(
+        sub,
+        Subcomando::Add | Subcomando::Commit | Subcomando::Status | Subcomando::Diff
+    );
+    let con_mensaje = matches!(sub, Subcomando::Commit | Subcomando::Tag);
+    let mut iter = args.iter().copied();
+    while let Some(a) = iter.next() {
+        if a == "--" && con_rutas {
+            break;
         }
-        let malo = match sub {
-            Subcomando::Push => {
-                a == "-f"
-                    || a == "-d"
-                    || a == "--delete"
-                    || a == "--mirror"
-                    || a == "--prune"
-                    || a == "--all"
-                    || a.starts_with('+')
-                    || a.starts_with(':')
-            }
-            Subcomando::Branch => matches!(
-                a,
-                "-f" | "-d" | "-D" | "-m" | "-M" | "-c" | "-C" | "--delete" | "--move" | "--copy"
-            ),
-            Subcomando::Worktree => a == "-f",
-            Subcomando::Tag => matches!(a, "-d" | "-f" | "--delete"),
-            Subcomando::Merge => a == "--abort",
-            Subcomando::Commit => a == "--amend",
-            _ => false,
-        };
-        if malo {
+        if a == "-m" && con_mensaje {
+            iter.next();
+            continue;
+        }
+        if es_prohibido(sub, a) {
             return prohibido(a);
         }
     }
@@ -250,46 +242,114 @@ fn comprobar_argumentos(sub: Subcomando, args: &[&str]) -> Result<(), ErrorGit> 
     Ok(())
 }
 
+fn es_prohibido(sub: Subcomando, a: &str) -> bool {
+    if a.starts_with("--force") {
+        return true;
+    }
+    match sub {
+        Subcomando::Push => {
+            matches!(
+                a,
+                "-f" | "-d" | "--delete" | "--mirror" | "--prune" | "--all"
+            ) || a.starts_with('+')
+                || a.starts_with(':')
+        }
+        Subcomando::Branch => matches!(
+            a,
+            "-f" | "-d" | "-D" | "-m" | "-M" | "-c" | "-C" | "--delete" | "--move" | "--copy"
+        ),
+        Subcomando::Worktree => a == "-f",
+        Subcomando::Tag => matches!(a, "-d" | "-f" | "--delete"),
+        Subcomando::Merge => a == "--abort",
+        Subcomando::Commit => a == "--amend",
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn rechaza_argumentos_prohibidos_sin_lanzar_git() {
-        // Binario inexistente: si llegara a lanzarse, el error seria `Lanzar`.
-        let git = Git {
+    /// Puerto con un binario inexistente: si una llamada llegara a lanzarse,
+    /// el error seria `Lanzar`, no `Prohibido`.
+    fn git_sin_binario() -> Git {
+        Git {
             binario: OsString::from("no-existe-este-git"),
             entorno_extra: Vec::new(),
             registro: RefCell::new(Vec::new()),
-        };
-        let casos: [(Subcomando, &[&str]); 12] = [
-            (Subcomando::Push, &["origin", "+r:r"]),
+        }
+    }
+
+    #[test]
+    fn rechaza_cada_argumento_prohibido_sin_lanzar_git() {
+        let git = git_sin_binario();
+        // Una fila por regla de `es_prohibido` y de la decision 3 de F1-4,
+        // formas cortas y largas.
+        let casos: &[(Subcomando, &[&str])] = &[
+            (Subcomando::Push, &["--force", "origin", "r"]),
             (Subcomando::Push, &["--force-with-lease", "origin", "r"]),
-            (Subcomando::Push, &["origin", ":r"]),
-            (Subcomando::Push, &["--mirror", "origin"]),
             (Subcomando::Push, &["-f", "origin", "r"]),
-            (Subcomando::Branch, &["-D", "r"]),
+            (Subcomando::Push, &["-d", "origin", "r"]),
+            (Subcomando::Push, &["--delete", "origin", "r"]),
+            (Subcomando::Push, &["--mirror", "origin"]),
+            (Subcomando::Push, &["--prune", "origin"]),
+            (Subcomando::Push, &["--all", "origin"]),
+            (Subcomando::Push, &["origin", "+r:r"]),
+            (Subcomando::Push, &["origin", ":r"]),
             (Subcomando::Branch, &["-f", "r", "HEAD"]),
+            (Subcomando::Branch, &["--force", "r", "HEAD"]),
+            (Subcomando::Branch, &["-d", "r"]),
+            (Subcomando::Branch, &["-D", "r"]),
+            (Subcomando::Branch, &["--delete", "r"]),
+            (Subcomando::Branch, &["-m", "r", "s"]),
+            (Subcomando::Branch, &["-M", "r", "s"]),
+            (Subcomando::Branch, &["--move", "r", "s"]),
+            (Subcomando::Branch, &["-c", "r", "s"]),
+            (Subcomando::Branch, &["-C", "r", "s"]),
+            (Subcomando::Branch, &["--copy", "r", "s"]),
+            (Subcomando::Worktree, &["remove", "-f", "w"]),
             (Subcomando::Worktree, &["remove", "--force", "w"]),
             (Subcomando::Tag, &["-d", "v1"]),
+            (Subcomando::Tag, &["--delete", "v1"]),
+            (Subcomando::Tag, &["-f", "v1"]),
+            (Subcomando::Tag, &["--force", "v1"]),
             (Subcomando::Merge, &["--abort"]),
-            (Subcomando::Pull, &["origin", "develop"]),
             (Subcomando::Commit, &["--amend", "-m", "x"]),
+            (Subcomando::Pull, &["origin", "develop"]),
         ];
         for (sub, args) in casos {
-            let r = git.ejecutar(Path::new("."), sub, args);
+            let r = git.ejecutar(Path::new("."), *sub, args);
             assert!(
                 matches!(r, Err(ErrorGit::Prohibido(_))),
                 "{sub:?} {args:?}: {r:?}"
             );
         }
         assert!(git.registro().is_empty());
-        // Un argumento permitido si intenta lanzar (y falla por el binario).
-        let r = git.ejecutar(
-            Path::new("."),
-            Subcomando::Push,
-            &["--porcelain", "origin", "a:b"],
-        );
-        assert!(matches!(r, Err(ErrorGit::Lanzar(_))));
+    }
+
+    #[test]
+    fn mensajes_y_rutas_no_son_opciones() {
+        let git = git_sin_binario();
+        let permitidos: &[(Subcomando, &[&str])] = &[
+            (Subcomando::Push, &["--porcelain", "origin", "a:b"]),
+            (
+                Subcomando::Commit,
+                &["-q", "-m", "--force no se usa", "--only", "--", "a.txt"],
+            ),
+            (Subcomando::Add, &["--", "--force-x.txt"]),
+            (Subcomando::Status, &["--porcelain", "--", "--amend"]),
+            (Subcomando::Tag, &["-a", "-m", "-d", "--", "v1", "abc"]),
+            (Subcomando::Pull, &["-q", "--ff-only", "origin", "develop"]),
+        ];
+        for (sub, args) in permitidos {
+            let r = git.ejecutar(Path::new("."), *sub, args);
+            assert!(
+                matches!(r, Err(ErrorGit::Lanzar(_))),
+                "{sub:?} {args:?}: {r:?}"
+            );
+        }
+        // Tras `--` en push no hay rutas: se sigue mirando.
+        let r = git.ejecutar(Path::new("."), Subcomando::Push, &["origin", "--", "+r:r"]);
+        assert!(matches!(r, Err(ErrorGit::Prohibido(_))));
     }
 }

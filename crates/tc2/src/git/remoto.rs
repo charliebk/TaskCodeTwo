@@ -59,7 +59,9 @@ enum Intento {
     Publicado,
     AlDia,
     NoFastForward,
-    Fallo(String),
+    /// Fallo con su resumen; `true` si el remoto respondio y lo rechazo
+    /// (`[remote rejected]`: un hook o una regla), no un fallo de red.
+    Fallo(String, bool),
 }
 
 fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento> {
@@ -81,16 +83,15 @@ fn intento_push(git: &Git, dir: &Path, op: &str, refspec: &str) -> Paso<Intento>
         Some('=') if s.exito() => Intento::AlDia,
         Some(' ' | '*') if s.exito() => Intento::Publicado,
         Some('!') if resumen.starts_with("[rejected]") => Intento::NoFastForward,
-        _ => Intento::Fallo(if resumen.is_empty() {
-            s.primera_linea_error()
-        } else {
-            resumen.to_owned()
-        }),
+        _ if resumen.is_empty() => Intento::Fallo(s.primera_linea_error(), false),
+        _ => Intento::Fallo(resumen.to_owned(), resumen.starts_with("[remote rejected]")),
     })
 }
 
 /// Publica `refspec` con reintentos ante fallos transitorios. Un
-/// non-fast-forward no se reintenta. Devuelve el resultado y los intentos.
+/// non-fast-forward no se reintenta. Agotados los intentos: `agotada` si el
+/// remoto respondio rechazando (hook o regla: con red no se arregla) y
+/// `sinred` si no. Devuelve el resultado, los intentos y el ultimo fallo.
 pub(crate) fn publicar(
     git: &Git,
     dir: &Path,
@@ -99,6 +100,7 @@ pub(crate) fn publicar(
     esperas: &[Duration],
 ) -> Paso<(Resultado, usize, String)> {
     let mut ultimo = String::new();
+    let mut rechazo_remoto = false;
     for intento in 0..=esperas.len() {
         match intento_push(git, dir, op, refspec)? {
             Intento::AlDia => return Ok((Resultado::SinCambios, intento + 1, String::new())),
@@ -106,13 +108,21 @@ pub(crate) fn publicar(
             Intento::NoFastForward => {
                 return Ok((Resultado::Rechazada, intento + 1, String::new()));
             }
-            Intento::Fallo(m) => ultimo = m,
+            Intento::Fallo(m, remoto) => {
+                ultimo = m;
+                rechazo_remoto = remoto;
+            }
         }
         if let Some(e) = esperas.get(intento) {
             std::thread::sleep(*e);
         }
     }
-    Ok((Resultado::Sinred, esperas.len() + 1, ultimo))
+    let r = if rechazo_remoto {
+        Resultado::Agotada
+    } else {
+        Resultado::Sinred
+    };
+    Ok((r, esperas.len() + 1, ultimo))
 }
 
 /// Publica la rama actual en `origin` con el mismo nombre, sin force.
@@ -135,6 +145,12 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
             .diagnostico("lanza actualizar-rama"),
+        Resultado::Agotada => i
+            .con("motivo", "remoto-rechaza")
+            .con("intentos", intentos.to_string())
+            .diagnostico(format!(
+                "push: {ultimo}; el remoto rechaza el push: revisa sus reglas o avisa a la persona"
+            )),
         _ => i
             .con("intentos", intentos.to_string())
             .diagnostico(format!("push: {ultimo}; reintenta con red")),
@@ -232,12 +248,16 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
         if es_ancestro(git, dir, OP, fuente, "HEAD")? {
             continue;
         }
+        // La base entra siempre con merge commit (queda constancia de la
+        // actualizacion); lo publicado en la propia rama, por fast-forward si
+        // se puede, para no ensuciar el historial.
+        let modo = if fuente == base { "--no-ff" } else { "--ff" };
         let s = correr(
             git,
             dir,
             OP,
             Subcomando::Merge,
-            &["-q", "--no-edit", "--no-ff", fuente],
+            &["-q", "--no-edit", modo, fuente],
         )?;
         if !s.exito() {
             if merge_abierto(git, dir, OP)? {
@@ -265,12 +285,17 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                         "alguien publico en la rama entre medias: vuelve a lanzar actualizar-rama",
                     ));
             }
-            _ => {
-                return Ok(Informe::nuevo(OP, Resultado::Sinred)
+            otro => {
+                let que_hacer = if otro == Resultado::Agotada {
+                    "el remoto rechaza el push: revisa sus reglas o avisa a la persona"
+                } else {
+                    "reintenta con red"
+                };
+                return Ok(Informe::nuevo(OP, otro)
                     .con("rama", rama.as_str())
                     .con("intentos", intentos.to_string())
                     .diagnostico(format!(
-                        "push: {ultimo}; la rama esta actualizada en local, reintenta con red"
+                        "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
                     )));
             }
         }

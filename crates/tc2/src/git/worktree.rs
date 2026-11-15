@@ -11,7 +11,7 @@ use super::{
 use crate::contrato::{Informe, Resultado};
 
 /// Quita `.taskcode/worktrees/<id>`. No existe → `sin-cambios`. Con cambios
-/// sin guardar o commits sin publicar → `rechazada`, sin tocar nada.
+/// sin guardar o commits sin publicar o HEAD suelto → `rechazada`, sin tocar nada.
 pub fn quitar_worktree(git: &Git, dir: &Path, id: &str) -> Informe {
     quitar(git, dir, id).unwrap_or_else(|i| i)
 }
@@ -42,28 +42,32 @@ fn quitar(git: &Git, dir: &Path, id: &str) -> Paso<Informe> {
             "guarda o descarta los cambios del worktree antes de quitarlo",
         ));
     }
-    if let Some(rama) = &w.rama {
-        let publicada = match commit_de(
-            git,
-            &principal,
-            OP,
-            &format!("refs/remotes/{REMOTO}/{rama}"),
-        )? {
-            Some(remota) => es_ancestro(git, &w.ruta, OP, "HEAD", &remota)?,
-            None => false,
-        };
-        if !publicada {
-            return Ok(rechazo(
-                "sin-publicar",
-                "publica la rama antes de quitar el worktree",
-            ));
-        }
+    // Con HEAD suelto no hay rama remota con la que comparar: sus commits se
+    // perderian al quitar el worktree.
+    let Some(rama) = &w.rama else {
+        return Ok(rechazo(
+            "sin-rama",
+            "el worktree tiene HEAD suelto: vuelve a la rama de la tarea",
+        ));
+    };
+    let publicada = match commit_de(
+        git,
+        &principal,
+        OP,
+        &format!("refs/remotes/{REMOTO}/{rama}"),
+    )? {
+        Some(remota) => es_ancestro(git, &w.ruta, OP, "HEAD", &remota)?,
+        None => false,
+    };
+    if !publicada {
+        return Ok(rechazo(
+            "sin-publicar",
+            "publica la rama antes de quitar el worktree",
+        ));
     }
     let rel = worktree_relativo(id);
     exigir(git, &principal, OP, Subcomando::Worktree, &["remove", &rel])?;
-    let i = Informe::nuevo(OP, Resultado::Ok).con("id", id);
-    Ok(match w.rama {
-        Some(r) => i.con("rama", r),
-        None => i,
-    })
+    Ok(Informe::nuevo(OP, Resultado::Ok)
+        .con("id", id)
+        .con("rama", rama.as_str()))
 }
