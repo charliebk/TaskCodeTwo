@@ -163,6 +163,8 @@ mod tests {
         };
         // Cuatro acentos no se cierran con tres; `~~~` no cierra `` ``` ``.
         assert_eq!(titulos("## A\n````\n```\n## B\n````\n## C\n"), ["A", "C"]);
+        // Se cierra con tantos o mas acentos que los de apertura.
+        assert_eq!(titulos("## A\n````\n## B\n`````\n## C\n"), ["A", "C"]);
         assert_eq!(titulos("## A\n```\n~~~\n## B\n```\n## C\n"), ["A", "C"]);
         // `` ```x``` `` no abre (lleva acentos en la informacion), una
         // sangria de 4 no es cerca, y una cierre con texto detras no cierra.

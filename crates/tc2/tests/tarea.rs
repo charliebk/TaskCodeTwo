@@ -391,12 +391,29 @@ fn formato_1_ambiguo_o_duplicado_falla() {
         ("titulo: 'C:\\ruta' # y \\x", "C:\\ruta"),
         ("titulo: C:\\plana", "C:\\plana"),
         ("titulo: 'it''s \\'", "it's \\"),
+        // Una `"` dentro de comilla simple o de un comentario no abre una
+        // cadena de comillas dobles.
+        ("titulo: 'a\"b\\c'", "a\"b\\c"),
+        ("titulo: \"a\" # \"\\x", "a"),
     ] {
         let t = con_linea(&base, "titulo", linea);
         let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
             panic!("{linea}: {:?}", tarea::leer(&t));
         };
         assert_eq!(m.titulo, titulo);
+    }
+    // Un comentario o una linea en blanco detras de un bool o un entero
+    // es YAML valido y no cambia el valor.
+    for (clave, linea) in [
+        ("sprint", "sprint: 3\n# nota\n"),
+        ("sprint", "sprint: 3\t# nota"),
+        ("plan_aprobado", "plan_aprobado: true\n\n# x"),
+    ] {
+        let t = con_linea(&base, clave, linea);
+        let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
+            panic!("{linea:?}: {:?}", tarea::leer(&t));
+        };
+        assert!(m.sprint == 3 || m.plan_aprobado, "{linea:?}");
     }
     // Tipos con grafia de YAML 1.1 o entre comillas: error, no conversion.
     for (clave, linea) in [

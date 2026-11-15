@@ -42,16 +42,25 @@ impl Partes<'_> {
     }
 
     /// Valor de una entrada de una sola linea, sin la clave, sin un
-    /// comentario ` #` final y sin espacios; `None` si falta o si ocupa
-    /// varias lineas.
+    /// comentario final (` #` o tabulador y `#`) y sin espacios; `None` si
+    /// falta o si el valor sigue en otras lineas (las lineas en blanco y los
+    /// comentarios que `partir` pega detras no cuentan).
     pub fn valor_plano(&self, clave: &str) -> Option<&str> {
         let e = self.entradas.iter().find(|e| e.clave == clave)?;
-        let linea = e.crudo.strip_suffix('\n')?;
-        if linea.contains('\n') {
+        let mut lineas = e.crudo.lines();
+        let linea = lineas.next()?;
+        if !lineas.all(|l| {
+            let l = l.trim_start();
+            l.is_empty() || l.starts_with('#')
+        }) {
             return None;
         }
         let (_, valor) = linea.split_once(':')?;
-        let valor = valor.split_once(" #").map_or(valor, |(v, _)| v);
+        let valor = [" #", "\t#"]
+            .iter()
+            .filter_map(|c| valor.find(c))
+            .min()
+            .map_or(valor, |i| &valor[..i]);
         Some(valor.trim())
     }
 
