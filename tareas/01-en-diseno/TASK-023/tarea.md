@@ -6,10 +6,10 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-023-f2-7-configuracion-minima-con-esquema-va
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-15
 dependencias: [TASK-011]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Tarea F2-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - [ ] esquema publicado
 - [ ] tests
 - [ ] Cumple lo que pide la tarea F2-7 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-15T21:13:01Z | plan | automatico | persona | 0.16.1 |
