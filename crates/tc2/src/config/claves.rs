@@ -100,10 +100,10 @@ impl Regla {
             ),
             Self::Glob => Some("glob relativo: sin negacion (!), rutas absolutas ni .."),
             Self::GlobAcotado => Some(
-                "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (ningun segmento solo de * y .)",
+                "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (*, ., ** o segmentos solo de * y . con **)",
             ),
             Self::RutaTareas => Some(
-                "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
+                "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, nombres cortos con ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
             ),
             Self::Cron => Some(
                 "expresion cron de 5 campos con sus rangos (minuto, hora, dia, mes, dia de la semana)",

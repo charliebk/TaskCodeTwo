@@ -7,7 +7,7 @@
       "default": [],
       "description": "ficheros que suma la huella de confianza [F1-11 decision 1; F1-8 decision 5]",
       "items": {
-        "description": "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (ningun segmento solo de * y .)",
+        "description": "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (*, ., ** o segmentos solo de * y . con **)",
         "minLength": 1,
         "type": "string"
       },
@@ -27,7 +27,7 @@
           "escribe": {
             "description": "lo unico que un genera puede escribir; obligatoria en genera, prohibida en comprueba",
             "items": {
-              "description": "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
+              "description": "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, nombres cortos con ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
               "minLength": 1,
               "type": "string"
             },

@@ -302,6 +302,17 @@ modo_flujo: 'automatico'
     ))
     .unwrap();
     assert_eq!(n.derivados[0].escribe, ["tareas/hitos.md"]);
+    // Falsos positivos que no se rechazan: ~ sin cifra y globs solo de la raiz.
+    let n = config::leer(&format!(
+        "{CABECERA}derivados:
+  - comando: 'x'
+    tipo: 'genera'
+    escribe: ['tareas/notas~v2.md']
+confianza_incluye: ['*.*', '.*']
+"
+    ))
+    .unwrap();
+    assert_eq!(n.confianza_incluye, ["*.*", ".*"]);
     // Un cron valido con rangos, listas y pasos.
     let prog =
         "programada: {comando: 'x', cron: '*/15 0-6,22 1 1-12/2 0-7', runner: {github: linux}}";

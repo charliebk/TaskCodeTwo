@@ -261,9 +261,13 @@ pub(crate) fn comprobar(regla: Regla, t: &str) -> Option<String> {
 /// ningun segmento tiene mas que `*` y `.` (`**`, `*.*`, `**/`, `.`...).
 fn todo_el_arbol(g: &str) -> bool {
     let g = g.trim_start_matches("./");
-    g.split('/')
-        .filter(|p| !p.is_empty())
+    let partes: Vec<&str> = g.split('/').filter(|p| !p.is_empty()).collect();
+    // `*` y `.` son todo el arbol (F1-11); `*.*` o `.*` solo la raiz.
+    partes
+        .iter()
         .all(|p| p.chars().all(|c| c == '*' || c == '.'))
+        && (partes.iter().any(|p| p.contains("**"))
+            || matches!(partes.as_slice(), [] | ["*"] | ["."]))
 }
 
 /// Expresion cron de 5 campos con sus rangos (`*`, `a`, `a-b`, listas con
@@ -338,9 +342,9 @@ pub(crate) fn ruta_tareas(t: &str) -> Result<String, &'static str> {
                     return Err("sale de la raiz");
                 }
             }
-            p if p.ends_with(['.', ' ']) || p.contains('~') => {
+            p if p.ends_with(['.', ' ']) || nombre_corto(p) => {
                 return Err(
-                    "sin punto ni espacio al final de un segmento ni ~ (Windows los ignora o los acorta)",
+                    "sin punto ni espacio al final de un segmento ni nombres cortos con ~ (Windows los ignora o los acorta)",
                 );
             }
             p => partes.push(p),
@@ -369,6 +373,13 @@ pub(crate) fn ruta_tareas(t: &str) -> Result<String, &'static str> {
         ["tareas"] => Err("nunca tareas/ entera"),
         _ => Err("tiene que ir bajo tareas/"),
     }
+}
+
+/// Nombre corto 8.3 de Windows (`ROADMA~1.MD`): `~` seguido de una cifra.
+fn nombre_corto(p: &str) -> bool {
+    p.as_bytes()
+        .windows(2)
+        .any(|w| w.first() == Some(&b'~') && w.get(1).is_some_and(u8::is_ascii_digit))
 }
 
 fn es_carpeta_de_tarea(p: &str) -> bool {
