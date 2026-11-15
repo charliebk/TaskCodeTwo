@@ -38,6 +38,8 @@ pub struct Recibida {
     pub linea: String,
     pub autorizacion: Option<String>,
     pub cuerpo: String,
+    /// Cabeceras, con el nombre en minusculas (sin la autorizacion).
+    pub cabeceras: Vec<(String, String)>,
 }
 
 type Rutas = BTreeMap<String, VecDeque<Simulada>>;
@@ -103,6 +105,7 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
     let ruta = partes.next().unwrap_or_default().to_owned();
     let mut largo = 0usize;
     let mut autorizacion = None;
+    let mut cabeceras = Vec::new();
     loop {
         let mut l = String::new();
         if lector.read_line(&mut l).is_err() || l.trim().is_empty() {
@@ -114,7 +117,9 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
                 largo = v.trim().parse().unwrap_or(0);
             } else if k == "authorization" {
                 autorizacion = Some(v.trim().to_owned());
+                continue;
             }
+            cabeceras.push((k, v.trim().to_owned()));
         }
     }
     let mut cuerpo = vec![0u8; largo];
@@ -123,6 +128,7 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
         linea: format!("{metodo} {ruta}"),
         autorizacion,
         cuerpo: String::from_utf8_lossy(&cuerpo).into_owned(),
+        cabeceras,
     });
     let sin_consulta = ruta.split('?').next().unwrap_or_default().to_owned();
     let respuesta = {

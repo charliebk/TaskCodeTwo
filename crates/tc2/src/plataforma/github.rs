@@ -16,9 +16,7 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
-use super::{
-    Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario,
-};
+use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario};
 use crate::contrato::{Informe, Resultado, Valor, corto};
 
 const ABRIR_PR: &str = "abrir-pr";
@@ -345,10 +343,12 @@ impl Plataforma for GitHub {
         if !rama_valida(&p.base.nombre) || !sha_valido(&p.head.sha) {
             return self.con.invalida(op, "rama base o sha del head");
         }
-        let r = match self
-            .con
-            .pedir(op, rol, self.ep(&Endpoint::ReglasRama(&p.base.nombre)), None)
-        {
+        let r = match self.con.pedir(
+            op,
+            rol,
+            self.ep(&Endpoint::ReglasRama(&p.base.nombre)),
+            None,
+        ) {
             Ok(r) => r,
             Err(i) => return i,
         };
@@ -400,14 +400,13 @@ impl Plataforma for GitHub {
             })
             .collect();
         let (_, ruta) = self.ep(&Endpoint::Reviews(pr));
-        let reviews: Vec<ReviewApi> =
-            match self
-                .con
-                .leer_paginas(op, rol, permiso, ruta, |c| self.con.parsear(op, c))
-            {
-                Ok(v) => v,
-                Err(i) => return i,
-            };
+        let reviews: Vec<ReviewApi> = match self
+            .con
+            .leer_paginas(op, rol, permiso, ruta, |c| self.con.parsear(op, c))
+        {
+            Ok(v) => v,
+            Err(i) => return i,
+        };
         // Las reviews vienen de la mas vieja a la mas nueva: cuenta la ultima
         // de cada cuenta, por id (F1-6, regla 6). Solo cambian el estado las
         // que deciden: un comentario o una review pendiente no retiran una
@@ -455,13 +454,14 @@ impl Plataforma for GitHub {
             return i;
         }
         let permiso = "contents:write";
-        let p: PrApi = match self
-            .con
-            .leer(MERGE_PR, Rol::Persona, permiso, self.ep(&Endpoint::Pr(pr)))
-        {
-            Ok(p) => p,
-            Err(i) => return i,
-        };
+        let p: PrApi =
+            match self
+                .con
+                .leer(MERGE_PR, Rol::Persona, permiso, self.ep(&Endpoint::Pr(pr)))
+            {
+                Ok(p) => p,
+                Err(i) => return i,
+            };
         if p.merged {
             return Informe::nuevo(MERGE_PR, Resultado::SinCambios)
                 .con("pr", pr.to_string())

@@ -16,6 +16,7 @@ pub mod credenciales;
 pub mod deteccion;
 pub mod errores;
 pub mod github;
+pub mod gitlab;
 pub mod http;
 pub mod puertas;
 
@@ -24,6 +25,7 @@ use std::collections::BTreeSet;
 pub use credenciales::{Credenciales, CredencialesEntorno, CredencialesFijas, Rol, Secreto};
 pub use deteccion::{Destino, detectar};
 pub use github::GitHub;
+pub use gitlab::GitLab;
 pub use puertas::{EstadoCheck, Lecturas, evaluar};
 
 use crate::contrato::Informe;

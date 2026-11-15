@@ -283,7 +283,8 @@ impl Cliente {
                 .map(str::to_owned)
         };
         let link = cabecera("link");
-        let restantes = cabecera("x-ratelimit-remaining").or_else(|| cabecera("ratelimit-remaining"));
+        let restantes =
+            cabecera("x-ratelimit-remaining").or_else(|| cabecera("ratelimit-remaining"));
         let reintentar = cabecera("retry-after");
         let reinicio = cabecera("x-ratelimit-reset").or_else(|| cabecera("ratelimit-reset"));
         // Si la respuesta declara su tamano y pasa del limite, no se lee:

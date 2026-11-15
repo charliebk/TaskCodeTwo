@@ -115,7 +115,8 @@ impl Conexion {
 
     /// Lee un cuerpo con la forma `T`.
     pub fn parsear<T: DeserializeOwned>(&self, op: &str, cuerpo: &str) -> Paso<T> {
-        serde_json::from_str(cuerpo).map_err(|e| self.invalida(op, &errores::sanear(&e.to_string())))
+        serde_json::from_str(cuerpo)
+            .map_err(|e| self.invalida(op, &errores::sanear(&e.to_string())))
     }
 
     /// Lectura que exige 2xx y la forma `T`.
@@ -238,7 +239,9 @@ pub fn rol_no_valido(op: &str, rol: Rol) -> Informe {
     Informe::nuevo(op, Resultado::Rechazada)
         .con("motivo", "identidad")
         .con("rol", rol.nombre())
-        .diagnostico(format!("{op} corre con la identidad de agente o de persona"))
+        .diagnostico(format!(
+            "{op} corre con la identidad de agente o de persona"
+        ))
 }
 
 #[cfg(test)]
