@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 351031
 tokens_implementacion: 11772269
-tokens_revision: 13046927
+tokens_revision: 21690336
 creado: 2026-11-14
 actualizado: 2026-11-15
 dependencias: [TASK-002, TASK-003, TASK-017]
@@ -51,6 +51,8 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-15T13:52:56Z | implementacion | sesion:0c02a589-064f-41b2-898e-aecc1141ae21 | 90 | 157794 | 11517081 | 97304 | 3 | 11772269 | - | - |
 | 2026-11-15T14:14:07Z | revision | agente:aaee6d3c5fc9c5e05 | 56 | 196204 | 4414663 | 28648 | 11 | 4639571 | 1 | rust-wasm-reviewer |
 | 2026-11-15T14:14:07Z | revision | agente:a3be1dff0db736040 | 96 | 216195 | 8142986 | 48079 | 10 | 8407356 | 1 | code-quality-reviewer |
+| 2026-11-15T14:29:30Z | revision | agente:af38693194bfe9653 | 110 | 176252 | 6457777 | 44771 | 6 | 6678910 | 2 | code-quality-reviewer |
+| 2026-11-15T14:29:30Z | revision | agente:a234246fefe90c88a | 34 | 135312 | 1805947 | 23206 | 1 | 1964499 | 2 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -58,3 +60,9 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - code-quality-reviewer — d78931e
 - rust-wasm-reviewer — f96b878
 - code-quality-reviewer — f96b878
+- rust-wasm-reviewer — 9e99510
+- code-quality-reviewer — 9e99510
+
+## Rondas extra
+
+- Ronda 3: la decide Carlos (persona) al llegar al tope: la ronda 2 abrió dos IMPORTANTES introducidos por las correcciones de la ronda 1 (IMPORTANTE-2 de calidad y R2-01 de Rust), con arreglos acotados y test.
