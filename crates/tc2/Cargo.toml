@@ -14,3 +14,16 @@ path = "src/main.rs"
 
 [lints]
 workspace = true
+
+# F2-5: lectura del frontmatter YAML (F1-14, fila F1-9: serde-saphyr con
+# claves duplicadas como error). Solo se lee con el crate; la escritura es un
+# emisor propio (forma fija de F1-9). Todo detras de `tarea::yaml`.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde-saphyr = { version = "2.1", default-features = false, features = ["deserialize"] }
+
+# Parser YAML de otra base de codigo (port de libyaml, como el PyYAML del PoC
+# de F1-9) para la ida y vuelta de los tests: con el de produccion seria
+# circular.
+[dev-dependencies]
+serde_yaml = "0.9"

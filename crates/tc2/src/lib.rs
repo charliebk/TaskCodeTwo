@@ -2,14 +2,15 @@
 //!
 //! Modulos: [`contrato`] (salida de toda operacion, ADR F1-4), [`git`]
 //! (capa de operaciones Git deterministas, F2-2) y [`estado`] (rama de
-//! estado `taskcode/tareas`, F2-3) y [`alta`] (alta de tareas con reserva de
-//! ID, F2-4). Las capas que vienen (modelo de tarea de F2-5...) entran como
-//! modulos de esta biblioteca.
+//! estado `taskcode/tareas`, F2-3), [`alta`] (alta de tareas con reserva de
+//! ID, F2-4) y [`tarea`] (modelo de tarea y frontmatter YAML, F2-5). Las capas
+//! que vienen entran como modulos de esta biblioteca.
 
 pub mod alta;
 pub mod contrato;
 pub mod estado;
 pub mod git;
+pub mod tarea;
 
 use contrato::{Informe, Resultado};
 

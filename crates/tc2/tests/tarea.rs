@@ -1,0 +1,441 @@
+//! F2-5: modelo de tarea. Ida y vuelta con el emisor propio y con un parser
+//! YAML estandar de otra base de codigo (`serde_yaml`, port de libyaml),
+//! compatibilidad con las tareas de la 0.16 de este repo y esquema estricto.
+
+#![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+
+use std::path::{Path, PathBuf};
+
+use serde_yaml::Value;
+use tc2::alta::tarea_md;
+use tc2::tarea::{self, Cuerpo, Documento, Tarea};
+
+/// Lo que escribia `alta` con su plantilla de texto antes de F2-5 (F1-9
+/// punto 6 con `rama: null`): el modelo tiene que dar lo mismo byte a byte.
+const DORADA: &str = r#"---
+formato: 2
+id: "TASK-008"
+titulo: "C:\\ruta\\ \"x\" {fecha}"
+tipo: "feature"
+sprint: 0
+etiquetas: []
+complejidad: null
+carril: null
+estado: "planificada"
+motivo: null
+plan_aprobado: false
+rama: null
+asignado_a: null
+roles:
+  diseno: {modelo: null, skills: [], regla: null}
+  implementacion: {modelo: "sonnet", skills: [], regla: null}
+  revision: {agente: "general-purpose", modelo: null, skills: [], regla: null}
+estimacion: null
+tokens_diseno: null
+tokens_implementacion: null
+tokens_revision: null
+creado: "2026-11-15"
+actualizado: "2026-11-15"
+dependencias: []
+---
+## Objetivo
+
+<que se quiere y por que>
+
+## Criterios de aceptacion
+
+- [ ] <criterio comprobable>
+
+## Escenarios
+
+<opcional: 1. **Dado** <estado>, **cuando** <accion>, **entonces** <resultado>>
+
+## Resultado
+
+<obligatoria al cerrar: que se hizo, divergencias con el plan, hallazgos no corregidos y por que>
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+"#;
+
+/// Formato 2 canonico con todo relleno: secciones fuera de orden, texto
+/// libre, `estimacion` en bloque (forma de F1-17) y claves desconocidas.
+const COMPLETA: &str = r#"---
+formato: 2
+id: "TASK-120a"
+titulo: "Título: con # y \\ y \"comillas\" ñ"
+tipo: "hotfix"
+sprint: 7
+etiquetas: ["rust", "yaml"]
+complejidad: "media"
+carril: "riesgo-alto"
+estado: "descartada"
+motivo: "Duplicada de TASK-119"
+plan_aprobado: true
+rama: "hotfix/task-120a-titulo"
+asignado_a: "carlos"
+roles:
+  diseno: {modelo: "opus", skills: ["a"], regla: "solape"}
+  implementacion: {modelo: "sonnet", skills: [], regla: null}
+  revision: {agente: "general-purpose", modelo: null, skills: ["b", "c"], regla: "llm"}
+estimacion:
+  calculada: "2026-11-15T12:00:00Z"
+  por_fase: {implementacion: [21, 52]}
+  total: [50, 96]
+tokens_diseno: 325030
+tokens_implementacion: null
+tokens_revision: 12
+creado: "2026-11-14"
+actualizado: "2026-11-15"
+dependencias: ["TASK-010", "TASK-119"]
+zonas: ["crates/tc2/src/tarea/"]
+hito: "H2"
+---
+## Transiciones
+
+| fecha | fase |
+|---|---|
+## Objetivo
+
+Texto con `## dentro de codigo`:
+
+```md
+## no es seccion
+```
+## Nota de la persona
+libre
+"#;
+
+fn leer2(t: &str) -> (Tarea, Cuerpo) {
+    match tarea::leer(t) {
+        Ok(Documento::Formato2(m, c)) => (m, c),
+        otro => panic!("se esperaba formato 2: {otro:?}"),
+    }
+}
+
+/// Frontmatter de `t` leido con el parser independiente.
+fn estandar(t: &str) -> Value {
+    let t = t
+        .strip_prefix('\u{feff}')
+        .unwrap_or(t)
+        .replace("\r\n", "\n");
+    let resto = t.strip_prefix("---\n").expect("frontmatter");
+    let fin = resto.find("\n---\n").expect("cierre");
+    serde_yaml::from_str(&resto[..=fin]).expect("YAML valido para serde_yaml")
+}
+
+fn cad<'a>(v: &'a Value, clave: &str) -> Option<&'a str> {
+    v.get(clave).and_then(Value::as_str)
+}
+
+fn lista(v: &Value, clave: &str) -> Vec<String> {
+    v.get(clave)
+        .and_then(Value::as_sequence)
+        .unwrap()
+        .iter()
+        .map(|x| x.as_str().unwrap().to_owned())
+        .collect()
+}
+
+/// El modelo y el parser independiente dicen lo mismo de cada campo.
+fn coincide_con_estandar(m: &Tarea, v: &Value) {
+    assert_eq!(v.get("formato").and_then(Value::as_u64), Some(2));
+    assert_eq!(cad(v, "id"), Some(m.id.as_str()));
+    assert_eq!(cad(v, "titulo"), Some(m.titulo.as_str()));
+    assert_eq!(cad(v, "tipo"), Some(m.tipo.as_str()));
+    assert_eq!(
+        v.get("sprint").and_then(Value::as_u64),
+        Some(u64::from(m.sprint))
+    );
+    assert_eq!(lista(v, "etiquetas"), m.etiquetas);
+    assert_eq!(cad(v, "complejidad"), m.complejidad.as_deref());
+    assert_eq!(cad(v, "carril"), m.carril.as_deref());
+    assert_eq!(cad(v, "estado"), Some(m.estado.as_str()));
+    assert_eq!(cad(v, "motivo"), m.motivo.as_deref());
+    assert_eq!(
+        v.get("plan_aprobado").and_then(Value::as_bool),
+        Some(m.plan_aprobado)
+    );
+    assert_eq!(cad(v, "rama"), m.rama.as_deref());
+    assert_eq!(cad(v, "asignado_a"), m.asignado_a.as_deref());
+    let roles = v.get("roles").unwrap();
+    let r = |rol: &str| roles.get(rol).unwrap();
+    assert_eq!(cad(r("diseno"), "modelo"), m.roles.diseno.modelo.as_deref());
+    assert_eq!(lista(r("diseno"), "skills"), m.roles.diseno.skills);
+    assert_eq!(cad(r("diseno"), "regla"), m.roles.diseno.regla.as_deref());
+    assert_eq!(
+        cad(r("implementacion"), "modelo"),
+        m.roles.implementacion.modelo.as_deref()
+    );
+    assert_eq!(
+        cad(r("revision"), "agente"),
+        m.roles.revision.agente.as_deref()
+    );
+    assert_eq!(lista(r("revision"), "skills"), m.roles.revision.skills);
+    assert_eq!(
+        cad(r("revision"), "regla"),
+        m.roles.revision.regla.as_deref()
+    );
+    assert_eq!(
+        v.get("estimacion").unwrap().is_null(),
+        m.estimacion.is_none()
+    );
+    for (clave, valor) in [
+        ("tokens_diseno", m.tokens_diseno),
+        ("tokens_implementacion", m.tokens_implementacion),
+        ("tokens_revision", m.tokens_revision),
+    ] {
+        assert_eq!(v.get(clave).and_then(Value::as_u64), valor, "{clave}");
+    }
+    assert_eq!(cad(v, "creado"), Some(m.creado.as_str()));
+    assert_eq!(cad(v, "actualizado"), Some(m.actualizado.as_str()));
+    assert_eq!(lista(v, "dependencias"), m.dependencias);
+    for (clave, _) in &m.desconocidas {
+        assert!(v.get(clave.as_str()).is_some(), "desconocida {clave}");
+    }
+}
+
+/// C1 (i): el formato 2 canonico sale byte a byte igual, y la plantilla de
+/// `alta` es la de antes de F2-5.
+#[test]
+fn ida_y_vuelta_byte_a_byte() {
+    assert_eq!(
+        tarea_md("TASK-008", "C:\\ruta\\ \"x\" {fecha}", "2026-11-15"),
+        DORADA
+    );
+    for t in [DORADA, COMPLETA] {
+        let (m, c) = leer2(t);
+        assert_eq!(m.escribir(&c), t);
+    }
+    let (m, c) = leer2(COMPLETA);
+    let titulos: Vec<&str> = c.secciones.iter().map(|s| s.titulo.as_str()).collect();
+    assert_eq!(titulos, ["Transiciones", "Objetivo", "Nota de la persona"]);
+    let claves: Vec<&str> = m
+        .claves_desconocidas()
+        .iter()
+        .map(|(k, _)| k.as_str())
+        .collect();
+    assert_eq!(claves, ["zonas", "hito"]);
+    assert_eq!(m.titulo, "Título: con # y \\ y \"comillas\" ñ");
+    // CRLF y BOM se leen; se reescribe con `\n` y sin BOM.
+    let crlf = format!("\u{feff}{}", DORADA.replace('\n', "\r\n"));
+    let (m2, c2) = leer2(&crlf);
+    let (m1, _) = leer2(DORADA);
+    assert_eq!(m2, m1);
+    assert!(
+        m2.escribir(&c2)
+            .starts_with("---\nformato: 2\nid: \"TASK-008\"\n")
+    );
+}
+
+/// C1 (ii) y (iii): lo que escribe el modelo lo lee igual el propio modelo y
+/// un parser YAML estandar independiente, tambien con textos hostiles.
+#[test]
+fn ida_y_vuelta_con_parser_estandar() {
+    let hostiles = [
+        "C:\\ruta\\",
+        "con \"comillas\" y \\\"mezcla\\\"",
+        "clave: valor # no es comentario",
+        "ñandú – «comillas» — 漢字",
+        "[no es lista]",
+        "null",
+        "{fecha}",
+    ];
+    for titulo in hostiles {
+        let mut m = Tarea::nueva("TASK-001", titulo, "2026-11-15");
+        m.etiquetas = vec![titulo.to_owned(), "otra, con coma".to_owned()];
+        m.motivo = Some(format!("{titulo} y motivo"));
+        m.rama = Some("feature/task-001-x".to_owned());
+        m.tokens_diseno = Some(u64::MAX);
+        m.dependencias = vec!["TASK-002".to_owned()];
+        m.desconocidas = vec![("zonas".to_owned(), "zonas: [\"a: b\"]\n".to_owned())];
+        let t = m.escribir(&Cuerpo::plantilla());
+        let (leida, _) = leer2(&t);
+        assert_eq!(leida, m, "{titulo}");
+        coincide_con_estandar(&m, &estandar(&t));
+    }
+    let (m, _) = leer2(COMPLETA);
+    coincide_con_estandar(&m, &estandar(COMPLETA));
+}
+
+fn raiz_repo() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// Todos los `tarea.md` bajo `dir/tareas/<estado>/TASK-*/`.
+fn corpus(dir: &Path) -> Vec<PathBuf> {
+    let mut v = Vec::new();
+    for estado in std::fs::read_dir(dir.join("tareas")).unwrap().flatten() {
+        if !estado.path().is_dir() {
+            continue;
+        }
+        for t in std::fs::read_dir(estado.path()).unwrap().flatten() {
+            let f = t.path().join("tarea.md");
+            if f.is_file() {
+                v.push(f);
+            }
+        }
+    }
+    v.sort();
+    v
+}
+
+/// Lee cada tarea de la 0.16 de `dir` y la contrasta con el parser estandar;
+/// devuelve cuantas leyo.
+fn comprobar_corpus(dir: &Path) -> usize {
+    let ficheros = corpus(dir);
+    for f in &ficheros {
+        let t = std::fs::read_to_string(f).unwrap();
+        let Ok(Documento::Formato1(m, c)) = tarea::leer(&t) else {
+            panic!("{}: {:?}", f.display(), tarea::leer(&t));
+        };
+        assert!(
+            t.ends_with(&c.escribir()),
+            "{}: cuerpo cambiado",
+            f.display()
+        );
+        assert!(c.seccion("Objetivo").is_some(), "{}", f.display());
+        let v = estandar(&t);
+        assert_eq!(cad(&v, "id"), Some(m.id.as_str()), "{}", f.display());
+        assert_eq!(
+            cad(&v, "titulo"),
+            Some(m.titulo.as_str()),
+            "{}",
+            f.display()
+        );
+        assert_eq!(
+            cad(&v, "estado"),
+            Some(m.estado.as_str()),
+            "{}",
+            f.display()
+        );
+        assert_eq!(cad(&v, "rama"), Some(m.rama.as_str()), "{}", f.display());
+        assert_eq!(
+            cad(&v, "creado"),
+            Some(m.creado.as_str()),
+            "{}",
+            f.display()
+        );
+        assert_eq!(lista(&v, "dependencias"), m.dependencias, "{}", f.display());
+        assert_eq!(
+            v.get("tokens_diseno").and_then(Value::as_u64),
+            m.tokens_diseno,
+            "{}",
+            f.display()
+        );
+        assert!(
+            m.desconocidas.is_empty(),
+            "{}: {:?}",
+            f.display(),
+            m.desconocidas
+        );
+    }
+    ficheros.len()
+}
+
+/// C2: las tareas de la 0.16 de este repo se leen enteras (los 22 campos,
+/// cuerpo byte a byte) y como las lee un parser estandar.
+#[test]
+fn lee_las_tareas_de_la_0_16_de_este_repo() {
+    let n = comprobar_corpus(&raiz_repo());
+    assert!(n >= 90, "solo {n} tareas");
+}
+
+/// C2, corpus externo (ToolsaWeb, OpenDockTrading): `TC2_CORPUS` con las
+/// raices de los repos separadas por `;`. Pesado y manual.
+#[test]
+#[ignore = "pesado: necesita TC2_CORPUS con copias de otros repos"]
+fn lee_las_tareas_de_la_0_16_de_otros_repos() {
+    let raices = std::env::var("TC2_CORPUS").expect("TC2_CORPUS");
+    for r in raices.split(';').filter(|r| !r.is_empty()) {
+        let n = comprobar_corpus(Path::new(r));
+        println!("{r}: {n} tareas leidas");
+        assert!(n > 0, "{r}: ninguna tarea");
+    }
+}
+
+/// C2: lo que la 0.16 escribe y un parser estandar leeria distinto, o una
+/// clave repetida, es un error claro, no un valor cambiado en silencio.
+#[test]
+fn formato_1_ambiguo_o_duplicado_falla() {
+    let base = std::fs::read_to_string(corpus(&raiz_repo())[0].clone()).unwrap();
+    let con_barra = base.replacen("\ntitulo: \"", "\ntitulo: \"C:\\ruta ", 1);
+    let e = tarea::leer(&con_barra).unwrap_err();
+    assert_eq!(e.clave.as_deref(), Some("titulo"), "{e}");
+    assert!(e.mensaje.contains("H11"), "{e}");
+    let con_comilla = base.replacen("\ntitulo: \"", "\ntitulo: \"con \\\"comillas\\\" ", 1);
+    let Ok(Documento::Formato1(m, _)) = tarea::leer(&con_comilla) else {
+        panic!("el escape de comillas de la 0.16 es YAML valido");
+    };
+    assert!(m.titulo.starts_with("con \"comillas\" "));
+    let duplicada = base.replacen("\nsprint:", "\nsprint: 1\nsprint:", 1);
+    assert!(
+        tarea::leer(&duplicada)
+            .unwrap_err()
+            .to_string()
+            .contains("duplicada")
+    );
+}
+
+/// C3: esquema estricto del formato 2 (F1-9 punto 5, F1-14): tipos, valores
+/// permitidos, obligatorias y campos que el modelo perderia.
+#[test]
+fn esquema_estricto_del_formato_2() {
+    for (de, a, clave) in [
+        ("sprint: 0", "sprint: \"cero\"", None),
+        ("sprint: 0", "sprint: -1", None),
+        ("formato: 2", "formato: 3", Some("formato")),
+        ("id: \"TASK-008\"", "id: \"TASK-8\"", Some("id")),
+        ("tipo: \"feature\"", "tipo: \"epica\"", Some("tipo")),
+        (
+            "estado: \"planificada\"",
+            "estado: \"descartada\"",
+            Some("motivo"),
+        ),
+        (
+            "estado: \"planificada\"",
+            "estado: \"pausada\"",
+            Some("estado"),
+        ),
+        (
+            "creado: \"2026-11-15\"",
+            "creado: \"15/11/2026\"",
+            Some("creado"),
+        ),
+        ("titulo: \"C:", "titulo: \"\\t", Some("titulo")),
+        ("rama: null\n", "", Some("rama")),
+        (
+            "plan_aprobado: false",
+            "plan_aprobado: null",
+            Some("plan_aprobado"),
+        ),
+        (
+            "dependencias: []",
+            "dependencias: [\"../x\"]",
+            Some("dependencias"),
+        ),
+        (
+            "regla: null}\n  revision",
+            "regla: \"azar\"}\n  revision",
+            Some("roles.implementacion"),
+        ),
+        (
+            "skills: [], regla: null}\n  implementacion",
+            "skills: [], regla: null, extra: 1}\n  implementacion",
+            None,
+        ),
+        (
+            "etiquetas: []",
+            "etiquetas: []\netiquetas: []",
+            Some("etiquetas"),
+        ),
+        ("etiquetas: []", "etiquetas: &a []\nancla: *a", None),
+    ] {
+        assert!(DORADA.contains(de), "{de}");
+        let t = DORADA.replacen(de, a, 1);
+        let e = tarea::leer(&t).expect_err(a);
+        assert_eq!(e.clave.as_deref(), clave, "{a}: {e}");
+    }
+}
