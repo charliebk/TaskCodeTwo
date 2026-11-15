@@ -70,6 +70,16 @@ impl FalloRemoto {
 pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
     let t = stderr.to_ascii_lowercase();
     let alguno = |patrones: &[&str]| patrones.iter().any(|p| t.contains(p));
+    // Marcas del transporte: curl o ssh que no llegan a conectar. Con ellas,
+    // un `permission denied` es EACCES de la red (firewall, SELinux).
+    let transporte = alguno(&[
+        "unable to access",
+        "failed to connect",
+        "connect to host",
+        "could not resolve",
+        "couldn't connect",
+        "connection",
+    ]);
     if alguno(&["couldn't find remote ref", "could not find remote ref"]) {
         FalloRemoto::RamaInexistente
     } else if alguno(&[
@@ -83,7 +93,8 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         "remote: permission to ",
         "access denied",
     ]) || (t.contains("permission denied")
-        && t.contains("could not read from remote repository"))
+        && t.contains("could not read from remote repository")
+        && !transporte)
     {
         // `permission denied` suelto tambien lo da el sistema de ficheros
         // local (no poder escribir en `.git`): solo cuenta como credenciales
@@ -96,9 +107,10 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         "returned error: 404",
     ]) {
         FalloRemoto::RemotoNoExiste
-    } else if t.contains("permission denied") {
-        // Sin las marcas del remoto de arriba, es el sistema de ficheros del
-        // clon (`cannot open .git/FETCH_HEAD: Permission denied`).
+    } else if t.contains("permission denied") && !transporte {
+        // Sin las marcas del remoto de arriba ni las del transporte (curl o
+        // ssh con EACCES, p. ej. un firewall, son la red), es el sistema de
+        // ficheros del clon (`cannot open .git/FETCH_HEAD: Permission denied`).
         FalloRemoto::Local
     } else {
         FalloRemoto::SinRed
@@ -588,6 +600,17 @@ mod tests {
                 FalloRemoto::Credenciales,
                 "{remoto}"
             );
+        }
+    }
+
+    #[test]
+    fn red_bloqueada_con_permiso_denegado_es_sin_red() {
+        // curl con EACCES (firewall, SELinux): es la red, no el clon.
+        for t in [
+            "fatal: unable to access 'https://host/a.git/': Failed to connect to host port 443 after 3 ms: Permission denied",
+            "ssh: connect to host github.com port 22: Permission denied\nfatal: Could not read from remote repository.",
+        ] {
+            assert_eq!(clasificar_fallo_remoto(t), FalloRemoto::SinRed, "{t}");
         }
     }
 

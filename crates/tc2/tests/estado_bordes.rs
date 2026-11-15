@@ -393,3 +393,44 @@ fn remoto_que_responde_access_denied_es_denegada_por_credenciales() {
     assert_eq!(i.salida(false).codigo, 8);
     assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
 }
+
+/// Escribe dos rutas en el mismo lote.
+struct Dos(&'static str, &'static str);
+
+impl Operacion for Dos {
+    fn nombre(&self) -> &str {
+        "dos"
+    }
+    fn anotacion(&self) -> String {
+        format!("dos|{}|{}", self.0, self.1)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(
+        &self,
+        _: &dyn tc2::estado::Estado,
+    ) -> Result<Vec<tc2::estado::Cambio>, tc2::estado::Fallo> {
+        Ok(vec![
+            tc2::estado::Cambio::nuevo(self.0, "1\n"),
+            tc2::estado::Cambio::nuevo(self.1, "2\n"),
+        ])
+    }
+}
+
+#[test]
+fn dos_rutas_del_mismo_lote_que_chocan_por_mayusculas() {
+    let f = Fixture::nueva("bordes-lote");
+    let solo = repo_sin_remoto(&f, "solo");
+    let g = f.git();
+    assert!(estado::montar(&g, &solo).resultado.es_exito());
+    let antes = rama_en(&f, &solo);
+    let i = escribir_estado(&g, &solo, &Dos("notas/A.md", "notas/a.md"));
+    assert_eq!(
+        i.linea(),
+        "estado rechazada operacion=dos motivo=ruta-duplicada"
+    );
+    assert_eq!(rama_en(&f, &solo), antes);
+    let i = escribir_estado(&g, &solo, &Dos("notas/A.md", "notas/B.md"));
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+}

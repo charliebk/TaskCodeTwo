@@ -341,7 +341,11 @@ fn intento(
     anotaciones.push(anotacion.to_owned());
     if let Some(generar) = c.roadmap {
         let texto = generar(&vista).map_err(de_fallo)?;
-        vista.superponer(vec![Cambio::nuevo("ROADMAP.md", texto)]);
+        let roadmap = vec![Cambio::nuevo("ROADMAP.md", texto)];
+        if let Some(i) = duplicada(&vista.rutas(), &roadmap, op) {
+            return Ok(Intento::Hecho(i));
+        }
+        vista.superponer(roadmap);
     }
 
     let mensaje = mensaje(op.nombre(), &anotaciones);
@@ -394,16 +398,21 @@ fn intento(
 }
 
 /// Primera ruta de `cambios` que solo difiere en mayusculas de otra ya
-/// presente en `rutas` (en Windows o macOS las dos chocarian al sacarlas al
-/// worktree): (la nueva, la que estaba).
+/// presente en `rutas` o de otra del mismo lote (en Windows o macOS las dos
+/// chocarian al sacarlas al worktree): (la nueva, la otra).
 fn choque(rutas: &[String], cambios: &[Cambio]) -> Option<(String, String)> {
-    cambios.iter().find_map(|c| {
+    let mut vistas: Vec<&str> = rutas.iter().map(String::as_str).collect();
+    for c in cambios {
         let minus = c.ruta.to_lowercase();
-        rutas
+        if let Some(otra) = vistas
             .iter()
             .find(|r| **r != c.ruta && r.to_lowercase() == minus)
-            .map(|otra| (c.ruta.clone(), otra.clone()))
-    })
+        {
+            return Some((c.ruta.clone(), (*otra).to_owned()));
+        }
+        vistas.push(&c.ruta);
+    }
+    None
 }
 
 /// `rechazada motivo=ruta-duplicada` si los cambios de la operacion chocan.

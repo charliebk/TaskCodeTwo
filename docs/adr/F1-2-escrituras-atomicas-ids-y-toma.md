@@ -457,3 +457,14 @@ non-fast-forward; se trata como contención (ver la adenda de F1-4).
   chocaría con lo ya publicado va a `rechazadas`; solo la operación actual
   puede devolver `rechazada motivo=ruta-duplicada`. Antes, la pendiente
   bloqueaba todas las escrituras del clon.
+
+### Tras la revisión de la ronda 3 de TASK-018
+
+- **`permission denied` de la red**: con marcas de transporte (curl o ssh
+  que no llegan a conectar: `unable to access`, `failed to connect`,
+  `connect to host`, `could not resolve`, `connection`) es `sinred`, aunque
+  traiga «permission denied» (EACCES de un firewall o SELinux). `error-local`
+  queda para el sistema de ficheros del clon.
+- **Choque por mayúsculas dentro del lote**: dos rutas de la misma operación
+  que solo difieren en mayúsculas también dan `ruta-duplicada`, y el
+  `ROADMAP.md` generado se comprueba igual.
