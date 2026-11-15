@@ -679,6 +679,30 @@ fn protecciones_de_gitlab() {
         "estado-puertas rechazada motivo=identidad rol=persona"
     );
 
+    // G01: el nivel de merge es el rol Maintainer, no un usuario concreto.
+    assert_eq!(
+        puertas(&|f| {
+            f["respuestas"][format!("{P}/protected_branches/develop")]["cuerpo"]["merge_access_levels"]
+                [0]["user_id"] = 5.into();
+        }),
+        "estado-puertas rechazada pr=12 motivo=config garantia=G01"
+    );
+
+    // merge-pr con un token de persona fuera de la lista: sin PUT.
+    let mock = Mock::nuevo();
+    persona(&mock, 4242, false);
+    mock.responder(
+        "GET",
+        &format!("{P}/merge_requests/12"),
+        Simulada::json(200, &mr(12, "opened", SHA)),
+    );
+    let gl = gitlab(&mock, &[Rol::Persona]);
+    assert_eq!(
+        gl.merge_pr(12, SHA).linea(),
+        "merge-pr rechazada motivo=identidad rol=persona"
+    );
+    assert!(mock.recibidas().iter().all(|r| !r.linea.starts_with("PUT")));
+
     // merge-pr con otro head: rechazado sin PUT.
     let mock = Mock::nuevo();
     persona(&mock, PERSONA, false);

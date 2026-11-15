@@ -155,6 +155,10 @@ struct MrPuertasApi {
 #[derive(Deserialize)]
 struct NivelApi {
     access_level: u64,
+    #[serde(default)]
+    user_id: Option<u64>,
+    #[serde(default)]
+    group_id: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -493,9 +497,9 @@ impl Plataforma for GitLab {
         let g01 = protegida.is_some_and(|p| {
             !p.allow_force_push
                 && p.merge_access_levels.len() == 1
-                && p.merge_access_levels
-                    .iter()
-                    .all(|n| n.access_level == MAINTAINER)
+                && p.merge_access_levels.iter().all(|n| {
+                    n.access_level == MAINTAINER && n.user_id.is_none() && n.group_id.is_none()
+                })
         });
         if !g01 {
             return puertas::rechazada_por_config(
