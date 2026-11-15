@@ -234,6 +234,16 @@ pub fn uso(op: &str, motivo: &str, diag: &str) -> Informe {
         .diagnostico(diag.to_owned())
 }
 
+/// `merge-pr` rechazado porque el head no es el evaluado.
+pub fn head_cambiado(pr: u64) -> Informe {
+    Informe::nuevo("merge-pr", Resultado::Rechazada)
+        .con("pr", pr.to_string())
+        .con("motivo", "head-cambiado")
+        .diagnostico(
+            "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas",
+        )
+}
+
 /// Rechazo de un rol que no corresponde a la operacion.
 pub fn rol_no_valido(op: &str, rol: Rol) -> Informe {
     Informe::nuevo(op, Resultado::Rechazada)

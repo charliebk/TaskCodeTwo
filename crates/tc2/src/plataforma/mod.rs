@@ -162,7 +162,10 @@ impl Firma {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReglasLeidas {
     /// `false` si el plan no da las reglas (GitHub: 403 con aviso de plan
-    /// en los rulesets; GitLab: 403 en las reglas de aprobacion, Free).
+    /// en los rulesets; GitLab: 403 en las reglas de aprobacion). En GitLab
+    /// Free el endpoint da 200 con la lista vacia (observado en el E2E de
+    /// F2-9), asi que `true` no prueba que el plan sea Premium: lo afina
+    /// F3-8.
     pub plan_da_reglas: bool,
     /// Nombres de los rulesets (GitHub) o de las reglas de aprobacion
     /// (GitLab).

@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::conexion::{Conexion, rama_valida, rol_no_valido, sha_valido, uso};
+use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_valido, uso};
 use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
@@ -600,16 +600,6 @@ impl Plataforma for GitHub {
                 .map(Usuario::from)
         })
     }
-}
-
-/// `merge-pr` rechazado porque el head no es el evaluado.
-pub(super) fn head_cambiado(pr: u64) -> Informe {
-    Informe::nuevo(MERGE_PR, Resultado::Rechazada)
-        .con("pr", pr.to_string())
-        .con("motivo", "head-cambiado")
-        .diagnostico(
-            "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas",
-        )
 }
 
 #[cfg(test)]

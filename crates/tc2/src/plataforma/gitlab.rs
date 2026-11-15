@@ -12,10 +12,9 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::conexion::{Conexion, rama_valida, rol_no_valido, sha_valido, uso};
+use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_valido, uso};
 use super::credenciales::{Credenciales, Rol};
 use super::errores;
-use super::github::head_cambiado;
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario};
@@ -90,7 +89,7 @@ impl Endpoint<'_> {
             ),
             Self::CrearMr => (Metodo::Post, format!("{p}/merge_requests")),
             Self::Merge(n) => (Metodo::Put, format!("{p}/merge_requests/{n}/merge")),
-            Self::ReglasAprobacion => (Metodo::Get, format!("{p}/approval_rules")),
+            Self::ReglasAprobacion => (Metodo::Get, format!("{p}/approval_rules?per_page=100")),
             Self::RamaProtegida(rama) => (
                 Metodo::Get,
                 format!("{p}/protected_branches/{}", codificar(rama)),
