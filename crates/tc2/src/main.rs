@@ -15,7 +15,17 @@ fn main() -> ExitCode {
         }
     }
     let salida = tc2::ejecutar(args);
-    let _ = std::io::stdout().write_all(salida.stdout.as_bytes());
+    // Si no se puede escribir la salida (stdout cerrado), no se da por bueno:
+    // quien lee el codigo 0 creeria que recibio la respuesta.
+    let mut stdout = std::io::stdout();
+    if let Err(e) = stdout
+        .write_all(salida.stdout.as_bytes())
+        .and_then(|()| stdout.flush())
+    {
+        let _ = writeln!(std::io::stderr(), "tc2: no se pudo escribir la salida: {e}");
+        return ExitCode::from(1);
+    }
+    // Un fallo al escribir en stderr no tiene a donde avisarse.
     let _ = std::io::stderr().write_all(salida.stderr.as_bytes());
     ExitCode::from(salida.codigo)
 }

@@ -115,7 +115,17 @@ fn cargo(dir: &Path, args: &[&str], target: Option<&Path>) -> Result<(), String>
 fn reproducible(raiz: &Path) -> Result<(), String> {
     let base = std::env::temp_dir().join(format!("tc2-reproducible-{}", std::process::id()));
     let resultado = reproducible_en(raiz, &base);
-    let _ = std::fs::remove_dir_all(&base);
+    match &resultado {
+        // En verde no hay nada que mirar: se borra la copia.
+        Ok(()) => {
+            let _ = std::fs::remove_dir_all(&base);
+        }
+        // En rojo se conservan los dos binarios para poder compararlos.
+        Err(_) => eprintln!(
+            "xtask: se conservan las dos copias para inspeccionarlas: {}",
+            base.display()
+        ),
+    }
     resultado
 }
 
@@ -146,11 +156,15 @@ fn reproducible_en(raiz: &Path, base: &Path) -> Result<(), String> {
         );
         hashes.push(hash);
     }
-    match hashes.as_slice() {
-        [a, b] if a == b => {
-            println!("xtask: build reproducible: mismo sha256 en las dos rutas");
-            Ok(())
-        }
+    comparar_hashes(&hashes)?;
+    println!("xtask: build reproducible: mismo sha256 en las dos rutas");
+    Ok(())
+}
+
+/// Verde solo si hay exactamente dos hashes y son iguales.
+fn comparar_hashes(hashes: &[String]) -> Result<(), String> {
+    match hashes {
+        [a, b] if a == b => Ok(()),
         _ => Err(format!("build NO reproducible: {hashes:?}")),
     }
 }
@@ -216,5 +230,13 @@ mod tests {
         );
         assert!(leer_perfil(&v(&["verificar", "--perfil", "otra"])).is_err());
         assert!(leer_perfil(&v(&["verificar"])).is_err());
+    }
+
+    #[test]
+    fn comparar_hashes_exige_dos_iguales() {
+        assert!(comparar_hashes(&v(&["aa", "aa"])).is_ok());
+        assert!(comparar_hashes(&v(&["aa", "ab"])).is_err());
+        assert!(comparar_hashes(&v(&["aa"])).is_err());
+        assert!(comparar_hashes(&v(&[])).is_err());
     }
 }
