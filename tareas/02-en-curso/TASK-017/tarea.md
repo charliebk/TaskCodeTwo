@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-017-f2-2-capa-de-operaciones-git-determinist
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T12:29:47Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T12:33:25Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T12:33:27Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
