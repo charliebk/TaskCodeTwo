@@ -74,7 +74,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 1 | TASK-016 | F2-1 Esqueleto: TypeScript, build reproducible | — | TASK-001, TASK-002, TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-094 | ▶ en diseño |
+| 1 | TASK-016 | F2-1 Esqueleto: Rust, build reproducible | — | TASK-001, TASK-002, TASK-003, TASK-004, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-073, TASK-074, TASK-075, TASK-094 | ▶ en diseño |
 | 2 | TASK-017 | F2-2 Capa de operaciones Git deterministas | — | TASK-005, TASK-016 | espera a TASK-016 |
 | 3 | TASK-018 | F2-3 Rama de estado | — | TASK-002, TASK-003, TASK-017 | espera a TASK-017 |
 | 4 | TASK-019 | F2-4 Reserva de IDs por push atomico | — | TASK-018 | espera a TASK-018 |
