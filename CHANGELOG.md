@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-022 (feature) — F2-9 Adaptador GitLab (2026-11-15)
 - TASK-021 (feature) — F2-6 Adaptador GitHub (2026-11-15)
 - TASK-020 (feature) — F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido (2026-11-15)
 - TASK-019 (feature) — F2-4 Reserva de IDs por push atomico (2026-11-15)

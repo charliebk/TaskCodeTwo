@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-022 — F2-9 Adaptador GitLab · etiquetas: (sin etiquetas) · rama feature/task-022-f2-9-adaptador-gitlab · terminada 2026-11-15 · tareas/04-terminadas/TASK-022/
 - TASK-021 — F2-6 Adaptador GitHub · etiquetas: (sin etiquetas) · rama feature/task-021-f2-6-adaptador-github · terminada 2026-11-15 · tareas/04-terminadas/TASK-021/
 - TASK-020 — F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido · etiquetas: (sin etiquetas) · rama feature/task-020-f2-5-modelo-de-tarea-y-parser-serializad · terminada 2026-11-15 · tareas/04-terminadas/TASK-020/
 - TASK-019 — F2-4 Reserva de IDs por push atomico · etiquetas: (sin etiquetas) · rama feature/task-019-f2-4-reserva-de-ids-por-push-atomico · terminada 2026-11-15 · tareas/04-terminadas/TASK-019/
