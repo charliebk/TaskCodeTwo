@@ -1,0 +1,260 @@
+PoC F1-17 ; solo lectura con git log, ls-tree y cat-file sobre los originales: ToolsaWeb@43ab5907e ; OpenDockTrading@2b0064f2c ; TaskCodeTwo@d9a5b10fd y @8b0184792 ; corte 45 min ; n minimo 5 ; p80 ; ahora 2026-11-15 12:00 UTC
+
+=== H: lector del historico (tolerante, descartes contados) y tareas troceadas ===
+ToolsaWeb@43ab5907e: terminadas 164 ; descartadas 0 {} ; filas ilegibles 0 ; usables 164 ; versiones ['', '0.12.0', '0.13.0', '0.14.0', '0.16.0', '0.16.1']
+  con merge de su rama 164 ; carriles (proxy del diff) {'errata': 22, 'fix': 5, 'funcionalidad': 137, 'riesgo-alto': 0} ; complejidad declarada 164
+  «Estimada» de la 0.16: 26 (en ## Duracion 25, solo en el plan 0, leidas con tolerancia 1) ; «Real» de la 0.16: 27
+  grupo de troceo TASK-017: TASK-017, TASK-087, TASK-107
+  grupo de troceo TASK-021: TASK-021, TASK-084
+  grupo de troceo TASK-058: TASK-058, TASK-083
+  grupo de troceo TASK-129: TASK-129, TASK-142
+  grupo de troceo TASK-212: TASK-212, TASK-404
+  grupo de troceo TASK-296: TASK-296, TASK-299, TASK-300
+  grupo de troceo TASK-303: TASK-303, TASK-306
+  grupo de troceo TASK-344: TASK-344, TASK-399
+  muestras tras agrupar: 154
+OpenDockTrading@2b0064f2c: terminadas 48 ; descartadas 0 {} ; filas ilegibles 0 ; usables 48 ; versiones ['0.12.0', '0.13.0', '0.14.0', '0.16.0', '0.16.1']
+  con merge de su rama 48 ; carriles (proxy del diff) {'errata': 1, 'fix': 0, 'funcionalidad': 47, 'riesgo-alto': 0} ; complejidad declarada 0
+  «Estimada» de la 0.16: 37 (en ## Duracion 31, solo en el plan 0, leidas con tolerancia 6) ; «Real» de la 0.16: 38
+  grupo de troceo TASK-010: TASK-010, TASK-094, TASK-095, TASK-096
+  grupo de troceo TASK-077: TASK-077, TASK-087
+  grupo de troceo TASK-081: TASK-081, TASK-088
+  grupo de troceo TASK-083: TASK-083, TASK-089, TASK-092
+  muestras tras agrupar: 41
+
+tabla-historico calculada:
+| Repo | Commit | Terminadas | Descartadas | Usables | Grupos de troceo | Muestras tras agrupar | Con «Estimada» de la 0.16 | De ellas, leída con tolerancia | Con «Real» de la 0.16 |
+|---|---|---|---|---|---|---|---|---|---|
+| ToolsaWeb | `43ab5907e` | 164 | 0 | 164 | 8 (18 tareas) | 154 | 26 | 1 | 27 |
+| OpenDockTrading | `2b0064f2c` | 48 | 0 | 48 | 4 (11 tareas) | 41 | 37 | 6 | 38 |
+
+=== R: real recalculado desde Transiciones con corte de huecos (D6a) frente a «Real ... sin pausas» de la 0.16 ===
+TASK-096 (OpenDockTrading): «Real» de la 0.16 414 min ; reloj start→finish 414 min ; recalculado (huecos > 45 min a 45, pausas declaradas fuera) 76 min (implementacion 47, rondas 21, cierre 8) ; con el hueco cortado a 0 31 ; sin respetar la pausa 76
+TASK-296 (ToolsaWeb): «Real» de la 0.16 90 min ; reloj start→finish 137 min ; recalculado (huecos > 45 min a 45, pausas declaradas fuera) 90 min (implementacion 39, rondas 48, cierre 4) ; con el hueco cortado a 0 90 ; sin respetar la pausa 137
+ToolsaWeb: huecos entre eventos dentro de start→finish 3554 ; p50 0,7 min, p90 19,3, p95 29,5 ; mayores de 45 min 81 ; tareas que cambian con el corte 56 de 164 ; «Real» de la 0.16 igual (±2 min) al reloj start→finish menos pausas: 27 de 27
+OpenDockTrading: huecos entre eventos dentro de start→finish 1243 ; p50 0,1 min, p90 8,1, p95 11,6 ; mayores de 45 min 8 ; tareas que cambian con el corte 7 de 48 ; «Real» de la 0.16 igual (±2 min) al reloj start→finish menos pausas: 38 de 38
+
+tabla-corte calculada:
+| Regla | Mediana del real, ToolsaWeb (min) | Media, ToolsaWeb | Mediana, OpenDockTrading | Media, OpenDockTrading | TASK-096 de OpenDockTrading | TASK-296 de ToolsaWeb |
+|---|---|---|---|---|---|---|
+| huecos > 45 min a 45 min (D6a) | 111 | 127 | 56 | 64 | 76 | 90 |
+| huecos > 45 min a 0 min | 90 | 105 | 51 | 57 | 31 | 90 |
+| sin corte (reloj menos pausas, como la 0.16) | 116 | 170 | 56 | 90 | 414 | 90 |
+
+=== E: estimacion fuera de muestra (rolling origin por repo y cruzado), fases medibles y lineas base (D7a, D8a) ===
+ToolsaWeb: muestras 154 ; con estimacion 149 ; por nivel de la cascada {'carril+complejidad+tamano': 103, 'carril+complejidad': 22, 'carril': 15, 'repo': 9, 'semilla-carril': 0, 'semilla': 0}
+  modelo       (comun) n=149 mediana 0,45 p80 0,71 p90 1,07 ±50 % 55,0 % error medio 69 min (61,6 %) sesgo 0,74
+  ingenua      (comun) n=149 mediana 0,52 p80 0,72 p90 1,37 ±50 % 47,7 % error medio 76 min (66,7 %) sesgo 0,70
+  complejidad  (comun) n=149 mediana 0,46 p80 0,71 p90 1,20 ±50 % 53,0 % error medio 72 min (62,0 %) sesgo 0,71
+  modelo       (con «Estimada» de la 0.16) n=21 mediana 0,56 p80 0,78 p90 1,40 ±50 % 42,9 % error medio 93 min (69,9 %) sesgo 0,94
+  016          (con «Estimada» de la 0.16) n=21 mediana 0,32 p80 0,75 p90 1,08 ±50 % 66,7 % error medio 94 min (76,4 %) sesgo 1,32
+  ingenua      (con «Estimada» de la 0.16) n=21 mediana 0,55 p80 0,90 p90 1,44 ±50 % 38,1 % error medio 101 min (65,1 %) sesgo 0,64
+  0.16 calibrada con la razon real/estimada mediana de las anteriores (n>=3): n=18 mediana 0,29 p80 0,61 p90 1,90 ±50 % 72,2 % error medio 71 min (61,0 %) sesgo 1,14
+     en las mismas: modelo n=18 mediana 0,57 p80 0,82 p90 1,48 ±50 % 44,4 % error medio 101 min (75,4 %) sesgo 0,83 ; 0.16 cruda n=18 mediana 0,36 p80 1,02 p90 2,84 ±50 % 61,1 % error medio 107 min (86,4 %) sesgo 1,32
+  remuestreo pareado (2000): el modelo tiene menor mediana que la ingenua en el 94,2 % ; que la 0.16 en el 8,9 %
+  cobertura del p80 (real <= p80 estimado): 98 de 149 (65,8 %)
+  referencia dentro de muestra (no es un control): n=154 mediana 0,40 p80 1,16 p90 2,04 ±50 % 57,1 % error medio 63 min (78,8 %) sesgo 1,00
+  control de fuga: muestras posteriores al approve (o la propia) usadas fuera de muestra 0 ; con la fuga metida a proposito 2515 (detectada)
+  cruzado (solo con OpenDockTrading, anteriores a cada tarea): estimables 22 de 154 ; n=22 mediana 0,67 p80 0,76 p90 0,79 ±50 % 27,3 % error medio 124 min (59,4 %) sesgo 0,38
+  fase implementacion: real mediano 51 min ; error absoluto mediano 23 min, p80 47 ; error relativo mediano (denominador >= 5 min) 0,46
+  fase rondas: real mediano 37 min ; error absoluto mediano 20 min, p80 66 ; error relativo mediano (denominador >= 5 min) 0,64
+  fase cierre: real mediano 9 min ; error absoluto mediano 4 min, p80 15 ; error relativo mediano (denominador >= 5 min) 0,49
+  tokens (total de ## Coste, solo tareas con coste), cascada: n=81 mediana del error 0,63 ; p80 0,86 ; ±50 % 37,0 % ; sesgo 0,61
+  tokens (total de ## Coste, solo tareas con coste), mediana ingenua: n=86 mediana del error 0,53 ; p80 0,82 ; ±50 % 45,3 % ; sesgo 0,56
+  rondas por muestra: mediana 2 ; p80 3 ; maximo 9
+  recalculo en la 1.a review, rondas+cierre con tamano por criterios: n=149 mediana 0,59 p80 0,81 p90 1,31 ±50 % 43,0 % error medio 45 min (78,8 %) sesgo 0,63
+  recalculo en la 1.a review, rondas+cierre con tamano por diff: n=149 mediana 0,58 p80 0,82 p90 1,24 ±50 % 42,3 % error medio 45 min (78,5 %) sesgo 0,67
+  variante cascada entera: n=149 mediana 0,45 p80 0,71 p90 1,07 ±50 % 55,0 % error medio 69 min (61,6 %) sesgo 0,74
+  variante sin tamano: n=149 mediana 0,46 p80 0,72 p90 1,07 ±50 % 55,0 % error medio 69 min (61,0 %) sesgo 0,77
+  variante solo carril: n=149 mediana 0,48 p80 0,72 p90 1,09 ±50 % 52,3 % error medio 73 min (62,4 %) sesgo 0,71
+  variante solo repo (con semilla): n=149 mediana 0,52 p80 0,72 p90 1,37 ±50 % 47,7 % error medio 76 min (66,7 %) sesgo 0,70
+  variante semilla del carril antes que el repo: n=149 mediana 0,45 p80 0,71 p90 1,07 ±50 % 55,0 % error medio 69 min (61,6 %) sesgo 0,74
+  variante sin agrupar las troceadas (cambia las muestras): n=159 mediana 0,43 p80 0,68 p90 1,07 ±50 % 57,2 % error medio 63 min (61,6 %) sesgo 0,76
+  variante umbral 30 min (cambia también el real): n=149 mediana 0,43 p80 0,71 p90 0,87 ±50 % 55,7 % error medio 61 min (57,9 %) sesgo 0,76
+  variante umbral 60 min (cambia también el real): n=149 mediana 0,44 p80 0,72 p90 1,07 ±50 % 54,4 % error medio 73 min (63,2 %) sesgo 0,73
+  variante umbral 90 min (cambia también el real): n=149 mediana 0,45 p80 0,75 p90 1,07 ±50 % 55,0 % error medio 80 min (65,3 %) sesgo 0,73
+  variante sin corte (cambia también el real): n=149 mediana 0,51 p80 0,79 p90 1,07 ±50 % 49,0 % error medio 111 min (67,9 %) sesgo 0,71
+OpenDockTrading: muestras 41 ; con estimacion 41 ; por nivel de la cascada {'carril+complejidad+tamano': 30, 'carril+complejidad': 5, 'carril': 0, 'repo': 1, 'semilla-carril': 5, 'semilla': 0}
+  modelo       (comun) n=40 mediana 0,43 p80 0,77 p90 1,57 ±50 % 55,0 % error medio 38 min (66,5 %) sesgo 1,21
+  ingenua      (comun) n=40 mediana 0,41 p80 0,74 p90 1,51 ±50 % 60,0 % error medio 37 min (62,7 %) sesgo 1,15
+  complejidad  (comun) n=40 mediana 0,41 p80 0,74 p90 1,51 ±50 % 60,0 % error medio 37 min (62,7 %) sesgo 1,15
+  modelo       (con «Estimada» de la 0.16) n=30 mediana 0,37 p80 0,77 p90 1,51 ±50 % 53,3 % error medio 34 min (60,8 %) sesgo 1,00
+  016          (con «Estimada» de la 0.16) n=30 mediana 1,68 p80 3,23 p90 3,98 ±50 % 20,0 % error medio 111 min (208,0 %) sesgo 2,68
+  ingenua      (con «Estimada» de la 0.16) n=30 mediana 0,40 p80 0,73 p90 1,51 ±50 % 56,7 % error medio 36 min (62,8 %) sesgo 0,95
+  0.16 calibrada con la razon real/estimada mediana de las anteriores (n>=3): n=26 mediana 0,61 p80 1,00 p90 1,91 ±50 % 46,2 % error medio 38 min (73,3 %) sesgo 1,48
+     en las mismas: modelo n=26 mediana 0,37 p80 0,73 p90 1,51 ±50 % 53,8 % error medio 35 min (53,1 %) sesgo 0,98 ; 0.16 cruda n=26 mediana 1,88 p80 3,28 p90 4,49 ±50 % 23,1 % error medio 120 min (218,8 %) sesgo 2,88
+  remuestreo pareado (2000): el modelo tiene menor mediana que la ingenua en el 43,9 % ; que la 0.16 en el 100,0 %
+  cobertura del p80 (real <= p80 estimado): 33 de 41 (80,5 %)
+  referencia dentro de muestra (no es un control): n=41 mediana 0,38 p80 0,77 p90 1,27 ±50 % 58,5 % error medio 33 min (57,6 %) sesgo 1,00
+  control de fuga: muestras posteriores al approve (o la propia) usadas fuera de muestra 0 ; con la fuga metida a proposito 734 (detectada)
+  cruzado (solo con ToolsaWeb, anteriores a cada tarea): estimables 41 de 41 ; n=41 mediana 0,72 p80 2,04 p90 2,77 ±50 % 26,8 % error medio 59 min (124,5 %) sesgo 1,72
+  fase implementacion: real mediano 18 min ; error absoluto mediano 9 min, p80 24 ; error relativo mediano (denominador >= 5 min) 0,46
+  fase rondas: real mediano 26 min ; error absoluto mediano 13 min, p80 26 ; error relativo mediano (denominador >= 5 min) 0,49
+  fase cierre: real mediano 10 min ; error absoluto mediano 4 min, p80 11 ; error relativo mediano (denominador >= 5 min) 0,43
+  tokens (total de ## Coste, solo tareas con coste), cascada: n=41 mediana del error 0,37 ; p80 0,62 ; ±50 % 61,0 % ; sesgo 0,76
+  tokens (total de ## Coste, solo tareas con coste), mediana ingenua: n=40 mediana del error 0,37 ; p80 0,64 ; ±50 % 60,0 % ; sesgo 0,78
+  rondas por muestra: mediana 3 ; p80 4 ; maximo 15
+  recalculo en la 1.a review, rondas+cierre con tamano por criterios: n=41 mediana 0,39 p80 0,79 p90 1,15 ±50 % 56,1 % error medio 23 min (59,5 %) sesgo 1,07
+  recalculo en la 1.a review, rondas+cierre con tamano por diff: n=41 mediana 0,39 p80 0,79 p90 1,13 ±50 % 56,1 % error medio 23 min (59,0 %) sesgo 1,05
+  variante cascada entera: n=40 mediana 0,43 p80 0,77 p90 1,57 ±50 % 55,0 % error medio 38 min (66,5 %) sesgo 1,21
+  variante sin tamano: n=40 mediana 0,43 p80 0,77 p90 1,57 ±50 % 55,0 % error medio 38 min (67,1 %) sesgo 1,21
+  variante solo carril: n=40 mediana 0,43 p80 0,77 p90 1,57 ±50 % 55,0 % error medio 38 min (67,1 %) sesgo 1,21
+  variante solo repo (con semilla): n=40 mediana 0,45 p80 0,74 p90 1,57 ±50 % 57,5 % error medio 39 min (68,0 %) sesgo 1,21
+  variante semilla del carril antes que el repo: n=40 mediana 0,43 p80 0,77 p90 1,57 ±50 % 55,0 % error medio 38 min (66,4 %) sesgo 1,21
+  variante sin agrupar las troceadas (cambia las muestras): n=47 mediana 0,37 p80 0,81 p90 1,89 ±50 % 59,6 % error medio 29 min (63,0 %) sesgo 1,22
+  variante umbral 30 min (cambia también el real): n=40 mediana 0,37 p80 0,77 p90 1,57 ±50 % 57,5 % error medio 34 min (64,1 %) sesgo 1,20
+  variante umbral 60 min (cambia también el real): n=40 mediana 0,47 p80 0,81 p90 1,57 ±50 % 52,5 % error medio 41 min (69,5 %) sesgo 1,21
+  variante umbral 90 min (cambia también el real): n=40 mediana 0,50 p80 0,83 p90 1,57 ±50 % 50,0 % error medio 46 min (70,9 %) sesgo 1,21
+  variante sin corte (cambia también el real): n=40 mediana 0,50 p80 0,88 p90 1,57 ±50 % 50,0 % error medio 70 min (72,8 %) sesgo 1,21
+
+tabla-error calculada:
+| Ámbito | Estimador | n | Mediana del error relativo | p80 | p90 | Dentro de ±50 % | Error medio (min) | Error medio relativo | Sesgo (estimado/real) |
+|---|---|---|---|---|---|---|---|---|---|
+| ToolsaWeb, por repo | cascada (modelo) | 149 | 0,45 | 0,71 | 1,07 | 55,0 % | 69 | 61,6 % | 0,74 |
+| ToolsaWeb, por repo | mediana ingenua del repo | 149 | 0,52 | 0,72 | 1,37 | 47,7 % | 76 | 66,7 % | 0,70 |
+| ToolsaWeb, por repo | mediana por complejidad | 149 | 0,46 | 0,71 | 1,20 | 53,0 % | 72 | 62,0 % | 0,71 |
+| ToolsaWeb, con «Estimada» | cascada (modelo) | 21 | 0,56 | 0,78 | 1,40 | 42,9 % | 93 | 69,9 % | 0,94 |
+| ToolsaWeb, con «Estimada» | «Estimada» de la 0.16 | 21 | 0,32 | 0,75 | 1,08 | 66,7 % | 94 | 76,4 % | 1,32 |
+| ToolsaWeb, con «Estimada» | mediana ingenua del repo | 21 | 0,55 | 0,90 | 1,44 | 38,1 % | 101 | 65,1 % | 0,64 |
+| ToolsaWeb, con «Estimada» y 3 anteriores | 0.16 calibrada | 18 | 0,29 | 0,61 | 1,90 | 72,2 % | 71 | 61,0 % | 1,14 |
+| ToolsaWeb, cruzado | cascada solo con OpenDockTrading | 22 | 0,67 | 0,76 | 0,79 | 27,3 % | 124 | 59,4 % | 0,38 |
+| ToolsaWeb, cruzado, con «Estimada» | «Estimada» de la 0.16 | 21 | 0,32 | 0,75 | 1,08 | 66,7 % | 94 | 76,4 % | 1,32 |
+| OpenDockTrading, por repo | cascada (modelo) | 40 | 0,43 | 0,77 | 1,57 | 55,0 % | 38 | 66,5 % | 1,21 |
+| OpenDockTrading, por repo | mediana ingenua del repo | 40 | 0,41 | 0,74 | 1,51 | 60,0 % | 37 | 62,7 % | 1,15 |
+| OpenDockTrading, por repo | mediana por complejidad (= ingenua: sin complejidad) | 40 | 0,41 | 0,74 | 1,51 | 60,0 % | 37 | 62,7 % | 1,15 |
+| OpenDockTrading, con «Estimada» | cascada (modelo) | 30 | 0,37 | 0,77 | 1,51 | 53,3 % | 34 | 60,8 % | 1,00 |
+| OpenDockTrading, con «Estimada» | «Estimada» de la 0.16 | 30 | 1,68 | 3,23 | 3,98 | 20,0 % | 111 | 208,0 % | 2,68 |
+| OpenDockTrading, con «Estimada» | mediana ingenua del repo | 30 | 0,40 | 0,73 | 1,51 | 56,7 % | 36 | 62,8 % | 0,95 |
+| OpenDockTrading, con «Estimada» y 3 anteriores | 0.16 calibrada | 26 | 0,61 | 1,00 | 1,91 | 46,2 % | 38 | 73,3 % | 1,48 |
+| OpenDockTrading, cruzado | cascada solo con ToolsaWeb | 41 | 0,72 | 2,04 | 2,77 | 26,8 % | 59 | 124,5 % | 1,72 |
+| OpenDockTrading, cruzado, con «Estimada» | «Estimada» de la 0.16 | 30 | 1,68 | 3,23 | 3,98 | 20,0 % | 111 | 208,0 % | 2,68 |
+
+tabla-fases calculada:
+| Repo | Fase | n | Real mediano (min) | Error absoluto mediano (min) | p80 del error absoluto (min) | Error relativo mediano |
+|---|---|---|---|---|---|---|
+| ToolsaWeb | implementacion | 149 | 51 | 23 | 47 | 0,46 |
+| ToolsaWeb | rondas | 149 | 37 | 20 | 66 | 0,64 |
+| ToolsaWeb | cierre | 149 | 9 | 4 | 15 | 0,49 |
+| OpenDockTrading | implementacion | 41 | 18 | 9 | 24 | 0,46 |
+| OpenDockTrading | rondas | 41 | 26 | 13 | 26 | 0,49 |
+| OpenDockTrading | cierre | 41 | 10 | 4 | 11 | 0,43 |
+
+tabla-variantes calculada:
+| Variante | ToolsaWeb: mediana | ToolsaWeb: ±50 % | OpenDockTrading: mediana | OpenDockTrading: ±50 % |
+|---|---|---|---|---|
+| cascada entera | 0,45 | 55,0 % | 0,43 | 55,0 % |
+| sin tamano | 0,46 | 55,0 % | 0,43 | 55,0 % |
+| solo carril | 0,48 | 52,3 % | 0,43 | 55,0 % |
+| solo repo (con semilla) | 0,52 | 47,7 % | 0,45 | 57,5 % |
+| semilla del carril antes que el repo | 0,45 | 55,0 % | 0,43 | 55,0 % |
+| sin agrupar las troceadas (cambia las muestras) | 0,43 | 57,2 % | 0,37 | 59,6 % |
+| umbral 30 min (cambia también el real) | 0,43 | 55,7 % | 0,37 | 57,5 % |
+| umbral 60 min (cambia también el real) | 0,44 | 54,4 % | 0,47 | 52,5 % |
+| umbral 90 min (cambia también el real) | 0,45 | 55,0 % | 0,50 | 50,0 % |
+| sin corte (cambia también el real) | 0,51 | 49,0 % | 0,50 | 50,0 % |
+
+=== D: `resumen` (dashboard) y `repartir --personas N` sobre TaskCodeTwo, y el prototipo de la sesion ===
+prototipo en 8b0184792: tareas 93, pendientes 82, con plan ['TASK-012'] ; camino critico 16,6 h ; 1-4 personas 77,1 / 38,6 / 25,8 / 19,3 h
+TaskCodeTwo@d9a5b10fd: tareas 94 ; terminadas 18 ; historico usable 18 (descartes {}) ; carril de las terminadas {'errata': 17, 'fix': 0, 'funcionalidad': 1, 'riesgo-alto': 0}
+pendientes 76 ; nivel de la cascada usado: {'errata: carril+complejidad+tamano (n=17)': 1, 'funcionalidad: repo (n=18)': 75}
+
+tabla-resumen calculada:
+| Sprint | Terminadas | Pendientes | Tiempo real (h) | Tokens (M) | Falta, mediana (h) | Falta, p80 (h) | Tokens que faltan, mediana (M) |
+|---|---|---|---|---|---|---|---|
+| 1 | 18 | 1 | 22,3 | 550,3 | 0,5 | 1,1 | 19,1 |
+| 2 | 0 | 15 | 0,0 | 0,0 | 18,0 | 22,5 | 446,6 |
+| 3 | 0 | 14 | 0,0 | 0,0 | 16,8 | 21,0 | 417,6 |
+| 4 | 0 | 9 | 0,0 | 0,0 | 10,0 | 14,1 | 263,7 |
+| 5 | 0 | 6 | 0,0 | 0,0 | 6,4 | 10,4 | 174,6 |
+| 6 | 0 | 7 | 0,0 | 0,0 | 7,5 | 11,6 | 204,6 |
+| 7 | 0 | 4 | 0,0 | 0,0 | 4,1 | 7,2 | 111,4 |
+| 8 | 0 | 7 | 0,0 | 0,0 | 7,5 | 11,6 | 204,6 |
+| 9 | 0 | 13 | 0,0 | 0,0 | 15,5 | 19,7 | 388,1 |
+| Total | 18 | 76 | 22,3 | 550,3 | 93,3 | 102,9 | 2320,6 |
+total que falta: suma de medianas 61,8 h ; mediana de la suma remuestreada 93,3 h ; p80 102,9 h
+zonas de ejemplo: 63 tareas con una zona por fase del plan ; 13 sin zona (Fase 9 y sin F-id): TASK-063, TASK-064, TASK-065, TASK-066, TASK-067, TASK-068, TASK-069, TASK-070, TASK-071, TASK-072, TASK-091, TASK-092, TASK-093
+
+tabla-reparto calculada:
+| Personas | Prototipo de la sesión (h) | Estimación de F1-17, sin mirar zonas (h) | D4a sin zonas declaradas (h) | D4a con zonas de ejemplo (h) |
+|---|---|---|---|---|
+| 1 | 77,1 | 61,8 | 61,8 | 61,8 |
+| 2 | 38,6 | 31,1 | 61,8 | 36,5 |
+| 3 | 25,8 | 21,0 | 61,8 | 29,9 |
+| 4 | 19,3 | 15,5 | 61,8 | 26,2 |
+| camino crítico | 16,6 | 10,3 | 10,3 | 10,3 |
+  persona 1 (2 personas, zonas de ejemplo): 45 tareas, primeras TASK-075, TASK-016, TASK-017, TASK-018, TASK-021, TASK-019
+  persona 2 (2 personas, zonas de ejemplo): 31 tareas, primeras TASK-041, TASK-047, TASK-044, TASK-080, TASK-033, TASK-048
+tramos en que una tarea sin zona corre a la vez que otra (2-4 personas, zonas de ejemplo): 0
+
+=== S: precondiciones de `start` (D3a) y aviso de solape (D4a) con un remoto bare local ===
+  S1: TASK-002 con su predecesora TASK-001 en curso: se niega (`predecesora-sin-terminar`) — TASK-001 esta en-curso (la lleva carlos)
+  S2: TASK-001 dice `terminada` en la rama de estado y su merge no está en `develop`: se niega (`predecesora-sin-merge`) — TASK-001 dice terminada pero su merge no esta en origin/develop
+  S3: un merge de otra tarea en `develop` copia el trailer `Tarea: TASK-001`; la rama de TASK-001 no está integrada: se niega (`predecesora-sin-merge`) — TASK-001 dice terminada pero su merge no esta en origin/develop
+  S4: la rama de TASK-001 integrada en `develop` con un merge como los de la 0.16 (sin trailer): arranca
+  S5: sin red, con la caché local diciendo que TASK-001 está terminada e integrada: se niega (`sin-red`) — no se puede traer develop ni la rama de estado: no se arranca a ciegas
+  start TASK-005 (zona ['core/a/x/**']): 2 avisos
+    aviso: TASK-003 (companero): su zona declarada solapa
+    aviso: TASK-004 (carlos): sin zona declarada, choca con todas
+  start TASK-006 (zona ['web/**']): 1 avisos
+    aviso: TASK-004 (carlos): sin zona declarada, choca con todas
+  start TASK-007 (zona ['core/b/**']): 2 avisos
+    aviso: TASK-003 (companero): su rama toca fuera de su zona: core/b/dos.rs
+    aviso: TASK-004 (carlos): sin zona declarada, choca con todas
+  S9 review de TASK-008 (zona `core/*.rs`): ficheros fuera de su zona ['core/a/uno.rs'] ; con la funcion de solape (prefijo) saldrian []
+
+tabla-start calculada:
+| ID | Caso | Resultado |
+|---|---|---|
+| S1 | TASK-002 con su predecesora TASK-001 en curso | se niega (`predecesora-sin-terminar`) |
+| S2 | TASK-001 dice `terminada` en la rama de estado y su merge no está en `develop` | se niega (`predecesora-sin-merge`) |
+| S3 | un merge de otra tarea en `develop` copia el trailer `Tarea: TASK-001`; la rama de TASK-001 no está integrada | se niega (`predecesora-sin-merge`) |
+| S4 | la rama de TASK-001 integrada en `develop` con un merge como los de la 0.16 (sin trailer) | arranca |
+| S5 | sin red, con la caché local diciendo que TASK-001 está terminada e integrada | se niega (`sin-red`) |
+| S6 | `start` de TASK-005 (zona `core/a/x/**`) con TASK-003 en curso en `core/a/**` | aviso: solapa con TASK-003 (companero) |
+| S7 | `start` de TASK-006 (zona `web/**`) con TASK-004 en curso sin zona | aviso: TASK-004 sin zona choca con todas |
+| S8 | `start` de TASK-007 (zona `core/b/**`); la rama de TASK-003 toca `core/b/dos.rs` fuera de su zona | aviso: cruce con el diff real |
+| S9 | `review` de TASK-008 (zona `core/*.rs`), cuya rama toca `core/c.rs` y `core/a/uno.rs` | aviso: `core/a/uno.rs` fuera de su zona |
+
+=== L: status line O(1) sobre estado.json (D5a), escritura atomica concurrente y coste con dos escritores ===
+  L1 n=10: el CLI en la transicion recorre 10 tarea.md ; la status line abre 1 fichero, lee 156 bytes (actual)
+  L1 n=1000: el CLI en la transicion recorre 1000 tarea.md ; la status line abre 1 fichero, lee 158 bytes (actual)
+  L2 plataforma win32: os.replace sobre estado.json con un lector abierto y sin reintento: falla con PermissionError (WinError 5)
+  L2 con reintento y el lector cerrandose a los 50 ms: entra (con reintentos), valor final 3
+  L3 escritura no atomica cortada a medias: la status line ensena ultimo-bueno (fase implementacion, hace 10 min)
+  L4 leer-anadir-reescribir con dos escritores intercalados: filas perdidas 1 de 2
+  L4 un fichero por fuente, solo anadir, con dos procesos reales: 400 de 400 filas
+  L5 TASK-075 a las 2026-11-15 12:00 UTC: fase implementacion desde 2026-11-15 09:52, 127 min transcurridos (127 desde el ultimo commit o coste) ; estimacion total de su nivel: mediana 50 min, p80 96 ; restante sin condicionar (n=17) ; parecidas por encima de lo transcurrido 0: fase desbordada, cota inferior
+  status line: TASK-075 · implementacion · fases que faltan: rondas, cierre · faltan ≥31 min (fase en curso por encima de sus parecidas) · n=17 carril+complejidad+tamano · sin actividad registrada hace 127 min
+  la estimacion del agente en el plan: 300 min
+
+tabla-statusline calculada:
+| ID | Caso | Resultado |
+|---|---|---|
+| L1 | lectura de la status line con 10 y con 1000 tareas | 1 fichero y los mismos bytes en los dos casos |
+| L2 | `os.replace` con un lector de Python abierto (Windows; sin `FILE_SHARE_DELETE`) | sin reintento falla con PermissionError; con reintento entra |
+| L3 | `estado.json` a medio escribir | la status line enseña el último valor bueno con su antigüedad |
+| L4 | dos escritores añaden filas de `## Coste` a la vez | leer-añadir-reescribir pierde 1 de 2 filas; un fichero por fuente, ninguna de 400 |
+| L5 | status line de TASK-075 a las 12:00 UTC | `TASK-075 · implementacion · fases que faltan: rondas, cierre · faltan ≥31 min (fase en curso por encima de sus parecidas) · n=17 carril+complejidad+tamano · sin actividad registrada hace 127 min` |
+
+=== F: hora de fin de un lote con intervalo p50/p80 frente a la suma de medianas ===
+ToolsaWeb: lotes de 5 con estimacion para todas 145 ; real <= suma de medianas 32 (22,1 %) ; <= p50 43 (29,7 %) ; <= p80 67 (46,2 %)
+OpenDockTrading: lotes de 5 con estimacion para todas 37 ; real <= suma de medianas 15 (40,5 %) ; <= p50 14 (37,8 %) ; <= p80 26 (70,3 %)
+serie de F1-16 (17 muestras, de TASK-173 a TASK-210), lanzada en 2026-11-04 09:28 UTC con lo terminado antes: suma de medianas 30,4 h ; p50 34,3 h ; p80 40,1 h ; real 25,5 h
+  hora de fin si corriera seguido: p50 2026-11-05 19:48 ; p80 2026-11-06 01:32 ; con el real 2026-11-05 10:56 UTC
+
+tabla-lote calculada:
+| Repo | Lotes de 5 tareas seguidas | Real ≤ suma de medianas | Real ≤ p50 remuestreado | Real ≤ p80 remuestreado |
+|---|---|---|---|---|
+| ToolsaWeb | 145 | 22,1 % | 29,7 % | 46,2 % |
+| OpenDockTrading | 37 | 40,5 % | 37,8 % | 70,3 % |
+
+=== G: el ADR como dato (tablas entre marcadores, IDs, enlaces, secciones) y mutaciones de control ===
+errores del ADR: 0
+  mutacion cifra-del-error-cambiada: falla como se espera
+  mutacion id-inexistente: falla como se espera
+  mutacion enlace-roto: falla como se espera
+  mutacion seccion-borrada: falla como se espera
+
+carpeta de trabajo borrada al terminar: si
+
+RESULTADO: todo como se espera
