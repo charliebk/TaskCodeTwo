@@ -136,3 +136,5 @@ Tarea F2-9 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - Real (de la rama abierta al cierre con merge, sin pausas): 146 min
 - Paso de la hora: 146 min reales frente a 150 estimados
 - Cierre (finish): 385 s, de 2026-11-15T20:58:37Z a 2026-11-15T21:05:02Z
+
+**Tras el cierre.** CI de develop en verde: run 43761739663, los 4 jobs en success (comprobar-repo, codigo en ubuntu, windows y macos). El primer `taskctl finish` cayo en la verificacion por un `sinred` del atasco de red local; el segundo paso entero.
