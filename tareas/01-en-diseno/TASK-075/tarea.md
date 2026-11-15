@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -39,3 +39,4 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-15T08:34:51Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-15T09:52:36Z | approve | automatico | persona | 0.16.1 |
