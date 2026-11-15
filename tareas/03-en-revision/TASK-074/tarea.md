@@ -38,6 +38,10 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci�
 
 - code-quality-reviewer — 8b7ecd7
 
+## Rondas extra
+
+- Ronda 3: Carlos (consigna «opcion recomendada» y fidelidad sobre coste); la ronda 2 encontro un IMPORTANTE introducido por la correccion (NUE-1, nucleo del manifiesto por lista blanca), ya corregido en d574e7f.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
