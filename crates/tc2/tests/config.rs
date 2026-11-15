@@ -205,6 +205,17 @@ fn configs_hostiles_rechazadas_con_la_ruta() {
         ("seleccion: {dominios_extra: {datos: {}}}".into(), Inv, "seleccion.dominios_extra.datos", "clave no admitida"),
         ("recursos:\n  - {id: 'a', tipo: 'skill'}\n  - {id: 'a', tipo: 'agente'}".into(), Inv, "recursos[1].id", "repetido"),
         ("modo_flujo: 'rapido'".into(), Inv, "modo_flujo", "no admitido"),
+        ("derivados:\n  - comando: 'x'\n    tipo: 'comprueba'\n    escribe: ['tareas/x.md']".into(), Inv, "derivados[0].escribe", "prohibida"),
+        ("derivados:\n  - comando: 'x'\n    tipo: 'genera'\n    escribe: ['tareas/ROADMAP.md.']".into(), Inv, "derivados[0].escribe[0]", "punto"),
+        ("derivados:\n  - comando: 'x'\n    tipo: 'genera'\n    escribe: ['tareas/TASK-001 /x']".into(), Inv, "derivados[0].escribe[0]", "espacio"),
+        ("derivados:\n  - comando: 'x'\n    tipo: 'genera'\n    escribe: ['tareas/ROADMA~1.MD']".into(), Inv, "derivados[0].escribe[0]", "~"),
+        ("derivados:\n  - comando: 'x'\n    tipo: 'comprueba'\n    fases: ['new', 'new']".into(), Inv, "derivados[0].fases", "repetido"),
+        ("derivados:\n  - comando: |\n      uno\n      dos\n    tipo: 'comprueba'".into(), Inv, "derivados[0].comando", "saltos de linea"),
+        ("confianza_incluye: ['**/']".into(), Inv, "confianza_incluye[0]", "todo el arbol"),
+        ("confianza_incluye: ['./**/*.*']".into(), Inv, "confianza_incluye[0]", "todo el arbol"),
+        ("verificacion:\n  comando: 'x'\n  shell: 'sh'\n  perfiles:\n    completa: {timeout: 60, runner: [windows, self-hosted]}".into(), Inv, "verificacion.perfiles.completa.runner", "ninguna forma"),
+        (format!("verificacion:\n  comando: 'x'\n  shell: 'sh'\n  perfiles:\n    completa: {{timeout: 60, {runner}}}\n  programada: {{comando: 'x', cron: '99 99 99 99 99', {runner}}}"), Inv, "verificacion.programada.cron", "5 campos"),
+        (format!("verificacion:\n  comando: 'x'\n  shell: 'sh'\n  perfiles:\n    completa: {{timeout: 60, {runner}}}\n  programada: {{comando: 'x', cron: '0 3 * * 1 0', {runner}}}"), Inv, "verificacion.programada.cron", "5 campos"),
         ("tope_rondas: 0".into(), Inv, "tope_rondas", "de 1 a 10"),
         ("tope_rondas: '2'".into(), Inv, "tope_rondas", "de 1 a 10"),
         ("lote: {presupuesto_tokens: 0}".into(), Inv, "lote.presupuesto_tokens", "1 o mas"),
@@ -235,6 +246,14 @@ fn configs_hostiles_rechazadas_con_la_ruta() {
             "{texto:?}"
         );
     }
+    let e = config::leer("---\nformato: 3\n").unwrap_err();
+    assert_eq!(e.motivo, Motivo::FormatoNuevo);
+    assert!(e.informe().diagnostico.unwrap().contains("actualiza tc2"));
+    // El arreglo de la 0.16 sale por la ruta, no por el texto del valor.
+    let i = config::leer(&format!("{CABECERA}modo_flujo: 'tc2 actualizar'\n"))
+        .unwrap_err()
+        .informe();
+    assert!(!i.diagnostico.unwrap().contains("quedan claves de la 0.16"));
     // Dos errores: salen los dos, no solo el primero.
     let e = config::leer(&format!("{CABECERA}estados: 1\ntope_rondas: 0\n")).unwrap_err();
     let rutas: Vec<&str> = e.errores.iter().map(|x| x.ruta.as_str()).collect();
@@ -277,6 +296,19 @@ modo_flujo: 'automatico'
     assert_eq!(v.perfiles.rapida.unwrap().runner, None);
     assert_eq!(c.derivados[0].tipo, TipoDerivado::Genera);
     assert_eq!(c.derivados[0].escribe, ["tareas/hitos.md"]);
+    // Las rutas de escribe se guardan normalizadas.
+    let n = config::leer(&format!(
+        "{CABECERA}derivados:\n  - comando: 'x'\n    tipo: 'genera'\n    escribe: ['./tareas//a/../hitos.md']\n"
+    ))
+    .unwrap();
+    assert_eq!(n.derivados[0].escribe, ["tareas/hitos.md"]);
+    // Un cron valido con rangos, listas y pasos.
+    let prog =
+        "programada: {comando: 'x', cron: '*/15 0-6,22 1 1-12/2 0-7', runner: {github: linux}}";
+    assert!(config::leer(&format!(
+        "{CABECERA}verificacion:\n  comando: 'x'\n  shell: 'sh'\n  perfiles:\n    completa: {{timeout: 60, runner: {{github: linux}}}}\n  {prog}\n"
+    ))
+    .is_ok());
     assert_eq!(c.confianza_incluye.len(), 2);
     assert_eq!(c.modo_flujo, ModoFlujo::Automatico);
 }

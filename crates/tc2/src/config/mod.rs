@@ -295,6 +295,8 @@ pub enum Motivo {
     SinConfig,
     /// Falta `---` o `formato: 2` (un proyecto de la 0.16).
     Formato,
+    /// `formato` mayor que 2: el proyecto es de un `tc2` mas nuevo.
+    FormatoNuevo,
     /// YAML mal formado, clave duplicada, ancla o alias.
     Yaml,
     /// No cumple el esquema.
@@ -307,6 +309,7 @@ impl Motivo {
         match self {
             Self::SinConfig => "sin-config",
             Self::Formato => "formato",
+            Self::FormatoNuevo => "formato-nuevo",
             Self::Yaml => "yaml",
             Self::ConfigInvalida => "config-invalida",
         }
@@ -377,12 +380,13 @@ impl Invalida {
         let arreglo = match self.motivo {
             Motivo::SinConfig => "crea la configuracion con tc2 init".to_owned(),
             Motivo::Formato => "es un proyecto de la 0.16: migralo con tc2 actualizar".to_owned(),
+            Motivo::FormatoNuevo => "el proyecto es de un tc2 mas nuevo: actualiza tc2".to_owned(),
             Motivo::Yaml => format!("corrige el YAML de {RUTA}"),
             Motivo::ConfigInvalida
                 if self
                     .errores
                     .iter()
-                    .any(|e| e.mensaje.contains("tc2 actualizar")) =>
+                    .any(|e| CLAVES_016.contains(&e.ruta.as_str())) =>
             {
                 "quedan claves de la 0.16: tc2 actualizar las traduce".to_owned()
             }
@@ -424,6 +428,13 @@ pub fn leer(texto: &str) -> Result<Config, Invalida> {
     };
     match formato {
         Some(f) if f.as_u64() == Some(2) => {}
+        Some(f) if f.as_u64().is_some_and(|n| n > 2) => {
+            return Err(Invalida::una(
+                Motivo::FormatoNuevo,
+                "formato",
+                format!("formato {f}: este tc2 solo lee el formato 2"),
+            ));
+        }
         Some(f) => {
             return Err(Invalida::una(
                 Motivo::Formato,

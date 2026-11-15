@@ -100,12 +100,14 @@ impl Regla {
             ),
             Self::Glob => Some("glob relativo: sin negacion (!), rutas absolutas ni .."),
             Self::GlobAcotado => Some(
-                "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (**, *)",
+                "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (ningun segmento solo de * y .)",
             ),
             Self::RutaTareas => Some(
-                "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows ni .git; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
+                "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
             ),
-            Self::Cron => Some("expresion cron de 5 campos"),
+            Self::Cron => Some(
+                "expresion cron de 5 campos con sus rangos (minuto, hora, dia, mes, dia de la semana)",
+            ),
             Self::Url => Some("URL https de la API (o http://127.0.0.1:<puerto> en pruebas)"),
         }
     }
@@ -633,6 +635,7 @@ mod tests {
     #[test]
     fn claves_de_primer_nivel_no_pasan_de_12_y_cada_una_cita_su_adr() {
         let t = tabla();
+        assert_eq!(TOPE_CLAVES, 12, "el tope lo fija el plan (F2-7)");
         assert!(t.len() <= TOPE_CLAVES, "{} claves", t.len());
         for c in &t {
             assert!(!c.origen.is_empty(), "{} sin origen", c.nombre);

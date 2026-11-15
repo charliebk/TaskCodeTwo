@@ -59,6 +59,14 @@ pub(crate) fn validar(nodo: &Nodo, valor: &Value, ruta: &str, errores: &mut Vec<
             {
                 err(format!("el primer elemento tiene que ser «{p}»"));
             }
+            let textos: Vec<&str> = l.iter().filter_map(Value::as_str).collect();
+            if let Some(d) = textos
+                .iter()
+                .enumerate()
+                .find_map(|(i, t)| textos.get(..i).is_some_and(|a| a.contains(t)).then_some(t))
+            {
+                err(format!("«{d}» repetido"));
+            }
             for (i, x) in l.iter().enumerate() {
                 validar(de, x, &format!("{ruta}[{i}]"), errores);
             }
@@ -218,6 +226,8 @@ pub(crate) fn comprobar(regla: Regla, t: &str) -> Option<String> {
         Regla::Orden => {
             if t.trim().is_empty() {
                 Some("orden vacia".to_owned())
+            } else if t.contains(['\n', '\r']) {
+                Some("la orden tiene saltos de linea: escribela en una sola linea".to_owned())
             } else if control {
                 Some("la orden tiene un caracter de control (¿un \\v de una ruta de Windows entre comillas dobles? escribela entre comillas simples o con /)".to_owned())
             } else {
@@ -227,9 +237,7 @@ pub(crate) fn comprobar(regla: Regla, t: &str) -> Option<String> {
         Regla::Glob | Regla::GlobAcotado => {
             if let Some(m) = glob_malo(t) {
                 Some(format!("glob no admitido «{t}»: {m}"))
-            } else if regla == Regla::GlobAcotado
-                && matches!(t, "*" | "**" | "**/*" | "**/**" | "./**" | "./*")
-            {
+            } else if regla == Regla::GlobAcotado && todo_el_arbol(t) {
                 Some(format!("glob no admitido «{t}»: nunca todo el arbol"))
             } else {
                 None
@@ -238,21 +246,56 @@ pub(crate) fn comprobar(regla: Regla, t: &str) -> Option<String> {
         Regla::RutaTareas => ruta_tareas(t)
             .err()
             .map(|m| format!("ruta no admitida «{t}»: {m}")),
-        Regla::Cron => {
-            let campos: Vec<&str> = t.split_whitespace().collect();
-            let ok = campos.len() == 5
-                && campos.iter().all(|c| {
-                    c.bytes()
-                        .all(|b| b.is_ascii_digit() || b"*,/-".contains(&b))
-                });
-            (!ok).then(|| {
-                format!("cron no admitido «{t}»: se esperan 5 campos con cifras, *, ',', / o -")
-            })
-        }
+        Regla::Cron => (!cron_valido(t)).then(|| {
+            format!(
+                "cron no admitido «{t}»: se esperan 5 campos (minuto 0-59, hora 0-23, dia 1-31, mes 1-12, dia de la semana 0-7) con *, a, a-b, ',' y /n"
+            )
+        }),
         Regla::Url => Base::nueva(t)
             .err()
             .map(|m| format!("URL no admitida: {m}")),
     }
+}
+
+/// Si un glob de `confianza_incluye` abarca todo el arbol: quitado `./`,
+/// ningun segmento tiene mas que `*` y `.` (`**`, `*.*`, `**/`, `.`...).
+fn todo_el_arbol(g: &str) -> bool {
+    let g = g.trim_start_matches("./");
+    g.split('/')
+        .filter(|p| !p.is_empty())
+        .all(|p| p.chars().all(|c| c == '*' || c == '.'))
+}
+
+/// Expresion cron de 5 campos con sus rangos (`*`, `a`, `a-b`, listas con
+/// `,` y paso `/n` con n >= 1).
+fn cron_valido(t: &str) -> bool {
+    const RANGOS: [(u32, u32); 5] = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)];
+    let campos: Vec<&str> = t.split_whitespace().collect();
+    campos.len() == RANGOS.len()
+        && campos.iter().zip(RANGOS).all(|(c, (min, max))| {
+            c.split(',').all(|item| {
+                let (base, paso) = match item.split_once('/') {
+                    Some((b, p)) => (b, Some(p)),
+                    None => (item, None),
+                };
+                let en_rango = |x: &str| {
+                    !x.is_empty()
+                        && x.bytes().all(|b| b.is_ascii_digit())
+                        && x.parse::<u32>().is_ok_and(|n| n >= min && n <= max)
+                };
+                let base_ok = base == "*"
+                    || en_rango(base)
+                    || base.split_once('-').is_some_and(|(a, b)| {
+                        en_rango(a) && en_rango(b) && a.parse::<u32>().ok() <= b.parse::<u32>().ok()
+                    });
+                let paso_ok = paso.is_none_or(|p| {
+                    !p.is_empty()
+                        && p.bytes().all(|b| b.is_ascii_digit())
+                        && p.parse::<u32>().is_ok_and(|n| n >= 1)
+                });
+                base_ok && paso_ok
+            })
+        })
 }
 
 fn glob_malo(g: &str) -> Option<&'static str> {
@@ -294,6 +337,11 @@ pub(crate) fn ruta_tareas(t: &str) -> Result<String, &'static str> {
                 if partes.pop().is_none() {
                     return Err("sale de la raiz");
                 }
+            }
+            p if p.ends_with(['.', ' ']) || p.contains('~') => {
+                return Err(
+                    "sin punto ni espacio al final de un segmento ni ~ (Windows los ignora o los acorta)",
+                );
             }
             p => partes.push(p),
         }
