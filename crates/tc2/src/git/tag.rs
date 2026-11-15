@@ -101,7 +101,13 @@ fn tag_paso(
 fn commit_remoto(git: &Git, dir: &Path, op: &str, tag: &str) -> Paso<Option<String>> {
     let r = format!("refs/tags/{tag}");
     let pelado = format!("{r}^{{}}");
-    let s = correr(git, dir, op, Subcomando::LsRemote, &["--tags", REMOTO, &r])?;
+    let s = correr(
+        git,
+        dir,
+        op,
+        Subcomando::LsRemote,
+        &["--tags", REMOTO, &r, &pelado],
+    )?;
     if !s.exito() {
         return Err(Informe::nuevo(op, Resultado::Sinred)
             .con("remoto", REMOTO)
