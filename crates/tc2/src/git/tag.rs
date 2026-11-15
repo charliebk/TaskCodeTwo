@@ -40,14 +40,14 @@ fn tag_paso(
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("tag", tag)
             .con("motivo", "ref-no-existe")
-            .diagnostico(format!("{referencia} no existe")));
+            .diagnostico_sin_traducir(format!("{referencia} no existe")));
     };
     let otro_commit = |donde: &str| {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("tag", tag)
             .con("motivo", "existe-en-otro-commit")
             .con("donde", donde)
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "el tag {tag} ya existe sobre otro commit: elige otro nombre"
             ))
     };
@@ -84,7 +84,7 @@ fn tag_paso(
             }
             return Ok(i
                 .con("intentos", p.intentos.to_string())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "no se pudo publicar el tag: {}; el tag queda en local, {que_hacer}",
                     p.ultimo
                 )));
@@ -109,7 +109,9 @@ fn commit_remoto(git: &Git, dir: &Path, op: &str, tag: &str) -> Paso<Option<Stri
     if !s.exito() {
         return Err(Informe::nuevo(op, Resultado::Sinred)
             .con("remoto", REMOTO)
-            .diagnostico(format!("{op}: no se pudo leer {REMOTO}; reintenta con red")));
+            .diagnostico_sin_traducir(format!(
+                "{op}: no se pudo leer {REMOTO}; reintenta con red"
+            )));
     }
     let mut directo = None;
     for l in s.stdout.lines() {

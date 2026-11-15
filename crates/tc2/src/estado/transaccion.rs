@@ -153,7 +153,7 @@ fn informe(r: Resultado, op: &dyn Operacion) -> Informe {
 }
 
 fn error(diagnostico: impl Into<String>) -> Informe {
-    Informe::nuevo(OP, Resultado::Error).diagnostico(diagnostico)
+    Informe::nuevo(OP, Resultado::Error).diagnostico_sin_traducir(diagnostico)
 }
 
 fn renombrado(mut i: Informe) -> Informe {
@@ -190,7 +190,7 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
             Err(ErrorCerrojo::Ocupado) => {
                 return Ok(informe(Resultado::Agotada, op)
                     .con("motivo", "cerrojo")
-                    .diagnostico(
+                    .diagnostico_sin_traducir(
                         "otro proceso de este clon esta escribiendo la rama de estado: reintenta",
                     ));
             }
@@ -203,7 +203,7 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
             Intento::Reintentar if n >= c.politica.intentos => {
                 return Ok(informe(Resultado::Agotada, op)
                     .con("intentos", n.to_string())
-                    .diagnostico(
+                    .diagnostico_sin_traducir(
                         "la rama de estado cambio en cada intento: no se ha escrito nada; reintenta",
                     ));
             }
@@ -333,7 +333,7 @@ fn intento(
             return Ok(Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", motivo)
-                    .diagnostico(diagnostico),
+                    .diagnostico_sin_traducir(diagnostico),
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
@@ -374,7 +374,7 @@ fn intento(
             Tareas::ConCambios => Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", "tareas-con-cambios")
-                    .diagnostico(format!(
+                    .diagnostico_sin_traducir(format!(
                         "{CARPETA}/ tiene cambios que chocan con la operacion: guardalos o deshazlos y reintenta"
                     )),
             ),
@@ -420,7 +420,7 @@ fn duplicada(rutas: &[String], cambios: &[Cambio], op: &dyn Operacion) -> Option
     choque(rutas, cambios).map(|(nueva, otra)| {
         informe(Resultado::Rechazada, op)
             .con("motivo", "ruta-duplicada")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "{nueva} solo difiere en mayusculas de {otra}: chocarian en Windows y macOS"
             ))
     })
@@ -434,7 +434,7 @@ fn denegada(op: &dyn Operacion, motivo: &str, detalle: &str) -> Informe {
         .unwrap_or("sin mensaje");
     informe(Resultado::Denegada, op)
         .con("motivo", motivo)
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "{primera}; el remoto deniega la escritura: revisa credenciales, permisos o reglas, no se reintenta"
         ))
 }
@@ -481,7 +481,7 @@ fn sin_red(
         return Ok(Intento::Hecho(
             informe(Resultado::Sinred, op)
                 .con("pendiente", "no")
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "{detalle}; esta operacion exige red: no se ha escrito nada, reintenta con red"
                 )),
         ));
@@ -507,7 +507,7 @@ fn sin_red(
             return Ok(Intento::Hecho(
                 informe(Resultado::Rechazada, op)
                     .con("motivo", motivo)
-                    .diagnostico(diagnostico),
+                    .diagnostico_sin_traducir(diagnostico),
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
@@ -529,7 +529,7 @@ fn sin_red(
         informe(Resultado::Sinred, op)
             .con("pendiente", "si")
             .con("pendientes", (previas.len() + 1).to_string())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "{detalle}; queda pendiente de publicar: se publicara en la siguiente operacion con red"
             )),
     ))

@@ -82,7 +82,12 @@ impl Estado for Vista<'_> {
         match &self.commit {
             Some(c) if self.rutas.contains(ruta) => leer_blob(self.git, &self.dir, OP, c, ruta)
                 .map(Some)
-                .map_err(|i| Fallo::Error(i.diagnostico.clone().unwrap_or_else(|| i.linea()))),
+                .map_err(|i| {
+                    Fallo::Error(
+                        i.diagnostico_en(crate::i18n::Idioma::Es)
+                            .unwrap_or_else(|| i.linea()),
+                    )
+                }),
             _ => Ok(None),
         }
     }
@@ -102,6 +107,9 @@ pub fn leer<'a>(git: &'a Git, dir: &Path) -> Result<Vista<'a>, Informe> {
         Some(c) => Vista::nueva(git, &principal, Some(c)),
         None => Err(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "sin-rama-de-estado")
-            .diagnostico(format!("monta la rama de estado en {CARPETA}/ primero"))),
+            .diagnostico(
+                crate::i18n::Mensaje::nuevo(&crate::i18n::catalogo::estado::MONTA_PRIMERO)
+                    .con("carpeta", CARPETA),
+            )),
     }
 }

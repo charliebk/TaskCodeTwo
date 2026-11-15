@@ -24,7 +24,7 @@ pub fn localizar_principal(git: &Git, dir: &Path) -> Result<PathBuf, Informe> {
         Some(r) => Ok(PathBuf::from(r)),
         None => Err(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "no-es-repo")
-            .diagnostico("lanza el comando dentro de un repositorio git")),
+            .diagnostico_sin_traducir("lanza el comando dentro de un repositorio git")),
     }
 }
 
@@ -41,7 +41,7 @@ pub fn validar_base(git: &Git, dir: &Path, base: &str) -> Informe {
         Ok(None) => Informe::nuevo(OP, Resultado::Rechazada)
             .con("base", base)
             .con("motivo", "no-existe")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la base {base} no existe: lanza fetch o revisa el nombre"
             )),
         Err(i) => i,
@@ -61,7 +61,7 @@ pub fn comprobar_id(git: &Git, dir: &Path, id: &str) -> Informe {
             .con("id", id)
             .con("motivo", "ocupada")
             .con_lista("ramas", r)
-            .diagnostico(format!("{id} ya tiene rama: elige otro ID")),
+            .diagnostico_sin_traducir(format!("{id} ya tiene rama: elige otro ID")),
         Err(i) => i,
     }
 }
@@ -78,7 +78,9 @@ fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> 
     if !remoto.exito() {
         return Err(Informe::nuevo(op, Resultado::Sinred)
             .con("remoto", REMOTO)
-            .diagnostico(format!("{op}: no se pudo leer {REMOTO}; reintenta con red")));
+            .diagnostico_sin_traducir(format!(
+                "{op}: no se pudo leer {REMOTO}; reintenta con red"
+            )));
     }
     let local = exigir(
         git,
@@ -121,7 +123,8 @@ fn rama_valida(op: &str, id: &str, tipo: &str, slug: &str) -> Paso<String> {
 
 fn ruta_texto(op: &str, p: &Path) -> Paso<String> {
     p.to_str().map(str::to_owned).ok_or_else(|| {
-        Informe::nuevo(op, Resultado::Error).diagnostico("la ruta del worktree no es UTF-8")
+        Informe::nuevo(op, Resultado::Error)
+            .diagnostico_sin_traducir("la ruta del worktree no es UTF-8")
     })
 }
 
@@ -144,7 +147,8 @@ pub(crate) fn excluir(git: &Git, principal: &Path, op: &str, linea: &str) -> Pas
     let info = comun.join("info");
     let fichero = info.join("exclude");
     let error = |e: std::io::Error| {
-        Informe::nuevo(op, Resultado::Error).diagnostico(format!("{}: {e}", fichero.display()))
+        Informe::nuevo(op, Resultado::Error)
+            .diagnostico_sin_traducir(format!("{}: {e}", fichero.display()))
     };
     // Solo un fichero ausente cuenta como vacio: si no se puede leer, no se
     // reescribe (se perderia lo que la persona tenga en el).
@@ -203,11 +207,13 @@ fn crear(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str, base: &str) ->
                 .con("rama", rama.as_str())
                 .con("worktree", rel)
         } else {
-            rechazo("rama-en-otro-worktree").diagnostico("la rama ya esta abierta en otro worktree")
+            rechazo("rama-en-otro-worktree")
+                .diagnostico_sin_traducir("la rama ya esta abierta en otro worktree")
         });
     }
     if commit_de(git, &principal, OP, &format!("refs/heads/{rama}"))?.is_some() {
-        return Ok(rechazo("rama-existe").diagnostico("la rama ya existe: la recupera reanudar"));
+        return Ok(rechazo("rama-existe")
+            .diagnostico_sin_traducir("la rama ya existe: la recupera reanudar"));
     }
     if commit_de(
         git,
@@ -218,17 +224,17 @@ fn crear(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str, base: &str) ->
     .is_some()
     {
         return Ok(rechazo("rama-en-remoto")
-            .diagnostico("la rama ya esta publicada: la recupera reanudar"));
+            .diagnostico_sin_traducir("la rama ya esta publicada: la recupera reanudar"));
     }
     if wt.exists() {
         return Ok(rechazo("carpeta-ocupada")
-            .diagnostico(format!("{rel} ya existe y no es el worktree de la tarea")));
+            .diagnostico_sin_traducir(format!("{rel} ya existe y no es el worktree de la tarea")));
     }
     let Some(commit) = commit_de(git, &principal, OP, base)? else {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("base", base)
             .con("motivo", "base-no-existe")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la base {base} no existe: lanza fetch o revisa el nombre"
             )));
     };
@@ -271,7 +277,7 @@ fn reanudar_paso(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str) -> Pas
         let remota = format!("refs/remotes/{REMOTO}/{rama}");
         if commit_de(git, &principal, OP, &remota)?.is_none() {
             return Ok(rechazo("rama-no-existe")
-                .diagnostico("la tarea no tiene rama ni en local ni en el remoto"));
+                .diagnostico_sin_traducir("la tarea no tiene rama ni en local ni en el remoto"));
         }
         exigir(
             git,
@@ -289,12 +295,13 @@ fn reanudar_paso(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str) -> Pas
         Some(w) if misma_ruta(&w.ruta, &wt) => {}
         Some(_) => {
             return Ok(rechazo("rama-en-otro-worktree")
-                .diagnostico("la rama ya esta abierta en otro worktree"));
+                .diagnostico_sin_traducir("la rama ya esta abierta en otro worktree"));
         }
         None => {
             if wt.exists() {
-                return Ok(rechazo("carpeta-ocupada")
-                    .diagnostico(format!("{rel} ya existe y no es el worktree de la tarea")));
+                return Ok(rechazo("carpeta-ocupada").diagnostico_sin_traducir(format!(
+                    "{rel} ya existe y no es el worktree de la tarea"
+                )));
             }
             excluir_worktrees(git, &principal, OP)?;
             let wt_txt = ruta_texto(OP, &wt)?;

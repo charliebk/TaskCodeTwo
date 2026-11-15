@@ -51,7 +51,9 @@ pub fn evaluar(l: &Lecturas) -> Informe {
             .con("pr", pr)
             .con("motivo", "check-rojo")
             .con_lista("checks", rojo)
-            .diagnostico("hay checks obligatorios en rojo: corrige y vuelve a empujar");
+            .diagnostico_sin_traducir(
+                "hay checks obligatorios en rojo: corrige y vuelve a empujar",
+            );
     }
     let mut falta: Vec<String> = l
         .checks
@@ -85,7 +87,7 @@ pub fn evaluar(l: &Lecturas) -> Informe {
             "faltan puertas: {}; espera o atiende lo que falta (al-dia o sin-conflictos: lanza actualizar-rama)",
             falta.join(", ")
         );
-        i.con_lista("falta", falta).diagnostico(diag)
+        i.con_lista("falta", falta).diagnostico_sin_traducir(diag)
     }
 }
 
@@ -101,7 +103,7 @@ pub fn pr_cerrado(pr: u64) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "pr-cerrado")
-        .diagnostico("el PR esta cerrado sin mergear: reabrelo o abre otro")
+        .diagnostico_sin_traducir("el PR esta cerrado sin mergear: reabrelo o abre otro")
 }
 
 /// La politica exige impuesta una garantia que el plan no da.
@@ -110,7 +112,7 @@ pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
         .con("pr", pr.to_string())
         .con("motivo", "plan")
         .con("garantia", garantia)
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "la politica del proyecto exige {garantia} impuesta y el plan de la plataforma no la da: cambia de plan o quita {garantia} de la politica"
         ))
 }
@@ -123,7 +125,7 @@ pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &str) -> Informe {
         .con("pr", pr.to_string())
         .con("motivo", "config")
         .con("garantia", garantia)
-        .diagnostico(format!("{garantia} no se cumple: {arreglo}"))
+        .diagnostico_sin_traducir(format!("{garantia} no se cumple: {arreglo}"))
 }
 
 #[cfg(test)]

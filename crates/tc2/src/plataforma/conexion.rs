@@ -81,7 +81,7 @@ impl Conexion {
             Informe::nuevo(op, Resultado::Rechazada)
                 .con("motivo", "identidad")
                 .con("falta", rol.nombre())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "esta operacion corre con la identidad de {}: define {}{extra}",
                     rol.nombre(),
                     rol.variable()
@@ -171,7 +171,7 @@ impl Conexion {
         }
         Err(Informe::nuevo(op, Resultado::Error)
             .con("motivo", "demasiadas-paginas")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la lista tiene mas de {} elementos: no se evalua a medias",
                 MAX_PAGINAS * 100
             )))
@@ -200,7 +200,7 @@ impl Conexion {
             Err(Informe::nuevo(op, Resultado::Rechazada)
                 .con("motivo", "identidad")
                 .con("rol", "persona")
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "el token de persona es de «{}», que no esta en la lista de personas del proyecto",
                     errores::sanear(&u.login)
                 )))
@@ -231,7 +231,7 @@ pub fn sha_valido(s: &str) -> bool {
 pub fn uso(op: &str, motivo: &str, diag: &str) -> Informe {
     Informe::nuevo(op, Resultado::Uso)
         .con("motivo", motivo)
-        .diagnostico(diag.to_owned())
+        .diagnostico_sin_traducir(diag.to_owned())
 }
 
 /// `merge-pr` rechazado porque el head no es el evaluado.
@@ -239,7 +239,7 @@ pub fn head_cambiado(pr: u64) -> Informe {
     Informe::nuevo("merge-pr", Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "head-cambiado")
-        .diagnostico(
+        .diagnostico_sin_traducir(
             "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas",
         )
 }
@@ -249,7 +249,7 @@ pub fn rol_no_valido(op: &str, rol: Rol) -> Informe {
     Informe::nuevo(op, Resultado::Rechazada)
         .con("motivo", "identidad")
         .con("rol", rol.nombre())
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "{op} corre con la identidad de agente o de persona"
         ))
 }

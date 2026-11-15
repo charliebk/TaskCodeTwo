@@ -83,10 +83,11 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         Err(ErrorCerrojo::Ocupado) => {
             return Ok(Informe::nuevo(OP, Resultado::Agotada)
                 .con("motivo", "cerrojo")
-                .diagnostico("otro proceso de este clon esta montando o escribiendo la rama de estado: reintenta"));
+                .diagnostico_sin_traducir("otro proceso de este clon esta montando o escribiendo la rama de estado: reintenta"));
         }
         Err(ErrorCerrojo::Io(e)) => {
-            return Err(Informe::nuevo(OP, Resultado::Error).diagnostico(format!("cerrojo: {e}")));
+            return Err(Informe::nuevo(OP, Resultado::Error)
+                .diagnostico_sin_traducir(format!("cerrojo: {e}")));
         }
     };
     let carpeta = principal.join(CARPETA);
@@ -111,7 +112,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("rama", RAMA)
                 .con("motivo", "montada-en-otra-ruta")
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "{RAMA} ya esta montada en {}: quita ese worktree",
                     w.ruta.display()
                 )));
@@ -124,7 +125,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("ruta", CARPETA)
             .con("motivo", "tareas-ocupada")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "{CARPETA}/ ya existe y no es la rama de estado (¿un repo de la 0.16? migralo con actualizar)"
             )));
     }
@@ -152,7 +153,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
                     FalloRemoto::SinRed => {
                         return Ok(Informe::nuevo(OP, Resultado::Sinred)
                             .con("pendiente", "no")
-                            .diagnostico(format!(
+                            .diagnostico_sin_traducir(format!(
                                 "{}; montar la rama de estado exige red la primera vez",
                                 s.primera_linea_error()
                             )));
@@ -166,7 +167,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
                     otro => {
                         return Ok(Informe::nuevo(OP, Resultado::Denegada)
                             .con("motivo", otro.motivo())
-                            .diagnostico(format!(
+                            .diagnostico_sin_traducir(format!(
                                 "{}; revisa credenciales, permisos o la URL de origin",
                                 s.primera_linea_error()
                             )));
@@ -179,7 +180,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         } else {
             if !puede_crear {
                 return Err(Informe::nuevo(OP, Resultado::Error)
-                    .diagnostico(format!("{RAMA} sigue sin existir tras crearla")));
+                    .diagnostico_sin_traducir(format!("{RAMA} sigue sin existir tras crearla")));
             }
             // La transaccion toma el cerrojo ella misma: se suelta antes y,
             // creada la rama, se vuelve a empezar para montarla.
@@ -196,7 +197,8 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
     }
 
     let ruta = carpeta.to_str().ok_or_else(|| {
-        Informe::nuevo(OP, Resultado::Error).diagnostico("la ruta de tareas/ no es UTF-8")
+        Informe::nuevo(OP, Resultado::Error)
+            .diagnostico_sin_traducir("la ruta de tareas/ no es UTF-8")
     })?;
     exigir(
         git,

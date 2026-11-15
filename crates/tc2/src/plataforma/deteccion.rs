@@ -31,7 +31,7 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
     let (host, proyecto) = partir_url(url_origin).ok_or_else(|| {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "origin")
-            .diagnostico(
+            .diagnostico_sin_traducir(
                 "no se entiende la URL de origin: tiene que ser https, ssh o scp con dueno y repo",
             )
     })?;
@@ -103,7 +103,7 @@ fn api_oficial(p: Proveedor) -> Result<Base, String> {
 fn rechazo(m: &str) -> Informe {
     Informe::nuevo(OP, Resultado::Rechazada)
         .con("motivo", "plataforma")
-        .diagnostico(m.to_owned())
+        .diagnostico_sin_traducir(m.to_owned())
 }
 
 /// `(host, proyecto)` de una URL https, ssh o scp, sin `.git` ni barras.

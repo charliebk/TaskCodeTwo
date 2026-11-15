@@ -136,7 +136,8 @@ impl Temporal {
             .join(format!("{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&ruta);
         std::fs::create_dir_all(&ruta).map_err(|e| {
-            Informe::nuevo(op, Resultado::Error).diagnostico(format!("{}: {e}", ruta.display()))
+            Informe::nuevo(op, Resultado::Error)
+                .diagnostico_sin_traducir(format!("{}: {e}", ruta.display()))
         })?;
         Ok(Self(ruta))
     }
@@ -156,9 +157,9 @@ impl Drop for Temporal {
 }
 
 fn texto(op: &str, p: &Path) -> Paso<String> {
-    p.to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| Informe::nuevo(op, Resultado::Error).diagnostico("ruta temporal no UTF-8"))
+    p.to_str().map(str::to_owned).ok_or_else(|| {
+        Informe::nuevo(op, Resultado::Error).diagnostico_sin_traducir("ruta temporal no UTF-8")
+    })
 }
 
 fn con_indice(
@@ -174,14 +175,14 @@ fn con_indice(
         .map_err(|e| {
             Informe::nuevo(op, Resultado::Error)
                 .con("git", sub.nombre())
-                .diagnostico(e.to_string())
+                .diagnostico_sin_traducir(e.to_string())
         })?;
     if s.exito() {
         Ok(s.stdout)
     } else {
         Err(Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "git {} fallo: {}",
                 sub.nombre(),
                 s.primera_linea_error()
@@ -203,7 +204,10 @@ pub(crate) fn construir_commit(
     if let Some(malo) = cambios.iter().find(|c| !ruta_valida(&c.ruta)) {
         return Err(Informe::nuevo(op, Resultado::Error)
             .con("motivo", "ruta-invalida")
-            .diagnostico(format!("ruta invalida en la rama de estado: {}", malo.ruta)));
+            .diagnostico_sin_traducir(format!(
+                "ruta invalida en la rama de estado: {}",
+                malo.ruta
+            )));
     }
     let comun = dir_comun(git, dir, op)?;
     let tmp = Temporal::nueva(&comun, op)?;
@@ -216,7 +220,8 @@ pub(crate) fn construir_commit(
         for (i, c) in cambios.iter().enumerate() {
             let f = tmp.0.join(format!("blob-{i}"));
             std::fs::write(&f, c.contenido.as_bytes()).map_err(|e| {
-                Informe::nuevo(op, Resultado::Error).diagnostico(format!("{}: {e}", f.display()))
+                Informe::nuevo(op, Resultado::Error)
+                    .diagnostico_sin_traducir(format!("{}: {e}", f.display()))
             })?;
             ficheros.push(texto(op, &f)?);
         }
@@ -226,7 +231,7 @@ pub(crate) fn construir_commit(
         let shas: Vec<&str> = shas.lines().map(str::trim).collect();
         if shas.len() != cambios.len() {
             return Err(Informe::nuevo(op, Resultado::Error)
-                .diagnostico("git hash-object no devolvio un hash por fichero"));
+                .diagnostico_sin_traducir("git hash-object no devolvio un hash por fichero"));
         }
         let entradas: Vec<String> = cambios
             .iter()

@@ -94,7 +94,7 @@ pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) 
         401 => Informe::nuevo(op, Resultado::Denegada)
             .con("motivo", "credenciales")
             .con("rol", rol.nombre())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "el token de {} no vale o ha caducado: define o renueva {}{cita}",
                 rol.nombre(),
                 rol.variable()
@@ -104,28 +104,28 @@ pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) 
             Informe::nuevo(op, Resultado::Agotada)
                 .con("motivo", "limite-peticiones")
                 .con("reintenta-en", s.clone())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "limite de peticiones de la API agotado: espera {s} s y relanza{cita}"
                 ))
         }
         403 if p == Proveedor::GitHub && api.contains(AVISO_PLAN) => {
             Informe::nuevo(op, Resultado::Rechazada)
                 .con("motivo", "plan")
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "el plan de GitHub no da esta funcion en un repo privado: haz el repo publico o usa GitHub Pro, Team o Enterprise{cita}"
                 ))
         }
         403 => Informe::nuevo(op, Resultado::Denegada)
             .con("motivo", "permisos")
             .con("rol", rol.nombre())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "el token de {} no tiene permiso: necesita {permiso}{cita}",
                 rol.nombre()
             )),
         404 => Informe::nuevo(op, Resultado::Denegada)
             .con("motivo", "no-existe-o-sin-acceso")
             .con("rol", rol.nombre())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "no existe o el token de {} no lo ve: revisa {objeto} y el alcance del token ({nombre} da 404 en un repo privado sin acceso){cita}",
                 rol.nombre()
             )),
@@ -134,14 +134,14 @@ pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) 
         406 if p == Proveedor::GitLab => no_mergeable(op, nombre, &cita),
         409 => Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "head-cambiado")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas{cita}"
             )),
         // El detalle del 422 de GitHub viene en `errors[].message`, no en
         // `message`.
         422 if r.cuerpo.contains("No commits between") => Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "sin-commits")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la rama no tiene commits nuevos respecto a la base: no hay nada que revisar{cita}"
             )),
         400 if p == Proveedor::GitLab => validacion(op, nombre, &cita),
@@ -149,7 +149,7 @@ pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) 
         e => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "http")
             .con("estado", e.to_string())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "respuesta inesperada de {nombre} ({e}): reintenta mas tarde{cita}"
             )),
     }
@@ -158,7 +158,7 @@ pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) 
 fn no_mergeable(op: &str, nombre: &str, cita: &str) -> Informe {
     Informe::nuevo(op, Resultado::Rechazada)
         .con("motivo", "no-mergeable")
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "{nombre} no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas{cita}"
         ))
 }
@@ -166,7 +166,7 @@ fn no_mergeable(op: &str, nombre: &str, cita: &str) -> Informe {
 fn validacion(op: &str, nombre: &str, cita: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
         .con("motivo", "validacion")
-        .diagnostico(format!("{nombre} rechazo los datos de la peticion{cita}"))
+        .diagnostico_sin_traducir(format!("{nombre} rechazo los datos de la peticion{cita}"))
 }
 
 /// Traduce un fallo sin respuesta.
@@ -174,34 +174,34 @@ pub fn fallo(op: &str, f: &FalloHttp) -> Informe {
     match f {
         FalloHttp::Rechazada(m) => Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "destino")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "llamada rechazada antes de salir a la red: {}",
                 sanear(m)
             )),
-        FalloHttp::Sinred(m) => Informe::nuevo(op, Resultado::Sinred).diagnostico(format!(
+        FalloHttp::Sinred(m) => Informe::nuevo(op, Resultado::Sinred).diagnostico_sin_traducir(format!(
             "no se pudo hablar con la API: comprueba la red y reintenta ({})",
             sanear(m)
         )),
         FalloHttp::Tls(m) => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "tls")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "fallo de TLS: si la red usa un proxy con su propia CA, instalala en el almacen de certificados del sistema ({})",
                 sanear(m)
             )),
         FalloHttp::RespuestaInvalida(m) => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "respuesta-invalida")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "respuesta de la API ilegible o demasiado grande ({})",
                 sanear(m)
             )),
         FalloHttp::Redireccion(e) => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "redireccion")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "la API respondio con una redireccion ({e}) y no se siguen: revisa la URL de la API o el nombre del repo (renombrado o movido)"
             )),
         FalloHttp::Otro(m) => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "cliente")
-            .diagnostico(format!("fallo del cliente HTTP ({})", sanear(m))),
+            .diagnostico_sin_traducir(format!("fallo del cliente HTTP ({})", sanear(m))),
     }
 }
 
@@ -209,7 +209,7 @@ pub fn fallo(op: &str, f: &FalloHttp) -> Informe {
 pub fn respuesta_invalida(p: Proveedor, op: &str, que: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
         .con("motivo", "respuesta-invalida")
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "la respuesta de {} no tiene la forma esperada ({que})",
             p.titulo()
         ))

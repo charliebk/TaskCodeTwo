@@ -258,7 +258,7 @@ impl GitLab {
         let Some(codificado) = codificar_proyecto(proyecto) else {
             return Err(Informe::nuevo("plataforma", Resultado::Uso)
                 .con("motivo", "proyecto-invalido")
-                .diagnostico(
+                .diagnostico_sin_traducir(
                     "el proyecto de GitLab tiene que ser su id numerico o grupo/proyecto",
                 ));
         };
@@ -364,7 +364,7 @@ impl Plataforma for GitLab {
             Ok(false) => {
                 return Informe::nuevo(ABRIR_PR, Resultado::Rechazada)
                     .con("motivo", "sin-commits")
-                    .diagnostico(
+                    .diagnostico_sin_traducir(
                         "la rama no tiene commits nuevos respecto a la base: no hay nada que revisar",
                     );
             }
@@ -392,7 +392,7 @@ impl Plataforma for GitLab {
                 }
                 Ok(None) => Informe::nuevo(ABRIR_PR, Resultado::Conflicto)
                     .con("motivo", "mr-existente")
-                    .diagnostico(format!(
+                    .diagnostico_sin_traducir(format!(
                         "GitLab dice que ya hay un MR para la rama pero no se encuentra abierto: reintenta (GitLab: «{}»)",
                         errores::mensaje_api(&r)
                     )),
@@ -599,7 +599,7 @@ impl Plataforma for GitLab {
             return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
                 .con("pr", pr.to_string())
                 .con("motivo", "pr-cerrado")
-                .diagnostico("el MR esta cerrado sin mergear");
+                .diagnostico_sin_traducir("el MR esta cerrado sin mergear");
         }
         if !m
             .sha
@@ -628,7 +628,7 @@ impl Plataforma for GitLab {
                 .con("pr", pr.to_string())
                 .con("motivo", "permisos")
                 .con("rol", Rol::Persona.nombre())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "GitLab no deja mergear a esta cuenta: necesita {PERMISO_MERGE} (GitLab: «{}»)",
                     errores::mensaje_api(&r)
                 ));

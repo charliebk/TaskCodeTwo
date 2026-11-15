@@ -220,7 +220,7 @@ impl GitHub {
         if !valido {
             return Err(Informe::nuevo("plataforma", Resultado::Uso)
                 .con("motivo", "repo-invalido")
-                .diagnostico("el repo de GitHub tiene que ser dueno/repo"));
+                .diagnostico_sin_traducir("el repo de GitHub tiene que ser dueno/repo"));
         }
         Ok(Self {
             con: Conexion::nueva(base, Proveedor::GitHub, credenciales, personas),
@@ -471,7 +471,7 @@ impl Plataforma for GitHub {
             return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
                 .con("pr", pr.to_string())
                 .con("motivo", "pr-cerrado")
-                .diagnostico("el PR esta cerrado sin mergear");
+                .diagnostico_sin_traducir("el PR esta cerrado sin mergear");
         }
         if !p.head.sha.eq_ignore_ascii_case(sha) {
             return head_cambiado(pr);
@@ -563,7 +563,7 @@ impl Plataforma for GitHub {
             Informe::nuevo(LEER_PERMISOS_CI, Resultado::Rechazada)
                 .con("motivo", "ci-puede-aprobar")
                 .con("permisos", permisos)
-                .diagnostico("el token de Actions puede aprobar PR: desactiva «Allow GitHub Actions to create and approve pull requests» en Settings > Actions > General (G16)")
+                .diagnostico_sin_traducir("el token de Actions puede aprobar PR: desactiva «Allow GitHub Actions to create and approve pull requests» en Settings > Actions > General (G16)")
         } else {
             Informe::nuevo(LEER_PERMISOS_CI, Resultado::Ok)
                 .con("ci-aprueba", "false")

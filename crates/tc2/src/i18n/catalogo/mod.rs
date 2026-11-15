@@ -1,0 +1,26 @@
+//! Catalogo de mensajes, un modulo por zona del codigo: cada carpeta de
+//! `src/` escribe sus entradas en el suyo y no se pisan.
+
+pub mod cli;
+pub mod comun;
+pub mod config;
+pub mod estado;
+pub mod git;
+pub mod plataforma;
+
+use super::Texto;
+
+/// Todas las entradas del catalogo.
+pub fn todos() -> impl Iterator<Item = &'static Texto> {
+    [
+        cli::TODOS,
+        comun::TODOS,
+        config::TODOS,
+        estado::TODOS,
+        git::TODOS,
+        plataforma::TODOS,
+    ]
+    .into_iter()
+    .flatten()
+    .copied()
+}

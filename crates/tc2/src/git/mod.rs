@@ -54,7 +54,7 @@ pub(crate) fn correr(
     git.ejecutar(dir, sub, args).map_err(|e| {
         Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico(e.to_string())
+            .diagnostico_sin_traducir(e.to_string())
     })
 }
 
@@ -72,7 +72,7 @@ pub(crate) fn exigir(
     } else {
         Err(Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "git {} fallo: {}",
                 sub.nombre(),
                 s.primera_linea_error()
@@ -105,8 +105,12 @@ pub(crate) fn es_ancestro(git: &Git, dir: &Path, op: &str, a: &str, b: &str) -> 
     match s.codigo {
         0 => Ok(true),
         1 => Ok(false),
-        _ => Err(Informe::nuevo(op, Resultado::Error)
-            .diagnostico(format!("git merge-base fallo: {}", s.primera_linea_error()))),
+        _ => Err(
+            Informe::nuevo(op, Resultado::Error).diagnostico_sin_traducir(format!(
+                "git merge-base fallo: {}",
+                s.primera_linea_error()
+            )),
+        ),
     }
 }
 

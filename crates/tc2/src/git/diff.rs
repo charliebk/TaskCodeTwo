@@ -17,7 +17,7 @@ fn diff_paso(git: &Git, dir: &Path) -> Paso<Informe> {
     let Some(rama) = rama_actual(git, dir, OP)? else {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "sin-rama")
-            .diagnostico("lanzalo en el worktree de la tarea"));
+            .diagnostico_sin_traducir("lanzalo en el worktree de la tarea"));
     };
     let base = base_de_rama(&rama);
     if commit_de(git, dir, OP, base)?.is_none() {

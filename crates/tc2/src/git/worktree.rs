@@ -33,7 +33,7 @@ fn quitar(git: &Git, dir: &Path, id: &str) -> Paso<Informe> {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("id", id)
             .con("motivo", motivo)
-            .diagnostico(que_hacer.to_owned())
+            .diagnostico_sin_traducir(que_hacer.to_owned())
     };
     let status = exigir(git, &w.ruta, OP, Subcomando::Status, &["--porcelain", "-z"])?;
     if !status.is_empty() {

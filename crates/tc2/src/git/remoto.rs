@@ -31,7 +31,7 @@ fn refs_remotas(git: &Git, dir: &Path, op: &str) -> Paso<String> {
 fn sinred(op: &str) -> Informe {
     Informe::nuevo(op, Resultado::Sinred)
         .con("remoto", REMOTO)
-        .diagnostico(format!("{op}: no se pudo leer {REMOTO}; reintenta con red"))
+        .diagnostico_sin_traducir(format!("{op}: no se pudo leer {REMOTO}; reintenta con red"))
 }
 
 /// Por que fallo una llamada que habla con el remoto (F2-3: responde las
@@ -126,14 +126,14 @@ pub(crate) fn denegada(op: &str, fallo: FalloRemoto, detalle: &str) -> Informe {
     Informe::nuevo(op, Resultado::Denegada)
         .con("remoto", REMOTO)
         .con("motivo", fallo.motivo())
-        .diagnostico(format!("{op}: {detalle}; {que_hacer}"))
+        .diagnostico_sin_traducir(format!("{op}: {detalle}; {que_hacer}"))
 }
 
 /// Fallo del propio clon al hablar con el remoto: `error` (1).
 pub(crate) fn error_local(op: &str, detalle: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
         .con("motivo", FalloRemoto::Local.motivo())
-        .diagnostico(format!(
+        .diagnostico_sin_traducir(format!(
             "{op}: {detalle}; fallo local de git: revisa los permisos de la carpeta del repo"
         ))
 }
@@ -326,14 +326,14 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
         Resultado::SinCambios => i.con("commit", corto(&head)),
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
-            .diagnostico("lanza actualizar-rama"),
+            .diagnostico_sin_traducir("lanza actualizar-rama"),
         Resultado::Denegada | Resultado::Error => i
             .con("motivo", p.motivo)
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
+            .diagnostico_sin_traducir(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
         _ => i
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
+            .diagnostico_sin_traducir(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
     })
 }
 
@@ -342,11 +342,13 @@ fn rama_de_tarea(git: &Git, dir: &Path, op: &str) -> Paso<String> {
     match rama_actual(git, dir, op)? {
         None => Err(Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "sin-rama")
-            .diagnostico("lanzalo en el worktree de la tarea")),
+            .diagnostico_sin_traducir("lanzalo en el worktree de la tarea")),
         Some(r) if es_protegida(&r) => Err(Informe::nuevo(op, Resultado::Rechazada)
             .con("rama", r.as_str())
             .con("motivo", "rama-protegida")
-            .diagnostico("lanzalo en el worktree de la tarea, no en develop ni en main")),
+            .diagnostico_sin_traducir(
+                "lanzalo en el worktree de la tarea, no en develop ni en main",
+            )),
         Some(r) => Ok(r),
     }
 }
@@ -392,7 +394,7 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
         Informe::nuevo(OP, Resultado::Conflicto)
             .con("base", base)
             .con_lista("ficheros", ficheros)
-            .diagnostico(diag)
+            .diagnostico_sin_traducir(diag)
     };
     if merge_abierto(git, dir, OP)? {
         return Ok(conflicto(sin_resolver(git, dir, OP)?));
@@ -407,14 +409,16 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
     if !entradas_status(&pendientes).is_empty() {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "cambios-sin-guardar")
-            .diagnostico("guarda los cambios con guardar antes de actualizar la rama"));
+            .diagnostico_sin_traducir(
+                "guarda los cambios con guardar antes de actualizar la rama",
+            ));
     }
     traer(git, dir, OP)?;
     if commit_de(git, dir, OP, base)?.is_none() {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("base", base)
             .con("motivo", "base-no-existe")
-            .diagnostico(format!("{base} no existe en el remoto")));
+            .diagnostico_sin_traducir(format!("{base} no existe en el remoto")));
     }
     let remota = format!("{REMOTO}/{rama}");
     let hay_remota = commit_de(git, dir, OP, &remota)?.is_some();
@@ -445,7 +449,10 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
             }
             return Ok(Informe::nuevo(OP, Resultado::Error)
                 .con("base", base)
-                .diagnostico(format!("git merge fallo: {}", s.primera_linea_error())));
+                .diagnostico_sin_traducir(format!(
+                    "git merge fallo: {}",
+                    s.primera_linea_error()
+                )));
         }
         mergeado = true;
     }
@@ -462,7 +469,7 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                 return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                     .con("rama", rama.as_str())
                     .con("motivo", "no-fast-forward")
-                    .diagnostico(
+                    .diagnostico_sin_traducir(
                         "alguien publico en la rama entre medias: vuelve a lanzar actualizar-rama",
                     ));
             }
@@ -472,9 +479,11 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                 if matches!(otro, Resultado::Denegada | Resultado::Error) {
                     i = i.con("motivo", p.motivo);
                 }
-                return Ok(i.con("intentos", intentos.to_string()).diagnostico(format!(
-                    "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
-                )));
+                return Ok(i
+                    .con("intentos", intentos.to_string())
+                    .diagnostico_sin_traducir(format!(
+                        "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
+                    )));
             }
         }
     }
@@ -505,7 +514,7 @@ fn actualizar_principal_paso(git: &Git, dir: &Path, rama: &str) -> Paso<Informe>
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("rama", rama)
             .con("motivo", "principal-en-otra-rama")
-            .diagnostico(format!("el worktree principal no esta en {rama}")));
+            .diagnostico_sin_traducir(format!("el worktree principal no esta en {rama}")));
     }
     traer(git, &principal, OP)?;
     let remota = format!("{REMOTO}/{rama}");
@@ -521,7 +530,7 @@ fn actualizar_principal_paso(git: &Git, dir: &Path, rama: &str) -> Paso<Informe>
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("rama", rama)
             .con("motivo", "divergente")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "{rama} local tiene commits que no estan en {remota}"
             )));
     }

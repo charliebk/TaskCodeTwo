@@ -19,7 +19,7 @@ pub fn guardar(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Informe 
 fn uso(motivo: &str) -> Informe {
     Informe::nuevo(OP, Resultado::Uso)
         .con("motivo", motivo)
-        .diagnostico("uso: guardar \"<mensaje>\" <rutas...>")
+        .diagnostico_sin_traducir("uso: guardar \"<mensaje>\" <rutas...>")
 }
 
 fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<Informe> {
@@ -49,7 +49,7 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("motivo", "conflicto-sin-resolver")
                 .con_lista("ficheros", pendientes.clone())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "resuelve {} y guardalo con el resto",
                     pendientes.join(" ")
                 )));
@@ -63,7 +63,7 @@ fn guardar_paso(git: &Git, dir: &Path, mensaje: &str, rutas: &[&str]) -> Paso<In
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("motivo", "marcas-de-conflicto")
                 .con_lista("ficheros", con_marcas.clone())
-                .diagnostico(format!(
+                .diagnostico_sin_traducir(format!(
                     "quita las marcas de conflicto de {}",
                     con_marcas.join(" ")
                 )));

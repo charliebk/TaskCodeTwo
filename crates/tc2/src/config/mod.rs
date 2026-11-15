@@ -398,7 +398,7 @@ impl Invalida {
             0 | 1 => String::new(),
             n => format!(" (y {} error(es) mas)", n - 1),
         };
-        i.diagnostico(format!("{RUTA}: {primero}{extra}. Arreglo: {arreglo}"))
+        i.diagnostico_sin_traducir(format!("{RUTA}: {primero}{extra}. Arreglo: {arreglo}"))
     }
 }
 
@@ -501,7 +501,7 @@ fn texto_de_base(git: &Git, dir: &Path) -> Paso<String> {
     if git::commit_de(git, dir, NOMBRE, BASE)?.is_none() {
         return Err(Informe::nuevo(NOMBRE, Resultado::Rechazada)
             .con("motivo", "sin-base")
-            .diagnostico(format!(
+            .diagnostico_sin_traducir(format!(
                 "no existe {BASE}: haz fetch o crea la rama develop en el remoto"
             )));
     }
