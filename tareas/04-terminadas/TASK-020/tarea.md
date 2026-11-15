@@ -66,6 +66,8 @@ Tarea F2-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - Los comentarios del frontmatter no se conservan al reescribir (documentado).
 - Se planificó con 55 min.
 
+**CI en develop.** Run 43735844533 sobre 72571a1: codigo (ubuntu, macOS, Windows) y comprobar-repo en success.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
