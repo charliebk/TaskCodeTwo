@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-019-f2-4-reserva-de-ids-por-push-atomico
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F2-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 |---|---|---|---|---|
 | 2026-11-15T15:00:18Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T15:04:10Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T15:04:12Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
