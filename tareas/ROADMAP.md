@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-022, TASK-023, TASK-024, TASK-025, TASK-076, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
+- **En marcha:** TASK-022 (en diseño)
+- **Listas para empezar:** TASK-023, TASK-024, TASK-025, TASK-076, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -80,7 +80,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-019 | F2-4 Reserva de IDs por push atomico | — | TASK-018 | ✅ terminada |
 | — | TASK-020 | F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido | — | TASK-010 | ✅ terminada |
 | — | TASK-021 | F2-6 Adaptador GitHub | — | TASK-015, TASK-017 | ✅ terminada |
-| 1 | TASK-022 | F2-9 Adaptador GitLab | — | TASK-015, TASK-017 | lista para empezar |
+| 1 | TASK-022 | F2-9 Adaptador GitLab | — | TASK-015, TASK-017 | ▶ en diseño |
 | 2 | TASK-023 | F2-7 Configuracion minima con esquema validado y valores por defecto | — | TASK-011 | lista para empezar |
 | 3 | TASK-024 | F2-8 i18n de mensajes | — | TASK-016 | lista para empezar |
 | 4 | TASK-025 | F2-10 Build de ejecutables por sistema en la CI, firmados | — | TASK-014, TASK-016 | lista para empezar |
