@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1196909
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -41,3 +41,11 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | 2026-11-15T08:34:51Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T09:52:36Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-15T09:52:37Z | start | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-15T09:52:50Z | diseno | agente:ab43b73ad5531941b | 30 | 83008 | 423394 | 9857 | 25 | 516289 | - | - |
+| 2026-11-15T09:52:51Z | diseno | agente:a239447af7c4a96b2 | 38 | 65974 | 504714 | 10523 | 27 | 581249 | - | - |
+| 2026-11-15T09:52:52Z | diseno | agente:a059144b1b74f552f | 6 | 42446 | 43735 | 13184 | 6 | 99371 | - | - |
