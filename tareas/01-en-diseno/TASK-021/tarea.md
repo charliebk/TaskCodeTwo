@@ -6,10 +6,10 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-021-f2-6-adaptador-github
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-15
 dependencias: [TASK-015, TASK-017]
 ---
 ## Objetivo
@@ -31,3 +31,9 @@ Tarea F2-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 ## Criterios de aceptacion
 - [ ] E2E contra un repo de pruebas en GitHub
 - [ ] Cumple lo que pide la tarea F2-6 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-15T16:50:45Z | plan | automatico | persona | 0.16.1 |
