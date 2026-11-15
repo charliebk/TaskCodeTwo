@@ -260,6 +260,63 @@ fn bateria_de_la_poc_m_e_idempotencia() {
     let i = gh.merge_pr(5, &"c".repeat(40));
     assert_eq!(i.linea(), "merge-pr rechazada pr=5 motivo=head-cambiado");
     assert!(!mock.recibidas().iter().any(|r| r.linea.starts_with("PUT")));
+
+    // estado-puertas sigue `Link rel=next` en la misma base y cuenta la
+    // ultima review de cada persona: la aprobacion de la pagina 1 la anula
+    // un cambio pedido en la pagina 2; la de un tercero fuera de la lista se
+    // ignora.
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12",
+        Simulada::json(200, &pr(12, false, "open")),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[]"),
+    );
+    mock.responder(
+        "GET",
+        &format!("/repos/o/r/commits/{SHA}/check-runs"),
+        Simulada::json(200, "{\"check_runs\":[]}"),
+    );
+    let review = |estado: &str, id: u64| {
+        format!(
+            "{{\"state\":\"{estado}\",\"user\":{{\"login\":\"u{id}\",\"id\":{id},\"type\":\"User\"}}}}"
+        )
+    };
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12/reviews?per_page=100",
+        Simulada::json(
+            200,
+            &format!(
+                "[{},{}]",
+                review("APPROVED", PERSONA),
+                review("APPROVED", 777)
+            ),
+        )
+        .con(
+            "Link",
+            &format!(
+                "<{}/repos/o/r/pulls/12/reviews?per_page=100&page=2>; rel=\"next\"",
+                mock.base()
+            ),
+        ),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/pulls/12/reviews?per_page=100&page=2",
+        Simulada::json(200, &format!("[{}]", review("CHANGES_REQUESTED", PERSONA))),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let sin_checks = ModeloPuertas::default();
+    assert_eq!(
+        gh.estado_puertas(Rol::Agente, 12, &sin_checks).linea(),
+        "estado-puertas esperando pr=12 aprobaciones=0 ignoradas=1 falta=aprobacion"
+    );
+    assert_eq!(gh.registro().len(), 5, "{:?}", gh.registro());
 }
 
 /// Criterio 2: el envoltorio rechaza antes de la red lo que no es su destino
