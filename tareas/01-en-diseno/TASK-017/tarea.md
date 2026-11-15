@@ -6,10 +6,10 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-017-f2-2-capa-de-operaciones-git-determinist
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-15
 dependencias: [TASK-005, TASK-016]
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - [ ] Tests contra repos reales
 - [ ] salida ≤ 5 líneas en el caso normal
 - [ ] Cumple lo que pide la tarea F2-2 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-15T12:29:47Z | plan | automatico | persona | 0.16.1 |
