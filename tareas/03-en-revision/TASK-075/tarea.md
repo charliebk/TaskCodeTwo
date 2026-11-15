@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1196909
-tokens_implementacion: null
+tokens_implementacion: 30003517
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-15
@@ -45,6 +45,7 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | 2026-11-15T08:34:51Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T09:52:36Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-15T09:52:37Z | start | automatico | persona | 0.16.1 |
+| 2026-11-15T10:42:24Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -53,3 +54,5 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | 2026-11-15T09:52:50Z | diseno | agente:ab43b73ad5531941b | 30 | 83008 | 423394 | 9857 | 25 | 516289 | - | - |
 | 2026-11-15T09:52:51Z | diseno | agente:a239447af7c4a96b2 | 38 | 65974 | 504714 | 10523 | 27 | 581249 | - | - |
 | 2026-11-15T09:52:52Z | diseno | agente:a059144b1b74f552f | 6 | 42446 | 43735 | 13184 | 6 | 99371 | - | - |
+| 2026-11-15T10:42:24Z | implementacion | sesion:f7ef1603-d233-4a21-a36b-4afb2c4b0c0e | 44 | 19267 | 3726998 | 9490 | 2 | 3755799 | - | - |
+| 2026-11-15T10:42:24Z | implementacion | agente:a7e03519fedef64a8 | 190 | 446624 | 25635350 | 165554 | 21 | 26247718 | - | - |
