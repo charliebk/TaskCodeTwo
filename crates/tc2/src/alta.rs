@@ -11,63 +11,13 @@ use std::cell::Cell;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::estado::{Cambio, Estado, Fallo, Operacion};
+use crate::tarea::{Cuerpo, Tarea};
 
 /// Nombre de la operacion y de la orden del binario.
 pub const NOMBRE: &str = "new";
 
 /// Prefijo de las carpetas de tarea en la rama de estado.
 const PREFIJO: &str = "TASK-";
-
-/// Plantilla de `tarea.md` del ADR F1-9, punto 6 (formato 2). La sustituye el
-/// modelo de tarea de F2-5. `{id}`, `{titulo}` y `{fecha}` se rellenan;
-/// `rama` queda en `null` hasta F2-4b, que la deriva del ID.
-const PLANTILLA: &str = "---
-formato: 2
-id: \"{id}\"
-titulo: \"{titulo}\"
-tipo: \"feature\"
-sprint: 0
-etiquetas: []
-complejidad: null
-carril: null
-estado: \"planificada\"
-motivo: null
-plan_aprobado: false
-rama: null
-asignado_a: null
-roles:
-  diseno: {modelo: null, skills: [], regla: null}
-  implementacion: {modelo: \"sonnet\", skills: [], regla: null}
-  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}
-estimacion: null
-tokens_diseno: null
-tokens_implementacion: null
-tokens_revision: null
-creado: \"{fecha}\"
-actualizado: \"{fecha}\"
-dependencias: []
----
-## Objetivo
-
-<que se quiere y por que>
-
-## Criterios de aceptacion
-
-- [ ] <criterio comprobable>
-
-## Escenarios
-
-<opcional: 1. **Dado** <estado>, **cuando** <accion>, **entonces** <resultado>>
-
-## Resultado
-
-<obligatoria al cerrar: que se hizo, divergencias con el plan, hallazgos no corregidos y por que>
-
-## Transiciones
-
-| fecha | fase | modo | decidido_por | version |
-|---|---|---|---|---|
-";
 
 /// Alta de una tarea: reserva el siguiente ID y escribe su `tarea.md`.
 #[derive(Debug)]
@@ -127,14 +77,7 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
     titulo_valido(titulo).then(|| Box::new(Alta::nueva(titulo)) as Box<dyn Operacion>)
 }
 
-/// Si `titulo` vale: no vacio y sin saltos de linea ni caracteres de control
-/// (tampoco los separadores U+2028 y U+2029, que YAML lee como salto).
-pub fn titulo_valido(titulo: &str) -> bool {
-    !titulo.trim().is_empty()
-        && !titulo
-            .chars()
-            .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
-}
+pub use crate::tarea::titulo_valido;
 
 /// `TASK-NNN` con al menos tres cifras (`TASK-1000` sin renumerar).
 pub fn formato_id(n: u32) -> String {
@@ -166,18 +109,10 @@ pub fn siguiente_id(rutas: &[String]) -> Result<u32, Fallo> {
         .ok_or_else(|| Fallo::Error("no quedan IDs de tarea".to_owned()))
 }
 
-/// Escapa un texto para una cadena YAML entre comillas dobles (F1-9 punto 5).
-fn escapar(texto: &str) -> String {
-    texto.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
-/// `tarea.md` de una tarea recien creada.
+/// `tarea.md` de una tarea recien creada: el modelo de F2-5 con la
+/// plantilla de F1-9 (punto 6).
 pub fn tarea_md(id: &str, titulo: &str, fecha: &str) -> String {
-    PLANTILLA
-        .replace("{id}", id)
-        .replace("{fecha}", fecha)
-        // El titulo el ultimo: un `{fecha}` en el titulo no se sustituye.
-        .replace("{titulo}", &escapar(titulo))
+    Tarea::nueva(id, titulo, fecha).escribir(&Cuerpo::plantilla())
 }
 
 /// Fecha de hoy en UTC, `AAAA-MM-DD`, sin dependencias.
