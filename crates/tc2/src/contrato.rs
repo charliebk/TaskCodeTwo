@@ -132,14 +132,6 @@ impl Informe {
         self
     }
 
-    /// Transitorio de F2-8: diagnostico en espanol que aun no pasa por el
-    /// catalogo. Solo lo pueden usar los ficheros de la lista del test de
-    /// guarda, que se vacia al migrarlos; con la lista vacia se borra.
-    #[must_use]
-    pub fn diagnostico_sin_traducir(self, texto: impl Into<String>) -> Self {
-        self.diagnostico(Mensaje::externo(texto))
-    }
-
     /// Valor de texto de una clave, si existe.
     pub fn valor(&self, clave: &str) -> Option<&str> {
         self.claves.iter().find_map(|(k, v)| match v {

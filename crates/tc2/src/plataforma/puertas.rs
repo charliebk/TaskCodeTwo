@@ -3,6 +3,8 @@
 //! GitLab, para que las dos den la misma linea byte a byte.
 
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::catalogo::plataforma as t;
+use crate::i18n::{Mensaje, Texto};
 
 /// Nombre de la operacion.
 pub const ESTADO_PUERTAS: &str = "estado-puertas";
@@ -51,9 +53,7 @@ pub fn evaluar(l: &Lecturas) -> Informe {
             .con("pr", pr)
             .con("motivo", "check-rojo")
             .con_lista("checks", rojo)
-            .diagnostico_sin_traducir(
-                "hay checks obligatorios en rojo: corrige y vuelve a empujar",
-            );
+            .diagnostico(&t::CHECKS_EN_ROJO);
     }
     let mut falta: Vec<String> = l
         .checks
@@ -83,11 +83,8 @@ pub fn evaluar(l: &Lecturas) -> Informe {
     if falta.is_empty() {
         i
     } else {
-        let diag = format!(
-            "faltan puertas: {}; espera o atiende lo que falta (al-dia o sin-conflictos: lanza actualizar-rama)",
-            falta.join(", ")
-        );
-        i.con_lista("falta", falta).diagnostico_sin_traducir(diag)
+        let diag = Mensaje::nuevo(&t::FALTAN_PUERTAS).con("falta", falta.join(", "));
+        i.con_lista("falta", falta).diagnostico(diag)
     }
 }
 
@@ -103,7 +100,7 @@ pub fn pr_cerrado(pr: u64) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "pr-cerrado")
-        .diagnostico_sin_traducir("el PR esta cerrado sin mergear: reabrelo o abre otro")
+        .diagnostico(&t::PR_CERRADO_REABRE)
 }
 
 /// La politica exige impuesta una garantia que el plan no da.
@@ -112,20 +109,22 @@ pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
         .con("pr", pr.to_string())
         .con("motivo", "plan")
         .con("garantia", garantia)
-        .diagnostico_sin_traducir(format!(
-            "la politica del proyecto exige {garantia} impuesta y el plan de la plataforma no la da: cambia de plan o quita {garantia} de la politica"
-        ))
+        .diagnostico(Mensaje::nuevo(&t::RECHAZADA_POR_PLAN).con("garantia", garantia))
 }
 
 /// La plataforma no tiene configurada una garantia que se lee de su
 /// configuracion (GitLab: G01, rama destino protegida; G03 y demas de
 /// Premium, una regla de aprobacion). `arreglo` dice que hacer.
-pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &str) -> Informe {
+pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &'static Texto) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "config")
         .con("garantia", garantia)
-        .diagnostico_sin_traducir(format!("{garantia} no se cumple: {arreglo}"))
+        .diagnostico(
+            Mensaje::nuevo(&t::NO_SE_CUMPLE)
+                .con("garantia", garantia)
+                .con_mensaje("arreglo", arreglo),
+        )
 }
 
 #[cfg(test)]

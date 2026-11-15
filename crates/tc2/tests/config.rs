@@ -228,7 +228,7 @@ fn configs_hostiles_rechazadas_con_la_ruta() {
         assert_eq!(e.motivo, *motivo, "{cuerpo}: {e:?}");
         let x = e.errores.iter().find(|x| x.ruta == *ruta);
         assert!(
-            x.is_some_and(|x| x.mensaje.contains(fragmento)),
+            x.is_some_and(|x| x.mensaje.texto(Idioma::Es).contains(fragmento)),
             "{cuerpo}: se esperaba «{fragmento}» en {ruta}: {:?}",
             e.errores
         );

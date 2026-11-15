@@ -12,10 +12,12 @@ use std::collections::BTreeMap;
 use serde::de::DeserializeOwned;
 
 use super::credenciales::{Credenciales, Rol, Secreto};
-use super::errores;
+use super::errores::{self, Permiso};
 use super::http::{Base, Cliente, Metodo, Respuesta};
 use super::{Paso, Personas, Proveedor, Usuario};
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::catalogo::plataforma as t;
+use crate::i18n::{Mensaje, Texto};
 
 /// Paginas como mucho al seguir `Link rel=next` (100 elementos cada una).
 pub const MAX_PAGINAS: usize = 10;
@@ -73,19 +75,18 @@ impl Conexion {
     /// de otro rol).
     pub fn token(&self, op: &str, rol: Rol) -> Paso<Secreto> {
         self.credenciales.token(rol).ok_or_else(|| {
-            let extra = if rol == Rol::Persona {
-                " (el de persona solo se usa desde un terminal interactivo)"
+            let m = Mensaje::nuevo(&t::FALTA_IDENTIDAD)
+                .con("rol", rol.nombre())
+                .con("variable", rol.variable());
+            let m = if rol == Rol::Persona {
+                m.con_mensaje("extra", &t::SOLO_TERMINAL)
             } else {
-                ""
+                m.con("extra", "")
             };
             Informe::nuevo(op, Resultado::Rechazada)
                 .con("motivo", "identidad")
                 .con("falta", rol.nombre())
-                .diagnostico_sin_traducir(format!(
-                    "esta operacion corre con la identidad de {}: define {}{extra}",
-                    rol.nombre(),
-                    rol.variable()
-                ))
+                .diagnostico(m)
         })
     }
 
@@ -104,13 +105,25 @@ impl Conexion {
     }
 
     /// Traduce una respuesta que no es 2xx.
-    pub fn traducir(&self, op: &str, rol: Rol, permiso: &str, r: &Respuesta) -> Informe {
-        errores::traducir(self.proveedor, op, rol, permiso, r)
+    pub fn traducir(
+        &self,
+        op: &str,
+        rol: Rol,
+        permiso: impl Into<Permiso>,
+        r: &Respuesta,
+    ) -> Informe {
+        errores::traducir(self.proveedor, op, rol, permiso.into(), r)
     }
 
-    /// Respuesta 2xx con una forma inesperada.
+    /// Respuesta 2xx con una forma inesperada; `que` va tal cual (el error
+    /// del lector JSON o el nombre de un campo).
     pub fn invalida(&self, op: &str, que: &str) -> Informe {
         errores::respuesta_invalida(self.proveedor, op, que)
+    }
+
+    /// Respuesta 2xx con una forma inesperada, descrita en el catalogo.
+    pub fn invalida_por(&self, op: &str, que: &'static Texto) -> Informe {
+        errores::respuesta_invalida_por(self.proveedor, op, que)
     }
 
     /// Lee un cuerpo con la forma `T`.
@@ -124,7 +137,7 @@ impl Conexion {
         &self,
         op: &str,
         rol: Rol,
-        permiso: &str,
+        permiso: impl Into<Permiso>,
         ep: (Metodo, String),
     ) -> Paso<T> {
         let r = self.pedir(op, rol, ep, None)?;
@@ -140,13 +153,14 @@ impl Conexion {
         &self,
         op: &str,
         rol: Rol,
-        permiso: &str,
+        permiso: impl Into<Permiso>,
         primera: String,
         mut extraer: F,
     ) -> Paso<Vec<T>>
     where
         F: FnMut(&str) -> Paso<Vec<T>>,
     {
+        let permiso = permiso.into();
         let token = self.token(op, rol)?;
         let mut ruta = primera;
         let mut todo = Vec::new();
@@ -171,10 +185,9 @@ impl Conexion {
         }
         Err(Informe::nuevo(op, Resultado::Error)
             .con("motivo", "demasiadas-paginas")
-            .diagnostico_sin_traducir(format!(
-                "la lista tiene mas de {} elementos: no se evalua a medias",
-                MAX_PAGINAS * 100
-            )))
+            .diagnostico(
+                Mensaje::nuevo(&t::DEMASIADAS_PAGINAS).con("n", (MAX_PAGINAS * 100).to_string()),
+            ))
     }
 
     /// Identidad del rol, de la cache o leida con `leer` (una vez por rol y
@@ -200,10 +213,10 @@ impl Conexion {
             Err(Informe::nuevo(op, Resultado::Rechazada)
                 .con("motivo", "identidad")
                 .con("rol", "persona")
-                .diagnostico_sin_traducir(format!(
-                    "el token de persona es de «{}», que no esta en la lista de personas del proyecto",
-                    errores::sanear(&u.login)
-                )))
+                .diagnostico(
+                    Mensaje::nuevo(&t::PERSONA_FUERA_DE_LISTA)
+                        .con("login", errores::sanear(&u.login)),
+                ))
         }
     }
 }
@@ -228,10 +241,10 @@ pub fn sha_valido(s: &str) -> bool {
 }
 
 /// Informe de uso (2) con su motivo.
-pub fn uso(op: &str, motivo: &str, diag: &str) -> Informe {
+pub fn uso(op: &str, motivo: &str, diag: &'static Texto) -> Informe {
     Informe::nuevo(op, Resultado::Uso)
         .con("motivo", motivo)
-        .diagnostico_sin_traducir(diag.to_owned())
+        .diagnostico(diag)
 }
 
 /// `merge-pr` rechazado porque el head no es el evaluado.
@@ -239,9 +252,7 @@ pub fn head_cambiado(pr: u64) -> Informe {
     Informe::nuevo("merge-pr", Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "head-cambiado")
-        .diagnostico_sin_traducir(
-            "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas",
-        )
+        .diagnostico(Mensaje::nuevo(&t::HEAD_CAMBIADO).con("cita", ""))
 }
 
 /// Rechazo de un rol que no corresponde a la operacion.
@@ -249,9 +260,7 @@ pub fn rol_no_valido(op: &str, rol: Rol) -> Informe {
     Informe::nuevo(op, Resultado::Rechazada)
         .con("motivo", "identidad")
         .con("rol", rol.nombre())
-        .diagnostico_sin_traducir(format!(
-            "{op} corre con la identidad de agente o de persona"
-        ))
+        .diagnostico(Mensaje::nuevo(&t::ROL_NO_VALIDO).con("op", op))
 }
 
 #[cfg(test)]

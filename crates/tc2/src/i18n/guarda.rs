@@ -5,25 +5,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Ficheros que aun usan `diagnostico_sin_traducir` (transitorio de F2-8).
-/// Se vacia al migrarlos; un fichero de la lista que ya no lo usa tambien
-/// falla, para que la lista solo encoja.
-const PENDIENTES: &[&str] = &[
-    "config/mod.rs",
-    "plataforma/conexion.rs",
-    "plataforma/deteccion.rs",
-    "plataforma/errores.rs",
-    "plataforma/github.rs",
-    "plataforma/gitlab.rs",
-    "plataforma/puertas.rs",
-];
-
 /// Usos permitidos de `Mensaje::externo(` por fichero: texto que viene de
 /// fuera (git, el sistema, HTTP) sin nada que traducir alrededor. Lista
 /// cerrada: un uso nuevo tiene que anadirse aqui a proposito.
 const EXTERNOS: &[(&str, usize)] = &[
-    // `Informe::diagnostico_sin_traducir`, transitorio: se va con PENDIENTES.
-    ("contrato.rs", 1),
     // Fallo al leer un blob sin diagnostico: queda la linea de contrato, que
     // no se traduce (ADR F1-4).
     ("estado/lectura.rs", 1),
@@ -82,16 +67,6 @@ fn ningun_literal_fuera_del_catalogo() {
             if codigo.contains(p) {
                 fallos.push(format!("{rel}: usa `{p}`: pasa el texto al catalogo"));
             }
-        }
-        let usa_sin_traducir = codigo.contains(".diagnostico_sin_traducir(");
-        let pendiente = PENDIENTES.contains(&rel.as_str());
-        if usa_sin_traducir && !pendiente {
-            fallos.push(format!(
-                "{rel}: usa `diagnostico_sin_traducir` y no esta en PENDIENTES"
-            ));
-        }
-        if pendiente && !usa_sin_traducir {
-            fallos.push(format!("{rel}: ya esta migrado: quitalo de PENDIENTES"));
         }
         let n = codigo.matches("Mensaje::externo(").count();
         if n > 0 {

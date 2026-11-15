@@ -22,6 +22,8 @@ use std::time::Duration;
 
 use super::Proveedor;
 use super::credenciales::Secreto;
+use crate::i18n::Texto;
+use crate::i18n::catalogo::plataforma as t;
 
 /// Tamano maximo del cuerpo de una respuesta.
 pub const LIMITE_CUERPO: u64 = 1024 * 1024;
@@ -70,7 +72,7 @@ impl Base {
     }
 
     /// Valida una base. `Err` con el motivo si no vale.
-    pub fn nueva(url: &str) -> Result<Self, String> {
+    pub fn nueva(url: &str) -> Result<Self, &'static Texto> {
         let url = url.trim_end_matches('/');
         let resto = if let Some(r) = url.strip_prefix("https://") {
             r
@@ -80,14 +82,11 @@ impl Base {
                 && !ruta.contains(['?', '#'])
                 && (ruta.is_empty() || validar_ruta(&format!("/{ruta}")).is_ok());
             if !valida {
-                return Err(
-                    "http solo vale para 127.0.0.1 con un puerto y, si acaso, un prefijo valido"
-                        .into(),
-                );
+                return Err(&t::HTTP_SOLO_LOCAL);
             }
             return Ok(Self(url.to_owned()));
         } else {
-            return Err("la URL de la API tiene que ser https".into());
+            return Err(&t::URL_HTTPS);
         };
         let (autoridad, ruta) = resto.split_once('/').unwrap_or((resto, ""));
         let (host, puerto) = match autoridad.split_once(':') {
@@ -101,13 +100,13 @@ impl Base {
             && !host.starts_with(['.', '-'])
             && puerto.is_none_or(puerto_valido);
         if !host_valido {
-            return Err("host de la API no valido (sin usuario ni contrasena)".into());
+            return Err(&t::HOST_NO_VALIDO);
         }
         if ruta.contains('?') || ruta.contains('#') {
-            return Err("el prefijo de la API no lleva consulta ni fragmento".into());
+            return Err(&t::PREFIJO_CON_CONSULTA);
         }
         if !ruta.is_empty() && validar_ruta(&format!("/{ruta}")).is_err() {
-            return Err("prefijo de la API no valido".into());
+            return Err(&t::PREFIJO_NO_VALIDO);
         }
         Ok(Self(url.to_owned()))
     }
@@ -165,14 +164,16 @@ impl Respuesta {
 /// Por que no hubo respuesta HTTP.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FalloHttp {
-    /// El envoltorio la rechazo antes de la red.
-    Rechazada(String),
+    /// El envoltorio la rechazo antes de la red, con el motivo.
+    Rechazada(&'static Texto),
     /// No se pudo conectar (DNS, conexion, tiempo agotado).
     Sinred(String),
     /// Fallo de TLS (certificado, almacen del sistema).
     Tls(String),
-    /// Respuesta mayor que [`LIMITE_CUERPO`] o ilegible.
+    /// Respuesta mayor que [`LIMITE_CUERPO`] al leerla, o ilegible.
     RespuestaInvalida(String),
+    /// La respuesta declara un tamano mayor que [`LIMITE_CUERPO`].
+    CuerpoGrande,
     /// La API respondio con una redireccion (no se siguen).
     Redireccion(u16),
     /// Otro fallo del cliente.
@@ -243,7 +244,7 @@ impl Cliente {
         url.strip_prefix(self.base.texto())
             .filter(|r| r.starts_with('/'))
             .map(str::to_owned)
-            .ok_or_else(|| FalloHttp::Rechazada("paginacion hacia otro destino".into()))
+            .ok_or(FalloHttp::Rechazada(&t::PAGINACION_OTRO_DESTINO))
     }
 
     /// Hace la llamada. `ruta` incluye la consulta (`?a=b`).
@@ -292,9 +293,7 @@ impl Cliente {
         // sistema puede notificar como desconexion (y se veria `sinred`).
         let declarado = cabecera("content-length").and_then(|v| v.trim().parse::<u64>().ok());
         if declarado.is_some_and(|n| n > LIMITE_CUERPO) {
-            return Err(FalloHttp::RespuestaInvalida(format!(
-                "la respuesta declara mas de {LIMITE_CUERPO} bytes"
-            )));
+            return Err(FalloHttp::CuerpoGrande);
         }
         // Sin tamano declarado (chunked), el limite corta al leer.
         let cuerpo = r
@@ -359,21 +358,21 @@ fn tipo_error(e: &ureq::Error) -> String {
 }
 
 /// Comprueba la ruta (con su consulta) antes de la red, sin admitir `%2F`.
-pub fn validar_ruta(ruta: &str) -> Result<(), String> {
+pub fn validar_ruta(ruta: &str) -> Result<(), &'static Texto> {
     validar_ruta_con(ruta, false)
 }
 
 /// Comprueba la ruta. Con `admite_barra_codificada` (GitLab) acepta la
 /// secuencia exacta `%2F` en el camino y comprueba los segmentos con ella ya
 /// decodificada: `a%2F..` es un `..` y `%2f` o `%252F` siguen rechazados.
-pub fn validar_ruta_con(ruta: &str, admite_barra_codificada: bool) -> Result<(), String> {
+pub fn validar_ruta_con(ruta: &str, admite_barra_codificada: bool) -> Result<(), &'static Texto> {
     let (camino, consulta) = ruta.split_once('?').unwrap_or((ruta, ""));
     if !camino.starts_with('/') || camino.starts_with("//") {
-        return Err("la ruta tiene que ser relativa a la API".into());
+        return Err(&t::RUTA_NO_RELATIVA);
     }
     let minus = ruta.to_ascii_lowercase();
     if ruta.contains('\\') || minus.contains("%2e") || minus.contains("%25") {
-        return Err("ruta con barra invertida o puntos codificados".into());
+        return Err(&t::RUTA_CODIFICADA);
     }
     let decodificado;
     let camino = if admite_barra_codificada {
@@ -386,17 +385,17 @@ pub fn validar_ruta_con(ruta: &str, admite_barra_codificada: bool) -> Result<(),
         .split('/')
         .any(|s| s.is_empty() || s == "." || s == "..")
     {
-        return Err("ruta con segmentos vacios, . o ..".into());
+        return Err(&t::RUTA_SEGMENTOS);
     }
     let no_reservado = |b: u8| b.is_ascii_alphanumeric() || b"-._~".contains(&b);
     if !camino.bytes().all(|b| no_reservado(b) || b == b'/') {
-        return Err("caracter no permitido en la ruta".into());
+        return Err(&t::CARACTER_EN_RUTA);
     }
     if !consulta
         .bytes()
         .all(|b| no_reservado(b) || b"=&:%,".contains(&b))
     {
-        return Err("caracter no permitido en la consulta".into());
+        return Err(&t::CARACTER_EN_CONSULTA);
     }
     Ok(())
 }
