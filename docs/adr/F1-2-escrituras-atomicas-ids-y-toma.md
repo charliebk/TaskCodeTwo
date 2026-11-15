@@ -415,3 +415,33 @@ contra la plataforma: sigue en F9-4.
 **Contención en el remoto** (nuevo): dos pushes simultáneos al mismo remoto
 local pueden dar `[remote rejected] (cannot lock ref …)` en vez de
 non-fast-forward; se trata como contención (ver la adenda de F1-4).
+
+### Tras la revisión de la ronda 1 de TASK-018
+
+- **Remoto añadido después** (RN-06 → equipo): si el remoto aún no tiene la
+  rama de estado y existe la local, la transacción parte de la local y
+  publica su historia; antes empezaba de cero y la local divergía para
+  siempre. Test `remoto_anadido_despues_publica_la_historia_local`.
+- **`montar` toma el mismo cerrojo** que la transacción: cuatro `montar` a
+  la vez en el mismo clon dan un `ok` y tres `sin-cambios`, no `error`.
+- **Una pendiente que falla al re-ejecutarse** (error interno, no solo
+  rechazo) pasa a `rechazadas`: no bloquea las escrituras siguientes.
+- **Rutas**: además de relativas y sin `..`, portables entre sistemas (sin
+  `<>:"|?*`, sin nombres reservados de Windows, sin final `.` o espacio); una
+  ruta que solo difiere en mayúsculas de otra de la rama da `rechazada
+  motivo=ruta-duplicada`.
+- **`tareas=con-cambios` y `tareas=diverge` salen con `ok`** (aceptado): lo
+  escrito está publicado y correcto; lo que no se pudo es adelantar la
+  carpeta de la persona, y la línea lo dice. El contrato de F1-4 no muestra
+  diagnóstico en un éxito; avisar de forma visible es de `status` (F3-5b).
+  Sin remoto el mismo choque es `rechazada motivo=tareas-con-cambios`,
+  porque no hay otro sitio donde quede escrito.
+- **Límite aceptado: contenido UTF-8.** La vista lee los ficheros como texto
+  (el puerto convierte la salida de `git` con sustitución); un fichero que no
+  sea UTF-8 se corrompería al leerlo y reescribirlo. El formato de tarea
+  (F1-9) es UTF-8; lo que escriba la persona a mano en otra codificación no
+  está cubierto.
+- **Límite aceptado: contención por texto.** `[remote rejected]` con «cannot
+  lock ref» o «failed to update ref» se trata siempre como contención; si un
+  servidor lo diera de forma permanente, acabaría en `agotada` tras los
+  intentos (acotado), no en `denegada`. No visto en ningún servidor real.

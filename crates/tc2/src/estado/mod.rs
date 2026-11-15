@@ -27,7 +27,7 @@ mod transaccion;
 pub use crate::git::Cambio;
 pub use cerrojo::Cerrojo;
 pub use lectura::{Estado, Vista, leer};
-pub use montaje::montar;
+pub use montaje::{montar, montar_con};
 pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};
 
 /// Rama huerfana del estado (ADR F1-1).

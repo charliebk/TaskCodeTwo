@@ -39,12 +39,35 @@ pub(crate) fn ruta_valida(ruta: &str) -> bool {
         && !ruta.contains(',')
         && !ruta.contains(':')
         && !ruta.chars().any(char::is_control)
-        && ruta
-            .split('/')
-            .all(|p| !p.is_empty() && p != "." && p != ".." && !p.eq_ignore_ascii_case(".git"))
+        && !ruta.contains(['<', '>', '"', '|', '?', '*'])
+        && ruta.split('/').all(|p| {
+            !p.is_empty()
+                && p != "."
+                && p != ".."
+                && !p.eq_ignore_ascii_case(".git")
+                && !p.ends_with(['.', ' '])
+                && !reservado_en_windows(p)
+        })
         && Path::new(ruta)
             .components()
             .all(|c| matches!(c, Component::Normal(_)))
+}
+
+/// Nombres que Windows reserva aunque lleven extension (`aux.md`): un clon en
+/// Windows no podria sacarlos al worktree.
+fn reservado_en_windows(parte: &str) -> bool {
+    let base = parte
+        .split('.')
+        .next()
+        .unwrap_or(parte)
+        .to_ascii_uppercase();
+    matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((base.starts_with("COM") || base.starts_with("LPT"))
+            && base.len() == 4
+            && base
+                .as_bytes()
+                .get(3)
+                .is_some_and(|b| (b'1'..=b'9').contains(b)))
 }
 
 /// Carpeta comun del repo (`.git` del principal), absoluta.
@@ -121,7 +144,14 @@ impl Temporal {
 
 impl Drop for Temporal {
     fn drop(&mut self) {
+        // Borrar es limpieza: si falla, no hay a quien avisar desde `Drop` y
+        // la carpeta no afecta a la correccion (la vacia el siguiente que
+        // use el mismo nombre). La carpeta padre se quita si queda vacia
+        // (`remove_dir` no borra una con contenido de otro proceso).
         let _ = std::fs::remove_dir_all(&self.0);
+        if let Some(padre) = self.0.parent() {
+            let _ = std::fs::remove_dir(padre);
+        }
     }
 }
 
@@ -252,7 +282,14 @@ mod tests {
 
     #[test]
     fn rutas_de_la_rama_de_estado() {
-        for ok in ["ROADMAP.md", "TASK-001/tarea.md", "a b/c.md"] {
+        for ok in [
+            "ROADMAP.md",
+            "TASK-001/tarea.md",
+            "a b/c.md",
+            "auxiliar.md",
+            "com10.md",
+            "console.md",
+        ] {
             assert!(ruta_valida(ok), "{ok}");
         }
         for malo in [
@@ -267,6 +304,18 @@ mod tests {
             "C:/x",
             "a,b",
             "a\nb",
+            "notas/aux.md",
+            "CON",
+            "x/com1.txt",
+            "LPT9",
+            "a?b.md",
+            "a*b",
+            "a<b",
+            "a|b",
+            "a\"b",
+            "fin.",
+            "fin ",
+            "carpeta./x",
         ] {
             assert!(!ruta_valida(malo), "{malo}");
         }

@@ -68,11 +68,47 @@ impl Operacion for CrearUnico {
     }
 }
 
+/// Escribe `ruta`, pero da un error interno si el estado ya tiene `veneno`
+/// (una pendiente que falla al re-ejecutarse).
+pub struct FallaSi {
+    pub ruta: String,
+    pub veneno: String,
+}
+
+impl Operacion for FallaSi {
+    fn nombre(&self) -> &str {
+        "falla-si"
+    }
+    fn anotacion(&self) -> String {
+        format!("falla-si|{}|{}", self.ruta, self.veneno)
+    }
+    fn exige_red(&self) -> bool {
+        false
+    }
+    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        if e.leer(&self.veneno)?.is_some() {
+            return Err(Fallo::Error(format!(
+                "{} envenena {}",
+                self.veneno, self.ruta
+            )));
+        }
+        Ok(vec![Cambio::nuevo(
+            self.ruta.clone(),
+            "x
+",
+        )])
+    }
+}
+
 /// Reconstruye las operaciones de prueba desde su anotacion.
 pub fn catalogo(a: &str) -> Option<Box<dyn Operacion>> {
     let partes: Vec<&str> = a.split('|').collect();
     match partes.as_slice() {
         ["anotar", ruta, modo] => Some(Box::new(Anotar::nueva(ruta, *modo == "red"))),
+        ["falla-si", ruta, veneno] => Some(Box::new(FallaSi {
+            ruta: (*ruta).to_owned(),
+            veneno: (*veneno).to_owned(),
+        })),
         ["crear-unico", ruta] => Some(Box::new(CrearUnico {
             ruta: (*ruta).to_owned(),
         })),

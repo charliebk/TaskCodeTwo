@@ -7,11 +7,12 @@
 
 use std::path::Path;
 
+use super::cerrojo::{Cerrojo, ErrorCerrojo};
 use super::lectura::Estado;
 use super::transaccion::{Contexto, Fallo, Operacion, Politica, transaccion};
 use super::{CARPETA, RAMA};
 use crate::contrato::{Informe, Resultado, corto};
-use crate::git::estado::hay_remoto;
+use crate::git::estado::{dir_comun, hay_remoto};
 use crate::git::rama::excluir;
 use crate::git::{
     Cambio, FalloRemoto, Git, REMOTO, Subcomando, clasificar_fallo_remoto, commit_de, correr,
@@ -67,11 +68,27 @@ pub fn montar(git: &Git, dir: &Path) -> Informe {
 
 /// Como [`montar`], con otra politica de reintentos para crear la rama.
 pub fn montar_con(git: &Git, dir: &Path, politica: Politica) -> Informe {
-    paso(git, dir, politica).unwrap_or_else(renombrado)
+    paso(git, dir, politica, true).unwrap_or_else(renombrado)
 }
 
-fn paso(git: &Git, dir: &Path, politica: Politica) -> Result<Informe, Informe> {
+/// `puede_crear`: si puede crear la rama con una transaccion; tras crearla
+/// se vuelve a entrar una vez, ya sin poder crear, para montarla.
+fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<Informe, Informe> {
     let principal = localizar_principal(git, dir)?;
+    // El mismo cerrojo que la transaccion: la persona y sus agentes del mismo
+    // clon no montan a la vez (dos `worktree add` en la misma carpeta).
+    let comun = dir_comun(git, &principal, OP)?;
+    let cerrojo = match Cerrojo::tomar(&comun, politica.espera_cerrojo) {
+        Ok(c) => c,
+        Err(ErrorCerrojo::Ocupado) => {
+            return Ok(Informe::nuevo(OP, Resultado::Agotada)
+                .con("motivo", "cerrojo")
+                .diagnostico("otro proceso de este clon esta montando o escribiendo la rama de estado: reintenta"));
+        }
+        Err(ErrorCerrojo::Io(e)) => {
+            return Err(Informe::nuevo(OP, Resultado::Error).diagnostico(format!("cerrojo: {e}")));
+        }
+    };
     let carpeta = principal.join(CARPETA);
     let ok = |r: Resultado, commit: Option<String>| {
         let i = Informe::nuevo(OP, r).con("rama", RAMA).con("ruta", CARPETA);
@@ -154,6 +171,13 @@ fn paso(git: &Git, dir: &Path, politica: Politica) -> Result<Informe, Informe> {
         if en_remoto {
             exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
         } else {
+            if !puede_crear {
+                return Err(Informe::nuevo(OP, Resultado::Error)
+                    .diagnostico(format!("{RAMA} sigue sin existir tras crearla")));
+            }
+            // La transaccion toma el cerrojo ella misma: se suelta antes y,
+            // creada la rama, se vuelve a empezar para montarla.
+            drop(cerrojo);
             let mut c = Contexto::nuevo(git, &principal, &ninguna);
             c.politica = politica;
             let i = transaccion(&c, &Inicializar);
@@ -161,11 +185,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica) -> Result<Informe, Informe> {
                 return Ok(renombrado(i));
             }
 
-            if commit_de(git, &principal, OP, &local)?.is_none() {
-                // Otro clon la creo entre medias: la transaccion la vio en
-                // el remoto y no escribio nada.
-                exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
-            }
+            return paso(git, dir, politica, false);
         }
     }
 

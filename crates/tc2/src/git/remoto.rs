@@ -70,15 +70,19 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
         FalloRemoto::RamaInexistente
     } else if alguno(&[
         "authentication failed",
-        "permission denied",
+        "permission denied (publickey",
         "could not read username",
         "could not read password",
         "terminal prompts disabled",
         "returned error: 401",
         "returned error: 403",
-        "access denied",
-        "permission to ",
-    ]) {
+        "remote: permission to ",
+    ]) || (t.contains("permission denied")
+        && t.contains("could not read from remote repository"))
+    {
+        // `permission denied` suelto tambien lo da el sistema de ficheros
+        // local (no poder escribir en `.git`): solo cuenta como credenciales
+        // si git dice ademas que no pudo leer del remoto.
         FalloRemoto::Credenciales
     } else if alguno(&[
         "does not appear to be a git repository",
@@ -532,6 +536,12 @@ mod tests {
         for (stderr, esperado) in casos {
             assert_eq!(clasificar_fallo_remoto(stderr), esperado, "{stderr}");
         }
+    }
+
+    #[test]
+    fn permiso_local_no_es_de_credenciales() {
+        let local = "error: cannot open .git/FETCH_HEAD: Permission denied";
+        assert_eq!(clasificar_fallo_remoto(local), FalloRemoto::SinRed);
     }
 
     #[test]

@@ -271,7 +271,10 @@ fn intento(
             commit_de(git, principal, OP, &rama_remota())?
         } else {
             match clasificar_fallo_remoto(&s.stderr) {
-                FalloRemoto::RamaInexistente => None,
+                // El remoto aun no tiene la rama. Si existe la local (un repo
+                // que se monto sin remoto y al que luego se anadio `origin`),
+                // se parte de ella para publicar su historia, no de cero.
+                FalloRemoto::RamaInexistente => commit_de(git, principal, OP, &rama_local())?,
                 FalloRemoto::SinRed => {
                     return sin_red(c, op, anotacion, principal, &s.primera_linea_error());
                 }
@@ -298,8 +301,10 @@ fn intento(
                     anotaciones.push(o.anotacion());
                     destinos.push((p, Destino::Publicada));
                 }
-                Err(Fallo::Rechazada { .. }) => destinos.push((p, Destino::Rechazada)),
-                Err(Fallo::Error(d)) => return Err(error(d)),
+                // Tambien un error al re-ejecutarla: si abortara, bloquearia
+                // todas las escrituras siguientes mientras la ref siga ahi.
+                // Rechazada, su contenido queda en git y la linea lo dice.
+                Err(_) => destinos.push((p, Destino::Rechazada)),
             }
         }
     }
@@ -323,6 +328,9 @@ fn intento(
         vista.superponer(vec![Cambio::nuevo("ROADMAP.md", texto)]);
     }
 
+    if let Some(i) = choque_de_mayusculas(&vista, op) {
+        return Ok(Intento::Hecho(i));
+    }
     let mensaje = mensaje(op.nombre(), &anotaciones);
     let Some(sha) = construir_commit(
         git,
@@ -368,6 +376,26 @@ fn intento(
         Resultado::Denegada => Ok(Intento::Hecho(denegada(op, p.motivo, &p.ultimo))),
         _ => sin_red(c, op, anotacion, principal, &p.ultimo),
     }
+}
+
+/// Una ruta escrita que solo difiere en mayusculas de otra de la rama: en
+/// Windows o macOS las dos chocarian al sacarlas al worktree.
+fn choque_de_mayusculas(vista: &Vista<'_>, op: &dyn Operacion) -> Option<Informe> {
+    let rutas = vista.rutas();
+    vista.cambios().into_iter().find_map(|c| {
+        let minus = c.ruta.to_lowercase();
+        rutas
+            .iter()
+            .find(|r| **r != c.ruta && r.to_lowercase() == minus)
+            .map(|otra| {
+                informe(Resultado::Rechazada, op)
+                    .con("motivo", "ruta-duplicada")
+                    .diagnostico(format!(
+                        "{} solo difiere en mayusculas de {otra}: chocarian en Windows y macOS",
+                        c.ruta
+                    ))
+            })
+    })
 }
 
 fn denegada(op: &dyn Operacion, motivo: &str, detalle: &str) -> Informe {
@@ -450,6 +478,9 @@ fn sin_red(
             ));
         }
         Err(Fallo::Error(d)) => return Err(error(d)),
+    }
+    if let Some(i) = choque_de_mayusculas(&vista, op) {
+        return Ok(Intento::Hecho(i));
     }
     let mensaje = mensaje(op.nombre(), &[anotacion.to_owned()]);
     let Some(sha) = construir_commit(
@@ -547,4 +578,29 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
         }
     }
     Ok(Tareas::SinMontar)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::espera;
+    use std::time::Duration;
+
+    #[test]
+    fn espera_exponencial_con_jitter_entre_la_mitad_y_el_total() {
+        let base = Duration::from_millis(100);
+        for n in 1..=4u32 {
+            let tope = base * 2u32.pow(n - 1);
+            for _ in 0..50 {
+                let e = espera(base, n);
+                assert!(
+                    e >= tope / 2 && e <= tope,
+                    "n={n}: {e:?} fuera de [{:?}, {tope:?}]",
+                    tope / 2
+                );
+            }
+        }
+        let distintas: std::collections::BTreeSet<Duration> =
+            (0..20).map(|_| espera(base, 1)).collect();
+        assert!(distintas.len() > 1, "sin jitter");
+    }
 }
