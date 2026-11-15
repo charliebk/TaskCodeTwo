@@ -150,16 +150,14 @@ pub enum ErrorGit {
 
 impl std::fmt::Display for ErrorGit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Prohibido(a) => write!(f, "argumento prohibido para la capa: {a}"),
-            Self::Lanzar(e) => write!(f, "no se pudo lanzar git: {e}"),
-        }
+        // Una sola fuente del texto: el catalogo, en espanol.
+        f.write_str(&self.mensaje().texto(crate::i18n::Idioma::Es))
     }
 }
 
 impl ErrorGit {
-    /// El mismo texto que `Display`, como mensaje del catalogo (F2-8): lo
-    /// que va al diagnostico se traduce.
+    /// El error como mensaje del catalogo (F2-8): lo que va al diagnostico
+    /// se traduce; `Display` es su texto en espanol.
     pub fn mensaje(&self) -> Mensaje {
         match self {
             Self::Prohibido(a) => Mensaje::nuevo(&txt::ARGUMENTO_PROHIBIDO).con("argumento", a),
