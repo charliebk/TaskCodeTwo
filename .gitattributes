@@ -1,2 +1,7 @@
 # Los scripts de shell se ejecutan con bash tambien en Windows: siempre LF.
 *.sh text eol=lf
+# Fuentes y manifiestos de Rust: siempre LF, para que fmt y los bytes del
+# binario no dependan de core.autocrlf (F2-1).
+*.rs text eol=lf
+*.toml text eol=lf
+Cargo.lock text eol=lf

@@ -1,0 +1,5 @@
+# Toolchain fija (F2-1): subirla es una tarea propia, no un efecto secundario.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

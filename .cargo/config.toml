@@ -1,0 +1,12 @@
+# Configuracion de cargo versionada (F2-1, ADR F1-14).
+# /Brepro: sin el, MSVC mete la fecha en el PE y dos builds en limpio dan
+# distinto sha256 (PoC B de F1-14). Un RUSTFLAGS en el entorno anularia estos
+# rustflags en silencio: `cargo xtask verificar` se niega a seguir si existe.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/Brepro"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/Brepro"]
+
+[alias]
+xtask = "run --quiet --locked -p xtask --"

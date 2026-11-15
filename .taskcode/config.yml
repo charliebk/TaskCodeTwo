@@ -2,6 +2,9 @@
 # automatico: las preguntas se hacen en plan; el resto se encadena hasta finish.
 modo_flujo: automatico
 
-# Mientras no haya codigo (la Fase 1 son decisiones) no hay comando de
-# verificacion. Se declara con la primera tarea de codigo (F2-1), junto con
-# rutas_documentacion.
+# Verificacion (F2-1): el mismo comando que corre la CI en Linux y macOS.
+# La completa (con la comprobacion de build reproducible) solo la corre la CI
+# en Windows. Las tareas que solo tocan documentacion no compilan (tareas/
+# cuenta siempre como documentacion).
+comando_verificacion: "cargo xtask verificar --perfil rapida"
+rutas_documentacion: [docs/**, README.md, CHANGELOG.md, LICENSE]

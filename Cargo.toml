@@ -1,0 +1,31 @@
+# Workspace de TaskCodeTwo (F2-1, ADR F1-14): el CLI `tc2` y la herramienta
+# de verificacion `xtask` (`cargo xtask verificar --perfil rapida|completa`).
+[workspace]
+resolver = "3"
+members = ["crates/tc2", "xtask"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+repository = "https://github.com/charliebk/TaskCodeTwo"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+# Perfil de release de F1-14 (punto 3). Los perfiles solo valen en la raiz.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

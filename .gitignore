@@ -14,3 +14,6 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Builds de Rust (F2-1): nunca binarios en el repo
+/target/
