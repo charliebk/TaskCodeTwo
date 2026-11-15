@@ -31,7 +31,7 @@ Tarea F2-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 ## Criterios de aceptacion
 - [ ] CI verde en los tres desde el primer commit: `gh run view <id> --json jobs` da 4 jobs `success` (`comprobar-repo` + `codigo` en ubuntu/macos/windows-latest) en el SHA del primer commit de codigo y en el merge en develop
 - [ ] Cumple lo que pide la tarea F2-1 del plan (corregida a Rust) y los requisitos que cita: `cargo xtask verificar --perfil rapida` en verde y `tc2 --version` probado en `crates/tc2/tests/`
-- [ ] Dos builds en limpio con el mismo sha256 por target en los tres sistemas (`cargo xtask verificar --perfil completa`)
+- [ ] Dos builds en limpio con el mismo sha256 en Windows (x86_64-pc-windows-msvc), en el job `codigo` de windows-latest (`cargo xtask verificar --perfil completa`); Linux y macOS no se miden (decision de la persona, 2026-11-15)
 
 ## Transiciones
 
