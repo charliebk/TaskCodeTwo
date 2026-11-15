@@ -28,6 +28,8 @@ pub use claves::{CLAVES_016, DOMINIOS, FASES, MODELOS, TOPE_CLAVES, esquema_json
 use crate::carril::{Carril, Perfil};
 use crate::contrato::{Informe, Resultado};
 use crate::git::{self, Git, Paso, Subcomando};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::config as t;
 use crate::plataforma::Proveedor;
 
 /// Nombre de la operacion en la linea de contrato.
@@ -321,12 +323,12 @@ impl Motivo {
 pub struct ErrorConfig {
     /// Ruta de la clave; vacia si el error es del documento entero.
     pub ruta: String,
-    /// Que esta mal.
-    pub mensaje: String,
+    /// Que esta mal, como mensaje del catalogo (F2-8).
+    pub mensaje: Mensaje,
 }
 
 impl ErrorConfig {
-    pub(crate) fn nuevo(ruta: &str, mensaje: impl Into<String>) -> Self {
+    pub(crate) fn nuevo(ruta: &str, mensaje: impl Into<Mensaje>) -> Self {
         Self {
             ruta: ruta.to_owned(),
             mensaje: mensaje.into(),
@@ -344,7 +346,7 @@ pub struct Invalida {
 }
 
 impl Invalida {
-    fn una(motivo: Motivo, ruta: &str, mensaje: impl Into<String>) -> Self {
+    fn una(motivo: Motivo, ruta: &str, mensaje: impl Into<Mensaje>) -> Self {
         Self {
             motivo,
             errores: vec![ErrorConfig::nuevo(ruta, mensaje)],
@@ -366,39 +368,36 @@ impl Invalida {
         if !rutas.is_empty() {
             i = i.con_lista("claves", rutas);
         }
-        let primero = self
-            .errores
-            .first()
-            .map(|e| {
-                if e.ruta.is_empty() {
-                    e.mensaje.clone()
-                } else {
-                    format!("{}: {}", e.ruta, e.mensaje)
-                }
-            })
-            .unwrap_or_default();
+        let diag = match self.errores.first() {
+            Some(e) if !e.ruta.is_empty() => Mensaje::nuevo(&t::DIAGNOSTICO_CON_CLAVE)
+                .con("clave", e.ruta.clone())
+                .con_mensaje("mensaje", e.mensaje.clone()),
+            Some(e) => Mensaje::nuevo(&t::DIAGNOSTICO).con_mensaje("mensaje", e.mensaje.clone()),
+            None => Mensaje::nuevo(&t::DIAGNOSTICO).con("mensaje", ""),
+        };
         let arreglo = match self.motivo {
-            Motivo::SinConfig => "crea la configuracion con tc2 init".to_owned(),
-            Motivo::Formato => "es un proyecto de la 0.16: migralo con tc2 actualizar".to_owned(),
-            Motivo::FormatoNuevo => "el proyecto es de un tc2 mas nuevo: actualiza tc2".to_owned(),
-            Motivo::Yaml => format!("corrige el YAML de {RUTA}"),
+            Motivo::SinConfig => Mensaje::nuevo(&t::ARREGLO_SIN_CONFIG),
+            Motivo::Formato => Mensaje::nuevo(&t::ARREGLO_FORMATO),
+            Motivo::FormatoNuevo => Mensaje::nuevo(&t::ARREGLO_FORMATO_NUEVO),
+            Motivo::Yaml => Mensaje::nuevo(&t::ARREGLO_YAML).con("ruta", RUTA),
             Motivo::ConfigInvalida
                 if self
                     .errores
                     .iter()
                     .any(|e| CLAVES_016.contains(&e.ruta.as_str())) =>
             {
-                "quedan claves de la 0.16: tc2 actualizar las traduce".to_owned()
+                Mensaje::nuevo(&t::ARREGLO_CLAVES_016)
             }
-            Motivo::ConfigInvalida => {
-                format!("corrige {RUTA} (esquema: crates/tc2/esquemas/config.schema.json)")
-            }
+            Motivo::ConfigInvalida => Mensaje::nuevo(&t::ARREGLO_ESQUEMA).con("ruta", RUTA),
         };
-        let extra = match self.errores.len() {
-            0 | 1 => String::new(),
-            n => format!(" (y {} error(es) mas)", n - 1),
+        let diag = match self.errores.len() {
+            0 | 1 => diag.con("extra", ""),
+            n => diag.con_mensaje(
+                "extra",
+                Mensaje::nuevo(&t::MAS_ERRORES).con("n", (n - 1).to_string()),
+            ),
         };
-        i.diagnostico_sin_traducir(format!("{RUTA}: {primero}{extra}. Arreglo: {arreglo}"))
+        i.diagnostico(diag.con("ruta", RUTA).con_mensaje("arreglo", arreglo))
     }
 }
 
@@ -407,23 +406,25 @@ pub fn leer(texto: &str) -> Result<Config, Invalida> {
     let primera = texto.split('\n').next().unwrap_or("");
     if primera.strip_suffix('\r').unwrap_or(primera) != "---" {
         let que = if primera.starts_with('\u{feff}') {
-            "la primera linea tiene que ser --- (sin BOM)"
+            &t::PRIMERA_LINEA_SIN_BOM
         } else {
-            "la primera linea tiene que ser ---"
+            &t::PRIMERA_LINEA
         };
         return Err(Invalida::una(Motivo::Formato, "", que));
     }
-    let raiz: Value = serde_saphyr::from_str_with_options(texto, crate::yaml::opciones())
-        .map_err(|e| Invalida::una(Motivo::Yaml, "", format!("YAML no valido: {e}")))?;
+    let raiz: Value =
+        serde_saphyr::from_str_with_options(texto, crate::yaml::opciones()).map_err(|e| {
+            Invalida::una(
+                Motivo::Yaml,
+                "",
+                Mensaje::nuevo(&t::YAML_NO_VALIDO).con("error", e.to_string()),
+            )
+        })?;
     let formato = match &raiz {
         Value::Object(m) => m.get("formato"),
         Value::Null => None,
         _ => {
-            return Err(Invalida::una(
-                Motivo::ConfigInvalida,
-                "",
-                "la raiz tiene que ser un mapa",
-            ));
+            return Err(Invalida::una(Motivo::ConfigInvalida, "", &t::RAIZ_NO_MAPA));
         }
     };
     match formato {
@@ -432,22 +433,20 @@ pub fn leer(texto: &str) -> Result<Config, Invalida> {
             return Err(Invalida::una(
                 Motivo::FormatoNuevo,
                 "formato",
-                format!("formato {f}: este tc2 solo lee el formato 2"),
+                Mensaje::nuevo(&t::FORMATO_NUEVO).con("formato", f.to_string()),
             ));
         }
         Some(f) => {
             return Err(Invalida::una(
                 Motivo::Formato,
                 "formato",
-                format!("se esperaba 2, no {f}"),
+                Mensaje::nuevo(&t::SE_ESPERABA)
+                    .con("esperado", "2")
+                    .con("valor", f.to_string()),
             ));
         }
         None => {
-            return Err(Invalida::una(
-                Motivo::Formato,
-                "formato",
-                "falta la clave obligatoria",
-            ));
+            return Err(Invalida::una(Motivo::Formato, "formato", &t::FALTA_CLAVE));
         }
     }
     let tabla = claves::Nodo::Objeto(claves::tabla());
@@ -467,7 +466,7 @@ pub fn leer(texto: &str) -> Result<Config, Invalida> {
         Invalida::una(
             Motivo::ConfigInvalida,
             "",
-            format!("error interno al construir la configuracion validada: {e}"),
+            Mensaje::nuevo(&t::ERROR_INTERNO).con("error", e.to_string()),
         )
     })
 }
@@ -501,9 +500,7 @@ fn texto_de_base(git: &Git, dir: &Path) -> Paso<String> {
     if git::commit_de(git, dir, NOMBRE, BASE)?.is_none() {
         return Err(Informe::nuevo(NOMBRE, Resultado::Rechazada)
             .con("motivo", "sin-base")
-            .diagnostico_sin_traducir(format!(
-                "no existe {BASE}: haz fetch o crea la rama develop en el remoto"
-            )));
+            .diagnostico(Mensaje::nuevo(&t::SIN_BASE).con("base", BASE)));
     }
     let listado = git::exigir(
         git,
@@ -513,9 +510,14 @@ fn texto_de_base(git: &Git, dir: &Path) -> Paso<String> {
         &["--name-only", "--end-of-options", BASE, "--", RUTA],
     )?;
     if listado.trim() != RUTA {
-        return Err(
-            Invalida::una(Motivo::SinConfig, "", format!("no hay {RUTA} en {BASE}")).informe(),
-        );
+        return Err(Invalida::una(
+            Motivo::SinConfig,
+            "",
+            Mensaje::nuevo(&t::NO_HAY_CONFIG)
+                .con("ruta", RUTA)
+                .con("base", BASE),
+        )
+        .informe());
     }
     git::estado::leer_blob(git, dir, NOMBRE, BASE, RUTA)
 }

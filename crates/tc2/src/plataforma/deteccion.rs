@@ -8,6 +8,8 @@
 
 use super::http::Base;
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::catalogo::plataforma as t;
+use crate::i18n::{Mensaje, Texto};
 
 /// Nombre de la operacion en los errores.
 const OP: &str = "detectar-plataforma";
@@ -31,9 +33,7 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
     let (host, proyecto) = partir_url(url_origin).ok_or_else(|| {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "origin")
-            .diagnostico_sin_traducir(
-                "no se entiende la URL de origin: tiene que ser https, ssh o scp con dueno y repo",
-            )
+            .diagnostico(&t::ORIGIN_NO_ENTENDIDO)
     })?;
     let por_host = match host.as_str() {
         "github.com" => Some(Proveedor::GitHub),
@@ -47,43 +47,46 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
                 "github" => Proveedor::GitHub,
                 "gitlab" => Proveedor::GitLab,
                 _ => {
-                    return Err(rechazo("la clave plataforma vale github o gitlab"));
+                    return Err(rechazo(&t::CLAVE_PLATAFORMA));
                 }
             };
-            let base = Base::nueva(url).map_err(|m| rechazo(&format!("URL de la API: {m}")))?;
+            let base = Base::nueva(url)
+                .map_err(|m| rechazo(Mensaje::nuevo(&t::URL_API).con_mensaje("motivo", m)))?;
             Some((prov, base))
         }
     };
     let (proveedor, api) = match (por_host, declarado) {
         (Some(h), Some((d, _))) if h != d => {
-            return Err(rechazo(&format!(
-                "la clave plataforma dice {} y origin es de {host}",
-                d.nombre()
-            )));
+            return Err(rechazo(
+                Mensaje::nuevo(&t::PLATAFORMA_CONTRADICE)
+                    .con("plataforma", d.nombre())
+                    .con("host", host),
+            ));
         }
         // Con un host conocido, la API es la oficial: una clave que apunte a
         // otra mandaria los tokens fuera (falla cerrado, decision 7).
         (Some(h), Some((_, base))) => {
-            let oficial = api_oficial(h).map_err(|m| rechazo(&m))?;
+            let oficial = api_oficial(h).map_err(rechazo)?;
             if base != oficial {
-                return Err(rechazo(&format!(
-                    "origin es de {host} y su API es {}: la clave de la configuracion no puede cambiarla",
-                    oficial.texto()
-                )));
+                return Err(rechazo(
+                    Mensaje::nuevo(&t::API_NO_CAMBIABLE)
+                        .con("host", host)
+                        .con("api", oficial.texto()),
+                ));
             }
             (h, base)
         }
-        (Some(h), None) => (h, api_oficial(h).map_err(|m| rechazo(&m))?),
+        (Some(h), None) => (h, api_oficial(h).map_err(rechazo)?),
         (None, Some((d, base))) => (d, base),
         (None, None) => {
-            return Err(rechazo(&format!(
-                "origin es de {host}: declara plataforma (github o gitlab) y la URL de su API en .taskcode/config.yml"
-            )));
+            return Err(rechazo(
+                Mensaje::nuevo(&t::DECLARA_PLATAFORMA).con("host", host),
+            ));
         }
     };
     let segmentos = proyecto.split('/').count();
     if proveedor == Proveedor::GitHub && segmentos != 2 {
-        return Err(rechazo("en GitHub origin tiene que ser dueno/repo"));
+        return Err(rechazo(&t::ORIGIN_GITHUB));
     }
     Ok(Destino {
         proveedor,
@@ -93,17 +96,17 @@ pub fn detectar(url_origin: &str, clave: Option<(&str, &str)>) -> Result<Destino
 }
 
 /// API publica de un host conocido.
-fn api_oficial(p: Proveedor) -> Result<Base, String> {
+fn api_oficial(p: Proveedor) -> Result<Base, &'static Texto> {
     match p {
         Proveedor::GitHub => Ok(Base::github()),
         Proveedor::GitLab => Base::nueva("https://gitlab.com/api/v4"),
     }
 }
 
-fn rechazo(m: &str) -> Informe {
+fn rechazo(m: impl Into<Mensaje>) -> Informe {
     Informe::nuevo(OP, Resultado::Rechazada)
         .con("motivo", "plataforma")
-        .diagnostico_sin_traducir(m.to_owned())
+        .diagnostico(m)
 }
 
 /// `(host, proyecto)` de una URL https, ssh o scp, sin `.git` ni barras.

@@ -21,6 +21,8 @@ use super::{
     Clave, Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::i18n::catalogo::plataforma as t;
+use crate::i18n::{Mensaje, Texto};
 
 const ABRIR_PR: &str = "abrir-pr";
 const MERGE_PR: &str = "merge-pr";
@@ -30,13 +32,13 @@ const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 
 /// Permiso de lectura que necesita un token de GitLab.
-const PERMISO_LECTURA: &str = "el scope api (o read_api) y el rol Developer en el proyecto";
+static PERMISO_LECTURA: &Texto = &t::PERMISO_LECTURA_GITLAB;
 
 /// Permiso para abrir un MR.
-const PERMISO_ESCRITURA: &str = "el scope api y el rol Developer en el proyecto";
+static PERMISO_ESCRITURA: &Texto = &t::PERMISO_ESCRITURA_GITLAB;
 
 /// Permiso para mergear en una rama protegida.
-const PERMISO_MERGE: &str = "el scope api y el rol Maintainer en el proyecto";
+static PERMISO_MERGE: &Texto = &t::PERMISO_MERGE_GITLAB;
 
 /// Garantias que en GitLab solo da Premium o Ultimate (tabla de F1-13): sin
 /// reglas de aprobacion (403 en Free), la politica no puede exigirlas
@@ -258,9 +260,7 @@ impl GitLab {
         let Some(codificado) = codificar_proyecto(proyecto) else {
             return Err(Informe::nuevo("plataforma", Resultado::Uso)
                 .con("motivo", "proyecto-invalido")
-                .diagnostico_sin_traducir(
-                    "el proyecto de GitLab tiene que ser su id numerico o grupo/proyecto",
-                ));
+                .diagnostico(&t::PROYECTO_GITLAB));
         };
         Ok(Self {
             con: Conexion::nueva(base, Proveedor::GitLab, credenciales, personas),
@@ -341,14 +341,10 @@ fn estado_check(s: &str) -> EstadoCheck {
 impl Plataforma for GitLab {
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
         if !rama_valida(rama) || !rama_valida(base) {
-            return uso(ABRIR_PR, "rama-invalida", "nombre de rama no valido");
+            return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
         }
         if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
-            return uso(
-                ABRIR_PR,
-                "titulo-invalido",
-                "el titulo no puede estar vacio ni llevar controles",
-            );
+            return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
         }
         match self.mr_abierto(rama, base) {
             Ok(Some(n)) => {
@@ -364,9 +360,7 @@ impl Plataforma for GitLab {
             Ok(false) => {
                 return Informe::nuevo(ABRIR_PR, Resultado::Rechazada)
                     .con("motivo", "sin-commits")
-                    .diagnostico_sin_traducir(
-                        "la rama no tiene commits nuevos respecto a la base: no hay nada que revisar",
-                    );
+                    .diagnostico(Mensaje::nuevo(&t::SIN_COMMITS).con("cita", ""));
             }
             Err(i) => return i,
         }
@@ -392,10 +386,9 @@ impl Plataforma for GitLab {
                 }
                 Ok(None) => Informe::nuevo(ABRIR_PR, Resultado::Conflicto)
                     .con("motivo", "mr-existente")
-                    .diagnostico_sin_traducir(format!(
-                        "GitLab dice que ya hay un MR para la rama pero no se encuentra abierto: reintenta (GitLab: «{}»)",
-                        errores::mensaje_api(&r)
-                    )),
+                    .diagnostico(
+                        Mensaje::nuevo(&t::MR_EXISTENTE).con("api", errores::mensaje_api(&r)),
+                    ),
                 Err(i) => i,
             };
         }
@@ -436,7 +429,7 @@ impl Plataforma for GitLab {
             return puertas::pr_cerrado(pr);
         }
         if !rama_valida(&m.target_branch) || !sha_valido(&m.sha) {
-            return self.con.invalida(op, "rama destino o sha del MR");
+            return self.con.invalida_por(op, &t::RAMA_DESTINO_O_SHA);
         }
         // Las reglas de aprobacion son de Premium. Observado en el E2E: en
         // Free el endpoint responde 200 con la lista vacia (no el 403 que
@@ -468,11 +461,7 @@ impl Plataforma for GitLab {
             return if r.estado == 403 {
                 puertas::rechazada_por_plan(pr, g)
             } else {
-                puertas::rechazada_por_config(
-                    pr,
-                    g,
-                    "GitLab no impone aprobaciones en este proyecto: crea una regla de aprobacion con al menos una aprobacion (requiere Premium o Ultimate) o quita la garantia de la politica",
-                )
+                puertas::rechazada_por_config(pr, g, &t::ARREGLO_APROBACIONES_GITLAB)
             };
         }
         // G01: la rama destino solo la mergean Maintainers y no admite
@@ -502,11 +491,7 @@ impl Plataforma for GitLab {
                 })
         });
         if !g01 {
-            return puertas::rechazada_por_config(
-                pr,
-                "G01",
-                "la rama destino no esta protegida con merge solo para Maintainers y sin force-push: protegela (taskctl setup lo propone)",
-            );
+            return puertas::rechazada_por_config(pr, "G01", &t::ARREGLO_RAMA_PROTEGIDA_GITLAB);
         }
         let (_, ruta) = self.ep(&Endpoint::Estados(&m.sha));
         let mut estados: Vec<EstadoApi> =
@@ -572,11 +557,7 @@ impl Plataforma for GitLab {
 
     fn merge_pr(&self, pr: u64, sha: &str) -> Informe {
         if !sha_valido(sha) {
-            return uso(
-                MERGE_PR,
-                "sha-invalido",
-                "el sha esperado tiene que ser completo (40 hex)",
-            );
+            return uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO);
         }
         if let Err(i) = self.exigir_persona(MERGE_PR) {
             return i;
@@ -599,7 +580,7 @@ impl Plataforma for GitLab {
             return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
                 .con("pr", pr.to_string())
                 .con("motivo", "pr-cerrado")
-                .diagnostico_sin_traducir("el MR esta cerrado sin mergear");
+                .diagnostico(&t::MR_CERRADO);
         }
         if !m
             .sha
@@ -628,10 +609,11 @@ impl Plataforma for GitLab {
                 .con("pr", pr.to_string())
                 .con("motivo", "permisos")
                 .con("rol", Rol::Persona.nombre())
-                .diagnostico_sin_traducir(format!(
-                    "GitLab no deja mergear a esta cuenta: necesita {PERMISO_MERGE} (GitLab: «{}»)",
-                    errores::mensaje_api(&r)
-                ));
+                .diagnostico(
+                    Mensaje::nuevo(&t::MERGE_NO_PERMITIDO_GITLAB)
+                        .con_mensaje("permiso", PERMISO_MERGE)
+                        .con("api", errores::mensaje_api(&r)),
+                );
         }
         if !r.exito() {
             let mut i = self.con.traducir(MERGE_PR, Rol::Persona, PERMISO_MERGE, &r);
@@ -657,11 +639,7 @@ impl Plataforma for GitLab {
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
         if !rama_valida(rama) {
-            return Err(uso(
-                LEER_PUERTAS,
-                "rama-invalida",
-                "nombre de rama no valido",
-            ));
+            return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
         }
         if rol == Rol::Revisor {
             return Err(rol_no_valido(LEER_PUERTAS, rol));
@@ -728,11 +706,7 @@ impl Plataforma for GitLab {
 
     fn firma_commit(&self, sha: &str) -> Paso<Firma> {
         if !sha_valido(sha) {
-            return Err(uso(
-                FIRMA_COMMIT,
-                "sha-invalido",
-                "el sha tiene que ser completo (40 hex)",
-            ));
+            return Err(uso(FIRMA_COMMIT, "sha-invalido", &t::SHA_COMPLETO));
         }
         let r = self.con.pedir(
             FIRMA_COMMIT,

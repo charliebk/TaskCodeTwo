@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 /// Se vacia al migrarlos; un fichero de la lista que ya no lo usa tambien
 /// falla, para que la lista solo encoja.
 const PENDIENTES: &[&str] = &[
-    "config/mod.rs",
     "estado/montaje.rs",
     "estado/transaccion.rs",
     "git/diff.rs",
@@ -20,12 +19,6 @@ const PENDIENTES: &[&str] = &[
     "git/remoto.rs",
     "git/tag.rs",
     "git/worktree.rs",
-    "plataforma/conexion.rs",
-    "plataforma/deteccion.rs",
-    "plataforma/errores.rs",
-    "plataforma/github.rs",
-    "plataforma/gitlab.rs",
-    "plataforma/puertas.rs",
 ];
 
 /// Usos permitidos de `Mensaje::externo(` por fichero: texto que viene de
