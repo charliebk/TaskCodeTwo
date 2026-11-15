@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1214551
 tokens_implementacion: 59106376
-tokens_revision: 45222762
+tokens_revision: 54281119
 creado: 2026-11-14
 actualizado: 2026-11-15
 dependencias: [TASK-006, TASK-011]
@@ -67,3 +67,4 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 | 2026-11-15T02:23:24Z | revision | agente:abdc898e2e310828d | 148 | 324074 | 17678060 | 79997 | 18 | 18082279 | 1 | - |
 | 2026-11-15T04:37:41Z | revision | agente:acfb15b4baef812b8 | 138 | 257097 | 13283983 | 59074 | 13 | 13600292 | 2 | - |
 | 2026-11-15T06:29:49Z | revision | agente:af1f04fcab8b9ff6f | 178 | 777213 | 12708471 | 54329 | 11 | 13540191 | 3 | - |
+| 2026-11-15T08:33:54Z | revision | agente:a8db2a077311e16a0 | 116 | 715346 | 8311400 | 31495 | 12 | 9058357 | 4 | - |
