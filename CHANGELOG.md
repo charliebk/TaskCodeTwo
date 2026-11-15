@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-019 (feature) — F2-4 Reserva de IDs por push atomico (2026-11-15)
 - TASK-018 (feature) — F2-3 Rama de estado (2026-11-15)
 - TASK-017 (feature) — F2-2 Capa de operaciones Git deterministas (2026-11-15)
 - TASK-016 (feature) — F2-1 Esqueleto: Rust, build reproducible (2026-11-15)
