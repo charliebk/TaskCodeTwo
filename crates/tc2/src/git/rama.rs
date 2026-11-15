@@ -139,13 +139,19 @@ fn excluir_worktrees(git: &Git, principal: &Path, op: &str) -> Paso<()> {
     let info = comun.join("info");
     let fichero = info.join("exclude");
     let linea = format!("/{CARPETA_WORKTREES}/");
-    let actual = std::fs::read_to_string(&fichero).unwrap_or_default();
-    if actual.lines().any(|l| l.trim() == linea) {
-        return Ok(());
-    }
     let error = |e: std::io::Error| {
         Informe::nuevo(op, Resultado::Error).diagnostico(format!("{}: {e}", fichero.display()))
     };
+    // Solo un fichero ausente cuenta como vacio: si no se puede leer, no se
+    // reescribe (se perderia lo que la persona tenga en el).
+    let actual = match std::fs::read_to_string(&fichero) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(error(e)),
+    };
+    if actual.lines().any(|l| l.trim() == linea) {
+        return Ok(());
+    }
     std::fs::create_dir_all(&info).map_err(error)?;
     let mut nuevo = actual;
     if !nuevo.is_empty() && !nuevo.ends_with('\n') {
