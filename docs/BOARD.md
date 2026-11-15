@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-15. No editar a mano.
 
-## Planificadas (00-planificadas) — 70
+## Planificadas (00-planificadas) — 69
 
 ```text
 ID        Titulo                                                                Asignado
 --------  --------------------------------------------------------------------  -------------
-TASK-021  F2-6 Adaptador GitHub                                                 (sin asignar)
 TASK-022  F2-9 Adaptador GitLab                                                 (sin asignar)
 TASK-023  F2-7 Configuracion minima con esquema validado y valores por defecto  (sin asignar)
 TASK-024  F2-8 i18n de mensajes                                                 (sin asignar)
@@ -79,7 +78,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                          (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 24
+## Terminadas (04-terminadas) — 25
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -104,6 +103,7 @@ TASK-017  F2-2 Capa de operaciones Git deterministas                            
 TASK-018  F2-3 Rama de estado                                                       charlie.bk@gmail.com
 TASK-019  F2-4 Reserva de IDs por push atomico                                      charlie.bk@gmail.com
 TASK-020  F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido     charlie.bk@gmail.com
+TASK-021  F2-6 Adaptador GitHub                                                     charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com
