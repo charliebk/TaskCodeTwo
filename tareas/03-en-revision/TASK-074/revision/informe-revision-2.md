@@ -22,10 +22,10 @@ Pase generico acotado al diff de las correcciones (`b983479..08a98c8`: el ADR F1
 | MEN-5 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:266 y :778 | plan |
 | MEN-6 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:546 y :598 | plan |
 | MEN-7 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:246 | implementacion |
-| NUE-1 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:468-478 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:279-292 (`CLAVES_NUCLEO`, `SECCIONES_NUCLEO`) | implementacion |
-| NUE-2 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:513-517 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:213 (`carril_minimo`) | implementacion |
-| NUE-3 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:546 y :598-604 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:934 (`ajenos`) | plan |
-| NUE-4 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:567-573 y :758-769 (`No verificado`) y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:828 (`Mundo.merge`) | implementacion |
+| NUE-1 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:468-478 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:279-292 (`CLAVES_NUCLEO`, `SECCIONES_NUCLEO`) | implementacion |
+| NUE-2 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:513-517 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:213 (`carril_minimo`) | implementacion |
+| NUE-3 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:546 y :598-604 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:934 (`ajenos`) | plan |
+| NUE-4 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:567-573 y :758-769 (`No verificado`) y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:828 (`Mundo.merge`) | implementacion |
 
 Los numeros de linea del ADR son los de `08a98c8`. Origen, uno por hallazgo: `implementacion` si el codigo o el texto no hacen lo que el plan pedia; `plan` si el plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el enunciado o en los criterios de aceptacion de la tarea.
 

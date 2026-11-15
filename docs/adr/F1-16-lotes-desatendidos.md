@@ -27,7 +27,11 @@ y solo 3 de 17 tareas tenían el `approve` firmado por una persona. La
 revisión 1 añadió cuatro cosas que el diseño no cubría (carril del diff,
 árbol del merge, núcleo de `tarea.md`, escrituras concurrentes con el
 agente) y corrigió una afirmación que no se sostenía en los repos privados
-gratuitos: «ninguna IA mergea en `develop`» (divergencia 1).
+gratuitos: «ninguna IA mergea en `develop`» (divergencia 1). La revisión 2
+cambió el núcleo del manifiesto de lista blanca a exclusión (todo menos lo
+que escribe el CLI, medido), alineó el carril del diff con F1-10, exigió que
+`ajeno-aceptado` lo firme una persona y que revertir desbloquee solo, y
+llevó a «No verificado» el árbol del merge real.
 
 ## Contexto
 
@@ -130,6 +134,13 @@ queda fuera: no es desatendida, hubo 51 commits directos de la persona en
 `develop` con «docs(TASK-192)» mientras trabajaba. El lote tiene 17 tareas
 reales de ToolsaWeb, 3 de código. El orden de `planificar` (dependencias,
 empate por ID) coincide con el de `develop`.
+
+**Lo que escribe el CLI de la 0.16 en `tarea.md`** (para el núcleo del
+manifiesto, decisión 1): en los commits `chore(TASK-NNN)` de las 17 tareas
+cambian solo las claves `estado`, `actualizado`, `asignado_a`,
+`plan_aprobado` y `tokens_*` y las secciones `## Transiciones`, `## Coste` y
+`## Resultado`; los 2 cambios que hacen en `## Criterios de aceptacion` son
+solo marcas de casilla; fuera de esa lista, ninguno.
 
 <!-- tabla-lote:inicio -->
 | Tarea | Tipo | Carril efectivo | Dependencias | Rondas reales | Rondas con tope 2 | Bloqueantes en la ronda 2 | MENOR sin corregir (tope 2) | Tokens de revisión (tope 2) | Tokens de las rondas 3 y 4 | approve en la 0.16 |
@@ -276,6 +287,11 @@ agente, con un hilo que escribe en el worktree mientras el agente escribe:
   **C4c**, la salida de C4: un `--reanudar` sin decidir nada vuelve a parar;
   cuando la persona acepta el commit ajeno con un evento `ajeno-aceptado` con
   su SHA, `--reanudar` termina las tres y el informe nombra el commit.
+  **C4d**: el mismo evento con `decidido_por: agente` (lo puede escribir
+  cualquiera con escritura en la rama de estado) se rechaza: el lote sigue
+  parado y el informe lo dice. **C4e**: si la persona revierte el commit ajeno
+  (un commit suyo que deja el árbol de antes), `--reanudar` termina sin
+  ningún evento.
 - **C5**: push directo a `lote/*` después de la última tarea: el lote para y
   el PR final no se abre. **C5b**: un merge falsificado con trailer
   `Tarea: TASK-210` y committer de la plataforma: lo para la comprobación del
@@ -289,12 +305,17 @@ agente, con un hilo que escribe en el worktree mientras el agente escribe:
   dos casos. **C6c**: en el mismo sublote, el CLI escribe en cada `tarea.md`
   lo suyo (estado, `asignado_a`, transiciones, `ultimo_commit_revisado`); los
   tres blobs cambian y ninguna tarea se aparta, porque el manifiesto fija el
-  núcleo y no el blob.
+  núcleo y no el blob. **C6d y C6e**: una sección `## Escenarios` nueva, y
+  `carril` y `roles` añadidos al frontmatter, a mitad de TASK-205: se aparta
+  con `manifiesto-cambiado` en los dos casos (el núcleo cubre todo lo que no
+  escribe el CLI).
 - **C7**: el head de TASK-187 se mueve entre la guarda y el merge: la
   plataforma rechaza el `sha` (409) y TASK-187 se aparta como
   `interferida-cas` con TASK-205. **C7b**: lo que se mueve es `lote/*`: la API
   no compara la base, el merge entra, y en la vuelta siguiente la
   comprobación del primer padre para el lote; el PR final no se abre.
+- **C9b**: la misma subida con `.GitHub/workflows/x.yml` (mayúsculas) y
+  `.gitlab-ci.yml`: TASK-187 se aparta con `carril-subio`.
 - **C9**: el trabajo de TASK-187 (un `fix`) trae además
   `.github/workflows/evil.yml`: antes de la ronda 1 el carril del diff sale
   riesgo alto y TASK-187 se aparta con `carril-subio`, con TASK-205; el
@@ -331,16 +352,21 @@ agente, con un hilo que escribe en el worktree mientras el agente escribe:
 | C4 | commit ajeno empujado a `lote/*` sin ruleset | sí | antes de la tarea siguiente | el lote para |
 | C4b | el mismo push con el ruleset impuesto | sí | en el push | lo rechaza la plataforma; el lote sigue |
 | C4c | la persona acepta el commit ajeno de C4 (`ajeno-aceptado`) | no aplica | al reanudar | el lote termina y el informe nombra el commit |
+| C4d | `ajeno-aceptado` que no firma una persona de la lista | sí | al reanudar | se rechaza; el lote sigue parado |
+| C4e | la persona revierte el commit ajeno de C4 | no aplica | al reanudar | el lote termina sin evento |
 | C5 | push directo a `lote/*` tras la última tarea | sí | antes del PR final | el lote para sin abrir el PR |
 | C5b | merge falsificado con trailer `Tarea:` | sí | antes del PR final | el lote para sin abrir el PR |
 | C5c | merge con los mismos padres, trailer y committer y otro árbol | sí | antes del PR final | el lote para sin abrir el PR |
 | C6 | `tarea.md` cambiado antes de empezar | sí | antes de empezar la tarea | la tarea se aparta (manifiesto) |
 | C6b | `tarea.md` cambiado a mitad de la tarea | sí | antes de `review` | la tarea se aparta (manifiesto) |
 | C6c | escrituras legítimas del CLI en `tarea.md` (estado, transiciones) | no aplica | en cada vuelta | no apartan: el núcleo no cambia |
+| C6d | una sección `## Escenarios` nueva en `tarea.md` | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C6e | `carril` y `roles` añadidos al frontmatter | sí | antes de `review` | la tarea se aparta (manifiesto) |
 | C7 | head de la tarea movido entre la guarda y el merge | sí | en el merge (CAS del `sha`) | la tarea se aparta como interferida con su dependiente |
 | C7b | `lote/*` movido entre la guarda y el merge | sí | en el paso siguiente | el lote para sin abrir el PR |
 | C8 | segundo lanzamiento con el mismo nombre | sí | al reservar | rechazado por el CAS de la rama de estado |
 | C9 | el diff del agente trae un workflow | sí | antes de `review` | la tarea se aparta (`carril-subio`) con su dependiente |
+| C9b | el diff trae `.GitHub/workflows/` y `.gitlab-ci.yml` | sí | antes de `review` | la tarea se aparta (`carril-subio`) |
 | C10 | escritura concurrente con el agente en otro fichero | sí | antes del commit del CLI | la tarea se aparta (`escritura-no-declarada`) |
 | C10b | escritura concurrente con el agente en un fichero que él también escribe | no | no se detecta | entra como trabajo del agente y llega a la revisión |
 | C11 | la App del agente mueve `develop` | sí | antes del PR final | el lote para sin abrir el PR |
@@ -355,7 +381,7 @@ lote. El de A2 (tope 2), tal como lo imprime la PoC, recortado:
 ```text
 # Informe del lote `noche-173-210`
 
-- Base: `develop` en `389e193d7d`; manifiesto `d3156af99b48`; tope de rondas 2.
+- Base: `develop` en `389e193d7d`; manifiesto `a2cbea54ab0a`; tope de rondas 2.
 - Tareas en el manifiesto: 17; terminadas: 15; apartadas: 2 (0 en cascada); fuera desde el lanzamiento: 0.
 - Tokens de revisión: 120203077; tiempo de agente y revisión: 38:20.
 
@@ -466,16 +492,21 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
    - **Manifiesto fijado al lanzar**: lista y orden, el **núcleo** de cada
      tarea, carril, tope de rondas por tarea, presupuesto y medianas de una
      ronda (tokens y tiempo). Va en el primer evento del diario. El núcleo es
-     un hash de lo que define la tarea y nadie debe cambiar durante la noche:
-     las claves `titulo`, `tipo`, `dependencias` y `etiquetas`, las secciones
-     `## Objetivo` y `## Criterios de aceptacion` de `tarea.md` y el
-     `plan-final.md` aprobado. No entra lo que el CLI escribe en cada
-     transición (F1-9): `estado`, `asignado_a`, `actualizado`,
-     `ultimo_commit_revisado`, `tokens_*`, `## Transiciones`, `## Coste` y
-     `## Resultado`. El lote nunca decide con esos campos (decide con el
-     diario y con Git), así que cambiarlos no le cambia nada; el blob entero
-     no vale, porque el propio CLI lo reescribe en cada `start` y cada
-     `review`.
+     un hash de **todo** `tarea.md` y `plan-final.md` **menos** la lista
+     cerrada de lo que escribe el propio CLI: las claves `estado`,
+     `actualizado`, `asignado_a`, `plan_aprobado`, `tokens_diseno`,
+     `tokens_implementacion`, `tokens_revision`, `ultimo_commit_revisado` y
+     `rama`, las secciones `## Transiciones`, `## Coste` y `## Resultado`, y la
+     marca de las casillas de los criterios (`- [x]`). La lista sale de lo que
+     escriben de verdad los commits del CLI de la 0.16 (PoC L), más
+     `ultimo_commit_revisado` y `rama`, que la 2.0 escribe en `start` y
+     `review` (F1-9). Todo lo demás (objetivo, criterios, `## Escenarios`,
+     `carril`, `roles`, `estimacion`, dependencias en cualquier formato, una
+     sección nueva) entra, así que cambiarlo aparta la tarea. El lote nunca
+     decide con lo excluido (decide con el diario y con Git), así que
+     cambiarlo no le cambia nada; el blob entero no vale, porque el propio
+     CLI lo reescribe en cada `start` y cada `review`. Si el CLI empieza a
+     escribir otra clave, se añade a la lista en el mismo cambio.
    - **Reserva** de `lotes/<nombre>.yml` en `taskcodetwo/tareas` con el CAS de
      F1-2 (un segundo lanzamiento con el mismo nombre falla) y `asignado`
      de cada tarea al lote, para que un compañero no haga `start` sobre ella.
@@ -510,9 +541,12 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
      el resultado después (veredicto, CRÍTICO/IMPORTANTE abiertos, MENOR sin
      corregir, tokens, tiempo, `verificacion`).
    - antes de cada `ronda` y antes de integrar, el CLI recalcula el **carril
-     del diff** de la tarea (rutas de la base anotada al head, con la regla de
-     F1-5 4.2 y F1-10 decisión 5: solo `docs/` es errata; `.github/`,
-     `.taskcode/` y `CODEOWNERS` son riesgo alto). Si sube por encima del
+     del diff** de la tarea (rutas de la base anotada al head) con la misma
+     función de carril mínimo de F1-10, no con una copia: solo `docs/` es
+     errata; `.github` y `.taskcode` (carpeta, fichero o enlace, sin
+     distinguir mayúsculas y con `./` normalizado), cualquier `CODEOWNERS` y
+     las `rutas_carril` de la configuración son riesgo alto; y, para GitLab,
+     `.gitlab-ci.yml` y `.gitlab/` también (divergencia 11). Si sube por encima del
      carril del manifiesto, la tarea se aparta con `carril-subio` (en lote no
      hay persona que decida la «subida de carril» de F1-10).
    - `integrar`: `integrar-en-lote` (decisión 5).
@@ -543,7 +577,7 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
    | `presupuesto-de-tarea` | aparta | la tarea pasaría su tope de tokens con otra ronda mediana |
    | `presupuesto-de-lote` | para | queda menos que una ronda mediana de tokens o de tiempo; no se empieza la ronda |
    | `entorno-no-responde` | para | límite de uso del proveedor o red; sin apartar; la ronda cortada se repite entera y sus tokens cuentan |
-   | `lote-con-commits-ajenos` | para | el primer padre de `lote/*` tiene algo que no es un merge del lote con lo revisado y su árbol; salida: la persona revierte el commit o lo acepta con `ajeno-aceptado` y `--reanudar` |
+   | `lote-con-commits-ajenos` | para | el primer padre de `lote/*` tiene algo que no es un merge del lote con lo revisado y su árbol; salidas: la persona lo revierte (desbloquea solo) o lo acepta con un `ajeno-aceptado` que firma ella, y `--reanudar` |
    | `develop-movido-por-agente` | para | el primer padre de `develop` desde la base tiene un commit de la App del agente; el PR del lote no se abre |
    | `token-de-persona-con-a5-abierto` | no lanza | D2a |
    <!-- tabla-paradas:fin -->
@@ -567,7 +601,15 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
    tarea, una sola vez, y **el árbol que da `git merge-tree` de sus dos
    padres** (sin eso, un merge con los padres, el trailer y el committer
    correctos y otro árbol pasaría, C5c). Lo demás para el lote y el PR final no
-   se abre. Donde la plataforma lo da, se exige además
+   se abre. Que el motor de merge de GitHub y de GitLab dé el mismo árbol
+   que `git merge-tree` local en un merge sin conflictos no está verificado
+   (es de F2-6). Si no coincide, la guarda falla cerrado: para el lote y el
+   informe lista las rutas en que difieren los dos árboles; no se acepta un
+   merge por parecido. Si F2-6 mide que una plataforma da sistemáticamente
+   otro árbol (por ejemplo, por finales de línea o renombrados), la
+   comparación pasa a ser fichero a fichero sobre las rutas que cambia la
+   tarea, más que ninguna otra ruta difiera del primer padre; esa regla se
+   escribiría en F2-6 con su medida. Donde la plataforma lo da, se exige además
    `verification.verified` del merge (no verificado). El ruleset
    `taskcodetwo-lote` se aplica donde la plataforma lo imponga.
 7. **Interferencia (D4a)**: se impide lo portable (agente sin stdin, worktree
@@ -597,10 +639,15 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
    `ronda-iniciada` sin resultado se repite entera, nunca da verde, y cuenta
    una ronda mediana de tokens y de tiempo. **`lote-con-commits-ajenos` no se
    desbloquea solo**: `--reanudar` vuelve a parar hasta que la persona
-   decide. Tiene dos salidas: revertir el commit ajeno con un PR suyo contra
-   `lote/*` (que entra como cualquier merge de persona y se acepta por SHA), o
-   aceptarlo tal cual con un evento `ajeno-aceptado` firmado que nombra sus
-   SHA; en los dos casos el informe lo dice (C4c).
+   decide. Tiene dos salidas: **revertirlo**: si a continuación del commit
+   ajeno hay un commit de una persona de la lista de F1-6 que deja el árbol
+   como estaba antes de él, la guarda salta la secuencia entera (su efecto
+   neto es cero) sin ningún evento (C4e); o **aceptarlo** tal cual con un
+   evento `ajeno-aceptado` que nombra sus SHA, con `decidido_por: persona` y
+   escrito por una persona de esa lista (en la 2.0, el commit de estado que
+   lo contiene tiene que estar firmado por ella, como el `approve` de F1-6;
+   en la PoC se comprueba el campo `por` contra la lista). Un
+   `ajeno-aceptado` de otra identidad se rechaza y el informe lo dice (C4d).
 9. **Presupuesto**: por lote (tokens y tiempo) y por tarea (tokens), medido
    por el proceso del CLI y nunca por un fichero que pueda escribir el
    agente. No se empieza una ronda (ni una tarea) si lo que queda es menos
@@ -698,7 +745,10 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
     de persona queda solo para el PR del lote), tope de rondas → `preguntar`
     (en el lote, D6a: aparta o integra con los MENOR al informe) y subida de
     carril → `detener` (en el lote, `carril-subio` aparta). `tc2 lote` no
-    consulta `accion` para esas tres; para lo demás, sí.
+    consulta `accion` para esas tres; para lo demás, sí. Además, el carril
+    mínimo de F1-10 no nombra `.gitlab-ci.yml` ni `.gitlab/`; este ADR los
+    añade como riesgo alto (son los workflows de GitLab, F1-13), y la
+    función de F1-10 los tiene que incluir.
 12. **Plan del unificador, CAS de la base**: el plan pedía integrar «solo si
     `lote/*` sigue en el SHA anotado». Ni GitHub ni GitLab comparan la base
     en el merge por API, solo el `sha` del head; la base la comprueba el CLI
@@ -762,6 +812,16 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
   simulada. En particular, que un ruleset con `pull_request` de **0 aprobaciones**
   deje mergear por API a la App del agente, y que el merge
   rechace un `sha` distinto (documentado, no ejecutado). Es de F2-6.
+- **El árbol del merge real**: que el merge por API de GitHub y de GitLab dé
+  el mismo árbol que `git merge-tree` local (en la PoC la Plataforma simulada
+  y la guarda usan la misma función, así que coinciden por construcción).
+  Caso a ejecutar en F2-6: un merge por API de una rama de tarea con un
+  renombrado, comparando `git rev-parse <merge>^{tree}` con
+  `git merge-tree --write-tree <p1> <p2>`. Si no coincide, la guarda para el
+  lote (decisión 6).
+- **La firma de `ajeno-aceptado`**: la PoC compara el campo `por` con la
+  lista de personas; que el commit de estado lo firme una persona (F1-6) no
+  se ha probado.
 - **Firma del merge**: en GitHub un merge por API lo firma la plataforma
   (`verification.verified`); la PoC compara el committer, que en local se
   puede falsificar (C5b y C5c los detecta el SHA revisado y el árbol, no la

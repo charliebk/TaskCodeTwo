@@ -52,6 +52,12 @@ tareas con codigo cambiado despues de su ultima revision: 4 (TASK-177, TASK-178,
   TASK-179: docs/cursos/openroads/06-urbanizacion.md
   TASK-180: docs/cursos/openroads/07-anotacion.md
 
+lo que escriben los commits chore(TASK-NNN) de la 0.16 en tarea.md (17 tareas):
+  claves: actualizado=17 ; asignado_a=17 ; estado=68 ; plan_aprobado=17 ; tokens_diseno=17 ; tokens_implementacion=4 ; tokens_revision=37
+  secciones: Coste=58 ; Criterios de aceptacion=2 ; Resultado=5 ; Transiciones=105
+  cambios en criterios que solo marcan casillas: 2 de 2
+  cambios de un commit chore fuera de la lista del CLI (quedan dentro del nucleo): 0
+
 === P: nucleo puro (planificar, cierre transitivo, siguiente_paso, puede_lanzar) ===
 orden del lote real (approve firmado al lanzar): 173 174 175 176 177 178 179 180 181 182 187 188 189 190 191 205 210 ; fuera: []
 con las firmas reales de la 0.16 (D7a): entran 5, no entran 12
@@ -75,6 +81,14 @@ con las firmas reales de la 0.16 (D7a): entran 5, no entran 12
   siguiente_paso, develop movido por la App del agente: parar develop-movido-por-agente -> ok
   siguiente_paso, escritura no declarada en el worktree: apartar escritura-no-declarada -> ok
   nucleo de tarea.md: escritura del CLI cambia el blob (True) y no el nucleo (True); una frase en ## Objetivo cambia el nucleo (True)
+  nucleo, casilla de un criterio marcada por el CLI: no cambia -> ok
+  nucleo, ## Resultado escrito por el CLI: no cambia -> ok
+  nucleo, ## Escenarios nueva: cambia -> ok
+  nucleo, carril en el frontmatter: cambia -> ok
+  nucleo, roles en el frontmatter: cambia -> ok
+  nucleo, dependencias en bloque: cambia -> ok
+  nucleo, una seccion nueva cualquiera: cambia -> ok
+  carril minimo (regla de F1-10 mas GitLab): 10 de 10 casos; rutas_carril src/auth/** -> riesgo-alto
 
 === A: lote limpio ===
 A0 replica fiel del primer padre de develop desde TASK-173 hasta TASK-210 con merge-tree: 219 de 219 arboles iguales
@@ -126,7 +140,9 @@ C1 commit ajeno en el worktree de la tarea: fin; TASK-187 interferida-rama antes
 C2 cambio sin commit en el worktree de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
 C3 commit ajeno empujado a la rama de la tarea: fin; TASK-187 interferida-rama antes de la ronda 1 (revisada: False); dependientes ['TASK-205']; integradas ['TASK-210']
 C4 commit ajeno empujado a lote/* sin ruleset: lote-con-commits-ajenos; el lote para antes de empezar TASK-205 (eb17d18b46 no es un merge (companero@personas.invalid)); integradas ['TASK-187']
+C4d un evento ajeno-aceptado con decidido_por agente (lo escribe quien tiene escritura en la rama de estado): --reanudar lote-con-commits-ajenos; el informe lo da por rechazado: True
 C4c --reanudar sin decidir nada: lote-con-commits-ajenos; la persona acepta el commit ajeno eb17d18b46 (evento ajeno-aceptado) y reanuda: fin, integradas 3; el informe lo nombra: True
+C4e la persona revierte el commit ajeno (commit suyo con el arbol de antes) y reanuda sin evento: fin; integradas 3
 C4b el mismo push con el ruleset taskcodetwo-lote impuesto: rechazado por la plataforma (codigo 1); el lote sigue: fin, integradas 3
 C6c escrituras legitimas del CLI en tarea.md durante ese lote: 11 (estado, asignado_a, transiciones, ultimo_commit_revisado); tarea.md con otro blob: 3 de 3; apartadas por manifiesto-cambiado: 0
 C5 push directo a lote/* tras la ultima tarea: lote-con-commits-ajenos; PR final abierto: False
@@ -134,8 +150,11 @@ C5b merge falsificado con trailer «Tarea: TASK-210» y committer de la platafor
 C5c merge con los mismos padres, trailer y committer pero otro arbol (un fichero que nadie reviso): lote-con-commits-ajenos (757ed26be9 tiene un arbol distinto del merge de sus padres (1f8f7a253d y se espera 134a025cf1))
 C6 tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de empezar): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
 C6b tarea.md de TASK-205 cambiado en taskcodetwo/tareas (antes de la ronda 1): fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C6d una seccion ## Escenarios nueva en el tarea.md de TASK-205 a mitad de la tarea: fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
+C6e carril y roles en el frontmatter en el tarea.md de TASK-205 a mitad de la tarea: fin; TASK-205 manifiesto-cambiado; integradas ['TASK-187', 'TASK-210']
 C7 head de TASK-187 movido entre la guarda y el merge: fin; TASK-187 interferida-cas (409: el head de fix/task-187 es c2a47be202 y se pidio a3d18bd818); dependientes ['TASK-205']; integradas ['TASK-210']
 C7b lote/* movido entre la guarda y el merge de TASK-205 (la API no compara la base): el merge entra; siguiente paso: lote-con-commits-ajenos; PR final abierto: False
+C9b el trabajo de TASK-187 trae .GitHub/workflows/x.yml y .gitlab-ci.yml: fin; TASK-187 carril-subio; integradas ['TASK-210']
 C9 el trabajo de TASK-187 trae .github/workflows/evil.yml: fin; TASK-187 carril-subio antes de la ronda 1 (el diff de la tarea es riesgo-alto y el manifiesto dice fix (.github/workflows/evil.yml)); dependientes ['TASK-205']; integradas ['TASK-210']
 C10 escritura concurrente en un fichero que el agente no toca: fin; TASK-187 escritura-no-declarada (el worktree cambio fuera de lo que declaro el agente: notas-de-carlos.txt); integradas ['TASK-210']
 C10b escritura concurrente en un fichero que el agente tambien escribe (core/tw-alineacion/src/convertir.rs): fin; detectada: False; la linea de Carlos entra en el commit de la ronda 1 como trabajo del agente y es lo que revisa la ronda 1: True; integradas ['TASK-187', 'TASK-205', 'TASK-210']
@@ -143,12 +162,12 @@ C11 la App del agente mueve develop durante la noche: develop-movido-por-agente 
 C8 dos lanzamientos con el mismo nombre desde la misma base: primero True, segundo False (CAS); al releer, la reserva existe: True; `start` de un companero sobre TASK-205 rechazado (asignada al lote): True
 
 === I: informe de la manana (funcion pura sobre el diario de A2) ===
-informe: 51 lineas; hash 3eea0e7a73cf; igual tras escribir y releer el diario: True
+informe: 51 lineas; hash 2a32284397b6; igual tras escribir y releer el diario: True
 PR final del lote: lote/noche-173-210 -> develop, descripcion = informe: True
 
 # Informe del lote `noche-173-210`
 
-- Base: `develop` en `389e193d7d`; manifiesto `d3156af99b48`; tope de rondas 2.
+- Base: `develop` en `389e193d7d`; manifiesto `a2cbea54ab0a`; tope de rondas 2.
 - Tareas en el manifiesto: 17; terminadas: 15; apartadas: 2 (0 en cascada); fuera desde el lanzamiento: 0.
 - Tokens de revisión: 120203077; tiempo de agente y revisión: 38:20.
 
@@ -214,16 +233,21 @@ tabla-inyecciones calculada:
 | C4 | commit ajeno empujado a `lote/*` sin ruleset | sí | antes de la tarea siguiente | el lote para |
 | C4b | el mismo push con el ruleset impuesto | sí | en el push | lo rechaza la plataforma; el lote sigue |
 | C4c | la persona acepta el commit ajeno de C4 (`ajeno-aceptado`) | no aplica | al reanudar | el lote termina y el informe nombra el commit |
+| C4d | `ajeno-aceptado` que no firma una persona de la lista | sí | al reanudar | se rechaza; el lote sigue parado |
+| C4e | la persona revierte el commit ajeno de C4 | no aplica | al reanudar | el lote termina sin evento |
 | C5 | push directo a `lote/*` tras la última tarea | sí | antes del PR final | el lote para sin abrir el PR |
 | C5b | merge falsificado con trailer `Tarea:` | sí | antes del PR final | el lote para sin abrir el PR |
 | C5c | merge con los mismos padres, trailer y committer y otro árbol | sí | antes del PR final | el lote para sin abrir el PR |
 | C6 | `tarea.md` cambiado antes de empezar | sí | antes de empezar la tarea | la tarea se aparta (manifiesto) |
 | C6b | `tarea.md` cambiado a mitad de la tarea | sí | antes de `review` | la tarea se aparta (manifiesto) |
 | C6c | escrituras legítimas del CLI en `tarea.md` (estado, transiciones) | no aplica | en cada vuelta | no apartan: el núcleo no cambia |
+| C6d | una sección `## Escenarios` nueva en `tarea.md` | sí | antes de `review` | la tarea se aparta (manifiesto) |
+| C6e | `carril` y `roles` añadidos al frontmatter | sí | antes de `review` | la tarea se aparta (manifiesto) |
 | C7 | head de la tarea movido entre la guarda y el merge | sí | en el merge (CAS del `sha`) | la tarea se aparta como interferida con su dependiente |
 | C7b | `lote/*` movido entre la guarda y el merge | sí | en el paso siguiente | el lote para sin abrir el PR |
 | C8 | segundo lanzamiento con el mismo nombre | sí | al reservar | rechazado por el CAS de la rama de estado |
 | C9 | el diff del agente trae un workflow | sí | antes de `review` | la tarea se aparta (`carril-subio`) con su dependiente |
+| C9b | el diff trae `.GitHub/workflows/` y `.gitlab-ci.yml` | sí | antes de `review` | la tarea se aparta (`carril-subio`) |
 | C10 | escritura concurrente con el agente en otro fichero | sí | antes del commit del CLI | la tarea se aparta (`escritura-no-declarada`) |
 | C10b | escritura concurrente con el agente en un fichero que él también escribe | no | no se detecta | entra como trabajo del agente y llega a la revisión |
 | C11 | la App del agente mueve `develop` | sí | antes del PR final | el lote para sin abrir el PR |
@@ -263,7 +287,7 @@ errores del ADR: 0
   mutacion divergencia-sin-f1-6: falla como se espera («Divergencias con el plan» no trata F1-6)
   mutacion no-verificado-sin-gitlab: falla como se espera («No verificado» no nombra «GitLab»)
   mutacion prosa-replica: falla como se espera (prosa: falta la frase «219 de 219 árboles iguales»)
-  mutacion prosa-cifra-suelta: falla como se espera (prosa: «3 de 17 tareas» fuera de una frase que diga a qué corresponde (…na IA mergea en `develop`» ()
+  mutacion prosa-cifra-suelta: falla como se espera (prosa: «3 de 17 tareas» fuera de una frase que diga a qué corresponde (… a «No verificado» el árbol )
   mutacion sin-procedencia: falla como se espera (falta la regla: `comprobar_procedencia`)
   mutacion c10b-marcado-detectado: falla como se espera (tabla-inyecciones: falta o cambia la fila | C10b | escritura concurrente con el ag)
   mutacion parada-carril-subio-quitada: falla como se espera (tabla-paradas: falta carril-subio)
