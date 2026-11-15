@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-020-f2-5-modelo-de-tarea-y-parser-serializad
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F2-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T15:32:31Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T15:37:00Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T15:37:21Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
