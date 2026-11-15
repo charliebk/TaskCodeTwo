@@ -550,6 +550,10 @@ con su evidencia en los tests de `crates/tc2/tests/estado_*.rs`:
    ref se movió), igual que un non-fast-forward, y se trata como tal. El
    resto de `[remote rejected]` es `denegada`. Observado en el test de dos
    clones a la vez; antes de esta distinción daba un falso `denegada`.
+   **Adenda F2-4 (TASK-019):** también es contención `[remote rejected]
+   (reference already exists)`, que recibe el segundo de dos clones que
+   crean a la vez una ref que no existía: la rama de estado en el primer
+   `new` de un repo. Lo destapó el E2E de dos `tc2 new` simultáneos.
 4. **Cambio de comportamiento en `push`, `actualizar-rama` y
    `tag-anotado`** (F2-2): un rechazo del remoto pasa de reintentarse y
    acabar en `agotada` a `denegada` en el primer intento. Los fallos de
