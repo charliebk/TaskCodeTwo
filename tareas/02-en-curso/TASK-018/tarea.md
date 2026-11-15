@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-018-f2-3-rama-de-estado
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F2-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-15T13:18:19Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T13:24:44Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-15T13:24:46Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
