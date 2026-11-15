@@ -19,11 +19,11 @@ Verificacion acotada al diff de las correcciones (`08a98c8..HEAD`: ADR F1-16, `d
 | NUE-2 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:223-246 | implementacion |
 | NUE-3 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:640-650 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:367-405 | plan |
 | NUE-4 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:602-612 y :815-821 | implementacion |
-| NUE-5 | IMPORTANTE | abierto | docs/adr/F1-16-lotes-desatendidos.md:138-143 y :494-507 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:308-310 (`CLAVES_CLI`, `SECCIONES_CLI`) y :1368-1412 (`medir_escrituras_cli`) | implementacion |
-| NUE-6 | IMPORTANTE | abierto | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:1885-1955 (C4c-C4e) y :386-390 | implementacion |
-| NUE-7 | MENOR | abierto | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:570-573 y :1000-1001 (`por in PERSONAS_LOTE`) | implementacion |
-| NUE-8 | MENOR | abierto | docs/adr/F1-16-lotes-desatendidos.md:640-650 y :815-826 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:386-390 | implementacion |
-| NUE-9 | MENOR | abierto | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:313-338 (`partes_tarea`) | implementacion |
+| NUE-5 | IMPORTANTE | corregido | docs/adr/F1-16-lotes-desatendidos.md:138-143 y :494-507 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:308-310 (`CLAVES_CLI`, `SECCIONES_CLI`) y :1368-1412 (`medir_escrituras_cli`) | implementacion |
+| NUE-6 | IMPORTANTE | corregido | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:1885-1955 (C4c-C4e) y :386-390 | implementacion |
+| NUE-7 | MENOR | corregido | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:570-573 y :1000-1001 (`por in PERSONAS_LOTE`) | implementacion |
+| NUE-8 | MENOR | corregido | docs/adr/F1-16-lotes-desatendidos.md:640-650 y :815-826 y tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:386-390 | implementacion |
+| NUE-9 | MENOR | corregido | tareas/03-en-revision/TASK-074/poc/poc-f1-16.py:313-338 (`partes_tarea`) | implementacion |
 
 Los NUE-5..NUE-9 son nuevos y los abre la propia correccion de la ronda 2 (NUE-1 y NUE-3). No hay CRITICO. Abiertos: 2 IMPORTANTE (NUE-5, NUE-6) y 3 MENOR (NUE-7, NUE-8, NUE-9).
 

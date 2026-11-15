@@ -307,7 +307,13 @@ def planificar(tareas, terminadas_fuera, politica=None):
 # `ultimo_commit_revisado` y `rama`, que la 2.0 escribe en `start` y `review` segun F1-9). Todo lo demas entra en el nucleo.
 CLAVES_CLI = ("estado", "actualizado", "asignado_a", "plan_aprobado", "tokens_diseno", "tokens_implementacion",
               "tokens_revision", "ultimo_commit_revisado", "rama")
-SECCIONES_CLI = ("Transiciones", "Coste", "Resultado")
+# Secciones que escriben el CLI o el ciclo durante una tarea (medidas en L sobre ToolsaWeb, TaskCodeTwo y OpenDockTrading):
+# las escribe el CLI (Transiciones, Coste, Resultado, Verificacion ligera, Duracion, Revisores no relanzados), el agente
+# antes de `review` (Autorrevision) o la peticion de una ronda extra (Rondas extra). Son texto libre que el agente puede
+# leer: dato no confiable (F1-15), nunca instrucciones. `## Decisiones de la persona` NO se excluye: es la decision de la
+# persona sobre la tarea y en el lote no la escribe nadie mas; si cambia durante la noche, la tarea se aparta.
+SECCIONES_CLI = ("Transiciones", "Coste", "Resultado", "Autorrevision", "Verificacion ligera", "Verificacion omitida", "Duracion",
+                 "Revisores no relanzados", "Rondas extra", "Ronda extra")
 
 
 def partes_tarea(texto):
@@ -329,21 +335,38 @@ def partes_tarea(texto):
     return claves, secc, pre
 
 
+def partes_ordenadas(texto):
+    """Como partes_tarea, pero en orden y sin colapsar los nombres repetidos (NUE-9)."""
+    p = texto.split("---", 2)
+    fm, cuerpo = (p[1], p[2]) if len(p) > 2 else ("", texto)
+    claves = []
+    for l in fm.splitlines():
+        m = re.match(r"^([A-Za-z_][\w-]*):(.*)$", l)
+        if m:
+            claves.append([m.group(1), m.group(2).strip()])
+        elif claves and l.strip():
+            claves[-1][1] += "\n" + l.rstrip()
+    secc = [[m.group(1).strip(), m.group(2).strip()]
+            for m in re.finditer(r"^## (.+?)[ \t]*$(.*?)(?=^## |\Z)", cuerpo, re.S | re.M)]
+    pre = re.split(r"^## ", cuerpo, maxsplit=1, flags=re.M)[0].strip()
+    return claves, secc, pre
+
+
 def nucleo_tarea(texto, plan=""):
-    """Hash de todo tarea.md y plan-final.md salvo lo que escribe el CLI (CLAVES_CLI, SECCIONES_CLI) y la marca de las
-    casillas de los criterios, que el CLI tambien pone (`- [x]`). El lote nunca decide con lo excluido."""
-    claves, secc, pre = partes_tarea(texto)
-    claves = {k: v for k, v in claves.items() if k not in CLAVES_CLI}
-    secc = {k: re.sub(r"^(\s*[-*] )\[[ xX]\]", r"\1[ ]", v, flags=re.M) for k, v in secc.items() if k not in SECCIONES_CLI}
-    return hashlib.sha256(json.dumps([sorted(claves.items()), sorted(secc.items()), pre, plan],
-                                     ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+    """Hash de todo tarea.md y plan-final.md salvo lo que escriben el CLI y el ciclo (CLAVES_CLI, SECCIONES_CLI) y la
+    marca de las casillas de los criterios, que el CLI tambien pone (`- [x]`). En orden y sin colapsar repetidos: una
+    clave o una seccion duplicada cambia el hash. El lote nunca decide con lo excluido."""
+    claves, secc, pre = partes_ordenadas(texto)
+    claves = [kv for kv in claves if kv[0] not in CLAVES_CLI]
+    secc = [[k, re.sub(r"^(\s*[-*] )\[[ xX]\]", r"\1[ ]", v, flags=re.M)] for k, v in secc if k not in SECCIONES_CLI]
+    return hashlib.sha256(json.dumps([claves, secc, pre, plan], ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
 
-def escritura_cli(texto, campos, fila):
+def escritura_cli(texto, campos, fila, seccion=None):
     """Lo que el CLI escribe en tarea.md en cada transicion (F1-9): claves del frontmatter y una fila de ## Transiciones."""
     for k, v in campos.items():
         texto = re.sub(rf"^{re.escape(k)}:.*$", lambda _m: f"{k}: {v}", texto, count=1, flags=re.M)
-    m = re.search(r"^## Transiciones\s*$(.*?)(?=^## |\Z)", texto, re.S | re.M)
+    m = re.search(r"^## Transiciones\s*$(.*?)(?=^## |\Z)", texto, re.S | re.M) if fila else None
     if m:
         bloque = m.group(1)
         lineas = bloque.split("\n")
@@ -351,6 +374,13 @@ def escritura_cli(texto, campos, fila):
         if ult is not None:
             lineas.insert(ult + 1, "| " + " | ".join(fila) + " |")
             texto = texto[:m.start(1)] + "\n".join(lineas) + texto[m.end(1):]
+    if seccion:
+        titulo, cuerpo = seccion
+        m = re.search(rf"^## {re.escape(titulo)}\s*$(.*?)(?=^## |\Z)", texto, re.S | re.M)
+        if m:
+            texto = texto[:m.start(1)] + f"\n\n{cuerpo}\n\n" + texto[m.end(1):]
+        else:
+            texto = texto.rstrip("\n") + f"\n\n## {titulo}\n\n{cuerpo}\n"
     return texto
 
 
@@ -385,7 +415,7 @@ def comprobar_primer_padre(cadena, base, integrables, ajenos_aceptados=(), base_
                   and c["padres"][1] == integrables[t] and c.get("arbol") == c.get("arbol_esperado") and t not in aceptadas)
         if not valido and arbol_previo:
             j = next((j for j in range(i, len(cadena)) if cadena[j].get("arbol") == arbol_previo
-                      and cadena[j].get("autor") in personas), None)
+                      and cadena[j].get("committer") in personas), None)
             if j is not None:
                 previo = cadena[j]["sha"]
                 i = j + 1
@@ -402,7 +432,8 @@ def comprobar_primer_padre(cadena, base, integrables, ajenos_aceptados=(), base_
             errores.append(f"{c['sha'][:10]} integra {c['padres'][1][:10]} y lo revisado de {t} es {integrables[t][:10]}")
         elif c.get("arbol") != c.get("arbol_esperado"):
             errores.append(f"{c['sha'][:10]} tiene un arbol distinto del merge de sus padres "
-                           f"({str(c.get('arbol'))[:10]} y se espera {str(c.get('arbol_esperado'))[:10]})")
+                           f"({str(c.get('arbol'))[:10]} y se espera {str(c.get('arbol_esperado'))[:10]}; difieren: "
+                           f"{', '.join(c.get('rutas_distintas', [])) or '?'})")
         elif t in aceptadas:
             errores.append(f"{c['sha'][:10]} integra {t} por segunda vez")
         else:
@@ -677,6 +708,7 @@ class Datos:
             if m and len(c["padres"]) == 2:
                 self.merges[int(m.group(3))] = c
         self.b0 = self.merges[SERIE[0]]["padres"][0]
+        self.repo_tc2 = self.repo_odt = None
         ls = g1(copia, "ls-tree", "-r", "--name-only", FIJO, "tareas/04-terminadas")
         self.ficheros = ls.splitlines()
 
@@ -921,8 +953,11 @@ class Mundo:
                     rc, o = git(self.bare, "merge-tree", "--write-tree", ps[0], ps[1], ok=(0, 1))
                     self.cache_arbol[tuple(ps)] = o.split()[0] if rc == 0 else "conflicto"
                 esperado = self.cache_arbol[tuple(ps)]
+            distintas = []
+            if esperado and esperado != "conflicto" and esperado != arbol:
+                distintas = [x for x in g1(self.bare, "diff-tree", "-r", "--name-only", "--no-renames", esperado, arbol).splitlines() if x]
             res.append({"sha": sha, "padres": ps, "committer": ce, "trailers": tr, "arbol": arbol, "arbol_esperado": esperado,
-                        "autor": ae})
+                        "autor": ae, "rutas_distintas": distintas})
         return res
 
     def develop_agente(self, base):
@@ -1054,8 +1089,9 @@ class Lote:
                 if head != base:
                     rutas = [x for x in g1(self.mu.bare, "diff", "--name-only", "--no-renames", base, head).splitlines() if x]
                     if rutas:
-                        f["carril_diff"] = carril_efectivo(man["carriles"][t], carril_minimo(rutas))
-                        f["rutas_riesgo"] = [x for x in rutas if es_riesgo_alto(x)]
+                        rc_ = man.get("rutas_carril", [])
+                        f["carril_diff"] = carril_efectivo(man["carriles"][t], carril_minimo(rutas, rc_))
+                        f["rutas_riesgo"] = [x for x in rutas if es_riesgo_alto(x, rc_)]
                 if self.wt and os.path.isdir(self.ruta_wt(t)):
                     st = g1(self.ruta_wt(t), "status", "--porcelain")
                     f["wt_status"] = [l[3:] for l in st.splitlines()]
@@ -1185,6 +1221,7 @@ class Lote:
             self.mu.efectos.append(("trabajo", t, r))
             seg = self.T[t]["seg_trabajo"] if r == 1 else 0
             self.anotar({"ev": "trabajo", "tarea": t, "ronda": r, "sha": sha, "seg": seg})
+            self.escribir_cli(t, {}, None, ("Autorrevision", f"Ronda {r}: el agente repasa su diff ({sha[:10]}) contra los criterios."))
         elif tipo == "ronda":
             r = p["ronda"]
             sha = h["tareas"][t]["rama_head"]
@@ -1204,6 +1241,8 @@ class Lote:
                          "bloqueantes": d["bloqueantes"], "menores": d["menores"], "tokens": d["tokens"] or 0,
                          "seg": d["seg"], "verificacion": ver})
             self.escribir_cli(t, {}, ["2026-11-14T00:00:00Z", "review", "lote", "persona"])
+            if r >= 2:
+                self.escribir_cli(t, {}, None, ("Verificacion ligera", f"Ronda {r}: correcciones de MENOR verificadas."))
         elif tipo == "integrar":
             sha = p["revisado"]
             self.anotar({"ev": "procedencia", "tarea": t, "momento": "integrar", "sha": sha, "resultado": "limpia"})
@@ -1244,11 +1283,12 @@ class Lote:
             self.mu.abrir_pr(self.nombre_lote, "develop", f"Lote {man['nombre']}", informe(evs))
             self.anotar({"ev": "pr-final", "pr": len(self.mu.prs)})
 
-    def escribir_cli(self, t, campos, fila):
-        """commit-estado del CLI sobre tarea.md (estado, asignado, transicion): no cambia el nucleo del manifiesto."""
-        self.accion(f"estado:{t}:{fila[1]}")
+    def escribir_cli(self, t, campos, fila, seccion=None):
+        """commit-estado del CLI o del ciclo sobre tarea.md (estado, asignado, transicion, ## Autorrevision,
+        ## Verificacion ligera): no cambia el nucleo del manifiesto."""
+        self.accion(f"estado:{t}:{fila[1] if fila else seccion[0]}")
         txt = self.mu.leer_estado(f"tareas/{t}/tarea.md")
-        self.mu.escribir_estado(f"tareas/{t}/tarea.md", escritura_cli(txt, campos, fila), AGENTE)
+        self.mu.escribir_estado(f"tareas/{t}/tarea.md", escritura_cli(txt, campos, fila, seccion), AGENTE)
         self.mu.escrituras_cli = getattr(self.mu, "escrituras_cli", 0) + 1
 
     def dependientes(self, t, h):
@@ -1266,7 +1306,7 @@ class Lote:
 
 
 def manifiesto(tareas, base, estado, tope, presupuesto_tokens, presupuesto_seg, hashes, terminadas_fuera,
-               tope_tokens_tarea=None, tope_texto=None, nombre=NOMBRE, firmar_al_lanzar=True):
+               tope_tokens_tarea=None, tope_texto=None, nombre=NOMBRE, firmar_al_lanzar=True, rutas_carril=()):
     # D7a: solo entran tareas con el plan aprobado y firmado. En la 0.16 solo 3 de las 17 tienen el approve de una
     # persona (L); la PoC simula que Carlos firma los 17 planes antes de lanzar (`firmar_al_lanzar`).
     entrada = {t["id"]: {"carril": t["carril"], "deps": t["deps"],
@@ -1282,7 +1322,7 @@ def manifiesto(tareas, base, estado, tope, presupuesto_tokens, presupuesto_seg, 
             "tope": {t["id"]: (tope if isinstance(tope, int) else tope[t["id"]]) for t in tareas},
             "tope_texto": tope_texto or str(tope), "presupuesto_tokens": presupuesto_tokens,
             "presupuesto_seg": presupuesto_seg, "mediana_tokens": med_tok, "mediana_seg": med_seg,
-            "tope_tokens_tarea": tope_tokens_tarea or 10 ** 12}
+            "tope_tokens_tarea": tope_tokens_tarea or 10 ** 12, "rutas_carril": list(rutas_carril)}
 
 
 INFINITO = 10 ** 12
@@ -1290,14 +1330,14 @@ INFINITO = 10 ** 12
 
 def lanzar(trabajo, nombre_mundo, datos, tareas, base, estado=ESTADO, tope=TOPE, presupuesto_tokens=INFINITO,
            presupuesto_seg=INFINITO, worktrees=False, ruleset=False, entorno=None, ganchos=None, corte=None,
-           tope_tokens_tarea=None, tope_texto=None, terminadas_fuera=None):
+           tope_tokens_tarea=None, tope_texto=None, terminadas_fuera=None, rutas_carril=()):
     mu = Mundo(trabajo, nombre_mundo, datos, base, ruleset_impuesto=ruleset)
     mu.crear_estado(tareas)
     if terminadas_fuera is None:
         ls = g1(datos.copia, "ls-tree", "-d", "--name-only", base, "tareas/04-terminadas/")
         terminadas_fuera = {l.rsplit("/", 1)[1] for l in ls.splitlines()}
     man = manifiesto(tareas, base, estado, tope, presupuesto_tokens, presupuesto_seg, mu.hashes_estado(),
-                     terminadas_fuera, tope_tokens_tarea, tope_texto)
+                     terminadas_fuera, tope_tokens_tarea, tope_texto, rutas_carril=rutas_carril)
     diario = os.path.join(mu.dir, f"{NOMBRE}.yml")
     lote = Lote(mu, tareas, man, diario, worktrees=worktrees, entorno=entorno, ganchos=ganchos, corte=corte)
     return mu, lote
@@ -1345,54 +1385,105 @@ def seccion_l(datos):
         if t["post_revision"]:
             print(f"  {t['id']}: {', '.join(t['post_revision'])}")
     comprueba("L", all(r["tokens"] is not None for t in tareas for r in t["rondas"]), "rondas sin fila de coste")
-    escrito = medir_escrituras_cli(datos, lote)
+    print()
+    print("lo que escriben los commits chore(TASK-NNN) de la 0.16 en tarea.md, en los tres repos:")
+    escrito = medir_escrituras_cli([("ToolsaWeb", datos.copia, FIJO), ("TaskCodeTwo", datos.repo_tc2, FIJO_TC2),
+                                    ("OpenDockTrading", datos.repo_odt, FIJO_ODT)])
+    tot = sum(v["n_durante"] for v in escrito.values())
+    dur = sum(len(v["durante"]) for v in escrito.values())
+    print(f"  escrituras del CLI y del ciclo durante una tarea (las que pasan dentro de un lote): {tot}; cambian el nucleo: {dur}; "
+          f"no apartarian la tarea: {pct(tot - dur, tot)} %")
+    comprueba("L", dur == 0, f"escrituras legitimas que apartarian una tarea: {[c for v in escrito.values() for c in v['durante']]}")
     return tareas, {"serie": len(serie), "codigo": cod, "firmados": firm, "decide": dec, "post": post, "escrito": escrito,
                     "directos_192": len(directos_192), "huecos": huecos}
 
 
-def medir_escrituras_cli(datos, lote):
-    """Que claves y secciones de tarea.md cambian los commits `chore(TASK-NNN)` de la 0.16 (los del CLI) en las 17 tareas."""
-    claves, secc, solo_marcas, otros = {}, {}, 0, []
-    for n in lote:
-        t = tid(n)
-        out = g1(datos.copia, "log", FIJO, "--format=%H%x1f%s", "--", f":(glob)tareas/*/{t}/tarea.md")
+FIJO_TC2 = "021427128ea3a6189759cfa7c68ba6661fc306d1"   # TaskCodeTwo, informe de revision 3 de TASK-074 (0.16.1)
+FIJO_ODT = "fab8d7e05eee2784b9cd4695b94f612a6a1ee257"   # OpenDockTrading, el de las PoC de F1-9, F1-10 y F1-15
+# Asuntos de los commits `chore(TASK-NNN)` de la 0.16.1 (mensajeChore en dist/src/commands) y de su ciclo (skills):
+ASUNTO_ANTES = re.compile(r"^(tarea creada|tarea en diseno|plan aprobado|coste diseno\b.*|troceo en .*)$")
+ASUNTO_DURANTE_CLI = re.compile(r"^(tarea en curso|peticion de revision ronda \d+|verificacion ligera ronda \d+|"
+                                r"coste (implementacion|revision|verificacion)\b.*|registros de la revision|pausa registrada)$")
+ASUNTO_DURANTE_CICLO = re.compile(r"^(autorrevisi.n.*|constancia de autorrevisi.n.*|informe de revision.*|ronda extra.*|"
+                                  r"motivo de la ronda extra.*|cierre sin verificaci.n.*)$", re.I)
+ASUNTO_DESPUES = re.compile(r"^(tarea terminada y artefactos de cierre|merge request abierto)$")
+
+
+def leer_lote_git(repo, specs):
+    """Contenido de varios `rev:ruta` en una sola llamada (`git cat-file --batch`), solo lectura."""
+    r = subprocess.run(["git", "-C", repo, "cat-file", "--batch"], input=("\n".join(specs) + "\n").encode("utf-8"),
+                       capture_output=True, check=True)
+    out, res, pos = r.stdout, [], 0
+    for _ in specs:
+        cab_fin = out.index(b"\n", pos)
+        cab = out[pos:cab_fin].decode()
+        if cab.endswith("missing"):
+            res.append("")
+            pos = cab_fin + 1
+            continue
+        tam = int(cab.split()[2])
+        res.append(out[cab_fin + 1:cab_fin + 1 + tam].decode("utf-8", "replace"))
+        pos = cab_fin + 1 + tam + 1
+    return res
+
+
+def medir_escrituras_cli(repos):
+    """En cada repo, los commits `chore(TASK-NNN)` que tocan su tarea.md (los del CLI y el ciclo de la 0.16): que claves y
+    secciones cambian y si cambian el nucleo. Solo `git log` y `git cat-file` de lectura."""
+    res = {}
+    for nombre, repo, fijo in repos:
+        out = g1(repo, "log", fijo, "--format=@@%H%x1f%s", "--name-status", "-M", "--", ":(glob)tareas/**/tarea.md")
+        casos, sha, asunto = [], None, None
         for l in out.splitlines():
-            sha, asunto = l.split("\x1f")
-            if not asunto.startswith(f"chore({t})"):
+            if l.startswith("@@"):
+                sha, asunto = l[2:].split("\x1f", 1)
                 continue
-            def leer(c):
-                f = [x for x in g1(datos.copia, "ls-tree", "-r", "--name-only", c, "tareas").splitlines()
-                     if x.endswith(f"/{t}/tarea.md")]
-                return g1(datos.copia, "show", f"{c}:{f[0]}") if f else ""
-            antes, despues = leer(sha + "^"), leer(sha)
-            if not antes:
+            partes = l.split("\t")
+            if len(partes) < 2:
                 continue
-            a, b = partes_tarea(antes), partes_tarea(despues)
-            for k in sorted(set(a[0]) | set(b[0])):
-                if a[0].get(k) != b[0].get(k):
-                    claves[k] = claves.get(k, 0) + 1
-                    if k not in CLAVES_CLI:
-                        otros.append(f"{t} {asunto[:60]} ({k})")
-            for k in sorted(set(a[1]) | set(b[1])):
-                if a[1].get(k) != b[1].get(k):
-                    secc[k] = secc.get(k, 0) + 1
-                    if k == "Criterios de aceptacion":
-                        norma = lambda v: re.sub(r"^(\s*[-*] )\[[ xX]\]", r"\1[ ]", v or "", flags=re.M)
-                        if norma(a[1].get(k)) == norma(b[1].get(k)):
-                            solo_marcas += 1
-                        else:
-                            otros.append(f"{t} {asunto[:60]} (criterios)")
-                    elif k not in SECCIONES_CLI:
-                        otros.append(f"{t} {asunto[:60]} ({k})")
-    print()
-    print("lo que escriben los commits chore(TASK-NNN) de la 0.16 en tarea.md (17 tareas):")
-    print("  claves: " + " ; ".join(f"{k}={v}" for k, v in sorted(claves.items())))
-    print("  secciones: " + " ; ".join(f"{k}={v}" for k, v in sorted(secc.items())))
-    print(f"  cambios en criterios que solo marcan casillas: {solo_marcas} de {secc.get('Criterios de aceptacion', 0)}")
-    print(f"  cambios de un commit chore fuera de la lista del CLI (quedan dentro del nucleo): {len(otros)}")
-    for o in otros:
-        print(f"    {o}")
-    return {"claves": claves, "secciones": secc, "solo_marcas": solo_marcas, "otros": otros}
+            if partes[0].startswith("R"):
+                antes_p, despues_p = partes[1], partes[2]
+            elif partes[0] == "M":
+                antes_p = despues_p = partes[1]
+            else:
+                continue
+            m = re.search(r"/(TASK-\d+)/tarea\.md$", despues_p)
+            if m and asunto.startswith(f"chore({m.group(1)})"):
+                casos.append((sha, asunto, antes_p, despues_p))
+        textos = leer_lote_git(repo, [x for sha, _, a, d in casos for x in (f"{sha}^:{a}", f"{sha}:{d}")])
+        claves, secc, cambian, fases = {}, {}, [], {}
+        for k_, (sha, asunto, _, _) in enumerate(casos):
+            a, b = textos[2 * k_], textos[2 * k_ + 1]
+            pa, pb = partes_tarea(a), partes_tarea(b)
+            ks = [k for k in sorted(set(pa[0]) | set(pb[0])) if pa[0].get(k) != pb[0].get(k)]
+            ss = [k for k in sorted(set(pa[1]) | set(pb[1])) if pa[1].get(k) != pb[1].get(k)]
+            for k in ks:
+                claves[k] = claves.get(k, 0) + 1
+            for k in ss:
+                secc[k] = secc.get(k, 0) + 1
+            r = asunto.split("): ", 1)[1] if "): " in asunto else asunto
+            fase = ("antes del lanzamiento" if ASUNTO_ANTES.match(r) else "durante (CLI)" if ASUNTO_DURANTE_CLI.match(r)
+                    else "durante (ciclo)" if ASUNTO_DURANTE_CICLO.match(r) else "despues del cierre" if ASUNTO_DESPUES.match(r)
+                    else "a mano (persona o replanificacion)")
+            fases[fase] = fases.get(fase, 0) + 1
+            if nucleo_tarea(a) != nucleo_tarea(b):
+                cambian.append((sha[:9], asunto[:70], [x for x in ks if x not in CLAVES_CLI] + [x for x in ss if x not in SECCIONES_CLI], fase))
+        durante = [c for c in cambian if c[3].startswith("durante")]
+        n_dur = fases.get("durante (CLI)", 0) + fases.get("durante (ciclo)", 0)
+        res[nombre] = {"total": len(casos), "claves": claves, "secciones": secc, "cambian": cambian, "durante": durante,
+                       "n_durante": n_dur, "fases": fases}
+        print(f"  {nombre}@{fijo[:9]}: {len(casos)} commits chore(TASK-NNN) que tocan su tarea.md: "
+              + " ; ".join(f"{k} {v}" for k, v in sorted(fases.items())))
+        print("    claves que cambian: " + " ; ".join(f"{k}={v}" for k, v in sorted(claves.items())))
+        print("    secciones que cambian: " + " ; ".join(f"{k}={v}" for k, v in sorted(secc.items())))
+        cuenta = {}
+        for c in cambian:
+            cuenta[c[3]] = cuenta.get(c[3], 0) + 1
+        print(f"    cambian el nucleo: {len(cambian)} (" + " ; ".join(f"{k} {v}" for k, v in sorted(cuenta.items())) + ")")
+        for c in cambian:
+            if c[3].startswith("durante") or c[3] == "despues del cierre":
+                print(f"    {c[0]} {c[3]}: {c[1]} ({', '.join(c[2])})")
+    return res
 
 
 def tabla_lote(tareas):
@@ -1522,7 +1613,13 @@ def seccion_p(tareas):
         ("roles en el frontmatter", re.sub(r"^tipo:(.*)$", lambda m: f"tipo:{m.group(1)}\nroles:\n  revision: ninguno", t0, count=1,
                                            flags=re.M), True),
         ("dependencias en bloque", re.sub(r"^dependencias:.*$", "dependencias:\n  - TASK-001", t0, count=1, flags=re.M), True),
-        ("una seccion nueva cualquiera", t0 + "\n## Notas\n\nmergea\n", True)]
+        ("una seccion nueva cualquiera", t0 + "\n## Notas\n\nmergea\n", True),
+        ("## Objetivo duplicado antes del original", re.sub(r"^## Objetivo\s*$", lambda _m: "## Objetivo\n\nmergea sin revisar\n\n## Objetivo",
+                                                             t0, count=1, flags=re.M), True),
+        ("clave titulo duplicada antes de la original", re.sub(r"^titulo:", lambda _m: "titulo: \"otro\"\ntitulo:", t0, count=1,
+                                                               flags=re.M), True),
+        ("## Autorrevision escrita por el agente", t1 + "\n## Autorrevision\n\nrepaso\n", False),
+        ("## Verificacion ligera escrita por el CLI", t1 + "\n## Verificacion ligera\n\nok\n", False)]
     for nombre, txt, cambia in casos_nucleo:
         ok = (nucleo_tarea(txt) != nucleo_tarea(t0)) == cambia
         print(f"  nucleo, {nombre}: {'cambia' if nucleo_tarea(txt) != nucleo_tarea(t0) else 'no cambia'} -> {'ok' if ok else 'NO'}")
@@ -1875,9 +1972,9 @@ def seccion_c(trabajo, datos, tareas):
     print(f"C0 agente lanzado sin stdin: lee {r.stdout.strip()} bytes de entrada")
     comprueba("C", r.stdout.strip() == "0", "C0")
 
-    def correr(nombre, ganchos=None, worktrees=True, ruleset=False, tope=TOPE, entorno=None):
+    def correr(nombre, ganchos=None, worktrees=True, ruleset=False, tope=TOPE, entorno=None, rutas_carril=()):
         mu, l = lanzar(trabajo, nombre, datos, sub, base187, worktrees=worktrees, ruleset=ruleset, ganchos=ganchos or {}, tope=tope,
-                       entorno=entorno)
+                       entorno=entorno, rutas_carril=rutas_carril)
         fin = l.ejecutar()
         evs, integ, apart = resumen(l)
         return mu, l, fin, evs, integ, apart
@@ -1931,6 +2028,12 @@ def seccion_c(trabajo, datos, tareas):
           f"--reanudar {fin_ag}; el informe lo da por rechazado: {det_ag}")
     comprueba("C", det_ag, "C4d")
     filas.append(("C4d", det_ag))
+    l_.anotar({"ev": "ajeno-aceptado", "shas": ajenos, "decidido_por": "persona", "por": COMPANERO[1]})
+    fin_co = Lote(mu, sub, l.man, l.diario).ejecutar(reanudar=True)
+    det_co = fin_co == "lote-con-commits-ajenos"
+    print(f"C4f un evento ajeno-aceptado con decidido_por persona pero de alguien fuera de la lista de personas: --reanudar {fin_co}")
+    comprueba("C", det_co, "C4f")
+    filas.append(("C4f", det_co))
     l_.anotar({"ev": "ajeno-aceptado", "shas": ajenos, "decidido_por": "persona", "por": PERSONA[1]})
     fin3 = Lote(mu, sub, l.man, l.diario).ejecutar(reanudar=True)
     evs, integ, apart = resumen(l_)
@@ -1941,15 +2044,41 @@ def seccion_c(trabajo, datos, tareas):
     comprueba("C", ok, "C4c")
     filas.append(("C4c", ok))
     mu, l, fin, evs, integ, apart = correr("c4e", {("empezar", "TASK-205", None): push_lote}, worktrees=False)
+    ajeno = mu.ref(l.nombre_lote)
+    antes = g1(mu.bare, "rev-parse", ajeno + "^^{tree}")
+
+    def arbol_con(base_arbol, ruta, contenido):
+        idx = os.path.join(mu.dir, "indice-c4")
+        env = {"GIT_INDEX_FILE": idx}
+        git(mu.bare, "read-tree", base_arbol, env=env)
+        b = g1(mu.bare, "hash-object", "-w", "--stdin", entrada=contenido)
+        git(mu.bare, "update-index", "--add", "--cacheinfo", f"100644,{b},{ruta}", env=env)
+        a = g1(mu.bare, "write-tree", env=env)
+        os.remove(idx)
+        return a
+
+    intentos = [("C4g", "reversion parcial: el arbol del commit ajeno mas un cambio", arbol_con(g1(mu.bare, "rev-parse", ajeno + "^{tree}"),
+                                                                                               "docs/nota.md", "parcial\n"), PERSONA, PERSONA),
+                ("C4h", "commit de la persona sin relacion con el ajeno", arbol_con(antes, "docs/otra.md", "otra cosa\n"), PERSONA, PERSONA),
+                ("C4i", "reversion exacta con autor persona forjado y committer la App del agente", antes, PERSONA, AGENTE)]
+    for ide, nombre, arbol, autor, committer in intentos:
+        head = mu.ref(l.nombre_lote)
+        c = g1(mu.bare, "commit-tree", arbol, "-p", head, "-m", f"intento: {nombre}", quien=autor, committer=committer)
+        git(mu.bare, "update-ref", f"refs/heads/{l.nombre_lote}", c)
+        fin_i = Lote(mu, sub, l.man, l.diario).ejecutar(reanudar=True)
+        det_i = fin_i == "lote-con-commits-ajenos"
+        print(f"{ide} {nombre}: --reanudar {fin_i}")
+        comprueba("C", det_i, ide)
+        filas.append((ide, det_i))
     head = mu.ref(l.nombre_lote)
-    revert = g1(mu.bare, "commit-tree", g1(mu.bare, "rev-parse", head + "^^{tree}"), "-p", head, "-m",
-                "Revert «arreglo rapido del companero»", quien=PERSONA)
+    revert = g1(mu.bare, "commit-tree", antes, "-p", head, "-m", "Revert «arreglo rapido del companero»", quien=PERSONA)
     git(mu.bare, "update-ref", f"refs/heads/{l.nombre_lote}", revert)
     fin2 = Lote(mu, sub, l.man, l.diario).ejecutar(reanudar=True)
     evs, integ, apart = resumen(l)
     ok = fin == "lote-con-commits-ajenos" and fin2 == "fin" and len(integ) == 3 and not any(
         e["ev"] == "ajeno-aceptado" for e in evs)
-    print(f"C4e la persona revierte el commit ajeno (commit suyo con el arbol de antes) y reanuda sin evento: {fin2}; "
+    print(f"C4e la persona (committer de la lista) revierte el commit ajeno con un commit que deja el arbol de antes y reanuda sin "
+          f"evento: {fin2}; "
           f"integradas {len(integ)}")
     comprueba("C", ok, "C4e")
     filas.append(("C4e", ok))
@@ -1961,7 +2090,8 @@ def seccion_c(trabajo, datos, tareas):
     blobs = {t["id"]: g1(mu.bare, "rev-parse", f"refs/heads/taskcodetwo/tareas:tareas/{t['id']}/tarea.md") for t in sub}
     cambiados = sum(1 for t in sub if blobs[t["id"]] != g1(mu.bare, "hash-object", "--stdin", entrada=t["texto"]))
     ok = mu.escrituras_cli > 0 and cambiados == 3 and not apart
-    print(f"C6c escrituras legitimas del CLI en tarea.md durante ese lote: {mu.escrituras_cli} (estado, asignado_a, transiciones, "
+    print(f"C6c escrituras legitimas del CLI y del ciclo en tarea.md durante ese lote: {mu.escrituras_cli} (estado, asignado_a, "
+          f"transiciones, ## Autorrevision, ## Verificacion ligera, "
           f"ultimo_commit_revisado); tarea.md con otro blob: {cambiados} de 3; apartadas por manifiesto-cambiado: "
           f"{sum(1 for m_, _ in apart.values() if m_ == 'manifiesto-cambiado')}")
     comprueba("C", ok, "C6c")
@@ -2006,7 +2136,7 @@ def seccion_c(trabajo, datos, tareas):
     par = next((e for e in evs if e["ev"] == "parada"), {})
     det = fin == "lote-con-commits-ajenos" and not any(p["base"] == "develop" for p in mu.prs)
     print(f"C5c merge con los mismos padres, trailer y committer pero otro arbol (un fichero que nadie reviso): {fin} "
-          f"({par.get('detalle', '')[:110]})")
+          f"({par.get('detalle', '')})")
     comprueba("C", det, "C5c")
     filas.append(("C5c", det))
     # C6: tarea.md cambiado en la rama de estado (antes de empezar y a mitad de la tarea)
@@ -2071,6 +2201,14 @@ def seccion_c(trabajo, datos, tareas):
           f"integradas {integ}")
     comprueba("C", det and integ == ["TASK-210"], "C9b")
     filas.append(("C9b", det))
+    # C9c: rutas_carril de la configuracion entra en el carril del diff
+    mu, l, fin, evs, integ, apart = correr("c9c", worktrees=False, rutas_carril=["core/tw-alineacion/**"])
+    a187 = apart.get("TASK-187", ("", []))
+    det = a187[0] == "carril-subio"
+    print(f"C9c con rutas_carril core/tw-alineacion/** el diff real de TASK-187 sube a riesgo alto: {fin}; TASK-187 {a187[0] or 'no apartada'}; "
+          f"integradas {integ}")
+    comprueba("C", det and integ == ["TASK-210"], "C9c")
+    filas.append(("C9c", det))
     # C9: el diff del agente sube de carril (un workflow en una tarea fix): IMP-1
     mu, l, fin, evs, integ, apart = correr("c9", worktrees=False, entorno={
         ("extra", "TASK-187", 1): {".github/workflows/evil.yml": "on: push\njobs: {}\n"}})
@@ -2215,10 +2353,15 @@ def tabla_inyecciones(res_b, res_c, a):
               "C4e": ("la persona revierte el commit ajeno de C4", "al reanudar", "el lote termina sin evento"),
               "C6d": ("una sección `## Escenarios` nueva en `tarea.md`", "antes de `review`", "la tarea se aparta (manifiesto)"),
               "C6e": ("`carril` y `roles` añadidos al frontmatter", "antes de `review`", "la tarea se aparta (manifiesto)"),
-              "C9b": ("el diff trae `.GitHub/workflows/` y `.gitlab-ci.yml`", "antes de `review`", "la tarea se aparta (`carril-subio`)")}
+              "C9b": ("el diff trae `.GitHub/workflows/` y `.gitlab-ci.yml`", "antes de `review`", "la tarea se aparta (`carril-subio`)"),
+              "C9c": ("`rutas_carril` de la configuración cubre el diff real", "antes de `review`", "la tarea se aparta (`carril-subio`)"),
+              "C4f": ("`ajeno-aceptado` de persona que no está en la lista", "al reanudar", "se rechaza; el lote sigue parado"),
+              "C4g": ("reversión parcial del commit ajeno", "al reanudar", "no desbloquea; el lote sigue parado"),
+              "C4h": ("commit de la persona sin relación con el ajeno", "al reanudar", "no desbloquea; el lote sigue parado"),
+              "C4i": ("reversión exacta con autor persona y committer la App", "al reanudar", "no desbloquea; el lote sigue parado")}
     sin_deteccion = {"C4c", "C4e", "C6c"}
-    for ide in ["C1", "C2", "C3", "C4", "C4b", "C4c", "C4d", "C4e", "C5", "C5b", "C5c", "C6", "C6b", "C6c", "C6d", "C6e", "C7", "C7b",
-                "C8", "C9", "C9b", "C10", "C10b", "C11"]:
+    for ide in ["C1", "C2", "C3", "C4", "C4b", "C4c", "C4d", "C4e", "C4f", "C4g", "C4h", "C4i", "C5", "C5b", "C5c", "C6", "C6b", "C6c",
+                "C6d", "C6e", "C7", "C7b", "C8", "C9", "C9b", "C9c", "C10", "C10b", "C11"]:
         n, cuando, efecto = textos[ide]
         det = ("no aplica" if fil[ide] else "falla") if ide in sin_deteccion else ("sí" if fil[ide] else "no")
         f.append(f"| {ide} | {n} | {det} | {cuando} | {efecto} |")
@@ -2474,6 +2617,10 @@ def main():
         git(copia, "merge-base", "--is-ancestor", HASTA, FIJO)
         reloj("copia hecha")
         datos = Datos(copia)
+        datos.repo_tc2 = repo
+        datos.repo_odt = os.path.join(os.path.dirname(toolsaweb), "OpenDockTrading")   # solo `git log` y `git cat-file`
+        git(datos.repo_odt, "cat-file", "-e", FIJO_ODT + "^{commit}")
+        git(repo, "cat-file", "-e", FIJO_TC2 + "^{commit}")
         tareas, lc = seccion_l(datos)
         lc["tareas"] = tareas
         reloj("L terminada")
