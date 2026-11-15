@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-020 — F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido · etiquetas: (sin etiquetas) · rama feature/task-020-f2-5-modelo-de-tarea-y-parser-serializad · terminada 2026-11-15 · tareas/04-terminadas/TASK-020/
 - TASK-019 — F2-4 Reserva de IDs por push atomico · etiquetas: (sin etiquetas) · rama feature/task-019-f2-4-reserva-de-ids-por-push-atomico · terminada 2026-11-15 · tareas/04-terminadas/TASK-019/
 - TASK-018 — F2-3 Rama de estado · etiquetas: (sin etiquetas) · rama feature/task-018-f2-3-rama-de-estado · terminada 2026-11-15 · tareas/04-terminadas/TASK-018/
 - TASK-017 — F2-2 Capa de operaciones Git deterministas · etiquetas: (sin etiquetas) · rama feature/task-017-f2-2-capa-de-operaciones-git-determinist · terminada 2026-11-15 · tareas/04-terminadas/TASK-017/

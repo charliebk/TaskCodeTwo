@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-020 (feature) — F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido (2026-11-15)
 - TASK-019 (feature) — F2-4 Reserva de IDs por push atomico (2026-11-15)
 - TASK-018 (feature) — F2-3 Rama de estado (2026-11-15)
 - TASK-017 (feature) — F2-2 Capa de operaciones Git deterministas (2026-11-15)
