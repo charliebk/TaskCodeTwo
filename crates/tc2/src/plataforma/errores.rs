@@ -1,11 +1,13 @@
-//! De HTTP a la linea de contrato, con el arreglo para la persona (F2-6:
-//! «errores dirigidos a la persona»). Es el unico sitio que conoce los
-//! codigos HTTP; el adaptador de GitLab (F2-9) lo reutiliza.
+//! De HTTP a la linea de contrato, con el arreglo para la persona (F2-6 y
+//! F2-9: «errores dirigidos a la persona»). Es el unico sitio que conoce los
+//! codigos HTTP, y lo comparten los adaptadores de GitHub y GitLab: el
+//! [`Proveedor`] pone el nombre de la plataforma en el diagnostico.
 //!
 //! El diagnostico dice que hacer. El mensaje de la API es dato no confiable
 //! (F1-8, Z2): se recorta y se quitan los caracteres de control antes de
 //! citarlo. Nunca lleva el token ni cabeceras.
 
+use super::Proveedor;
 use super::credenciales::Rol;
 use super::http::{FalloHttp, Respuesta};
 use crate::contrato::{Informe, Resultado};
@@ -13,12 +15,18 @@ use crate::contrato::{Informe, Resultado};
 /// Aviso de GitHub cuando el plan no da rulesets ni proteccion de rama.
 pub const AVISO_PLAN: &str = "Upgrade to GitHub Pro";
 
-/// Mensaje de la API (`message`), saneado: sin controles y como mucho 200
-/// caracteres.
+/// Mensaje de la API, saneado: sin controles y como mucho 200 caracteres.
+/// GitHub lo da en `message`; GitLab, en `message` (texto, objeto o lista)
+/// o en `error`.
 pub fn mensaje_api(r: &Respuesta) -> String {
-    let m = serde_json::from_str::<serde_json::Value>(&r.cuerpo)
-        .ok()
-        .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(str::to_owned))
+    let v = serde_json::from_str::<serde_json::Value>(&r.cuerpo).ok();
+    let m = v
+        .as_ref()
+        .and_then(|v| v.get("message").or_else(|| v.get("error")))
+        .map(|m| match m.as_str() {
+            Some(s) => s.to_owned(),
+            None => m.to_string(),
+        })
         .unwrap_or_default();
     sanear(&m)
 }
@@ -41,7 +49,7 @@ pub fn es_aviso_de_plan(r: &Respuesta) -> bool {
 /// Si la respuesta es un limite de peticiones agotado.
 fn es_limite(r: &Respuesta) -> bool {
     // El limite secundario de GitHub puede llegar sin cabeceras: entonces lo
-    // dice el mensaje.
+    // dice el mensaje. GitLab da 429.
     (r.estado == 403 || r.estado == 429)
         && (r.restantes.as_deref() == Some("0")
             || r.reintentar.is_some()
@@ -70,12 +78,17 @@ fn es_numero(s: &str) -> bool {
 
 /// Traduce una respuesta que no es 2xx. `op` es la operacion, `rol` con que
 /// identidad corria y `permiso` el que necesita (para el 403 sin plan).
-pub fn traducir(op: &str, rol: Rol, permiso: &str, r: &Respuesta) -> Informe {
+pub fn traducir(p: Proveedor, op: &str, rol: Rol, permiso: &str, r: &Respuesta) -> Informe {
     let api = mensaje_api(r);
+    let nombre = p.titulo();
     let cita = if api.is_empty() {
         String::new()
     } else {
-        format!(" (GitHub: «{api}»)")
+        format!(" ({nombre}: «{api}»)")
+    };
+    let objeto = match p {
+        Proveedor::GitHub => "el repo, el PR o el commit",
+        Proveedor::GitLab => "el proyecto, el MR o el commit",
     };
     match r.estado {
         401 => Informe::nuevo(op, Resultado::Denegada)
@@ -95,11 +108,13 @@ pub fn traducir(op: &str, rol: Rol, permiso: &str, r: &Respuesta) -> Informe {
                     "limite de peticiones de la API agotado: espera {s} s y relanza{cita}"
                 ))
         }
-        403 if api.contains(AVISO_PLAN) => Informe::nuevo(op, Resultado::Rechazada)
-            .con("motivo", "plan")
-            .diagnostico(format!(
-                "el plan de GitHub no da esta funcion en un repo privado: haz el repo publico o usa GitHub Pro, Team o Enterprise{cita}"
-            )),
+        403 if p == Proveedor::GitHub && api.contains(AVISO_PLAN) => {
+            Informe::nuevo(op, Resultado::Rechazada)
+                .con("motivo", "plan")
+                .diagnostico(format!(
+                    "el plan de GitHub no da esta funcion en un repo privado: haz el repo publico o usa GitHub Pro, Team o Enterprise{cita}"
+                ))
+        }
         403 => Informe::nuevo(op, Resultado::Denegada)
             .con("motivo", "permisos")
             .con("rol", rol.nombre())
@@ -111,35 +126,47 @@ pub fn traducir(op: &str, rol: Rol, permiso: &str, r: &Respuesta) -> Informe {
             .con("motivo", "no-existe-o-sin-acceso")
             .con("rol", rol.nombre())
             .diagnostico(format!(
-                "no existe o el token de {} no lo ve: revisa el repo, el PR o el commit y el alcance del token (GitHub da 404 en un repo privado sin acceso){cita}",
+                "no existe o el token de {} no lo ve: revisa {objeto} y el alcance del token ({nombre} da 404 en un repo privado sin acceso){cita}",
                 rol.nombre()
             )),
-        405 => Informe::nuevo(op, Resultado::Rechazada)
-            .con("motivo", "no-mergeable")
-            .diagnostico(format!(
-                "GitHub no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas{cita}"
-            )),
+        // GitLab da 405 o 406 cuando el MR no se puede mergear.
+        405 => no_mergeable(op, nombre, &cita),
+        406 if p == Proveedor::GitLab => no_mergeable(op, nombre, &cita),
         409 => Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "head-cambiado")
             .diagnostico(format!(
                 "la rama ha cambiado desde que se evaluaron las puertas: vuelve a lanzar estado-puertas{cita}"
             )),
-        // El detalle del 422 viene en `errors[].message`, no en `message`.
+        // El detalle del 422 de GitHub viene en `errors[].message`, no en
+        // `message`.
         422 if r.cuerpo.contains("No commits between") => Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "sin-commits")
             .diagnostico(format!(
                 "la rama no tiene commits nuevos respecto a la base: no hay nada que revisar{cita}"
             )),
-        422 => Informe::nuevo(op, Resultado::Error)
-            .con("motivo", "validacion")
-            .diagnostico(format!("GitHub rechazo los datos de la peticion{cita}")),
+        400 if p == Proveedor::GitLab => validacion(op, nombre, &cita),
+        422 => validacion(op, nombre, &cita),
         e => Informe::nuevo(op, Resultado::Error)
             .con("motivo", "http")
             .con("estado", e.to_string())
             .diagnostico(format!(
-                "respuesta inesperada de GitHub ({e}): reintenta mas tarde{cita}"
+                "respuesta inesperada de {nombre} ({e}): reintenta mas tarde{cita}"
             )),
     }
+}
+
+fn no_mergeable(op: &str, nombre: &str, cita: &str) -> Informe {
+    Informe::nuevo(op, Resultado::Rechazada)
+        .con("motivo", "no-mergeable")
+        .diagnostico(format!(
+            "{nombre} no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas{cita}"
+        ))
+}
+
+fn validacion(op: &str, nombre: &str, cita: &str) -> Informe {
+    Informe::nuevo(op, Resultado::Error)
+        .con("motivo", "validacion")
+        .diagnostico(format!("{nombre} rechazo los datos de la peticion{cita}"))
 }
 
 /// Traduce un fallo sin respuesta.
@@ -179,10 +206,11 @@ pub fn fallo(op: &str, f: &FalloHttp) -> Informe {
 }
 
 /// Respuesta 2xx con un cuerpo que no tiene la forma esperada.
-pub fn respuesta_invalida(op: &str, que: &str) -> Informe {
+pub fn respuesta_invalida(p: Proveedor, op: &str, que: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
         .con("motivo", "respuesta-invalida")
         .diagnostico(format!(
-            "la respuesta de GitHub no tiene la forma esperada ({que})"
+            "la respuesta de {} no tiene la forma esperada ({que})",
+            p.titulo()
         ))
 }

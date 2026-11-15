@@ -1,0 +1,40 @@
+
+running 2 tests
+test puertas_reales_contra_gitlab ...   abrir-pr ok pr=7
+  abrir-pr ok pr=8
+conflicto:
+  estado-puertas esperando pr=7 aprobaciones=0 ignoradas=0 falta=aprobacion,al-dia,sin-conflictos
+  merge-pr rechazada pr=7 motivo=no-mergeable
+  diagnostico: Some("GitLab no deja mergear: faltan puertas o hay conflictos; lanza estado-puertas (GitLab: «405 Method Not Allowed»)")
+detras:
+  estado-puertas esperando pr=8 aprobaciones=0 ignoradas=0 falta=aprobacion,al-dia
+ok
+test recorrido_contra_gitlab ... abrir-pr:
+  abrir-pr ok pr=9
+  abrir-pr sin-cambios pr=9
+estado-puertas:
+  estado-puertas rechazada pr=9 motivo=config garantia=G01
+  estado-puertas esperando pr=9 aprobaciones=0 ignoradas=0 falta=verificacion,aprobacion
+  estado-puertas esperando pr=9 aprobaciones=0 ignoradas=0 falta=aprobacion
+  estado-puertas esperando pr=9 aprobaciones=0 ignoradas=0 falta=revision-ia,aprobacion
+autoaprobacion (se observa):
+  POST approve -> 201 null
+  estado-puertas esperando pr=9 aprobaciones=0 ignoradas=1 falta=aprobacion
+merge-pr:
+  merge-pr rechazada pr=9 motivo=head-cambiado
+  merge-pr ok pr=9 commit=94acb50ec77e
+  merge-pr sin-cambios pr=9 estado=mergeado
+firma del merge, identidad, permisos de la CI, reglas:
+  firma verificada=false motivo=unsigned clave=None
+  identidad login=charlie.bk id=33021007 tipo=User
+  leer-permisos-ci ok ci-aprueba=false fuente=plataforma
+  leer-puertas plan_da_reglas=true reglas=[] rama=["push=40", "merge=40"]
+errores:
+  abrir-pr rechazada motivo=sin-commits
+  identidad denegada motivo=credenciales rol=agente
+  abrir-pr denegada motivo=no-existe-o-sin-acceso rol=agente
+llamadas del adaptador: 39
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.90s
+

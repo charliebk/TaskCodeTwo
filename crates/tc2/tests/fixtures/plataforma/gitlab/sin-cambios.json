@@ -1,0 +1,44 @@
+{
+ "caso": "sin-cambios",
+ "descripcion": "PR o MR ya mergeado",
+ "origen": "fixture inventado con los nombres de campo observados (ver observado.json); lo no observado se marca en la PoC",
+ "politica": {
+  "exigir_impuestas": []
+ },
+ "respuestas": {
+  "/api/v4/projects/7/merge_requests/12?include_diverged_commits_count=true": {
+   "cuerpo": {
+    "author": {
+     "id": 2001
+    },
+    "detailed_merge_status": "mergeable",
+    "diverged_commits_count": 0,
+    "has_conflicts": false,
+    "iid": 12,
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_branch": "feature/task-012-ejemplo",
+    "state": "merged",
+    "target_branch": "develop"
+   },
+   "estado": 200
+  },
+  "/api/v4/projects/7/protected_branches/develop": {
+   "cuerpo": {
+    "allow_force_push": false,
+    "code_owner_approval_required": false,
+    "merge_access_levels": [
+     {
+      "access_level": 40
+     }
+    ],
+    "name": "develop",
+    "push_access_levels": [
+     {
+      "access_level": 0
+     }
+    ]
+   },
+   "estado": 200
+  }
+ }
+}

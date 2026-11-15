@@ -96,6 +96,14 @@ pub fn mergeado(pr: u64) -> Informe {
         .con("estado", "mergeado")
 }
 
+/// PR cerrado sin mergear.
+pub fn pr_cerrado(pr: u64) -> Informe {
+    Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
+        .con("pr", pr.to_string())
+        .con("motivo", "pr-cerrado")
+        .diagnostico("el PR esta cerrado sin mergear: reabrelo o abre otro")
+}
+
 /// La politica exige impuesta una garantia que el plan no da.
 pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
@@ -105,6 +113,17 @@ pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
         .diagnostico(format!(
             "la politica del proyecto exige {garantia} impuesta y el plan de la plataforma no la da: cambia de plan o quita {garantia} de la politica"
         ))
+}
+
+/// La plataforma no tiene configurada una garantia que se lee de su
+/// configuracion (GitLab: G01, rama destino protegida; G03 y demas de
+/// Premium, una regla de aprobacion). `arreglo` dice que hacer.
+pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &str) -> Informe {
+    Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
+        .con("pr", pr.to_string())
+        .con("motivo", "config")
+        .con("garantia", garantia)
+        .diagnostico(format!("{garantia} no se cumple: {arreglo}"))
 }
 
 #[cfg(test)]
