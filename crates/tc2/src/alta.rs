@@ -106,7 +106,7 @@ pub fn siguiente_id(rutas: &[String]) -> Result<u32, Fallo> {
     let maximo = rutas.iter().filter_map(|r| numero(r)).max().unwrap_or(0);
     maximo
         .checked_add(1)
-        .ok_or_else(|| Fallo::Error("no quedan IDs de tarea".to_owned()))
+        .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))
 }
 
 /// `tarea.md` de una tarea recien creada: el modelo de F2-5 con la

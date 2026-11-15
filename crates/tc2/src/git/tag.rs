@@ -6,6 +6,8 @@ use std::time::Duration;
 use super::remoto::publicar;
 use super::{Git, Paso, REMOTO, Subcomando, commit_de, correr, exigir};
 use crate::contrato::{Informe, Resultado, corto};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::git as txt;
 
 /// Pone `tag` sobre `referencia` y lo publica. Compara con el tag local
 /// (aunque no este publicado) y con el del remoto: en otro commit →
@@ -40,16 +42,16 @@ fn tag_paso(
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("tag", tag)
             .con("motivo", "ref-no-existe")
-            .diagnostico_sin_traducir(format!("{referencia} no existe")));
+            .diagnostico(
+                Mensaje::nuevo(&txt::REFERENCIA_NO_EXISTE).con("referencia", referencia),
+            ));
     };
     let otro_commit = |donde: &str| {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("tag", tag)
             .con("motivo", "existe-en-otro-commit")
             .con("donde", donde)
-            .diagnostico_sin_traducir(format!(
-                "el tag {tag} ya existe sobre otro commit: elige otro nombre"
-            ))
+            .diagnostico(Mensaje::nuevo(&txt::TAG_EN_OTRO_COMMIT).con("tag", tag))
     };
     let local = commit_de(git, dir, OP, &format!("refs/tags/{tag}"))?;
     if local.as_ref().is_some_and(|l| *l != commit) {
@@ -82,12 +84,11 @@ fn tag_paso(
             if matches!(p.resultado, Resultado::Denegada | Resultado::Error) {
                 i = i.con("motivo", p.motivo);
             }
-            return Ok(i
-                .con("intentos", p.intentos.to_string())
-                .diagnostico_sin_traducir(format!(
-                    "no se pudo publicar el tag: {}; el tag queda en local, {que_hacer}",
-                    p.ultimo
-                )));
+            return Ok(i.con("intentos", p.intentos.to_string()).diagnostico(
+                Mensaje::nuevo(&txt::TAG_SIN_PUBLICAR)
+                    .con("ultimo", p.ultimo)
+                    .con_mensaje("que_hacer", que_hacer),
+            ));
         }
     }
     Ok(Informe::nuevo(OP, Resultado::Ok)
@@ -109,9 +110,7 @@ fn commit_remoto(git: &Git, dir: &Path, op: &str, tag: &str) -> Paso<Option<Stri
     if !s.exito() {
         return Err(Informe::nuevo(op, Resultado::Sinred)
             .con("remoto", REMOTO)
-            .diagnostico_sin_traducir(format!(
-                "{op}: no se pudo leer {REMOTO}; reintenta con red"
-            )));
+            .diagnostico(super::remoto::sin_red_remoto(op)));
     }
     let mut directo = None;
     for l in s.stdout.lines() {

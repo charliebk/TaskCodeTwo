@@ -10,16 +10,6 @@ use std::path::{Path, PathBuf};
 /// falla, para que la lista solo encoja.
 const PENDIENTES: &[&str] = &[
     "config/mod.rs",
-    "estado/montaje.rs",
-    "estado/transaccion.rs",
-    "git/diff.rs",
-    "git/estado.rs",
-    "git/guardar.rs",
-    "git/mod.rs",
-    "git/rama.rs",
-    "git/remoto.rs",
-    "git/tag.rs",
-    "git/worktree.rs",
     "plataforma/conexion.rs",
     "plataforma/deteccion.rs",
     "plataforma/errores.rs",
@@ -34,6 +24,9 @@ const PENDIENTES: &[&str] = &[
 const EXTERNOS: &[(&str, usize)] = &[
     // `Informe::diagnostico_sin_traducir`, transitorio: se va con PENDIENTES.
     ("contrato.rs", 1),
+    // Fallo al leer un blob sin diagnostico: queda la linea de contrato, que
+    // no se traduce (ADR F1-4).
+    ("estado/lectura.rs", 1),
 ];
 
 /// Formas de meter un literal en un diagnostico sin pasar por el catalogo.

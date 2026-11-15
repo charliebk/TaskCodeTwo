@@ -33,6 +33,8 @@ pub use worktree::quitar_worktree;
 use std::path::{Component, Path, PathBuf};
 
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::git as txt;
 
 /// Nombre del remoto (ADR F1-3).
 pub const REMOTO: &str = "origin";
@@ -54,8 +56,15 @@ pub(crate) fn correr(
     git.ejecutar(dir, sub, args).map_err(|e| {
         Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico_sin_traducir(e.to_string())
+            .diagnostico(e.mensaje())
     })
+}
+
+/// Diagnostico de un subcomando de git que termino con error.
+pub(crate) fn git_fallo(sub: Subcomando, s: &SalidaGit) -> Mensaje {
+    Mensaje::nuevo(&txt::GIT_FALLO)
+        .con("subcomando", sub.nombre())
+        .con("error", s.primera_linea_error())
 }
 
 /// Como [`correr`], pero un codigo distinto de 0 tambien es `error`.
@@ -72,11 +81,7 @@ pub(crate) fn exigir(
     } else {
         Err(Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico_sin_traducir(format!(
-                "git {} fallo: {}",
-                sub.nombre(),
-                s.primera_linea_error()
-            )))
+            .diagnostico(git_fallo(sub, &s)))
     }
 }
 
@@ -105,12 +110,10 @@ pub(crate) fn es_ancestro(git: &Git, dir: &Path, op: &str, a: &str, b: &str) -> 
     match s.codigo {
         0 => Ok(true),
         1 => Ok(false),
-        _ => Err(
-            Informe::nuevo(op, Resultado::Error).diagnostico_sin_traducir(format!(
-                "git merge-base fallo: {}",
-                s.primera_linea_error()
-            )),
-        ),
+        _ => {
+            Err(Informe::nuevo(op, Resultado::Error)
+                .diagnostico(git_fallo(Subcomando::MergeBase, &s)))
+        }
     }
 }
 
