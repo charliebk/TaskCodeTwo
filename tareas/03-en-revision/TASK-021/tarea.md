@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-021-f2-6-adaptador-github
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1588800
-tokens_implementacion: null
+tokens_implementacion: 11346466
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-15
@@ -39,12 +39,14 @@ Tarea F2-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-15T16:50:45Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-15T16:58:01Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-15T16:58:09Z | start | automatico | persona | 0.16.1 |
+| 2026-11-15T17:23:03Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-15T16:58:01Z | diseno | agente:a14748c38791202ec | 44 | 98344 | 1467204 | 23208 | 33 | 1588800 | - | - |
+| 2026-11-15T17:23:03Z | implementacion | sesion:0c02a589-064f-41b2-898e-aecc1141ae21 | 88 | 111688 | 11159050 | 75640 | 8 | 11346466 | - | - |
 
 ## Autorrevision
 
