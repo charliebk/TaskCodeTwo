@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio
 asignado_a: charlie.bk@gmail.com
@@ -54,6 +54,7 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 | 2026-11-15T03:30:20Z | review | automatico | persona | 0.16.1 |
 | 2026-11-15T05:32:03Z | review | automatico | persona | 0.16.1 |
 | 2026-11-15T07:29:31Z | review | automatico | persona | 0.16.1 |
+| 2026-11-15T08:34:28Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -83,3 +84,10 @@ Contexto (Carlos, 2026-11-14, RR-18, imprescindible): hoy se hace por instrucci√
 - **Revision**: ronda 1 cambios (IMP-1 carril del diff, IMP-2 arbol del merge, IMP-3 manifiesto con blob entero, IMP-4 escrituras durante el agente, IMP-5 garantia de no merge en develop; MEN-1..7), corregido en 08a98c8; ronda 2 cambios (NUE-1 nucleo por lista blanca; NUE-2..4), corregido en d574e7f; ronda extra 3 cambios (NUE-5 lista de escrituras medida solo en ToolsaWeb, NUE-6 reversion parcial sin caso; NUE-7..9), corregido en da557fc; ronda extra 4 aprobada sin hallazgos. Rondas extra justificadas en `## Rondas extra`.
 - **Para despues**: en ToolsaWeb, mover lo generado de `hitos.md` a la rama de estado antes del primer lote; firmar los planes sin `approve` de persona antes de lanzar un lote.
 - Implementacion por un agente implementador; revision por cuatro agentes independientes. `taskctl doctor` con 0 errores. Pilotos solo leidos. Temporales borrados.
+
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 594 min
+- Paso de la hora: 594 min reales frente a 180 estimados
+- Cierre (finish): 9 s, de 2026-11-15T08:34:19Z a 2026-11-15T08:34:28Z

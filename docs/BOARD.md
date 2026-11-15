@@ -1,8 +1,8 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-14. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-15. No editar a mano.
 
-## Planificadas (00-planificadas) — 77
+## Planificadas (00-planificadas) — 76
 
 ```text
 ID        Titulo                                                                 Asignado
@@ -64,7 +64,6 @@ TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0       
 TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                      (sin asignar)
 TASK-071  F9-9a Prueba de instalacion en maquinas limpias                        (sin asignar)
 TASK-072  F9-9 Publicar 2.0.0                                                    (sin asignar)
-TASK-074  F1-16 ADR lotes desatendidos con revision humana al final              (sin asignar)
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                      (sin asignar)
 TASK-076  F2-4b Nombres unicos de tarea y rama                                   (sin asignar)
 TASK-077  F2-13 Identidad de la persona desde la plataforma                      (sin asignar)
@@ -86,7 +85,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 17
+## Terminadas (04-terminadas) — 18
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -107,5 +106,6 @@ TASK-013  F1-12 ADR actualizacion de proyectos entre versiones                  
 TASK-014  F1-14 ADR distribucion e instalacion                                      charlie.bk@gmail.com
 TASK-015  F1-13 ADR adaptador de plataforma GitHub y GitLab                         charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
+TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 ```
