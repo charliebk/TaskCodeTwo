@@ -122,12 +122,19 @@ fn orden_new(args: &[String]) -> Informe {
         [_] => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
                 .con("motivo", "titulo-invalido")
-                .diagnostico("el titulo no puede estar vacio ni llevar saltos de linea");
+                .diagnostico(
+                    "el titulo no puede estar vacio ni llevar saltos de linea, tabuladores ni otros caracteres de control",
+                );
         }
-        _ => {
+        [] => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
                 .con("motivo", "sin-titulo")
                 .diagnostico("uso: new [--json] \"<titulo>\"");
+        }
+        _ => {
+            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
+                .con("motivo", "argumentos-de-mas")
+                .diagnostico("pon el titulo entre comillas: new [--json] \"<titulo>\"");
         }
     };
     let dir = match std::env::current_dir() {
@@ -160,7 +167,8 @@ mod tests {
         for (args, motivo) in [
             (vec!["new"], "sin-titulo"),
             (vec!["new", "--json"], "sin-titulo"),
-            (vec!["new", "a", "b"], "sin-titulo"),
+            (vec!["new", "a", "b"], "argumentos-de-mas"),
+            (vec!["new", "a\tb"], "titulo-invalido"),
             (vec!["new", "linea\notra"], "titulo-invalido"),
             (vec!["new", "  "], "titulo-invalido"),
         ] {

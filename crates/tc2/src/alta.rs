@@ -141,10 +141,16 @@ pub fn formato_id(n: u32) -> String {
     format!("{PREFIJO}{n:03}")
 }
 
-/// El numero de la carpeta de tarea del primer componente de `ruta`.
+/// El numero de la carpeta de tarea del primer componente de `ruta`. El
+/// prefijo se compara sin mayusculas, como compara las rutas la transaccion:
+/// una `task-013/` puesta a mano tambien ocupa el 13.
 fn numero(ruta: &str) -> Option<u32> {
     let primero = ruta.split('/').next()?;
-    let cifras = primero.strip_prefix(PREFIJO)?;
+    let prefijo = primero.get(..PREFIJO.len())?;
+    if !prefijo.eq_ignore_ascii_case(PREFIJO) {
+        return None;
+    }
+    let cifras = primero.get(PREFIJO.len()..)?;
     if cifras.is_empty() || !cifras.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
@@ -221,6 +227,12 @@ mod tests {
             "TASK-+9/tarea.md",
         ]);
         assert_eq!(siguiente_id(&r), Ok(8));
+        // Una carpeta en minusculas puesta a mano tambien ocupa su numero.
+        assert_eq!(
+            siguiente_id(&rutas(&["task-013/tarea.md", "TASK-002/tarea.md"])),
+            Ok(14)
+        );
+        assert_eq!(siguiente_id(&rutas(&["ñ/x", "TAS"])), Ok(1));
         assert_eq!(siguiente_id(&[]), Ok(1));
         assert_eq!(siguiente_id(&rutas(&["TASK-999/tarea.md"])), Ok(1000));
         assert_eq!(formato_id(1000), "TASK-1000");
@@ -293,6 +305,7 @@ mod tests {
         assert!(!titulo_valido("a\nb"));
         assert!(!titulo_valido("a\tb"));
         assert!(!titulo_valido("a\u{2028}b"));
+        assert!(!titulo_valido("a\u{2029}b"));
         assert!(!titulo_valido("a\u{85}b"));
         assert!(!titulo_valido("   "));
         assert!(titulo_valido("Título con ñ"));
