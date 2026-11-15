@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-017-f2-2-capa-de-operaciones-git-determinist
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-15T12:33:27Z | start | automatico | persona | 0.16.1 |
 | 2026-11-15T12:49:09Z | review | automatico | persona | 0.16.1 |
 | 2026-11-15T13:05:50Z | review | automatico | persona | 0.16.1 |
+| 2026-11-15T13:13:46Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -146,3 +147,9 @@ Tarea F2-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
   rutas no UTF-8; `git` anterior a 2.56.
 - Coste: los tests de integracion tardan 4–18 s cada uno en local (Windows) y
   0,2–7 s en la CI; no se separan como pesados.
+
+## Duracion
+
+- Estimada: 170 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 40 min
+- Cierre (finish): 75 s, de 2026-11-15T13:12:31Z a 2026-11-15T13:13:46Z

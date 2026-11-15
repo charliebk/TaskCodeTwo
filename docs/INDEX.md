@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-017 — F2-2 Capa de operaciones Git deterministas · etiquetas: (sin etiquetas) · rama feature/task-017-f2-2-capa-de-operaciones-git-determinist · terminada 2026-11-15 · tareas/04-terminadas/TASK-017/
 - TASK-016 — F2-1 Esqueleto: Rust, build reproducible · etiquetas: (sin etiquetas) · rama feature/task-016-f2-1-esqueleto-typescript-build-reproduc · terminada 2026-11-15 · tareas/04-terminadas/TASK-016/
 - TASK-075 — F1-17 ADR progreso en vivo y estimacion de tiempo · etiquetas: (sin etiquetas) · rama feature/task-075-f1-17-adr-progreso-en-vivo-y-estimacion · terminada 2026-11-15 · tareas/04-terminadas/TASK-075/
 - TASK-074 — F1-16 ADR lotes desatendidos con revision humana al final · etiquetas: (sin etiquetas) · rama feature/task-074-f1-16-adr-lotes-desatendidos-con-revisio · terminada 2026-11-15 · tareas/04-terminadas/TASK-074/

@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-017 (feature) — F2-2 Capa de operaciones Git deterministas (2026-11-15)
 - TASK-016 (feature) — F2-1 Esqueleto: Rust, build reproducible (2026-11-15)
 - TASK-075 (feature) — F1-17 ADR progreso en vivo y estimacion de tiempo (2026-11-15)
 - TASK-074 (feature) — F1-16 ADR lotes desatendidos con revision humana al final (2026-11-15)
