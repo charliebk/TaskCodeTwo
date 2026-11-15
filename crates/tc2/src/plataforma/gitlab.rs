@@ -143,6 +143,7 @@ struct MrApi {
 struct MrPuertasApi {
     state: String,
     sha: String,
+    author: AutorApi,
     target_branch: String,
     has_conflicts: bool,
     diverged_commits_count: u64,
@@ -190,6 +191,8 @@ struct AprobadorApi {
 #[derive(Deserialize)]
 struct ReglaAprobacionApi {
     name: String,
+    #[serde(default)]
+    approvals_required: u64,
 }
 
 #[derive(Deserialize)]
@@ -426,7 +429,10 @@ impl Plataforma for GitLab {
         if !rama_valida(&m.target_branch) || !sha_valido(&m.sha) {
             return self.con.invalida(op, "rama destino o sha del MR");
         }
-        // Las reglas de aprobacion son de Premium: en Free, 403.
+        // Las reglas de aprobacion son de Premium. Observado en el E2E: en
+        // Free el endpoint responde 200 con la lista vacia (no el 403 que
+        // suponia F1-13), asi que lo que se comprueba es que haya una regla
+        // que pida al menos una aprobacion; el 403 sigue contando como plan.
         let r = match self
             .con
             .pedir(op, rol, self.ep(&Endpoint::ReglasAprobacion), None)
@@ -434,17 +440,31 @@ impl Plataforma for GitLab {
             Ok(r) => r,
             Err(i) => return i,
         };
-        let plan_da_reglas = r.exito();
-        if !plan_da_reglas && r.estado != 403 {
+        let impone_aprobacion = if r.exito() {
+            match self.con.parsear::<Vec<ReglaAprobacionApi>>(op, &r.cuerpo) {
+                Ok(v) => v.iter().any(|x| x.approvals_required >= 1),
+                Err(i) => return i,
+            }
+        } else if r.estado == 403 {
+            false
+        } else {
             return self.con.traducir(op, rol, PERMISO_LECTURA, &r);
-        }
-        if !plan_da_reglas
+        };
+        if !impone_aprobacion
             && let Some(g) = modelo
                 .exigir_impuestas
                 .iter()
                 .find(|g| GARANTIAS_PREMIUM.contains(&g.as_str()))
         {
-            return puertas::rechazada_por_plan(pr, g);
+            return if r.estado == 403 {
+                puertas::rechazada_por_plan(pr, g)
+            } else {
+                puertas::rechazada_por_config(
+                    pr,
+                    g,
+                    "GitLab no impone aprobaciones en este proyecto: crea una regla de aprobacion con al menos una aprobacion (requiere Premium o Ultimate) o quita la garantia de la politica",
+                )
+            };
         }
         // G01: la rama destino solo la mergean Maintainers y no admite
         // force-push.
@@ -473,7 +493,11 @@ impl Plataforma for GitLab {
                     .all(|n| n.access_level == MAINTAINER)
         });
         if !g01 {
-            return puertas::rechazada_por_config(pr, "G01");
+            return puertas::rechazada_por_config(
+                pr,
+                "G01",
+                "la rama destino no esta protegida con merge solo para Maintainers y sin force-push: protegela (taskctl setup lo propone)",
+            );
         }
         let (_, ruta) = self.ep(&Endpoint::Estados(&m.sha));
         let mut estados: Vec<EstadoApi> =
@@ -508,7 +532,9 @@ impl Plataforma for GitLab {
             Ok(a) => a,
             Err(i) => return i,
         };
-        // Una aprobacion por cuenta, por id (F1-6, regla 6).
+        // Una aprobacion por cuenta, por id (F1-6, regla 6). La del autor del
+        // MR no cuenta: GitLab Free la admite (observado en el E2E) y GitHub
+        // no, y la linea tiene que ser la misma (RR-15).
         let aprobadores: BTreeMap<u64, Usuario> = a
             .approved_by
             .into_iter()
@@ -516,7 +542,7 @@ impl Plataforma for GitLab {
             .collect();
         let aprobaciones = aprobadores
             .values()
-            .filter(|u| u.es_persona(self.con.personas()))
+            .filter(|u| u.id != m.author.id && u.es_persona(self.con.personas()))
             .count();
         puertas::evaluar(&Lecturas {
             pr,

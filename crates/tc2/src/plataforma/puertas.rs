@@ -116,16 +116,14 @@ pub fn rechazada_por_plan(pr: u64, garantia: &str) -> Informe {
 }
 
 /// La plataforma no tiene configurada una garantia que se lee de su
-/// configuracion (GitLab, G01: rama destino protegida, merge solo de
-/// Maintainers y sin force-push).
-pub fn rechazada_por_config(pr: u64, garantia: &str) -> Informe {
+/// configuracion (GitLab: G01, rama destino protegida; G03 y demas de
+/// Premium, una regla de aprobacion). `arreglo` dice que hacer.
+pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &str) -> Informe {
     Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "config")
         .con("garantia", garantia)
-        .diagnostico(format!(
-            "la rama destino no cumple {garantia}: protegela con merge solo para Maintainers y sin force-push (taskctl setup lo propone)"
-        ))
+        .diagnostico(format!("{garantia} no se cumple: {arreglo}"))
 }
 
 #[cfg(test)]

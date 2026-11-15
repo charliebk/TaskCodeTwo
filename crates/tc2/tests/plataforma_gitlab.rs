@@ -617,6 +617,30 @@ fn protecciones_de_gitlab() {
         puertas(&|f| f["respuestas"][&reglas]["estado"] = 401.into()),
         "estado-puertas denegada motivo=credenciales rol=agente"
     );
+    // Free responde 200 con la lista vacia (observado en el E2E): con una
+    // garantia Premium exigida, ninguna regla que pida aprobacion es un
+    // rechazo, no un verde.
+    let premium = modelo(Proveedor::GitLab, &["G03"]);
+    for reglas_vistas in ["[]", "[{\"id\":1,\"name\":\"r\",\"approvals_required\":0}]"] {
+        let (gl, _mock) = verde_con(|f| {
+            f["respuestas"][&reglas]["cuerpo"] = serde_json::from_str(reglas_vistas).unwrap();
+        });
+        assert_eq!(
+            gl.estado_puertas(Rol::Agente, 12, &premium).linea(),
+            "estado-puertas rechazada pr=12 motivo=config garantia=G03",
+            "{reglas_vistas}"
+        );
+    }
+    let (gl, _mock) = verde_con(|_| {});
+    assert_eq!(
+        gl.estado_puertas(Rol::Agente, 12, &premium).linea(),
+        "estado-puertas ok pr=12 aprobaciones=1 ignoradas=0"
+    );
+    // La aprobacion del autor del MR no cuenta (GitLab Free la admite).
+    assert_eq!(
+        puertas(&|f| mr_de(f)["author"]["id"] = PERSONA.into()),
+        "estado-puertas esperando pr=12 aprobaciones=0 ignoradas=1 falta=aprobacion"
+    );
     // Campo ausente: respuesta invalida, no un verde por defecto.
     assert_eq!(
         puertas(&|f| {
