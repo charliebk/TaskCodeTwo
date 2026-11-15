@@ -104,6 +104,8 @@ Tarea F2-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - El repo de pruebas `charliebk/taskcodetwo-e2e-github` queda creado y limpio (solo `main` y `develop`). Lo borra Carlos cuando quiera, según su decisión del 2026-11-15; lo pueden reutilizar F3-1 y F6-2.
 - Se planificó con 180 min, sin trocear por decisión de Carlos para el H2.
 
+**Tras el cierre.** CI de `develop` en 830de9b (run 43745445064): `comprobar-repo` y `codigo` en ubuntu, macOS y Windows, los 4 jobs en success.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
