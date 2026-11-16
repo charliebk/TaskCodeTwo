@@ -1,6 +1,6 @@
 //! C4 de TASK-116 (F1-12 D1a): un repo con la huella de la 0.16 queda
-//! intacto tras `tc2 new` y `crear_rama_y_worktree` (el «start» de la 2.0),
-//! y todo lo que la 2.0 deja nuevo vive bajo los nombres de `huella.rs`.
+//! intacto tras `tc2 new`, `crear_rama_y_worktree` (el «start» de la 2.0)
+//! y una escritura de estado sin red que deja una pendiente, y todo lo que la 2.0 deja nuevo vive bajo los nombres de `huella.rs`.
 //!
 //! La huella de la 0.16 es la que deja la 0.16.1 (su codigo en la cache del
 //! plugin y OpenDockTrading y ToolsaWeb, medido el 2026-11-16):
@@ -17,8 +17,12 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
 
+use std::time::Duration;
+
+use comun::ops::{Anotar, catalogo};
 use comun::{Fixture, escribir};
 use tc2::contrato::Resultado;
+use tc2::estado::{self, Contexto, Politica};
 use tc2::{git, huella};
 
 /// Ficheros de la 0.16 en `.git/taskcode/`.
@@ -50,7 +54,8 @@ const ARBOL_016: [(&str, &str); 4] = [
 
 /// Todo lo de la 0.16 que no debe cambiar: ficheros de `.git/taskcode/` y
 /// `.taskcode/` (con su contenido), refs de `develop` y `main` (local y
-/// remoto) y el arbol versionado de `develop`.
+/// remoto), el espacio `refs/taskcode/` (vacio: la 0.16 no lo usa, y la 2.0
+/// no debe escribir en el) y el arbol versionado de `develop`.
 fn huella_016(f: &Fixture, bare: &Path, clon: &Path) -> BTreeMap<String, String> {
     let mut h = BTreeMap::new();
     for raiz in [clon.join(".git").join("taskcode"), clon.join(".taskcode")] {
@@ -59,9 +64,9 @@ fn huella_016(f: &Fixture, bare: &Path, clon: &Path) -> BTreeMap<String, String>
     for (dir, refs) in [
         (
             clon,
-            "refs/heads/develop refs/heads/main refs/remotes/origin/develop refs/remotes/origin/main",
+            "refs/heads/develop refs/heads/main refs/remotes/origin/develop refs/remotes/origin/main refs/taskcode/",
         ),
-        (bare, "refs/heads/develop refs/heads/main"),
+        (bare, "refs/heads/develop refs/heads/main refs/taskcode/"),
     ] {
         let mut args = vec!["for-each-ref", "--format=%(refname) %(objectname)"];
         args.extend(refs.split(' '));
@@ -159,6 +164,32 @@ fn la_huella_de_la_016_queda_intacta_tras_new_y_start() {
         "origin/develop",
     );
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+
+    // Una escritura de estado sin red deja su pendiente en las refs propias.
+    let url = bare.to_str().unwrap().to_owned();
+    f.crudo(
+        &clon,
+        &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
+    );
+    let mut c = Contexto::nuevo(&g, &clon, &catalogo);
+    c.politica = Politica {
+        intentos: 3,
+        base: Duration::from_millis(1),
+        espera_cerrojo: Duration::from_secs(30),
+    };
+    let i = estado::transaccion(&c, &Anotar::nueva("notas/a.md", false));
+    assert_eq!(
+        i.linea(),
+        "estado sinred operacion=anotar pendiente=si pendientes=1"
+    );
+    f.crudo(&clon, &["remote", "set-url", "origin", &url]);
+    assert_eq!(
+        f.crudo(
+            &clon,
+            &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"]
+        ),
+        "refs/taskcodetwo/pendientes/000001\n"
+    );
 
     // Nada de la 0.16 ha cambiado.
     assert_eq!(huella_016(&f, &bare, &clon), antes);
