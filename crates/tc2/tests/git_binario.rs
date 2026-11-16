@@ -15,6 +15,11 @@ use tc2::git;
 fn tc2(f: &Fixture, dir: &Path, args: &[&str], locale: Option<&str>) -> Output {
     let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
     c.current_dir(dir).args(args).envs(f.entorno());
+    // Sin locale fijado, el idioma no puede venir del runner (macOS trae
+    // LANG=en_US): se quitan las variables que lee `main.rs` y queda espanol.
+    for var in ["TC2_IDIOMA", "LC_ALL", "LC_MESSAGES", "LANG"] {
+        c.env_remove(var);
+    }
     if let Some(l) = locale {
         c.env("LANG", l).env("LC_ALL", l);
     }
