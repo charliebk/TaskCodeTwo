@@ -1,13 +1,12 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-15. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-16. No editar a mano.
 
-## Planificadas (00-planificadas) — 67
+## Planificadas (00-planificadas) — 66
 
 ```text
 ID        Titulo                                                               Asignado
 --------  -------------------------------------------------------------------  -------------
-TASK-024  F2-8 i18n de mensajes                                                (sin asignar)
 TASK-025  F2-10 Build de ejecutables por sistema en la CI, firmados            (sin asignar)
 TASK-026  F2-11 Instaladores de una linea                                      (sin asignar)
 TASK-027  F2-12 taskctl actualizar --cli y aviso de version nueva              (sin asignar)
@@ -76,7 +75,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                  (
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                         (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 27
+## Terminadas (04-terminadas) — 28
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -104,6 +103,7 @@ TASK-020  F2-5 Modelo de tarea y parser/serializador de frontmatter YAML valido 
 TASK-021  F2-6 Adaptador GitHub                                                     charlie.bk@gmail.com
 TASK-022  F2-9 Adaptador GitLab                                                     charlie.bk@gmail.com
 TASK-023  F2-7 Configuracion minima con esquema validado y valores por defecto      charlie.bk@gmail.com
+TASK-024  F2-8 i18n de mensajes                                                     charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com

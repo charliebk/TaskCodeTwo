@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-024 — F2-8 i18n de mensajes · etiquetas: (sin etiquetas) · rama feature/task-024-f2-8-i18n-de-mensajes · terminada 2026-11-16 · tareas/04-terminadas/TASK-024/
 - TASK-023 — F2-7 Configuracion minima con esquema validado y valores por defecto · etiquetas: (sin etiquetas) · rama feature/task-023-f2-7-configuracion-minima-con-esquema-va · terminada 2026-11-15 · tareas/04-terminadas/TASK-023/
 - TASK-022 — F2-9 Adaptador GitLab · etiquetas: (sin etiquetas) · rama feature/task-022-f2-9-adaptador-gitlab · terminada 2026-11-15 · tareas/04-terminadas/TASK-022/
 - TASK-021 — F2-6 Adaptador GitHub · etiquetas: (sin etiquetas) · rama feature/task-021-f2-6-adaptador-github · terminada 2026-11-15 · tareas/04-terminadas/TASK-021/
