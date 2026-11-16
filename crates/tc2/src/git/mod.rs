@@ -21,8 +21,10 @@ mod worktree;
 pub use diff::diff_tarea;
 pub use estado::Cambio;
 pub use guardar::guardar;
-pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaGit, Subcomando};
-pub use rama::{comprobar_id, crear_rama_y_worktree, localizar_principal, reanudar, validar_base};
+pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaCruda, SalidaGit, Subcomando};
+pub use rama::{
+    comprobar_id, crear_rama_y_worktree, ids_con_rama, localizar_principal, reanudar, validar_base,
+};
 pub use remoto::{
     ESPERAS_PUSH, FalloRemoto, actualizar_principal, actualizar_rama, clasificar_fallo_remoto,
     fetch, push,

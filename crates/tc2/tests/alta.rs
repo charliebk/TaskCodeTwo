@@ -12,6 +12,10 @@ use std::process::{Command, Output};
 use std::sync::{Arc, Barrier};
 
 use comun::Fixture;
+use tc2::alta::Alta;
+use tc2::contrato::Resultado;
+use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use tc2::tarea::texto::Parecido;
 
 const RAMA: &str = "taskcode/tareas";
 
@@ -150,8 +154,114 @@ fn el_segundo_clon_recibe_el_siguiente_id_sin_fetch_previo() {
     );
 }
 
+/// Valor de `clave=` en una linea de contrato.
+fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
+    linea
+        .split(' ')
+        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+}
+
+/// TASK-076 C2: una rama de tarea que solo esta en el remoto (sin carpeta)
+/// ocupa su numero: el siguiente `new` da un ID mayor.
+#[test]
+fn rama_solo_en_el_remoto_ocupa_su_id() {
+    let f = Fixture::nueva("alta-rama-remota");
+    let (bare, a) = f.remoto_y_clon();
+    let b = f.otro_clon(&bare, "clon-b");
+    // Otra persona publica la rama sin pasar por `new` (ni carpeta).
+    f.crudo(&b, &["branch", "feature/task-005-x"]);
+    f.crudo(&b, &["push", "-q", "origin", "feature/task-005-x"]);
+    let o = tc2(&f, &a, &["new", "Despues de la rama"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-006"), "{out}");
+    assert_eq!(
+        valor(&out, "rama"),
+        Some("feature/task-006-despues-de-la-rama"),
+        "{out}"
+    );
+    let md = f.crudo(&bare, &["show", &format!("{RAMA}:TASK-006/tarea.md")]);
+    assert!(
+        md.contains("\nrama: \"feature/task-006-despues-de-la-rama\"\n"),
+        "{md}"
+    );
+    assert!(
+        !f.crudo(&bare, &["ls-tree", "--name-only", RAMA])
+            .contains("TASK-005")
+    );
+}
+
+/// TASK-076 C3: lo mismo con una rama `*/task-NNN-*` que solo existe en
+/// local (tambien en un repo sin remoto, que solo mira la local).
+#[test]
+fn rama_solo_en_local_ocupa_su_id() {
+    let f = Fixture::nueva("alta-rama-local");
+    let (_bare, a) = f.remoto_y_clon();
+    f.crudo(&a, &["branch", "fix/task-009-y"]);
+    let o = tc2(&f, &a, &["new", "Tras la local"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-010"), "{out}");
+
+    // Sin remoto: la rama local tambien cuenta.
+    let solo = f.raiz.join("solo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
+    f.crudo(&solo, &["commit", "-q", "--allow-empty", "-m", "inicial"]);
+    f.crudo(&solo, &["branch", "a/b/task-020-z"]);
+    let o = tc2(&f, &solo, &["new", "Sin remoto"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-021"), "{out}");
+}
+
+/// TASK-076 C6: si el remoto no responde, el `ls-remote` previo sale
+/// `sinred` (4) antes de la transaccion (sin `fetch` ni `push`) y no deja
+/// refs; un remoto que no existe es `denegada` (8), como en `fetch`.
+#[test]
+fn ls_remote_previo_sin_red_o_denegado_no_deja_nada() {
+    let f = Fixture::nueva("alta-lsremote");
+    let (_bare, a) = f.remoto_y_clon();
+    let antes = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
+    f.crudo(
+        &a,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "http://127.0.0.1:1/remoto.git",
+        ],
+    );
+    let g = f.git();
+    let i = tc2::git::ids_con_rama(&g, &a, "new").expect_err("sin red");
+    assert_eq!(
+        i.resultado,
+        tc2::contrato::Resultado::Sinred,
+        "{}",
+        i.linea()
+    );
+    let remotas: Vec<String> = g
+        .registro()
+        .into_iter()
+        .filter(|l| l.starts_with("git fetch") || l.starts_with("git push"))
+        .collect();
+    assert!(remotas.is_empty(), "{remotas:?}");
+    let no_existe = f.raiz.join("no-existe.git");
+    f.crudo(
+        &a,
+        &["remote", "set-url", "origin", no_existe.to_str().unwrap()],
+    );
+    let o = tc2(&f, &a, &["new", "Remoto que no existe"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(8), "{out} {}", texto(&o.stderr));
+    assert!(out.starts_with("new denegada "), "{out}");
+    assert_eq!(valor(&out, "operacion"), None, "{out}");
+    let despues = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
+    assert_eq!(antes, despues, "new dejo refs");
+}
+
 /// C2b: sin red, `new` no reserva nada: `sinred pendiente=no` (4), sin
-/// commit local ni operacion pendiente (D2b de F1-2).
+/// commit local ni operacion pendiente (D2b de F1-2). Desde F2-4b lo corta
+/// el `ls-remote` previo: la linea no lleva `operacion=` (TASK-076 C6).
 #[test]
 fn sin_red_falla_sin_dejar_nada() {
     let f = Fixture::nueva("alta-sinred");
@@ -171,6 +281,178 @@ fn sin_red_falla_sin_dejar_nada() {
     assert_eq!(o.status.code(), Some(4), "{out} {}", texto(&o.stderr));
     assert!(out.starts_with("new sinred "), "{out}");
     assert!(out.contains(" pendiente=no"), "{out}");
+    assert_eq!(valor(&out, "operacion"), None, "{out}");
+    assert_eq!(valor(&out, "remoto"), Some("origin"), "{out}");
     let despues = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
     assert_eq!(antes, despues, "new sin red dejo refs");
+}
+
+/// Pasa una tarea a `terminada` en la rama de estado (por la transaccion,
+/// como lo haria `finish`).
+struct Terminar(&'static str);
+
+impl Operacion for Terminar {
+    fn nombre(&self) -> &str {
+        "terminar"
+    }
+    fn anotacion(&self) -> String {
+        format!("terminar|{}", self.0)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        let ruta = format!("{}/tarea.md", self.0);
+        let md = e.leer(&ruta)?.unwrap_or_default();
+        let nuevo = md.replacen("estado: \"planificada\"", "estado: \"terminada\"", 1);
+        assert_ne!(md, nuevo, "{md}");
+        Ok(vec![Cambio::nuevo(ruta, nuevo)])
+    }
+}
+
+fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
+    None
+}
+
+fn nueva(f: &Fixture, dir: &Path, titulo: &str) -> (String, String) {
+    let o = tc2(f, dir, &["new", titulo]);
+    let out = texto(&o.stdout);
+    let err = texto(&o.stderr);
+    assert_eq!(o.status.code(), Some(0), "{out} {err}");
+    (out, err)
+}
+
+/// TASK-076 C4: un titulo que plegado es igual al de una tarea abierta sale
+/// con `parecidas=` y el aviso `(duplicado)`, con codigo 0; contra una
+/// terminada no avisa.
+#[test]
+fn titulo_duplicado_de_una_abierta_avisa_y_de_una_terminada_no() {
+    let f = Fixture::nueva("alta-duplicado");
+    let (_bare, a) = f.remoto_y_clon();
+    let (out, err) = nueva(&f, &a, "Exportar informes");
+    assert_eq!(valor(&out, "id"), Some("TASK-001"), "{out}");
+    assert_eq!(valor(&out, "parecidas"), None, "{out}");
+    assert!(err.is_empty(), "{err}");
+
+    let (out, err) = nueva(&f, &a, "  EXPORTAR informes!");
+    assert_eq!(valor(&out, "id"), Some("TASK-002"), "{out}");
+    assert_eq!(valor(&out, "parecidas"), Some("TASK-001"), "{out}");
+    assert_eq!(
+        err,
+        "aviso: ya hay tareas abiertas con un titulo igual o parecido: TASK-001 \"Exportar informes\" (duplicado)\n"
+    );
+    // Casi igual: avisa de las dos, con el coeficiente.
+    let (out, err) = nueva(&f, &a, "Exprotar informes");
+    assert_eq!(valor(&out, "parecidas"), Some("TASK-001,TASK-002"), "{out}");
+    assert!(
+        err.contains("TASK-001 \"Exportar informes\" (parecido 0,80)"),
+        "{err}"
+    );
+    let o = tc2(&f, &a, &["new", "--json", "Exportar informes"]);
+    let j = texto(&o.stdout);
+    assert!(
+        j.contains("\"parecidas\":[\"TASK-001\",\"TASK-002\",\"TASK-003\"]"),
+        "{j}"
+    );
+
+    // Terminadas TASK-001..004, nada abierto con ese titulo: no avisa.
+    let g = f.git();
+    let c = Contexto::nuevo(&g, &a, &sin_catalogo);
+    for id in ["TASK-001", "TASK-002", "TASK-003", "TASK-004"] {
+        let i = estado::transaccion(&c, &Terminar(id));
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    }
+    let (out, err) = nueva(&f, &a, "Exportar informes");
+    assert_eq!(valor(&out, "id"), Some("TASK-005"), "{out}");
+    assert_eq!(valor(&out, "parecidas"), None, "{out}");
+    assert!(err.is_empty(), "{err}");
+}
+
+/// TASK-076, paso 3 del plan: con varias tareas, el alta lee todos los
+/// `tarea.md` en un solo `git cat-file --batch` por intento, sin `git show`.
+#[test]
+fn el_alta_lee_las_tareas_en_un_solo_proceso_por_intento() {
+    let f = Fixture::nueva("alta-lote");
+    let (_bare, a) = f.remoto_y_clon();
+    for t in ["Uno", "Dos", "Tres"] {
+        nueva(&f, &a, t);
+    }
+    let g = f.git();
+    let c = Contexto::nuevo(&g, &a, &sin_catalogo);
+    let op = Alta::nueva("Tres");
+    let i = estado::transaccion(&c, &op);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert_eq!(i.valor("intentos"), Some("1"), "{}", i.linea());
+    let registro = g.registro();
+    let lotes = registro
+        .iter()
+        .filter(|l| l.starts_with("git cat-file"))
+        .count();
+    let shows = registro
+        .iter()
+        .filter(|l| l.starts_with("git show "))
+        .count();
+    assert_eq!((lotes, shows), (1, 0), "{registro:#?}");
+    assert_eq!(op.id().as_deref(), Some("TASK-004"));
+    let p = op.parecidas();
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert_eq!(
+        (p[0].id.as_str(), p[0].parecido),
+        ("TASK-003", Parecido::Duplicado)
+    );
+}
+
+/// TASK-076 C1: dos `new "X"` a la vez desde dos clones dan IDs y ramas
+/// distintos en los `tarea.md` publicados, y la segunda en publicar sale con
+/// `parecidas=<ID de la otra>`.
+#[test]
+fn mismo_titulo_a_la_vez_desde_dos_clones() {
+    let f = Arc::new(Fixture::nueva("alta-mismo-titulo"));
+    let (bare, a) = f.remoto_y_clon();
+    let b = f.otro_clon(&bare, "clon-b");
+    let barrera = Arc::new(Barrier::new(2));
+    let hilos: Vec<_> = [a, b]
+        .into_iter()
+        .map(|dir| {
+            let f = Arc::clone(&f);
+            let barrera = Arc::clone(&barrera);
+            std::thread::spawn(move || {
+                barrera.wait();
+                for _ in 0..10 {
+                    let o = tc2(&f, &dir, &["new", "Mismo titulo"]);
+                    let out = texto(&o.stdout);
+                    // `agotada` (5) es «reintenta, nada escrito».
+                    if o.status.code() == Some(5) {
+                        continue;
+                    }
+                    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+                    return (out, texto(&o.stderr));
+                }
+                panic!("agotada 10 veces");
+            })
+        })
+        .collect();
+    let mut salidas: Vec<(String, String)> = hilos.into_iter().map(|h| h.join().unwrap()).collect();
+    salidas.sort_by(|x, y| valor(&x.0, "id").cmp(&valor(&y.0, "id")));
+    let (primera, segunda) = (&salidas[0], &salidas[1]);
+    assert_eq!(valor(&primera.0, "id"), Some("TASK-001"), "{primera:?}");
+    assert_eq!(valor(&segunda.0, "id"), Some("TASK-002"), "{segunda:?}");
+    assert_eq!(valor(&primera.0, "parecidas"), None, "{primera:?}");
+    assert!(primera.1.is_empty(), "{primera:?}");
+    assert_eq!(
+        valor(&segunda.0, "parecidas"),
+        Some("TASK-001"),
+        "{segunda:?}"
+    );
+    assert!(
+        segunda.1.contains("TASK-001 \"Mismo titulo\" (duplicado)"),
+        "{segunda:?}"
+    );
+    // Ramas distintas en lo publicado, y la misma que dijo cada `new`.
+    for (n, (out, _)) in [1, 2].iter().zip(&salidas) {
+        let rama = format!("feature/task-{n:03}-mismo-titulo");
+        assert_eq!(valor(out, "rama"), Some(rama.as_str()), "{out}");
+        let md = f.crudo(&bare, &["show", &format!("{RAMA}:TASK-{n:03}/tarea.md")]);
+        assert!(md.contains(&format!("\nrama: \"{rama}\"\n")), "{md}");
+    }
 }

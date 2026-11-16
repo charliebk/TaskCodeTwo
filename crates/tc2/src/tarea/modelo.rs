@@ -317,7 +317,7 @@ impl Tarea {
             estado: "planificada".to_owned(),
             motivo: None,
             plan_aprobado: false,
-            // La deriva del ID F2-4b; hasta entonces, `null`.
+            // La pone el alta (F2-4b) derivada del ID y del titulo.
             rama: None,
             asignado_a: None,
             roles: Roles {

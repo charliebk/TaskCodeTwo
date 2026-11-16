@@ -68,8 +68,8 @@ crate::i18n::textos! {
         en: "no message",
     }
     ESCRITURA_DENEGADA {
-        es: "{detalle}; el remoto deniega la escritura: revisa credenciales, permisos o reglas, no se reintenta",
-        en: "{detalle}; the remote denies the write: check credentials, permissions or rules, it is not retried",
+        es: "{detalle}; el remoto deniega el acceso (lectura o escritura): revisa la URL, las credenciales, los permisos o las reglas, no se reintenta",
+        en: "{detalle}; the remote denies access (read or write): check the URL, credentials, permissions or rules, it is not retried",
     }
     EXIGE_RED {
         es: "{detalle}; esta operacion exige red: no se ha escrito nada, reintenta con red",
@@ -88,5 +88,21 @@ crate::i18n::textos! {
     SIN_IDS {
         es: "no quedan IDs de tarea",
         en: "no task IDs left",
+    }
+    AVISO_PARECIDAS {
+        es: "aviso: ya hay tareas abiertas con un titulo igual o parecido: {lista}",
+        en: "warning: there are already open tasks with the same or a similar title: {lista}",
+    }
+    PARECIDA_DUPLICADO {
+        es: "{id} \"{titulo}\" (duplicado)",
+        en: "{id} \"{titulo}\" (duplicate)",
+    }
+    PARECIDA_CASI {
+        es: "{id} \"{titulo}\" (parecido {unidad},{centesimas})",
+        en: "{id} \"{titulo}\" (similarity {unidad}.{centesimas})",
+    }
+    RAMA_DERIVADA_INVALIDA {
+        es: "la rama derivada de {id} no es valida ({motivo})",
+        en: "the branch derived from {id} is not valid ({motivo})",
     }
 }

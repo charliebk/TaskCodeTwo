@@ -85,7 +85,17 @@ where
                 [j, r @ ..] if j == "--json" => (true, r),
                 r => (false, r),
             };
-            orden_new(resto).salida_en(json, idioma)
+            let mut parecidas = Vec::new();
+            let mut s = orden_new(resto, &mut parecidas).salida_en(json, idioma);
+            // El aviso de titulos parecidos va a stderr con codigo 0: es la
+            // unica excepcion a «diagnostico solo si falla» (F2-4b, D1).
+            if s.codigo == 0
+                && let Some(a) = alta::aviso_parecidas(&parecidas, idioma)
+            {
+                s.stderr.push_str(&a);
+                s.stderr.push('\n');
+            }
+            s
         }
         [orden, resto @ ..] if orden == version::VERSION => {
             let (json, resto) = con_json(resto);
@@ -197,8 +207,9 @@ fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
 }
 
 /// `new "<titulo>"`: alta de una tarea con su ID reservado por el push de la
-/// rama de estado (F2-4). Sale `new ok id=TASK-NNN ...`.
-fn orden_new(args: &[String]) -> Informe {
+/// rama de estado (F2-4). Sale `new ok id=TASK-NNN rama=... [parecidas=...]`;
+/// las tareas abiertas parecidas quedan ademas en `parecidas` para el aviso.
+fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
     let titulo = match args {
         [t] if alta::titulo_valido(t) => t,
         [_] => {
@@ -225,15 +236,35 @@ fn orden_new(args: &[String]) -> Informe {
         }
     };
     let g = git::Git::nuevo();
-    let op = alta::Alta::nueva(titulo);
+    // Las ramas `*/task-*` se leen una vez, antes de la transaccion: el ID
+    // nuevo queda por encima de todas (F2-4b). Sin red no se reserva nada.
+    let ocupados = match git::ids_con_rama(&g, &dir, alta::NOMBRE) {
+        Ok(o) => o,
+        Err(mut i) => {
+            alta::NOMBRE.clone_into(&mut i.comando);
+            if i.resultado == Resultado::Sinred {
+                i = i.con("pendiente", "no");
+            }
+            return i;
+        }
+    };
+    let op = alta::Alta::nueva(titulo).con_ocupados(ocupados);
     let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
     let mut i = estado::transaccion(&c, &op);
     alta::NOMBRE.clone_into(&mut i.comando);
     if i.resultado == Resultado::Ok
-        && let Some(id) = op.id()
+        && let (Some(id), Some(rama)) = (op.id(), op.rama())
     {
         i.claves
             .insert(0, ("id".to_owned(), contrato::Valor::Texto(id)));
+        i.claves
+            .insert(1, ("rama".to_owned(), contrato::Valor::Texto(rama)));
+        *parecidas = op.parecidas();
+        if !parecidas.is_empty() {
+            let ids = parecidas.iter().map(|p| p.id.clone()).collect();
+            i.claves
+                .insert(2, ("parecidas".to_owned(), contrato::Valor::Lista(ids)));
+        }
     }
     i
 }

@@ -6,6 +6,14 @@ crate::i18n::textos! {
         es: "argumento prohibido para la capa: {argumento}",
         en: "argument not allowed for the layer: {argumento}",
     }
+    SIN_ENTRADA {
+        es: "argumento prohibido para la capa: {sub} con entrada por stdin (solo cat-file)",
+        en: "argument not allowed for the layer: {sub} with stdin input (only cat-file)",
+    }
+    CAT_FILE_INCOMPLETO {
+        es: "git cat-file --batch devolvio una salida que no se entiende",
+        en: "git cat-file --batch returned output that cannot be parsed",
+    }
     SIN_INDICE_TEMPORAL {
         es: "argumento prohibido para la capa: {sub} sin indice temporal",
         en: "argument not allowed for the layer: {sub} without a temporary index",

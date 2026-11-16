@@ -12,6 +12,7 @@
 
 mod cuerpo;
 mod modelo;
+pub mod texto;
 mod yaml;
 
 use std::fmt;

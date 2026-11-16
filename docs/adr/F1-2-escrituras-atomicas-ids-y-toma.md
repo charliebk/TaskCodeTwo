@@ -468,3 +468,41 @@ non-fast-forward; se trata como contención (ver la adenda de F1-4).
 - **Choque por mayúsculas dentro del lote**: dos rutas de la misma operación
   que solo difieren en mayúsculas también dan `ruta-duplicada`, y el
   `ROADMAP.md` generado se comprueba igual.
+
+## Adenda (F2-4b, TASK-076) — el ID cuenta también las ramas
+
+Se reabre por escrito el **punto 3** (decisión D3 de TASK-076, aceptada por
+Carlos el 2026-11-16).
+
+**Nuevo texto del punto 3**: ID = **máximo de las carpetas `TASK-*` y de los
+números de las ramas de tarea `*/task-nnn-*`, más 1**. Las ramas se leen una
+sola vez por `new`, antes de la transacción: las del remoto con
+`ls-remote --heads origin '*/task-*'` y las locales con
+`branch --list '*/task-*'`. Así ninguna alta nombra una rama que ya existe
+(una rama creada a mano sin carpeta, o una tarea de la 0.16 cuya carpeta no
+se migró): la tarea no nace bloqueada en `start`.
+
+- **Qué cuenta como rama de tarea**: un componente que no sea el primero (el
+  tipo) de la forma `task-<cifras>` o `task-<cifras>-<resto>`, en
+  minúsculas. Comprobado con Git 2.56: `ls-remote` casa el patrón por
+  sufijo (también da `refs/heads/task-7-x`, sin tipo, y `a/b/task-1-x`),
+  mientras que `branch --list` lo casa contra el nombre entero; el parser
+  común (`id_de_rama`) decide igual para las dos, y `task-7-x` sin tipo no
+  cuenta.
+- **Sin remoto** (RN-06): solo se miran las ramas locales.
+- **Fallo del remoto**: como en `fetch`. Red caída → `sinred
+  pendiente=no` (4), sin `fetch`, sin commit y sin refs nuevas; credenciales
+  o remoto inexistente → `denegada` (8); fallo del propio clon → `error`.
+- **La rama se escribe en `tarea.md`**: `rama: feature/task-nnn-<slug>`
+  (F1-9 punto 6), con el slug del título plegado (ASCII `[a-z0-9-]`, como
+  mucho 40 bytes cortando en guion; sin nada latino → `tarea`). Pasa la
+  misma validación que usan `crear-rama-y-worktree` y `reanudar`.
+- **Riesgo aceptado**: una rama creada a mano entre el `ls-remote` y el push
+  de la rama de estado no se ve; la para `comprobar-id` en `start` (F3-6).
+- **Coste**: un viaje de red más por `new`, uno solo y no por intento.
+
+Evidencia: `crates/tc2/tests/alta.rs` (`rama_solo_en_el_remoto_ocupa_su_id`,
+`rama_solo_en_local_ocupa_su_id`,
+`ls_remote_previo_sin_red_o_denegado_no_deja_nada`) y los unitarios de
+`alta.rs` (`siguiente_id_es_el_maximo_mas_uno`) y `git/rama.rs`
+(`id_de_las_ramas_de_tarea`).
