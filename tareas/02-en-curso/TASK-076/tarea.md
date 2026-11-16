@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-076-f2-4b-nombres-unicos-de-tarea-y-rama
 asignado_a: charlie.bk@gmail.com
@@ -45,3 +45,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 |---|---|---|---|---|
 | 2026-11-16T19:49:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:15Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T19:54:16Z | start | automatico | persona | 0.16.1 |
