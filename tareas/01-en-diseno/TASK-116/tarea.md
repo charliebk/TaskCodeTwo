@@ -7,7 +7,7 @@ etiquetas: [convivencia, git]
 complejidad: simple
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-116-nombres-de-la-2-0-alineados-con-f1-12-d1
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -39,3 +39,4 @@ El codigo de tc2 usa nombres que chocan con la 0.16 y contradicen F1-12 D1a (tas
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-16T22:37:06Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-16T22:40:57Z | approve | automatico | persona | 0.16.1 |
