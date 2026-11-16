@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 23113641
-tokens_revision: null
+tokens_revision: 6755469
 creado: 2026-11-14
 actualizado: 2026-11-16
 dependencias: [TASK-019]
@@ -65,3 +65,5 @@ lo delata el parseo de la salida, que exige un objeto por ruta.
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T20:26:32Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 32 | 14671 | 5145151 | 3552 | 1 | 5163406 | - | - |
 | 2026-11-16T20:26:32Z | implementacion | agente:a95f8bf4e6c3190ce | 174 | 276857 | 17597027 | 76177 | 42 | 17950235 | - | - |
+| 2026-11-16T20:43:11Z | revision | agente:a3e8d6cf98a7bbb7a | 68 | 143802 | 3641661 | 27040 | 4 | 3812571 | 1 | rust-wasm-reviewer |
+| 2026-11-16T20:43:11Z | revision | agente:a74cbe02b54441e1c | 58 | 131670 | 2788046 | 23124 | 4 | 2942898 | 1 | code-quality-reviewer |

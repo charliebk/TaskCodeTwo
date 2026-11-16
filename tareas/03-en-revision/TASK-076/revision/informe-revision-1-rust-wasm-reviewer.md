@@ -2,7 +2,7 @@
 
 - Commit revisado: ebc7fa5647f8386bf0266e16eab63a8a34d7e8a8
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-076 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 ## Hallazgos
 

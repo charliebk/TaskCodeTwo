@@ -2,7 +2,7 @@
 
 - Commit revisado: ebc7fa5647f8386bf0266e16eab63a8a34d7e8a8 (HEAD de la rama es 710bc92, que solo anade la peticion)
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-076 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 Propuesta del revisor: **aprobada-con-correcciones** (sin CRITICO ni IMPORTANTE; 3 MENOR; el primero pide una adenda de documentacion antes del cierre).
 
