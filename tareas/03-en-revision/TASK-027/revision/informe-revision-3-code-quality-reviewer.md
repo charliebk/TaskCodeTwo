@@ -2,7 +2,7 @@
 
 - Commit revisado: e3ac6d97508ab26cf4f7e713e7ed37534d286f2f
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-027 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 Propuesta del revisor: **aprobada**. IMP-2 queda corregido y verificado; no quedan CRITICO ni IMPORTANTE abiertos. Los dos MENOR son nuevos, los introduce la propia correccion y no bloquean (ver abajo).
 
