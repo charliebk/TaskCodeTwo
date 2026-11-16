@@ -13,7 +13,7 @@
 mod cuerpo;
 mod modelo;
 pub mod texto;
-mod yaml;
+pub(crate) mod yaml;
 
 use std::fmt;
 

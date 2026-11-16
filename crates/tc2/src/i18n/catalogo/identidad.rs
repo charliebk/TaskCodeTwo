@@ -40,4 +40,64 @@ crate::i18n::textos! {
         es: "{ruta}: las entradas {a} y {b} repiten el correo {correo}; un correo de la 0.16 solo puede ser de una persona",
         en: "{ruta}: entries {a} and {b} repeat the address {correo}; a 0.16 address can belong to only one person",
     }
+
+    // --- Quien ejecuta (identidad.rs) ---
+    CUENTA_BOT {
+        es: "la cuenta del token de persona ({login}) es un bot: TC2_TOKEN_PERSONA tiene que ser el token de tu usuario",
+        en: "the account of the person token ({login}) is a bot: TC2_TOKEN_PERSONA must be your user's token",
+    }
+    CUENTA_WEB_FLOW {
+        es: "la cuenta del token de persona es web-flow, la de la web de GitHub: TC2_TOKEN_PERSONA tiene que ser el token de tu usuario",
+        en: "the account of the person token is web-flow, GitHub's web account: TC2_TOKEN_PERSONA must be your user's token",
+    }
+    CUENTA_FUERA_DE_LISTA {
+        es: "la cuenta {login} (id {id}) no esta en {ruta}: pide que la anadan con un PR, o usa el token de una persona de la lista",
+        en: "account {login} (id {id}) is not in {ruta}: ask for it to be added with a PR, or use the token of a person on the list",
+    }
+    LOGIN_DE_LA_API {
+        es: "la plataforma devolvio un login que no vale para {login} (id {id}): revisa la cuenta del token",
+        en: "the platform returned an invalid login for {login} (id {id}): check the token's account",
+    }
+    SIN_IDENTIDAD_GUARDADA {
+        es: "sin terminal, el agente actua en nombre de la persona guardada y {estado}: lanza `tc2 identidad` en un terminal con TC2_TOKEN_PERSONA",
+        en: "without a terminal, the agent acts on behalf of the stored person and {estado}: run `tc2 identidad` in a terminal with TC2_TOKEN_PERSONA",
+    }
+    CACHE_FALTA {
+        es: "no hay ninguna guardada",
+        en: "there is none stored",
+    }
+    CACHE_CADUCADA {
+        es: "la guardada tiene mas de 7 dias",
+        en: "the stored one is more than 7 days old",
+    }
+    CACHE_OTRA_PLATAFORMA {
+        es: "la guardada es de otra plataforma",
+        en: "the stored one is from another platform",
+    }
+    CACHE_FUERA_DE_LISTA {
+        es: "la guardada ({login}, id {id}) ya no esta en la lista de personas",
+        en: "the stored one ({login}, id {id}) is no longer on the list of people",
+    }
+    NO_SE_ESCRIBE_CACHE {
+        es: "no se pudo guardar la identidad en {ruta}: {error}",
+        en: "could not store the identity in {ruta}: {error}",
+    }
+
+    // --- Orden `tc2 identidad` ---
+    USO_IDENTIDAD {
+        es: "uso: identidad [--json]",
+        en: "usage: identidad [--json]",
+    }
+    NECESITA_TERMINAL {
+        es: "`tc2 identidad` la lanza la persona en un terminal con TC2_TOKEN_PERSONA: sin terminal no se verifica ni se guarda nada",
+        en: "`tc2 identidad` is run by the person in a terminal with TC2_TOKEN_PERSONA: without a terminal nothing is verified or stored",
+    }
+    SIN_ORIGIN {
+        es: "el repo no tiene `origin`: la identidad sale de la plataforma de `origin` (GitHub o GitLab) y no hay modo sin plataforma",
+        en: "the repo has no `origin`: the identity comes from the `origin` platform (GitHub or GitLab) and there is no mode without a platform",
+    }
+    SIN_PERSONAS {
+        es: "no hay {ruta} en {base}: anade la lista de personas (id y login de cada cuenta) con un PR",
+        en: "there is no {ruta} in {base}: add the list of people (id and login of each account) with a PR",
+    }
 }

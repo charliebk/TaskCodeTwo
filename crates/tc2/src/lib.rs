@@ -20,6 +20,7 @@ pub mod descarga;
 pub mod estado;
 pub mod git;
 pub mod i18n;
+pub mod identidad;
 pub mod plataforma;
 pub mod tarea;
 pub mod version;
