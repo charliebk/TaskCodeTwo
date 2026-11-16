@@ -85,6 +85,10 @@ medir() {
     frio=$(date +%s)
     powershell.exe -NoProfile -Command 'exit 0'
     echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
+    # Desglose, solo informativo: un arranque ya en caliente y lo que tarda
+    # dentro de PowerShell bajar el script con irm (la primera peticion web
+    # del proceso; en Windows incluye la autodeteccion del proxy).
+    powershell.exe -NoProfile -Command "\$a = Measure-Command { powershell.exe -NoProfile -Command 'exit 0' }; \$b = Measure-Command { \$null = irm '$url/install.ps1' }; 'probar: desglose: arranque en caliente {0:N1} s, irm del script {1:N1} s' -f \$a.TotalSeconds, \$b.TotalSeconds" | tr -d '\r'
   fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
