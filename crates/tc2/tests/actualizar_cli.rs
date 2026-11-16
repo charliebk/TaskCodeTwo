@@ -9,8 +9,6 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
-mod comun;
-
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -18,8 +16,33 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 
-use comun::Fixture;
 use distribucion::Target;
+
+/// Carpeta temporal de una prueba, bajo `target/tmp` del workspace
+/// (`CARGO_TARGET_TMPDIR`) y no en `%TEMP%`: en Windows, un antivirus retiene
+/// a veces el trafico de un `.exe` recien copiado a `%TEMP%` (conexiones
+/// repetidas y una descarga cortada a los ~19 s, visto en TASK-027). Se borra
+/// al terminar.
+struct Carpeta {
+    raiz: PathBuf,
+}
+
+impl Carpeta {
+    fn nueva(nombre: &str) -> Self {
+        let raiz = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("tc2-actualizar")
+            .join(format!("{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(&raiz).unwrap();
+        Self { raiz }
+    }
+}
+
+impl Drop for Carpeta {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.raiz);
+    }
+}
 
 /// Version del doble `tc2_falso`.
 const VERSION_Y: &str = "9.9.9";
@@ -39,33 +62,13 @@ impl Servidor {
         let puerto = l.local_addr().unwrap().port();
         let peticiones: Arc<Mutex<Vec<String>>> = Arc::default();
         let p = peticiones.clone();
+        let ficheros = Arc::new(ficheros);
         std::thread::spawn(move || {
             for s in l.incoming().flatten() {
-                let mut lector = BufReader::new(s.try_clone().unwrap());
-                let mut primera = String::new();
-                if lector.read_line(&mut primera).is_err() {
-                    continue;
-                }
-                loop {
-                    let mut l = String::new();
-                    if lector.read_line(&mut l).is_err() || l.trim().is_empty() {
-                        break;
-                    }
-                }
-                let ruta = primera.split_whitespace().nth(1).unwrap_or("").to_owned();
-                p.lock().unwrap().push(ruta.clone());
-                let (estado, cuerpo) = match ficheros.get(ruta.trim_start_matches('/')) {
-                    Some(c) => ("200 OK", c.clone()),
-                    None => ("404 Not Found", b"no".to_vec()),
-                };
-                let mut s = s;
-                let _ = write!(
-                    s,
-                    "HTTP/1.1 {estado}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                    cuerpo.len()
-                );
-                let _ = s.write_all(&cuerpo);
-                let _ = s.flush();
+                // Un hilo por conexion: el cierre ordenado de una no frena
+                // las demas.
+                let (p, ficheros) = (p.clone(), ficheros.clone());
+                std::thread::spawn(move || atender(s, &p, &ficheros));
             }
         });
         Self { puerto, peticiones }
@@ -78,6 +81,43 @@ impl Servidor {
     fn peticiones(&self) -> Vec<String> {
         self.peticiones.lock().unwrap().clone()
     }
+}
+
+/// Sirve una peticion: `GET /<nombre>` da el contenido o 404.
+fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, ficheros: &BTreeMap<String, Vec<u8>>) {
+    let mut lector = BufReader::new(s.try_clone().unwrap());
+    let mut primera = String::new();
+    if lector.read_line(&mut primera).is_err() {
+        return;
+    }
+    loop {
+        let mut l = String::new();
+        if lector.read_line(&mut l).is_err() || l.trim().is_empty() {
+            break;
+        }
+    }
+    let ruta = primera.split_whitespace().nth(1).unwrap_or("").to_owned();
+    p.lock().unwrap().push(ruta.clone());
+    let (estado, cuerpo) = match ficheros.get(ruta.trim_start_matches('/')) {
+        Some(c) => ("200 OK", c.clone()),
+        None => ("404 Not Found", b"no".to_vec()),
+    };
+    let mut s = s;
+    let _ = write!(
+        s,
+        "HTTP/1.1 {estado}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        cuerpo.len()
+    );
+    let _ = s.write_all(&cuerpo);
+    let _ = s.flush();
+    // Cierre ordenado: en Windows, cerrar con datos sin leer en
+    // el socket manda un RST que puede tirar la respuesta aun no
+    // entregada (el cliente ve «Peer disconnected» a media
+    // descarga del binario). Se cierra la escritura y se espera a
+    // que el cliente cierre la suya.
+    let _ = s.shutdown(std::net::Shutdown::Write);
+    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
+    let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
 }
 
 fn target() -> Target {
@@ -151,7 +191,7 @@ fn restos(dir: &Path, exe: &Path) -> Vec<String> {
 /// red sale `sinred` (4) con la URL.
 #[test]
 fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
-    let f = Fixture::nueva("actualizar-comprobar");
+    let f = Carpeta::nueva("actualizar-comprobar");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
@@ -216,7 +256,7 @@ fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
 /// siquiera se pregunta a la release.
 #[test]
 fn el_tc2_de_la_cache_del_plugin_no_se_sustituye() {
-    let f = Fixture::nueva("actualizar-plugin");
+    let f = Carpeta::nueva("actualizar-plugin");
     let dir = f.raiz.join("taskcodetwo").join("cli").join(VERSION_X);
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
@@ -254,7 +294,7 @@ fn actualizar_sin_cli_es_uso() {
 /// `tc2 --version` da vY.
 #[test]
 fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
-    let f = Fixture::nueva("actualizar-vx-vy");
+    let f = Carpeta::nueva("actualizar-vx-vy");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let vy = binario_vy();
@@ -289,7 +329,7 @@ fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
 /// binario instalado no cambia y no quedan `.descarga` ni `.old`.
 #[test]
 fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
-    let f = Fixture::nueva("actualizar-hash");
+    let f = Carpeta::nueva("actualizar-hash");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);

@@ -7,38 +7,38 @@
 //! - `version --json` → `{version, protocolo, target, sha256}`, con el
 //!   sha256 de su propio fichero.
 //!
+//! Solo usa `std` y la caja `distribucion`, no la biblioteca `tc2`, para que
+//! el binario sea pequeno: en Windows se ha visto (TASK-027) que la pila de
+//! red local de una maquina con filtros corta a veces a los ~19 s las
+//! descargas de mas de ~450 KB por 127.0.0.1, tambien con curl y
+//! `python -m http.server`.
+//!
 //! No es parte de la distribucion: `cargo xtask empaquetar` solo copia el
 //! binario `tc2`.
 
 use std::io::Write;
 use std::process::ExitCode;
 
-use tc2::version::{DatosVersion, PROTOCOLO, target_actual};
+use distribucion::{PROTOCOLO, Target};
 
 /// Version que dice ser.
 const VERSION: &str = "9.9.9";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let texto = match args
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>()
-        .as_slice()
-    {
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let texto = match args.as_slice() {
         ["--version"] => format!("tc2 {VERSION}\n"),
         ["version", "--json"] => {
             let sha256 = std::env::current_exe()
                 .and_then(std::fs::read)
                 .map(|b| distribucion::sha256::hex(&b))
                 .unwrap_or_default();
-            let d = DatosVersion {
-                version: VERSION.to_owned(),
-                protocolo: PROTOCOLO,
-                target: target_actual(),
-                sha256,
-            };
-            format!("{}\n", d.json())
+            let target = Target::actual().map_or("desconocido", |t| t.alias);
+            // Los valores no llevan comillas ni barras: alias, version y hex.
+            format!(
+                "{{\"version\":\"{VERSION}\",\"protocolo\":{PROTOCOLO},\"target\":\"{target}\",\"sha256\":\"{sha256}\"}}\n"
+            )
         }
         _ => return ExitCode::from(2),
     };

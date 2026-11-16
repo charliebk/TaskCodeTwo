@@ -65,11 +65,7 @@ impl Origen {
             None => Ok(Self::GitHub),
             Some(v) => Base::nueva(v)
                 .map(|b| Self::Ensayo(b.texto().to_owned()))
-                .map_err(|motivo| {
-                    Mensaje::nuevo(&txt::BASE_URL_INVALIDA)
-                        .con("url", v)
-                        .con_mensaje("motivo", motivo)
-                }),
+                .map_err(|_| Mensaje::nuevo(&txt::BASE_URL_INVALIDA).con("url", v)),
         }
     }
 

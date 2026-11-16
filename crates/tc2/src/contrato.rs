@@ -268,7 +268,7 @@ fn una_linea(t: &str) -> String {
     t.lines().map(str::trim).collect::<Vec<_>>().join(" ")
 }
 
-fn cadena_json(t: &str) -> String {
+pub(crate) fn cadena_json(t: &str) -> String {
     let mut s = String::with_capacity(t.len() + 2);
     s.push('"');
     for c in t.chars() {

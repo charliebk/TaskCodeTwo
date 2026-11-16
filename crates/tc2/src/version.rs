@@ -11,7 +11,7 @@ use std::path::Path;
 
 use distribucion::Target;
 
-use crate::contrato::{Informe, Resultado};
+use crate::contrato::{Informe, Resultado, cadena_json};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::actualizar as txt;
 
@@ -43,10 +43,10 @@ impl DatosVersion {
     pub fn json(&self) -> String {
         format!(
             "{{\"version\":{},\"protocolo\":{},\"target\":{},\"sha256\":{}}}",
-            cadena(&self.version),
+            cadena_json(&self.version),
             self.protocolo,
-            cadena(&self.target),
-            cadena(&self.sha256)
+            cadena_json(&self.target),
+            cadena_json(&self.sha256)
         )
     }
 }
@@ -130,21 +130,6 @@ pub fn compatible(args: &[String]) -> Informe {
                 .con("protocolo", PROTOCOLO.to_string())
                 .con("rango", texto),
         )
-}
-
-fn cadena(t: &str) -> String {
-    let mut s = String::with_capacity(t.len() + 2);
-    s.push('"');
-    for c in t.chars() {
-        match c {
-            '"' => s.push_str("\\\""),
-            '\\' => s.push_str("\\\\"),
-            c if (c as u32) < 0x20 => s.push_str(&format!("\\u{:04x}", c as u32)),
-            c => s.push(c),
-        }
-    }
-    s.push('"');
-    s
 }
 
 #[cfg(test)]

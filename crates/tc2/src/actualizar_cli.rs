@@ -336,7 +336,10 @@ fn instalar(
     d: &Descargador,
 ) -> Informe {
     let Some(dir) = exe.parent() else {
-        return sin_permiso(exe, "sin carpeta");
+        return sin_permiso(
+            exe,
+            &std::io::Error::from(std::io::ErrorKind::NotFound).to_string(),
+        );
     };
     let temporal = dir.join(format!(
         ".tc2-{}-{}.descarga",
@@ -354,8 +357,7 @@ fn instalar(
     };
     let guarda = Borrar(Some(temporal.clone()));
     let url = origen.url_binario(&publicado.tag, &publicado.fichero);
-    let bajada = d
-        .a_escritor(&url, &mut fichero, descarga::LIMITE_BINARIO)
+    let bajada = bajar_con_un_reintento(d, &url, &mut fichero)
         .map_err(|f| match f {
             Fallo::Escritura { error } => sin_permiso(&temporal, &error),
             otro => otro.informe(NOMBRE),
@@ -417,6 +419,33 @@ fn instalar(
         .con("anterior", crate::VERSION)
         .con("version", publicado.version.clone())
         .con("sha256", obtenido)
+}
+
+/// Baja el binario a `fichero` y, si la conexion se corta (`sinred`), lo
+/// vacia y lo intenta una vez mas. Son unos MiB por una red que puede fallar
+/// a medias; y en Windows se ha visto (TASK-027) que la inspeccion de red de
+/// un antivirus corta a veces la primera descarga de un ejecutable a los
+/// ~19 s. Los demas fallos (404, hash, limite) no se reintentan.
+fn bajar_con_un_reintento(
+    d: &Descargador,
+    url: &str,
+    fichero: &mut std::fs::File,
+) -> Result<u64, Fallo> {
+    use std::io::{Seek, SeekFrom};
+    match d.a_escritor(url, fichero, descarga::LIMITE_BINARIO) {
+        Err(Fallo::Sinred { .. }) => {
+            let vaciar = fichero
+                .set_len(0)
+                .and_then(|()| fichero.seek(SeekFrom::Start(0)).map(|_| ()));
+            if let Err(e) = vaciar {
+                return Err(Fallo::Escritura {
+                    error: e.to_string(),
+                });
+            }
+            d.a_escritor(url, fichero, descarga::LIMITE_BINARIO)
+        }
+        otro => otro,
+    }
 }
 
 /// `rechazada motivo=sin-permiso` con la ruta.

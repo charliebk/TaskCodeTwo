@@ -35,8 +35,8 @@ crate::i18n::textos! {
         en: "this tc2 was installed by {gestor} ({ruta}): update it with {gestor}, not with tc2 actualizar --cli",
     }
     BASE_URL_INVALIDA {
-        es: "TC2_BASE_URL no vale ({url}): {motivo}. Quitala; solo sirve para ensayos",
-        en: "TC2_BASE_URL is not valid ({url}): {motivo}. Remove it; it is only for rehearsals",
+        es: "TC2_BASE_URL no vale ({url}): tiene que ser https, o http a 127.0.0.1:<puerto>, sin usuario. Quitala; solo sirve para ensayos",
+        en: "TC2_BASE_URL is not valid ({url}): it must be https, or http to 127.0.0.1:<port>, without a user. Remove it; it is only for rehearsals",
     }
     SIN_RED {
         es: "no se pudo bajar {url}: {error}. Comprueba la conexion o el proxy y repite",
