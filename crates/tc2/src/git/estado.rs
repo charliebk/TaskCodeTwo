@@ -353,6 +353,19 @@ pub(crate) fn hay_remoto(git: &Git, dir: &Path, op: &str) -> Paso<bool> {
     Ok(s.exito() && s.stdout.trim() != super::REMOTO && !s.stdout.trim().is_empty())
 }
 
+/// URL de `origin`, si esta configurado (sin hablar con el remoto).
+pub(crate) fn url_origin(git: &Git, dir: &Path, op: &str) -> Paso<Option<String>> {
+    let s = correr(
+        git,
+        dir,
+        op,
+        Subcomando::LsRemote,
+        &["--get-url", super::REMOTO],
+    )?;
+    let url = s.stdout.trim();
+    Ok((s.exito() && url != super::REMOTO && !url.is_empty()).then(|| url.to_owned()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{partir_batch, ruta_valida};

@@ -70,6 +70,10 @@ crate::i18n::textos! {
         es: "{op}: no se pudo leer {remoto}; reintenta con red",
         en: "{op}: could not read {remoto}; retry with network access",
     }
+    SIN_RAMA_BASE {
+        es: "{remoto} no tiene la rama base {rama}: creala y publicala (o revisa que {remoto} es el repo del proyecto); reintentar no lo arregla",
+        en: "{remoto} has no base branch {rama}: create and publish it (or check that {remoto} is the project's repo); retrying will not fix it",
+    }
     DENEGADA_CREDENCIALES {
         es: "{op}: {detalle}; revisa tus credenciales o permisos en el remoto",
         en: "{op}: {detalle}; check your credentials or permissions on the remote",

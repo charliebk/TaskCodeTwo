@@ -18,14 +18,14 @@ pub mod errores;
 pub mod github;
 pub mod gitlab;
 pub mod http;
+pub mod personas;
 pub mod puertas;
-
-use std::collections::BTreeSet;
 
 pub use credenciales::{Credenciales, CredencialesEntorno, CredencialesFijas, Rol, Secreto};
 pub use deteccion::{Destino, detectar};
 pub use github::GitHub;
 pub use gitlab::GitLab;
+pub use personas::{Clave, Persona, Personas};
 pub use puertas::{EstadoCheck, Lecturas, evaluar};
 
 use crate::contrato::Informe;
@@ -58,54 +58,6 @@ impl Proveedor {
             Self::GitHub => "GitHub",
             Self::GitLab => "GitLab",
         }
-    }
-}
-
-/// Lista de personas por id numerico (F1-6, decision 3) y, para GitLab, los
-/// ids de sus claves de firma (F1-13, decision 6: la firma de GitLab no trae
-/// el usuario). La lee F2-13 del fichero de `.taskcode/`; aqui llega ya
-/// leida.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Personas {
-    ids: BTreeSet<u64>,
-    claves: BTreeSet<Clave>,
-}
-
-/// Clave de firma registrada en la plataforma, con su tipo: los ids de las
-/// claves SSH y GPG de GitLab son espacios distintos y no se comparan entre
-/// si.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Clave {
-    /// Clave SSH (`key.id`).
-    Ssh(u64),
-    /// Clave GPG (`gpg_key_id`).
-    Gpg(u64),
-}
-
-impl Personas {
-    /// Lista con estos ids.
-    pub fn nuevas(ids: impl IntoIterator<Item = u64>) -> Self {
-        Self {
-            ids: ids.into_iter().collect(),
-            claves: BTreeSet::new(),
-        }
-    }
-
-    /// La misma lista con estas claves de firma.
-    #[must_use]
-    pub fn con_claves(mut self, claves: impl IntoIterator<Item = Clave>) -> Self {
-        self.claves = claves.into_iter().collect();
-        self
-    }
-
-    /// Si el id es de una persona de la lista.
-    pub fn contiene(&self, id: u64) -> bool {
-        self.ids.contains(&id)
-    }
-
-    /// Si la clave de firma es de una persona de la lista.
-    pub fn contiene_clave(&self, clave: Clave) -> bool {
-        self.claves.contains(&clave)
     }
 }
 

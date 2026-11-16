@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 
 use serde_yaml::Value;
 use tc2::alta::tarea_md;
-use tc2::tarea::{self, Cuerpo, Documento, Tarea};
+use tc2::identidad::convertir_heredado;
+use tc2::plataforma::Personas;
+use tc2::tarea::{self, Asignado, Cuerpo, Documento, Tarea};
 
 /// Lo que escribia `alta` con su plantilla de texto antes de F2-5 (F1-9
 /// punto 6 con `rama: null`): el modelo tiene que dar lo mismo byte a byte.
@@ -159,7 +161,15 @@ fn coincide_con_estandar(m: &Tarea, v: &Value) {
         Some(m.plan_aprobado)
     );
     assert_eq!(cad(v, "rama"), m.rama.as_deref());
-    assert_eq!(cad(v, "asignado_a"), m.asignado_a.as_deref());
+    let a = v.get("asignado_a").unwrap();
+    match &m.asignado_a {
+        None => assert!(a.is_null()),
+        Some(Asignado::Heredado(h)) => assert_eq!(a.as_str(), Some(h.texto())),
+        Some(Asignado::Persona { id, login }) => {
+            assert_eq!(a.get("id").and_then(Value::as_u64), Some(*id));
+            assert_eq!(cad(a, "login"), Some(login.as_str()));
+        }
+    }
     let roles = v.get("roles").unwrap();
     let r = |rol: &str| roles.get(rol).unwrap();
     assert_eq!(cad(r("diseno"), "modelo"), m.roles.diseno.modelo.as_deref());
@@ -539,4 +549,95 @@ fn esquema_estricto_del_formato_2() {
         let e = tarea::leer(&t).expect_err(a);
         assert_eq!(e.clave.as_deref(), clave, "{a}: {e}");
     }
+}
+
+/// TASK-077 C5: `asignado_a: {id, login}` sobrevive a la ida y vuelta (byte
+/// a byte, y como lo lee un parser estandar), y «ya la lleva» compara por
+/// `id`: el mismo login con otro id es otra persona; un login renombrado con
+/// el mismo id, la misma.
+#[test]
+fn asignado_a_persona_ida_y_vuelta_y_comparacion_por_id() {
+    let t = DORADA.replacen(
+        "asignado_a: null\n",
+        "asignado_a: {id: 1001, login: \"carlos\"}\n",
+        1,
+    );
+    let (m, c) = leer2(&t);
+    let a = m.asignado_a.clone().unwrap();
+    assert_eq!((a.id(), a.login()), (Some(1001), Some("carlos")));
+    assert_eq!(m.escribir(&c), t);
+    coincide_con_estandar(&m, &estandar(&t));
+    // Desde el modelo: lo que se escribe se lee igual.
+    let mut n = Tarea::nueva("TASK-001", "x", "2026-11-16");
+    n.asignado_a = Asignado::persona(u64::MAX, "login-con-guion");
+    let (leida, _) = leer2(&n.escribir(&Cuerpo::plantilla()));
+    assert_eq!(leida, n);
+    // Comparacion por id.
+    let renombrado = Asignado::persona(1001, "carlos-nuevo").unwrap();
+    let suplantador = Asignado::persona(2002, "carlos").unwrap();
+    assert!(a.la_lleva(1001) && a.misma_persona(&renombrado));
+    assert!(!a.la_lleva(2002) && !a.misma_persona(&suplantador));
+    // Logins o ids que no valen.
+    assert!(Asignado::persona(0, "x").is_none());
+    assert!(Asignado::persona(1, "").is_none());
+    assert!(Asignado::persona(1, "a b").is_none());
+    for malo in [
+        "{id: \"1001\", login: \"carlos\"}",
+        "{id: 0, login: \"carlos\"}",
+        "{id: 1001}",
+        "{id: 1001, login: \"carlos\", nombre: \"C\"}",
+        "{id: 1001, login: \"a b\"}",
+        "{id: 010, login: \"carlos\"}",
+        "7",
+        "\"\"",
+        "[1001]",
+    ] {
+        let t = DORADA.replacen("asignado_a: null", &format!("asignado_a: {malo}"), 1);
+        let e = tarea::leer(&t).expect_err(malo);
+        assert_eq!(e.clave.as_deref(), Some("asignado_a"), "{malo}: {e}");
+    }
+}
+
+/// TASK-077 C9: un `asignado_a` de texto de la 0.16 se lee como `Heredado`,
+/// y nadie lo toma por una persona; la 2.0 no crea uno nunca (solo el
+/// lector construye `Heredado`) y, si lo lee en formato 2, lo conserva tal
+/// cual en vez de perderlo.
+#[test]
+fn asignado_a_de_texto_de_la_0_16_es_heredado() {
+    let base = std::fs::read_to_string(corpus(&raiz_repo())[0].clone()).unwrap();
+    let t = con_linea(&base, "asignado_a", "asignado_a: \"charlie.bk@gmail.com\"");
+    let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
+        panic!("{:?}", tarea::leer(&t));
+    };
+    let a = m.asignado_a.unwrap();
+    assert_eq!(a.heredado(), Some("charlie.bk@gmail.com"));
+    assert_eq!((a.id(), a.login()), (None, None));
+    assert!(!a.la_lleva(1001));
+    // Si coincide con un `correos:` de `personas.yml` se convierte a esa
+    // persona; si no, queda heredado.
+    let personas = Personas::leer(
+        "personas:\n  - {id: 1001, login: \"charliebk\", correos: [\"Charlie.BK@gmail.com\"]}\n",
+    )
+    .unwrap();
+    let convertido = convertir_heredado(a.clone(), &personas);
+    assert_eq!(convertido, Asignado::persona(1001, "charliebk").unwrap());
+    assert!(convertido.la_lleva(1001));
+    let otra = Personas::leer("personas:\n  - {id: 1001, login: \"charliebk\"}\n").unwrap();
+    assert_eq!(convertir_heredado(a.clone(), &otra), a);
+    for vacio in ["asignado_a: null", "asignado_a: \"\""] {
+        let t = con_linea(&base, "asignado_a", vacio);
+        let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
+            panic!("{vacio}");
+        };
+        assert_eq!(m.asignado_a, None, "{vacio}");
+    }
+    // Una tarea nueva de la 2.0 no lleva asignado; un heredado leido en
+    // formato 2 se reescribe igual.
+    assert_eq!(Tarea::nueva("TASK-001", "x", "2026-11-16").asignado_a, None);
+    let (m, c) = leer2(COMPLETA);
+    assert_eq!(
+        m.asignado_a.as_ref().and_then(Asignado::heredado),
+        Some("carlos")
+    );
+    assert_eq!(m.escribir(&c), COMPLETA);
 }
