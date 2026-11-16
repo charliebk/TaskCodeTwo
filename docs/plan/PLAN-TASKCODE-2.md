@@ -17,7 +17,7 @@ cuanto trabajan dos personas chocan los IDs, el tablero miente y los ficheros
 generados dan conflictos.
 
 **Objetivo:** TaskCode 2, en el repo nuevo **TaskCodeTwo**, que conserva lo que
-funciona y se usa (requisitos con uso medido), cumple los diecinueve requisitos
+funciona y se usa (requisitos con uso medido), cumple los veinte requisitos
 rectores y lo hace **construyéndose con TaskCode 0.16**.
 
 ## 2. Requisitos rectores (por encima de todo)
@@ -45,6 +45,7 @@ Detalle en [REQUISITOS-FUNCIONALES.md §0](REQUISITOS-FUNCIONALES.md).
 | RR-17 | Skills, agentes y modelo adecuados a cada tarea | Selección determinista entre lo instalado, anotada en la tarea y medida (F1-15, F3-9, F4-6, F8-6) |
 | RR-18 | Lotes desatendidos con revisión humana al final | `taskctl lote`: rama de lote, sin preguntas, un único PR final (P13; F1-16, F4-7, F4-8, F9-4b) |
 | RR-19 | Progreso en vivo: fases que faltan y tiempo estimado | Estimación por fase, status line y `status --seguir`, métricas finales (F1-17, F3-12, F3-13, F4-9, F8-7) |
+| RR-20 | Memoria del proyecto propia, compartida y nunca desactualizada | Git como verdad e índice SQLite reconstruible con frescura por SHA, etiquetado acotado, búsqueda única `tc2 buscar`, conversores de tareas y de engram, visor 3D opcional (F1-19, Fase 10) |
 
 ## 3. Qué existe y qué aprendemos
 
@@ -319,6 +320,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F1-15 | ADR: selección de skills, agentes y modelo por tarea y por rol (RR-17): fuentes (catálogo del proyecto, skills y agentes instalados, revisoras del plugin), reglas deterministas por etiquetas, rutas, dominio, complejidad y carril, qué se anota en la tarea y cómo se mide el acierto | Reglas probadas a mano sobre 10 tareas reales de ToolsaWeb y OpenDockTrading; nada lo decide el modelo «a ojo» | F1-9, F1-10 |
 | F1-16 | ADR: lotes desatendidos (RR-18): rama de lote, política de carriles, qué para el lote y qué aparta una tarea, presupuesto, reanudación, informe y su equivalente en GitLab | Diseño probado a mano con un lote real de ToolsaWeb | F1-5, F1-10 |
 | F1-17 | ADR: progreso en vivo y estimación (RR-19): estimación por fase (carril, complejidad, tamaño y tareas parecidas), cuándo se recalcula, dónde se muestra y cómo sin tokens | Estimación probada contra las tareas terminadas de ToolsaWeb y OpenDockTrading, con su error medio | F1-9, F1-10 |
+| F1-19 | ADR: memoria del proyecto (RR-20): git como verdad e índice SQLite reconstruible, ubicación del índice, regla de frescura por SHA, esquema, vocabulario y tres capas de etiquetado, conversor de engram (decisión A/B), retirada de engram del manifiesto | PoC: índice de las tareas terminadas de TaskCodeTwo reconstruido dos veces con el mismo hash; un merge hecho en la plataforma se refleja en la siguiente búsqueda sin hooks | F1-1, F1-9, F1-11, F1-14 |
 
 ### Fase 2 — Núcleo
 
@@ -435,9 +437,37 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F9-9 | Publicar 2.0.0 (ejecutables, instaladores y plugin en el marketplace) | Changelog, guía de actualización y release | F9-6..8, F9-8b, F9-9a, F9-10 |
 | F9-10 | Desinstalación limpia de TaskCode 0.16 en la máquina y en los proyectos (plugin, status line, hooks, ficheros de estado bajo `.git`, `logs/`, caché del marketplace), tras actualizar o sin hacerlo, con `--simular` (RR-16) | En una máquina y un proyecto con la 0.16 no queda rastro de ella; las tareas y su historial se conservan | F9-2, F1-12 |
 
+### Fase 10 — Memoria del proyecto (RR-20)
+
+Índice de contexto propio que sustituye a engram: git es la fuente de verdad y
+una base SQLite local es un índice reconstruible que nunca queda desactualizado;
+etiquetado automático acotado a un vocabulario, búsqueda única para el plugin,
+conversores de las tareas existentes y de engram, y visor 3D opcional. Diseño y
+motivo en [AMPLIACION-2026-11-16](AMPLIACION-2026-11-16.md).
+
+| ID | Tarea | Criterio de aceptación | Dep. |
+|---|---|---|---|
+| F10-1 | Índice SQLite (rusqlite con FTS5 empaquetado), esquema y migraciones, `tc2 indice reconstruir` y `estado` (RF-77) | Dos máquinas con los mismos SHA → mismo contenido; nunca aparece en `git status` | F1-19, F2-5 |
+| F10-2 | Frescura por SHA: comprobación en cada lectura, reindexado incremental, reconstrucción ante historia reescrita, transacción con cerrojo (RR-20) | Merge en la plataforma, push de otra persona, rebase y corte a mitad de reindexado: la siguiente búsqueda responde con lo actual; test | F10-1, F2-3 |
+| F10-3 | Conversor de las tareas existentes: todas las `tarea.md` y su historial por `tipo(TASK-NNN)`, con renombrados y ficheros comodín (RF-78) | Las tareas de TaskCodeTwo y una copia de ToolsaWeb (404) indexadas; repetirlo no cambia nada | F10-1 |
+| F10-4 | Ficheros tocados en `finish`: sección generada `## Archivos tocados` (ruta, nombre, A/M/D/R, líneas) y su relleno para las tareas antiguas (RF-79) | Coincide con `git diff --name-status` del merge; test | F10-3, F7-1 |
+| F10-5 | Conversor de engram por proyecto: copia de solo lectura, alias de proyecto, enlace por `TASK-NNN`, relaciones como aristas, idempotente, `--simular`, filtro de secretos, materializado según F1-19 (RF-80) | Con la base real: 146 observaciones, 116 enlazadas a su tarea, alias resuelto, cero duplicados al repetir | F10-1, F10-3 |
+| F10-6 | `tc2 buscar`: texto (BM25), etiqueta, fichero y vecinas de una tarea, con salida JSON (RF-81) | Respuesta en menos de 200 ms con 400 tareas; encuentra lo importado de engram | F10-2, F10-3 |
+| F10-7 | El plugin busca en el índice: skills y agentes usan `tc2 buscar`; `doctor` avisa de un índice desfasado o de una skill que busca con grep en `tareas/` (RF-81) | Test que busca algo que solo existe en el índice; `doctor` detecta una skill con grep | F10-6, F3-8 |
+| F10-8 | Etiquetado determinista: mapa de rutas a etiquetas, ADR citados, fase y tipo en `vocabulario.yml` (RF-82) | Las tareas terminadas de TaskCodeTwo etiquetadas sin IA; resultado reproducible | F10-3 |
+| F10-9 | Vocabulario cerrado, alias y `tc2 tags doctor` (RF-82) | Detecta etiqueta única, comodín (>40 %), casi iguales y alias sin resolver | F10-8 |
+| F10-10 | Etiquetado léxico e IA acotada en `finish` con cola de propuestas (RF-82) | La IA nunca escribe una etiqueta fuera del vocabulario; una propuesta entra solo con persona o N apariciones | F10-9, F7-1 |
+| F10-11 | Relaciones derivadas: cocambio de ficheros con IDF, etiquetas compartidas, dependencias y engram, con peso y procedencia | Las vecinas de una tarea de TaskCodeTwo coinciden con las que daría una persona en 8 de 10 casos | F10-3, F10-8 |
+| F10-12 | `tc2 grafo --json`: nodos, aristas, pesos y proyecciones (completa, por ficheros, por etiquetas, etiquetas y ficheros), con modo foco, agrupación por carpeta y umbral (RF-83) | El JSON de ToolsaWeb en modo foco tiene menos de 300 nodos; mismo resultado con los mismos SHA | F10-11 |
+| F10-13 | Medición y retirada de engram: preguntas reales en TaskCodeTwo, ToolsaWeb y OpenDockTrading frente a la búsqueda de engram; si gana, engram sale del manifiesto de F1-14 | Informe con aciertos de cada uno; decisión de Carlos registrada | F10-5..F10-12 |
+| F10-14 | Prueba de concepto del motor 3D: `3d-force-graph` frente a Babylon.js con d3-force-3d, con el grafo real de ToolsaWeb (RF-84) | Cifras de FPS, memoria y tamaño del bundle con el grafo completo y en modo foco; halo y pulso funcionando en los dos; decisión registrada | F10-12 |
+| F10-15 | `tc2 visor`: servidor local en `127.0.0.1` con token, app embebida en el ejecutable y canal de eventos (`busqueda`, `fichero_cambiado`, `indice_actualizado`) desde el índice y un vigilante de ficheros (RF-84) | Se abre en el navegador sin Node instalado; un cambio en un fichero llega al visor en menos de 1 s; cerrar el visor no afecta a `tc2` | F10-2, F10-6, F10-14 |
+| F10-16 | App Vue del visor con dockview y PrimeVue: paneles de red completa 3D, por ficheros, por etiquetas, etiquetas y ficheros, búsqueda y detalle de tarea, con su disposición guardada (RF-84) | Las cuatro vistas abiertas a la vez con el grafo de ToolsaWeb; la disposición se conserva al volver a abrir | F10-15 |
+| F10-17 | Efectos del visor y panel de actividad: pulso de la búsqueda (brillo y partículas en etiquetas y relaciones durante unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, y panel de dockview con la pila de búsquedas y ficheros cambiados en tiempo real, sincronizado con el grafo (RF-84) | Una búsqueda ilumina exactamente los nodos y aristas devueltos por `tc2 buscar`; añadir y borrar líneas destella verde y rojo en el fichero correcto; cada evento aparece en la pila y en el grafo a la vez; pulsar una entrada de la pila resalta y centra sus nodos | F10-16 |
+
 ## 9. Criterios de salida de la 2.0
 
-- Los **diecinueve requisitos rectores** se cumplen, cada uno con su prueba o su
+- Los **veinte requisitos rectores** se cumplen, cada uno con su prueba o su
   cifra; todos los requisitos **I** del catálogo, cubiertos.
 - Ningún paso del flujo pide al agente escribir `git` o `gh`, y los tokens por
   tarea bajan frente a la 0.16.
@@ -454,6 +484,8 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 - Se instala en una máquina limpia de cada sistema desde el marketplace de
   Claude Code, igual que TaskCode, sin `npm install` ni bash; y con el
   ejecutable o la línea por internet para usos fuera de Claude Code.
+- La memoria del proyecto es propia: toda búsqueda del plugin pasa por
+  `tc2 buscar`, nunca responde con datos viejos y engram no hace falta (RR-20).
 - CI verde en Linux, macOS y Windows; la auditoría externa repetida dice «sí».
 
 ## 10. Orden y paralelismo
@@ -467,6 +499,8 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 4. **F4-5: relevo**, TaskCodeTwo pasa a la 2.0 (requiere F9-2).
 5. Fases 6–8, y la Fase 9 al final, con el piloto en OpenDockTrading antes que
    ToolsaWeb.
+6. **Fase 10** (memoria del proyecto): F1-19 → F10-1 → F10-2 y F10-3 → resto;
+   el conversor de tareas va pronto para medir con datos reales antes de la IA.
 
 ## Fuentes
 
