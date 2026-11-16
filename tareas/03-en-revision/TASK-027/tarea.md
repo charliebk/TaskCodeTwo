@@ -50,6 +50,10 @@ MENOR sin corregir: `descarga::Fallo::Escritura` da un informe generico con
 `ruta=-` (en `actualizar` no se usa: alli se convierte en `sin-permiso` con
 la ruta).
 
+## Rondas extra
+
+- Ronda 3: Carlos (consigna del 2026-11-16, «aceptamos todas las respuestas de forma recomendada»); IMP-2 de la ronda 2 es una regresion barata ya corregida y hay que verificarla.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
