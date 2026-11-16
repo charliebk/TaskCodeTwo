@@ -11,10 +11,12 @@
 //! [`actualizar_cli`] (`actualizar --cli`, F2-12). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
+pub mod actualizar_cli;
 pub mod alta;
 pub mod carril;
 pub mod config;
 pub mod contrato;
+pub mod descarga;
 pub mod estado;
 pub mod git;
 pub mod i18n;
@@ -92,6 +94,10 @@ where
         [orden, resto @ ..] if orden == version::COMPATIBLE => {
             let (json, resto) = con_json(resto);
             version::compatible(&resto).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == actualizar_cli::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            actualizar_cli::orden(&resto).salida_en(json, idioma)
         }
         [] => Salida {
             codigo: 2,
