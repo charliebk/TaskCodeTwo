@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-078, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-115
+- **En marcha:** TASK-078 (en diseño)
+- **Listas para empezar:** TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-115
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -90,7 +90,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-027 | F2-12 taskctl actualizar --cli y aviso de version nueva | — | TASK-025 | ✅ terminada |
 | — | TASK-076 | F2-4b Nombres unicos de tarea y rama | — | TASK-019 | ✅ terminada |
 | — | TASK-077 | F2-13 Identidad de la persona desde la plataforma | — | TASK-007, TASK-021, TASK-022 | ✅ terminada |
-| 1 | TASK-078 | F2-14 taskctl desinstalar: quitar TaskCodeTwo de forma limpia | — | TASK-018, TASK-025, TASK-027 | lista para empezar |
+| 1 | TASK-078 | F2-14 taskctl desinstalar: quitar TaskCodeTwo de forma limpia | — | TASK-018, TASK-025, TASK-027 | ▶ en diseño |
 
 ## H3 — Comandos del flujo
 

@@ -6,10 +6,10 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-078-f2-14-taskctl-desinstalar-quitar-taskcod
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-16
 dependencias: [TASK-018, TASK-025, TASK-027]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de 
 ## Criterios de aceptacion
 - [ ] Tras desinstalar no queda nada de TaskCodeTwo en la máquina ni en el proyecto salvo lo que la persona decide conservar
 - [ ] Cumple lo que pide la tarea F2-14 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-16T22:31:19Z | plan | automatico | persona | 0.16.1 |
