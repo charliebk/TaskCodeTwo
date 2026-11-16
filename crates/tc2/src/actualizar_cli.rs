@@ -663,6 +663,9 @@ fn fallo_de_escritura(ruta: &Path, tipo: std::io::ErrorKind, error: &str) -> Inf
 /// descargas de mas de ~450 KB. No se reintentan los fallos que se
 /// repetirian igual: 4xx, 5xx, TLS, una redireccion no permitida, el limite
 /// de tamano y una respuesta invalida.
+/// Pausa antes del reintento de la descarga.
+const PAUSA_REINTENTO: Duration = Duration::from_secs(1);
+
 fn bajar_con_un_reintento(
     d: &Descargador,
     url: &str,
@@ -682,6 +685,9 @@ fn bajar_con_un_reintento(
                     tipo: e.kind(),
                 });
             }
+            // Una pausa corta antes de repetir, como cualquier reintento:
+            // un corte suele venir de algo que tarda un momento en pasar.
+            std::thread::sleep(PAUSA_REINTENTO);
             d.a_escritor(url, fichero, descarga::LIMITE_BINARIO)
         }
         otro => otro,

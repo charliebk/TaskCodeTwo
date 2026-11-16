@@ -152,12 +152,15 @@ fn atender(
         let _ = s.write_all(enviado);
     }
     let _ = s.flush();
-    // Cierre ordenado: en Windows, cerrar con datos sin leer en
-    // el socket manda un RST que puede tirar la respuesta aun no
-    // entregada (el cliente ve «Peer disconnected» a media
-    // descarga del binario). Se cierra la escritura y se espera a
-    // que el cliente cierre la suya.
-    let _ = s.shutdown(std::net::Shutdown::Write);
+    // Cierre: una respuesta completa no lleva FIN del servidor; con
+    // `Content-Length` el cliente sabe cuando acaba, cierra el y despues se
+    // cierra aqui. En esta maquina (TASK-027) un FIN detras de los datos
+    // hacia que la red local perdiera a veces el final del cuerpo y la
+    // conexion se cayera a los ~19 s (tambien con curl y python). Un corte
+    // si cierra la escritura (FIN, no RST): es lo que se quiere probar.
+    if corte.is_some() {
+        let _ = s.shutdown(std::net::Shutdown::Write);
+    }
     let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
     let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
 }
