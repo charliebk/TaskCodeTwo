@@ -2,7 +2,7 @@
 
 - Commit revisado: 7a8d6e5 (la peticion cita eebf5f7; el HEAD de la rama solo anade la peticion, sin codigo)
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-077 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 

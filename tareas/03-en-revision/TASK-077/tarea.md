@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 19113461
-tokens_revision: null
+tokens_revision: 9984189
 creado: 2026-11-14
 actualizado: 2026-11-16
 dependencias: [TASK-007, TASK-021, TASK-022]
@@ -61,3 +61,5 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T21:32:43Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 18 | 13255 | 3342537 | 2983 | 1 | 3358793 | - | - |
 | 2026-11-16T21:32:43Z | implementacion | agente:aa8229874a65055ff | 158 | 253090 | 15423275 | 78145 | 60 | 15754668 | - | - |
+| 2026-11-16T21:50:44Z | revision | agente:a4df2532b4a058ae3 | 68 | 157049 | 4206458 | 24218 | 8 | 4387793 | 1 | rust-wasm-reviewer |
+| 2026-11-16T21:50:45Z | revision | agente:a2b2ee854173661e9 | 94 | 150665 | 5419863 | 25774 | 5 | 5596396 | 1 | code-quality-reviewer |

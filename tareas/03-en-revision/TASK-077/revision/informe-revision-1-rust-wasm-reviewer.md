@@ -2,7 +2,7 @@
 
 - Commit revisado: eebf5f753da191740858ecfa9eea2af9c918b956 (la rama avanza un commit solo con la peticion, 7a8d6e5; mismo codigo)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-077 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 Veredicto que propone el revisor: **aprobada** (0 CRITICO, 0 IMPORTANTE, 3 MENOR).
 
