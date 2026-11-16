@@ -77,6 +77,15 @@ dir_windows() { # <ruta de sh>
 # --- Las pruebas -----------------------------------------------------------
 
 medir() {
+  if [ "$so" = windows ]; then
+    # La persona escribe la linea en una ventana de PowerShell ya abierta: el
+    # primer arranque de powershell.exe en un runner recien creado (mas de un
+    # minuto en windows-11-arm) no es parte de la instalacion. Se paga aqui,
+    # fuera de la medida, y se deja en el log.
+    frio=$(date +%s)
+    powershell.exe -NoProfile -Command 'exit 0'
+    echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
+  fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
     lad=$(dir_windows "$tmp/lad-medida")
