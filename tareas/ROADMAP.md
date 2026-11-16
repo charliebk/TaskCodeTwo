@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-113 (en diseño)
-- **Listas para empezar:** TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-096
+- **En marcha:** TASK-113 (en curso)
+- **Listas para empezar:** TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -68,7 +68,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-075 | F1-17 ADR progreso en vivo y estimacion de tiempo | — | TASK-010, TASK-011 | ✅ terminada |
 | — | TASK-094 | F1-18 ADR hito de decisiones (ADR) en init y en actualizar | — | TASK-012, TASK-013 | ✅ terminada |
 | — | TASK-095 | F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda | — | TASK-002, TASK-010, TASK-012, TASK-014 | ✅ terminada |
-| 1 | TASK-113 | Puerta de valor F10: informe, datos y descarte del H10 | simple | — | ▶ en diseño |
+| 1 | TASK-113 | Puerta de valor F10: informe, datos y descarte del H10 | simple | — | ▶ en curso |
 
 ## H2 — Núcleo
 
@@ -200,27 +200,3 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 63 | TASK-092 | F9-8b Piloto final: TaskCodeTwo con la 2.0 completa | — | TASK-040, TASK-070 | espera a TASK-040, TASK-070 |
 | 64 | TASK-093 | F9-10 Desinstalacion limpia de TaskCode 0.16 | — | TASK-013, TASK-064 | espera a TASK-064 |
 | 65 | TASK-072 | F9-9 Publicar 2.0.0 | — | TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 | espera a TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 |
-
-## H10 — Memoria del proyecto
-
-0 de 17 terminadas.
-
-| Paso | Tarea | Título | Complejidad | Depende de | Estado |
-|---|---|---|---|---|---|
-| 66 | TASK-096 | F10-1 Indice SQLite reconstruible | — | TASK-095, TASK-020 | lista para empezar |
-| 67 | TASK-097 | F10-2 Frescura del indice por SHA | — | TASK-096, TASK-018 | espera a TASK-096 |
-| 68 | TASK-098 | F10-3 Conversor de las tareas existentes al indice | — | TASK-096 | espera a TASK-096 |
-| 69 | TASK-099 | F10-4 Ficheros tocados en finish | — | TASK-098, TASK-054 | espera a TASK-098, TASK-054 |
-| 70 | TASK-100 | F10-5 Conversor de engram por proyecto | — | TASK-096, TASK-098 | espera a TASK-096, TASK-098 |
-| 71 | TASK-101 | F10-6 tc2 buscar | — | TASK-097, TASK-098 | espera a TASK-097, TASK-098 |
-| 72 | TASK-102 | F10-7 El plugin busca en el indice | — | TASK-101, TASK-035 | espera a TASK-101, TASK-035 |
-| 73 | TASK-103 | F10-8 Etiquetado determinista | — | TASK-098 | espera a TASK-098 |
-| 74 | TASK-104 | F10-9 Vocabulario cerrado y tags doctor | — | TASK-103 | espera a TASK-103 |
-| 75 | TASK-105 | F10-10 Etiquetado lexico e IA acotada en finish | — | TASK-104, TASK-054 | espera a TASK-104, TASK-054 |
-| 76 | TASK-106 | F10-11 Relaciones derivadas entre tareas | — | TASK-098, TASK-103 | espera a TASK-098, TASK-103 |
-| 77 | TASK-107 | F10-12 Grafo de tareas, etiquetas y ficheros en JSON | — | TASK-106 | espera a TASK-106 |
-| 78 | TASK-108 | F10-13 Medicion y retirada de engram | — | TASK-100, TASK-101, TASK-102, TASK-103, TASK-104, TASK-105, TASK-106, TASK-107 | espera a TASK-100, TASK-101, TASK-102, TASK-103, TASK-104, TASK-105, TASK-106, TASK-107 |
-| 79 | TASK-109 | F10-14 PoC del motor 3D del visor | — | TASK-107 | espera a TASK-107 |
-| 80 | TASK-110 | F10-15 tc2 visor: servidor local y canal de eventos | — | TASK-097, TASK-101, TASK-109 | espera a TASK-097, TASK-101, TASK-109 |
-| 81 | TASK-111 | F10-16 App Vue del visor con dockview | — | TASK-110 | espera a TASK-110 |
-| 82 | TASK-112 | F10-17 Efectos del visor y panel de actividad en tiempo real | — | TASK-111 | espera a TASK-111 |
