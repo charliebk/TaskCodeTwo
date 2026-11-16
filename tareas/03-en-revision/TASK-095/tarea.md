@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1093445
 tokens_implementacion: 4692745
-tokens_revision: 4009648
+tokens_revision: 7576449
 creado: 2026-11-16
 actualizado: 2026-11-16
 dependencias: [TASK-002, TASK-010, TASK-012, TASK-014]
@@ -44,6 +44,7 @@ Contexto (Carlos, 2026-11-16, RR-20, hito H10): memoria del proyecto propia que 
 | 2026-11-16T13:06:45Z | start | automatico | persona | 0.16.1 |
 | 2026-11-16T13:30:43Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T13:52:50Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T14:49:35Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -52,8 +53,14 @@ Contexto (Carlos, 2026-11-16, RR-20, hito H10): memoria del proyecto propia que 
 | 2026-11-16T13:03:25Z | diseno | agente:ab69920f34bade972,ac5f927590e26cbe9,a4a936ae6ac2f3123 | 56 | 154965 | 906531 | 31893 | 42 | 1093445 | - | - |
 | 2026-11-16T13:30:43Z | implementacion | sesion:a5dfc352-0a22-4b82-bbd5-fc62af318858 | 52 | 76920 | 4570682 | 45091 | 10 | 4692745 | - | - |
 | 2026-11-16T13:45:20Z | revision | agente:aa43da2fc92710b52 | 62 | 153463 | 3823611 | 32512 | 10 | 4009648 | 1 | - |
+| 2026-11-16T14:08:46Z | revision | agente:ad7f1fb1813d74cdb | 56 | 170686 | 3362321 | 33738 | 9 | 3566801 | 2 | - |
 
 ## Autorrevision
 
 - code-quality-reviewer — 72d9c0e
 - code-quality-reviewer — 63e9c84
+- code-quality-reviewer — 1e73ccf
+
+## Rondas extra
+
+- Ronda 3: Carlos (2026-11-16), para verificar solo la correccion de cifras de IMP-3; la regla y las conclusiones del ADR no cambian.
