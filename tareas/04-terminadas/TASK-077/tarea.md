@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-077-f2-13-identidad-de-la-persona-desde-la-p
 asignado_a: charlie.bk@gmail.com
@@ -74,6 +74,7 @@ Entorno: `plataforma::protecciones_y_bordes` fallo una vez y paso al repetir (cu
 | 2026-11-16T21:32:43Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T21:59:48Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T22:15:20Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T22:31:07Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -87,3 +88,10 @@ Entorno: `plataforma::protecciones_y_bordes` fallo una vez y paso al repetir (cu
 | 2026-11-16T22:10:03Z | revision | agente:a1b445b145a3ae10b | 58 | 141285 | 2905107 | 35203 | 4 | 3081653 | 2 | code-quality-reviewer |
 | 2026-11-16T22:28:48Z | revision | agente:afbfbd15179697350 | 52 | 103649 | 2118951 | 18079 | 1 | 2240731 | 3 | code-quality-reviewer |
 | 2026-11-16T22:28:48Z | revision | agente:a1440d1b8cc698f28 | 78 | 122701 | 3491367 | 23436 | 6 | 3637582 | 3 | rust-wasm-reviewer |
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 96 min
+- Paso de la hora: 96 min reales frente a 240 estimados
+- Cierre (finish): 132 s, de 2026-11-16T22:28:55Z a 2026-11-16T22:31:07Z
