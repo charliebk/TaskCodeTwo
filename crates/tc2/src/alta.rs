@@ -11,6 +11,7 @@ use std::cell::Cell;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::estado::{Cambio, Estado, Fallo, Operacion};
+use crate::tarea::texto::slug;
 use crate::tarea::{Cuerpo, Tarea};
 
 /// Nombre de la operacion y de la orden del binario.
@@ -42,6 +43,11 @@ impl Alta {
         }
     }
 
+    /// Rama derivada del ID del ultimo intento (F2-4b).
+    pub fn rama(&self) -> Option<String> {
+        self.id().map(|id| rama_de(&id, &self.titulo))
+    }
+
     /// ID calculado en el ultimo intento (el que publico, si la transaccion
     /// salio bien).
     pub fn id(&self) -> Option<String> {
@@ -64,6 +70,7 @@ impl Operacion for Alta {
         let n = siguiente_id(&estado.rutas())?;
         self.id.set(Some(n));
         let id = formato_id(n);
+        comprobar_rama(&id, &self.titulo)?;
         Ok(vec![Cambio::nuevo(
             format!("{id}/tarea.md"),
             tarea_md(&id, &self.titulo, &self.fecha),
@@ -109,10 +116,35 @@ pub fn siguiente_id(rutas: &[String]) -> Result<u32, Fallo> {
         .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))
 }
 
+/// Tipo con el que nace una tarea (plantilla de F1-9, punto 6).
+const TIPO: &str = "feature";
+
+/// Rama de la tarea `id` (ADR F1-3 y F1-9 punto 6): `feature/task-nnn-<slug>`
+/// con el slug del titulo (F2-4b).
+pub fn rama_de(id: &str, titulo: &str) -> String {
+    crate::git::nombre_de_rama(id, TIPO, &slug(titulo))
+}
+
+/// La rama derivada pasa la validacion de las operaciones de rama: si no,
+/// `start` no podria crearla.
+fn comprobar_rama(id: &str, titulo: &str) -> Result<(), Fallo> {
+    crate::git::rama::rama_valida(NOMBRE, id, TIPO, &slug(titulo))
+        .map(drop)
+        .map_err(|i| {
+            Fallo::Error(
+                crate::i18n::Mensaje::nuevo(&crate::i18n::catalogo::estado::RAMA_DERIVADA_INVALIDA)
+                    .con("id", id)
+                    .con("motivo", i.valor("motivo").unwrap_or_default()),
+            )
+        })
+}
+
 /// `tarea.md` de una tarea recien creada: el modelo de F2-5 con la
-/// plantilla de F1-9 (punto 6).
+/// plantilla de F1-9 (punto 6) y la rama derivada del ID (F2-4b).
 pub fn tarea_md(id: &str, titulo: &str, fecha: &str) -> String {
-    Tarea::nueva(id, titulo, fecha).escribir(&Cuerpo::plantilla())
+    let mut t = Tarea::nueva(id, titulo, fecha);
+    t.rama = Some(rama_de(id, titulo));
+    t.escribir(&Cuerpo::plantilla())
 }
 
 /// Fecha de hoy en UTC, `AAAA-MM-DD`, sin dependencias.
@@ -218,7 +250,39 @@ mod tests {
         );
         assert!(t.contains("id: \"TASK-008\"\n"));
         assert!(t.contains("creado: \"2026-11-15\"\nactualizado: \"2026-11-15\"\n"));
-        assert!(t.contains("rama: null\n"));
+        assert!(
+            t.contains("rama: \"feature/task-008-c-ruta-x-fecha\"\n"),
+            "{t}"
+        );
+    }
+
+    /// C7: el `tarea.md` lleva `rama: feature/task-nnn-<slug>` y esa rama
+    /// pasa `rama_valida`; un titulo sin letras latinas da el slug `tarea`.
+    #[test]
+    fn rama_derivada_del_id_pasa_rama_valida() {
+        for (titulo, rama) in [
+            (
+                "Nombres únicos de tarea",
+                "feature/task-076-nombres-unicos-de-tarea",
+            ),
+            ("Задача без латиницы", "feature/task-076-tarea"),
+            ("漢字", "feature/task-076-tarea"),
+        ] {
+            assert_eq!(rama_de("TASK-076", titulo), rama);
+            let md = tarea_md("TASK-076", titulo, "2026-11-16");
+            let leida = match crate::tarea::leer(&md) {
+                Ok(crate::tarea::Documento::Formato2(t, _)) => t.rama,
+                _ => None,
+            };
+            assert_eq!(leida.as_deref(), Some(rama));
+            let slug = rama.trim_start_matches("feature/task-076-");
+            assert_eq!(
+                crate::git::rama::rama_valida("t", "TASK-076", TIPO, slug).ok(),
+                Some(rama.to_owned())
+            );
+            assert_eq!(comprobar_rama("TASK-076", titulo), Ok(()));
+        }
+        assert_eq!(rama_de("TASK-1000", "x"), "feature/task-1000-x");
     }
 
     #[test]

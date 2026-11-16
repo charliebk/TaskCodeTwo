@@ -89,4 +89,8 @@ crate::i18n::textos! {
         es: "no quedan IDs de tarea",
         en: "no task IDs left",
     }
+    RAMA_DERIVADA_INVALIDA {
+        es: "la rama derivada de {id} no es valida ({motivo})",
+        en: "the branch derived from {id} is not valid ({motivo})",
+    }
 }

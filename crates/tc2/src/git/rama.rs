@@ -101,7 +101,7 @@ fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> 
 }
 
 /// Valida `id`, `tipo` y `slug` y devuelve el nombre de rama.
-fn rama_valida(op: &str, id: &str, tipo: &str, slug: &str) -> Paso<String> {
+pub(crate) fn rama_valida(op: &str, id: &str, tipo: &str, slug: &str) -> Paso<String> {
     let tipo_ok = !tipo.is_empty() && tipo.bytes().all(|b| b.is_ascii_lowercase());
     let slug_ok = !slug.is_empty()
         && !slug.starts_with('-')

@@ -201,9 +201,13 @@ fn coincide_con_estandar(m: &Tarea, v: &Value) {
 /// `alta` es la de antes de F2-5.
 #[test]
 fn ida_y_vuelta_byte_a_byte() {
+    // Desde F2-4b el alta escribe la rama derivada del ID en vez de `null`.
     assert_eq!(
         tarea_md("TASK-008", "C:\\ruta\\ \"x\" {fecha}", "2026-11-15"),
-        DORADA
+        DORADA.replace(
+            "rama: null\n",
+            "rama: \"feature/task-008-c-ruta-x-fecha\"\n"
+        )
     );
     for t in [DORADA, COMPLETA] {
         let (m, c) = leer2(t);
