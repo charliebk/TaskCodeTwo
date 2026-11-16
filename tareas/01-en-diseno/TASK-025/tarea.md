@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-025-f2-10-build-de-ejecutables-por-sistema-e
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 571325
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F2-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-16T00:44:28Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-16T01:04:04Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16T00:50:33Z | diseno | agente:adeb100acb51b0731 | 22 | 71992 | 485910 | 13401 | 24 | 571325 | - | - |
