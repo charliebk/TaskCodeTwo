@@ -75,7 +75,7 @@ aportación de TaskCodeTwo.
   y descartadas, con su grafo en Mermaid. Se lee en GitHub, en GitLab o en el
   editor.
 - **Nada de esto viaja en las ramas de código.** Vive en una rama propia,
-  `taskcode/tareas`, que el CLI monta como worktree en la carpeta `tareas/` del
+  `taskcodetwo/tareas`, que el CLI monta como worktree en la carpeta `tareas/` del
   proyecto (ignorada en las ramas de código).
 - Consecuencias:
   - **Ninguna rama de código lleva cambios de tareas**: cero conflictos de
@@ -91,7 +91,7 @@ aportación de TaskCodeTwo.
 
 ### P2 — Escrituras de estado atómicas: IDs únicos y nadie pisa a nadie (RR-09, RR-12)
 
-- Cada cambio de estado es un commit pequeño del CLI en `taskcode/tareas` que se
+- Cada cambio de estado es un commit pequeño del CLI en `taskcodetwo/tareas` que se
   publica con push inmediato. Si el push se rechaza porque otro escribió
   antes, el CLI rehace el cambio sobre lo nuevo y reintenta; el roadmap se
   regenera tras el rebase, nunca se mergea.
@@ -303,7 +303,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | ID | Tarea | Criterio de aceptación | Dep. |
 |---|---|---|---|
 | F1-0 | Crear TaskCodeTwo: repo en GitHub, `develop` y `main`, TaskCode 0.16 instalado, `tareas/`, config, CI mínima; importar este plan con `taskctl import` (RR-14) | `taskctl doctor` en verde; las tareas F1..F9 planificadas con dependencias | — |
-| F1-1 | ADR: carpeta fija por tarea con estado como campo, en rama propia `taskcode/tareas` montada como worktree en `tareas/` (P1), frente a estado en `develop`; contenido del ROADMAP | Decisión con pruebas de concepto de las dos; cómo se ve en GitHub | F1-0 |
+| F1-1 | ADR: carpeta fija por tarea con estado como campo, en rama propia `taskcodetwo/tareas` montada como worktree en `tareas/` (P1), frente a estado en `develop`; contenido del ROADMAP | Decisión con pruebas de concepto de las dos; cómo se ve en GitHub | F1-0 |
 | F1-2 | ADR: escrituras atómicas, reserva de IDs y toma de tareas (P2) | Protocolo de push con reintento; qué pasa sin red | F1-1 |
 | F1-3 | ADR: flujo de ramas `develop`/`main`, rama por tarea, worktrees, release y hotfix (P4) | Nombres, ciclo completo, qué queda de Git-Flow | F1-0 |
 | F1-4 | ADR: capa de operaciones Git/GitHub deterministas y su contrato de salida para el agente (P5) | Lista cerrada de operaciones; objetivo de tokens por tarea | F1-3 |

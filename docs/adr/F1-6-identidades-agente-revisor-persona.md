@@ -5,6 +5,7 @@
 - Requisitos: RR-04, RR-08, RR-12, RR-15, RF-30, RF-32, RF-51, RF-64, RN-01 y RN-06 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md); H5 y H6 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-4](F1-4-operaciones-git-y-contrato-de-salida.md) (puerto `Plataforma` y su lista cerrada) y [ADR F1-5](F1-5-puertas-en-github.md) (check `carril`, firma verificada del `approve` atada al blob con el trailer `Plan-Blob`, `integration_id` de `revision-ia`, CODEOWNERS, `strict`, sin `bypass_actors`); nombres de rama y tags de [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a —FIDO si hay llave; si no, D4b—, D5a y D6a del plan de TASK-007)
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 

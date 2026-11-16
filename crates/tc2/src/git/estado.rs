@@ -202,15 +202,15 @@ pub(crate) fn mensaje_de(git: &Git, dir: &Path, op: &str, commit: &str) -> Paso<
 
 static TEMPORALES: AtomicUsize = AtomicUsize::new(0);
 
-/// Carpeta temporal bajo la carpeta comun; se borra al soltarla, tambien si
-/// la operacion termina con error.
+/// Carpeta temporal bajo `<comun>/taskcodetwo/estado-tmp/`; se borra al
+/// soltarla, tambien si la operacion termina con error.
 struct Temporal(PathBuf);
 
 impl Temporal {
     fn nueva(comun: &Path, op: &str) -> Paso<Self> {
         let n = TEMPORALES.fetch_add(1, Ordering::SeqCst);
-        let ruta = comun
-            .join("taskcode-estado-tmp")
+        let ruta = crate::huella::en_comun(comun)
+            .join(crate::huella::CARPETA_TEMPORALES)
             .join(format!("{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&ruta);
         std::fs::create_dir_all(&ruta).map_err(|e| {

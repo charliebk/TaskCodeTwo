@@ -2,14 +2,15 @@
 //!
 //! Modulos: [`contrato`] (salida de toda operacion, ADR F1-4), [`git`]
 //! (capa de operaciones Git deterministas, F2-2) y [`estado`] (rama de
-//! estado `taskcode/tareas`, F2-3), [`alta`] (alta de tareas con reserva de
+//! estado `taskcodetwo/tareas`, F2-3), [`alta`] (alta de tareas con reserva de
 //! ID, F2-4) [`tarea`] (modelo de tarea y frontmatter YAML, F2-5) y
 //! [`plataforma`] (puerto Plataforma y adaptadores GitHub y GitLab, F2-6 y
 //! F2-9), [`carril`] (tabla de suelo de F1-10) y [`config`] (configuracion
 //! con esquema validado, F2-7) e [`i18n`] (mensajes en espanol e ingles,
 //! F2-8), [`version`] (`version --json` y `compatible`, F2-12) y
 //! [`actualizar_cli`] (`actualizar --cli`, F2-12) e [`identidad`] (quien
-//! ejecuta y `tc2 identidad`, F2-13). Las capas
+//! ejecuta y `tc2 identidad`, F2-13) y [`huella`] (los nombres que la 2.0
+//! deja en un repo, F1-12 D1a). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -20,6 +21,7 @@ pub mod contrato;
 pub mod descarga;
 pub mod estado;
 pub mod git;
+pub mod huella;
 pub mod i18n;
 pub mod identidad;
 pub mod plataforma;

@@ -13,7 +13,8 @@
 //! - Sin plataforma reconocida no hay identidad (D4): no hay vuelta a texto
 //!   libre.
 //!
-//! La cache vive en `<git-common-dir>/tc2/identidad.yml`: no se commitea y la
+//! La cache vive en `<git-common-dir>/taskcodetwo/identidad.yml`
+//! ([`crate::huella`]): no se commitea y la
 //! comparten los worktrees del clon. Editarla no aprueba nada: la aprobacion
 //! sigue siendo la firma de F1-6/F4-2 (riesgo aceptado en el plan).
 
@@ -42,10 +43,6 @@ pub const TTL_SEGUNDOS: u64 = 7 * 24 * 60 * 60;
 /// Margen para un reloj adelantado: una cache «del futuro» mas alla de esto
 /// no vale.
 const MARGEN_RELOJ: u64 = 5 * 60;
-
-/// Carpeta y fichero de la cache bajo la carpeta comun del repo.
-const CARPETA_CACHE: &str = "tc2";
-const FICHERO_CACHE: &str = "identidad.yml";
 
 /// Tamano maximo de la cache que se lee (la que escribe `tc2` ocupa menos
 /// de 400 bytes).
@@ -206,7 +203,7 @@ struct GuardadaCruda {
     verificado: u64,
 }
 
-/// Cache local de la identidad (`<git-common-dir>/tc2/identidad.yml`).
+/// Cache local de la identidad (`<git-common-dir>/taskcodetwo/identidad.yml`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cache {
     ruta: PathBuf,
@@ -216,7 +213,7 @@ impl Cache {
     /// La cache del repo cuya carpeta comun es `comun`.
     pub fn en(comun: &Path) -> Self {
         Self {
-            ruta: comun.join(CARPETA_CACHE).join(FICHERO_CACHE),
+            ruta: crate::huella::en_comun(comun).join(crate::huella::FICHERO_IDENTIDAD),
         }
     }
 
@@ -570,6 +567,30 @@ mod tests {
     }
 
     const AHORA: u64 = 1_800_000_000;
+
+    /// C2 de TASK-116: la cache se escribe en `<comun>/taskcodetwo/` y no
+    /// deja nada suelto en la carpeta comun.
+    #[test]
+    fn la_cache_vive_en_la_carpeta_propia() {
+        let d = carpeta("huella");
+        let cache = Cache::en(&d);
+        assert_eq!(cache.ruta(), d.join("taskcodetwo").join("identidad.yml"));
+        let ana = Cuenta {
+            proveedor: Proveedor::GitHub,
+            id: 7,
+            login: "ana".to_owned(),
+        };
+        assert_eq!(cache.guardar(&ana, AHORA), Ok(()));
+        assert!(cache.ruta().is_file());
+        let sueltos: Vec<_> = std::fs::read_dir(&d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.file_name())
+            .collect();
+        assert_eq!(sueltos, ["taskcodetwo"]);
+        let _ = std::fs::remove_dir_all(&d);
+    }
 
     /// C6: una cuenta `Bot` (o `web-flow`, o fuera de la lista) nunca acaba
     /// en `asignado_a`: error tipado. Sin terminal, `Quien` es `Agente` y la

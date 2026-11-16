@@ -38,7 +38,7 @@ fn rama_en(f: &Fixture, repo: &Path) -> String {
         &[
             "for-each-ref",
             "--format=%(objectname)",
-            "refs/heads/taskcode/tareas",
+            "refs/heads/taskcodetwo/tareas",
         ],
     )
 }
@@ -53,7 +53,10 @@ fn repo_sin_remoto(f: &Fixture, nombre: &str) -> PathBuf {
 }
 
 fn ficheros(f: &Fixture, repo: &Path) -> String {
-    f.crudo(repo, &["ls-tree", "-r", "--name-only", "taskcode/tareas"])
+    f.crudo(
+        repo,
+        &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
+    )
 }
 
 #[test]
@@ -102,7 +105,7 @@ fn tareas_con_cambios_o_divergente_lo_dice_y_no_pierde_nada() {
     std::fs::remove_file(tareas.join("notas/y.md")).unwrap();
     f.crudo(
         &tareas,
-        &["merge", "-q", "--ff-only", "origin/taskcode/tareas"],
+        &["merge", "-q", "--ff-only", "origin/taskcodetwo/tareas"],
     );
 
     // Commit a mano en `tareas/` sin publicar: la rama local diverge de lo
@@ -173,7 +176,7 @@ fn cerrojo_ocupado_y_remoto_que_deniega_el_fetch() {
         i.linea(),
         "estado denegada operacion=anotar motivo=remoto-no-existe"
     );
-    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
+    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
     let nuevo = f.raiz.join("nuevo");
     f.crudo(&f.raiz, &["clone", "-q", clon.to_str().unwrap(), "nuevo"]);
     f.crudo(
@@ -189,7 +192,7 @@ fn cerrojo_ocupado_y_remoto_que_deniega_el_fetch() {
     contrato(&i);
     assert_eq!(i.linea(), "montar-estado denegada motivo=remoto-no-existe");
     assert!(
-        !clon.join(".git/taskcode-estado-tmp").exists(),
+        !clon.join(".git/taskcodetwo/estado-tmp").exists(),
         "no quedan temporales"
     );
 }
@@ -307,9 +310,9 @@ fn pendientes_que_ya_no_proceden_o_fallan_van_a_rechazadas_sin_reutilizar_numero
     assert_eq!(
         f.crudo(
             &clon,
-            &["for-each-ref", "--format=%(refname)", "refs/taskcode/"]
+            &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"]
         ),
-        "refs/taskcode/pendientes/000002\nrefs/taskcode/rechazadas/000001\n"
+        "refs/taskcodetwo/pendientes/000002\nrefs/taskcodetwo/rechazadas/000001\n"
     );
     con_red();
     let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/i.md", true));
@@ -352,9 +355,9 @@ fn pendiente_que_choca_por_mayusculas_no_bloquea_el_clon() {
     assert_eq!(
         f.crudo(
             &clon,
-            &["for-each-ref", "--format=%(refname)", "refs/taskcode/"]
+            &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"]
         ),
-        "refs/taskcode/rechazadas/000001\n"
+        "refs/taskcodetwo/rechazadas/000001\n"
     );
 }
 
@@ -391,7 +394,7 @@ fn remoto_que_responde_access_denied_es_denegada_por_credenciales() {
         "estado denegada operacion=anotar motivo=credenciales"
     );
     assert_eq!(i.salida(false).codigo, 8);
-    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
+    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
 }
 
 /// Escribe dos rutas en el mismo lote.

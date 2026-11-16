@@ -8,7 +8,7 @@ directo a la tabla de la Fase 1 y a su tarea.
 
 | ADR | Tema | Tarea | Estado |
 |---|---|---|---|
-| [F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) | Carpeta fija por tarea y rama de estado `taskcode/tareas` | TASK-002 | aceptada |
+| [F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) | Carpeta fija por tarea y rama de estado `taskcodetwo/tareas` (nombre de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)) | TASK-002 | aceptada |
 | [F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) | Escrituras atómicas en la rama de estado, reserva de IDs y toma de tareas | TASK-003 | aceptada |
 | [F1-3](F1-3-flujo-de-ramas-worktrees-release.md) | Flujo de ramas `develop`/`main`, rama por tarea con worktree, release y hotfix; qué queda de Git-Flow | TASK-004 | aceptada |
 | [F1-4](F1-4-operaciones-git-y-contrato-de-salida.md) | Capa de operaciones Git/GitHub deterministas: lista cerrada, contrato de salida, códigos y objetivo de tokens por tarea | TASK-005 | aceptada |

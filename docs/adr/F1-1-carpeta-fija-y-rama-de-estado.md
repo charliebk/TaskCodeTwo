@@ -4,6 +4,7 @@
 - Tarea: TASK-002 · Plan: [F1-1 en PLAN-TASKCODE-2](../plan/PLAN-TASKCODE-2.md) (§4 P1 y tabla de la Fase 1)
 - Requisitos: RR-10, RR-11, RR-12 (la parte de estado), RN-05 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md)
 - Decide: Carlos, con la consigna «la opción recomendada» (resuelve el `[DECIDE CARLOS]` de P1)
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 

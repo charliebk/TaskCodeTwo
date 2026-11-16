@@ -5,6 +5,7 @@
 - Requisitos: RR-04, RR-07, RR-08, RR-15, RF-50, RF-51, RF-64 y RN-06 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md); H5 y H6 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (rama de estado con push directo del CLI), [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (nombres de rama, merge commit, ramas conservadas, tags `vX.Y.Z`) y [ADR F1-4](F1-4-operaciones-git-y-contrato-de-salida.md) (puerto `Plataforma` y su lista cerrada)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a, D5a y D6a del plan de TASK-006)
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 

@@ -128,7 +128,7 @@ impl Estado for Vista<'_> {
 }
 
 /// Vista del estado tal como lo conoce este clon: lo ultimo traido de
-/// `origin/taskcode/tareas` (sin `fetch`: la lectura fresca es de F3-5b) o,
+/// `origin/taskcodetwo/tareas` (sin `fetch`: la lectura fresca es de F3-5b) o,
 /// en un repo sin remoto, la rama local. Sin rama de estado → `rechazada`.
 pub fn leer<'a>(git: &'a Git, dir: &Path) -> Result<Vista<'a>, Informe> {
     let principal = localizar_principal(git, dir)?;

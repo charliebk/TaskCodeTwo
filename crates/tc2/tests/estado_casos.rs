@@ -38,7 +38,7 @@ fn rama_en(f: &Fixture, repo: &Path) -> String {
         &[
             "for-each-ref",
             "--format=%(objectname)",
-            "refs/heads/taskcode/tareas",
+            "refs/heads/taskcodetwo/tareas",
         ],
     )
 }
@@ -56,14 +56,14 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
     let publicada = rama_en(&f, &bare);
     assert!(!publicada.is_empty(), "la rama de estado esta en el remoto");
     assert_eq!(
-        f.crudo(&bare, &["rev-list", "--count", "taskcode/tareas"])
+        f.crudo(&bare, &["rev-list", "--count", "taskcodetwo/tareas"])
             .trim(),
         "1"
     );
     // Huerfana: sin historia comun con develop.
     let mb = std::process::Command::new("git")
         .current_dir(&bare)
-        .args(["merge-base", "develop", "taskcode/tareas"])
+        .args(["merge-base", "develop", "taskcodetwo/tareas"])
         .output()
         .unwrap();
     assert!(!mb.status.success());
@@ -78,7 +78,7 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
     contrato(&i);
     assert_eq!(
         i.linea(),
-        "montar-estado sin-cambios rama=taskcode/tareas ruta=tareas"
+        "montar-estado sin-cambios rama=taskcodetwo/tareas ruta=tareas"
     );
 
     // Otro clon la encuentra en el remoto y solo la monta.
@@ -198,7 +198,7 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
     assert_eq!(i.salida(false).codigo, 8);
     assert_eq!(pushes(&g) - previos, 1, "sin reintento");
     assert_eq!(rama_en(&f, &bare), antes);
-    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
+    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
     std::fs::remove_file(&hook).unwrap();
 
     // Contencion sostenida: en cada intento otro clon publica antes.
@@ -215,11 +215,14 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
     assert_eq!(i.salida(false).codigo, 5);
     assert_eq!(op.n.get(), 3, "re-ejecutada en cada intento");
     // Nada escrito: ni en el remoto (solo lo del otro), ni en local.
-    let notas = f.crudo(&bare, &["ls-tree", "-r", "--name-only", "taskcode/tareas"]);
+    let notas = f.crudo(
+        &bare,
+        &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
+    );
     assert!(!notas.contains("notas/pisada.md"), "{notas}");
     assert_eq!(rama_en(&f, &clon), local_antes);
     assert!(!clon.join("tareas/notas/pisada.md").exists());
-    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcode/"]), "");
+    assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
     registro_permitido(&g.registro());
 }
 
@@ -249,7 +252,7 @@ impl Operacion for SiempreLlegaOtro<'_> {
         self.f.crudo(&self.otro, &["add", &ruta]);
         self.f.crudo(&self.otro, &["commit", "-q", "-m", "otro"]);
         self.f
-            .crudo(&self.otro, &["push", "-q", "origin", "taskcode/tareas"]);
+            .crudo(&self.otro, &["push", "-q", "origin", "taskcodetwo/tareas"]);
         Ok(vec![Cambio::nuevo("notas/pisada.md", "mio\n")])
     }
 }
@@ -288,11 +291,11 @@ fn sin_red_quedan_pendientes_y_se_re_ejecutan_al_volver() {
     assert_eq!(i.valor("pendientes"), Some("2"), "{}", i.linea());
     let refs = f.crudo(
         &clon,
-        &["for-each-ref", "--format=%(refname)", "refs/taskcode/"],
+        &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"],
     );
     assert_eq!(
         refs,
-        "refs/taskcode/pendientes/000001\nrefs/taskcode/pendientes/000002\n"
+        "refs/taskcodetwo/pendientes/000001\nrefs/taskcodetwo/pendientes/000002\n"
     );
     // Mientras, otra persona crea `notas/c.md`.
     let i = escribir_estado(
@@ -311,20 +314,23 @@ fn sin_red_quedan_pendientes_y_se_re_ejecutan_al_volver() {
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert_eq!(i.valor("pendientes"), Some("1"), "{}", i.linea());
     assert_eq!(i.valor("rechazadas"), Some("1"), "{}", i.linea());
-    let notas = f.crudo(&bare, &["ls-tree", "-r", "--name-only", "taskcode/tareas"]);
+    let notas = f.crudo(
+        &bare,
+        &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
+    );
     for n in ["notas/a.md", "notas/c.md", "notas/d.md"] {
         assert!(notas.contains(n), "{n}: {notas}");
     }
     assert!(!notas.contains("notas/b.md"));
     assert_eq!(
-        f.crudo(&bare, &["show", "taskcode/tareas:notas/c.md"]),
+        f.crudo(&bare, &["show", "taskcodetwo/tareas:notas/c.md"]),
         "unico\n"
     );
     let refs = f.crudo(
         &clon,
-        &["for-each-ref", "--format=%(refname)", "refs/taskcode/"],
+        &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"],
     );
-    assert_eq!(refs, "refs/taskcode/rechazadas/000002\n");
+    assert_eq!(refs, "refs/taskcodetwo/rechazadas/000002\n");
     // Lo rechazado no se pierde: sigue en un objeto de git.
     let msg = f.crudo(
         &clon,
@@ -332,7 +338,7 @@ fn sin_red_quedan_pendientes_y_se_re_ejecutan_al_volver() {
             "log",
             "-1",
             "--format=%B",
-            "refs/taskcode/rechazadas/000002",
+            "refs/taskcodetwo/rechazadas/000002",
         ],
     );
     assert!(msg.contains("Operacion: crear-unico|notas/c.md"), "{msg}");

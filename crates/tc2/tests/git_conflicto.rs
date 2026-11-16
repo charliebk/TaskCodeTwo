@@ -15,7 +15,7 @@ fn actualizar_rama_con_conflicto_se_resuelve_con_guardar() {
     let f = Fixture::nueva("conflicto");
     let (bare, clon) = f.remoto_y_clon();
     let g = f.git();
-    let wt = clon.join(".taskcode/worktrees/TASK-008");
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-008");
 
     let i = git::crear_rama_y_worktree(&g, &clon, "TASK-008", "feature", "texto", "origin/develop");
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());

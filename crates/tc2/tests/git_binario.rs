@@ -37,7 +37,7 @@ fn guardar_y_actualizar_rama_por_el_binario_cumplen_el_contrato() {
     let g = f.git();
     let i = git::crear_rama_y_worktree(&g, &clon, "TASK-010", "feature", "bin", "origin/develop");
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-    let wt = clon.join(".taskcode/worktrees/TASK-010");
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-010");
 
     // RF-23: con otros cambios en el worktree, solo se guardan las rutas dadas.
     escribir(&wt, "a.txt", "a\n");

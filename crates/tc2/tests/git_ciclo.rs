@@ -19,7 +19,7 @@ fn ciclo_de_una_tarea_es_idempotente_y_solo_usa_la_lista_permitida() {
     let f = Fixture::nueva("ciclo");
     let (bare, clon) = f.remoto_y_clon();
     let g = f.git();
-    let wt = clon.join(".taskcode/worktrees/TASK-007");
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-007");
 
     let i = dos_veces(&f, &bare, &clon, || git::fetch(&g, &clon));
     assert_eq!(i.linea(), "fetch sin-cambios remoto=origin");
@@ -39,7 +39,7 @@ fn ciclo_de_una_tarea_es_idempotente_y_solo_usa_la_lista_permitida() {
     });
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert!(i.linea().starts_with(
-        "crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 base="
+        "crear-rama-y-worktree ok rama=feature/task-007-login worktree=.taskcodetwo/worktrees/TASK-007 base="
     ));
     // El principal no ve los worktrees de tarea como ficheros sin seguimiento.
     assert_eq!(f.crudo(&clon, &["status", "--porcelain"]), "");
@@ -96,7 +96,7 @@ fn ciclo_de_una_tarea_es_idempotente_y_solo_usa_la_lista_permitida() {
     });
     assert_eq!(
         i.linea(),
-        "reanudar ok rama=feature/task-007-login worktree=.taskcode/worktrees/TASK-007 creado=worktree"
+        "reanudar ok rama=feature/task-007-login worktree=.taskcodetwo/worktrees/TASK-007 creado=worktree"
     );
     assert!(wt.join("g.txt").exists());
 

@@ -155,7 +155,7 @@ fn dos_clones_escriben_a_la_vez_sin_perder_nada() {
     assert_eq!(merges, 0, "historia lineal");
     for c in [&clon, &otro] {
         assert_eq!(
-            f.crudo(c, &["for-each-ref", "refs/taskcode/"]),
+            f.crudo(c, &["for-each-ref", "refs/taskcodetwo/"]),
             "",
             "nada pendiente ni temporal"
         );
@@ -188,5 +188,5 @@ fn dos_procesos_del_mismo_clon_sin_remoto_los_serializa_el_cerrojo() {
         f.crudo(&solo.join("tareas"), &["status", "--porcelain"]),
         ""
     );
-    assert_eq!(f.crudo(&solo, &["for-each-ref", "refs/taskcode/"]), "");
+    assert_eq!(f.crudo(&solo, &["for-each-ref", "refs/taskcodetwo/"]), "");
 }

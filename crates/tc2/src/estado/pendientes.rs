@@ -2,10 +2,10 @@
 //!
 //! Cada pendiente es un commit (hecho con `commit-tree`, como los demas) con
 //! la operacion anotada en el mensaje, apuntado por
-//! `refs/taskcode/pendientes/NNNNNN`. La siguiente transaccion con red no
+//! `refs/taskcodetwo/pendientes/NNNNNN`. La siguiente transaccion con red no
 //! publica ese commit: reconstruye la operacion desde su anotacion y la
 //! re-ejecuta sobre el estado nuevo. Publicada, la ref se borra; si ya no
-//! procede, pasa a `refs/taskcode/rechazadas/` y su contenido sigue en git.
+//! procede, pasa a `refs/taskcodetwo/rechazadas/` y su contenido sigue en git.
 
 use std::path::Path;
 
@@ -152,7 +152,7 @@ mod tests {
             Some("anotar|a.md")
         );
         assert_eq!(anotacion_de("sin anotacion\n"), None);
-        assert_eq!(numero("refs/taskcode/pendientes/000012"), 12);
-        assert_eq!(numero("refs/taskcode/pendientes/x"), 0);
+        assert_eq!(numero("refs/taskcodetwo/pendientes/000012"), 12);
+        assert_eq!(numero("refs/taskcodetwo/pendientes/x"), 0);
     }
 }
