@@ -7,13 +7,15 @@
 //! operacion sobre lo nuevo y sale el numero siguiente. La carpeta publicada
 //! es el compare-and-swap: reservar un numero sin crearla no reservaria nada.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::estado::{Cambio, Estado, Fallo, Operacion};
-use crate::tarea::texto::slug;
-use crate::tarea::{Cuerpo, Tarea};
+use crate::i18n::catalogo::estado as txt;
+use crate::i18n::{Idioma, Mensaje};
+use crate::tarea::texto::{Parecido, parecido, slug};
+use crate::tarea::{Cuerpo, Documento, Tarea};
 
 /// Nombre de la operacion y de la orden del binario.
 pub const NOMBRE: &str = "new";
@@ -28,6 +30,7 @@ pub struct Alta {
     fecha: String,
     ocupados: BTreeSet<u32>,
     id: Cell<Option<u32>>,
+    parecidas: RefCell<Vec<Parecida>>,
 }
 
 impl Alta {
@@ -43,6 +46,7 @@ impl Alta {
             fecha: fecha.to_owned(),
             ocupados: BTreeSet::new(),
             id: Cell::new(None),
+            parecidas: RefCell::new(Vec::new()),
         }
     }
 
@@ -64,6 +68,11 @@ impl Alta {
     pub fn id(&self) -> Option<String> {
         self.id.get().map(formato_id)
     }
+
+    /// Tareas abiertas parecidas vistas en el ultimo intento.
+    pub fn parecidas(&self) -> Vec<Parecida> {
+        self.parecidas.borrow().clone()
+    }
 }
 
 impl Operacion for Alta {
@@ -78,15 +87,88 @@ impl Operacion for Alta {
         true
     }
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let n = siguiente_id(&estado.rutas(), &self.ocupados)?;
+        let rutas = estado.rutas();
+        let n = siguiente_id(&rutas, &self.ocupados)?;
         self.id.set(Some(n));
         let id = formato_id(n);
         comprobar_rama(&id, &self.titulo)?;
+        // Sobre el mismo estado fresco del intento: dos altas a la vez se ven
+        // (la segunda en publicar avisa de la primera, TASK-076 C1).
+        *self.parecidas.borrow_mut() = parecidas(estado, &rutas, &self.titulo)?;
         Ok(vec![Cambio::nuevo(
             format!("{id}/tarea.md"),
             tarea_md(&id, &self.titulo, &self.fecha),
         )])
     }
+}
+
+/// Estados en los que una tarea esta abierta: contra ellas se avisa.
+const ABIERTOS: [&str; 4] = ["planificada", "en-diseno", "en-curso", "en-revision"];
+
+/// Una tarea abierta con un titulo igual o casi igual al del alta (RR-12).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Parecida {
+    /// ID de la tarea parecida.
+    pub id: String,
+    /// Su titulo.
+    pub titulo: String,
+    /// Como se parece.
+    pub parecido: Parecido,
+}
+
+/// `TASK-<cifras>/tarea.md`.
+fn es_tarea_md(ruta: &str) -> bool {
+    numero(ruta).is_some() && ruta.split_once('/').is_some_and(|(_, r)| r == "tarea.md")
+}
+
+/// Tareas abiertas cuyo titulo se parece a `titulo`, en orden de ID. Los
+/// `tarea.md` que no se leen o son de formato 1 se saltan sin fallar.
+fn parecidas(estado: &dyn Estado, rutas: &[String], titulo: &str) -> Result<Vec<Parecida>, Fallo> {
+    let mds: Vec<String> = rutas.iter().filter(|r| es_tarea_md(r)).cloned().collect();
+    let mut v = Vec::new();
+    for md in estado.leer_varios(&mds)?.into_iter().flatten() {
+        let Ok(Documento::Formato2(t, _)) = crate::tarea::leer(&md) else {
+            continue;
+        };
+        if !ABIERTOS.contains(&t.estado.as_str()) {
+            continue;
+        }
+        if let Some(p) = parecido(titulo, &t.titulo) {
+            v.push(Parecida {
+                id: t.id,
+                titulo: t.titulo,
+                parecido: p,
+            });
+        }
+    }
+    Ok(v)
+}
+
+/// Una linea de aviso con las tareas parecidas, en `idioma`; `None` si no
+/// hay. Va a stderr aunque el alta salga bien: es solo un aviso (D1).
+pub fn aviso_parecidas(p: &[Parecida], idioma: Idioma) -> Option<String> {
+    if p.is_empty() {
+        return None;
+    }
+    let lista: Vec<String> = p
+        .iter()
+        .map(|x| {
+            let m = match x.parecido {
+                Parecido::Duplicado => Mensaje::nuevo(&txt::PARECIDA_DUPLICADO),
+                Parecido::Casi(c) => Mensaje::nuevo(&txt::PARECIDA_CASI)
+                    .con("unidad", (c / 100).to_string())
+                    .con("centesimas", format!("{:02}", c % 100)),
+            };
+            m.con("id", x.id.as_str())
+                .con("titulo", x.titulo.as_str())
+                .texto(idioma)
+        })
+        .collect();
+    Some(
+        Mensaje::nuevo(&txt::AVISO_PARECIDAS)
+            .con("lista", lista.join("; "))
+            .texto(idioma),
+    )
 }
 
 /// Reconstruye un [`Alta`] desde su anotacion (para el catalogo).

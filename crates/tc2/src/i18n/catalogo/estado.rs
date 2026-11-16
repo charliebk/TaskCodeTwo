@@ -89,6 +89,18 @@ crate::i18n::textos! {
         es: "no quedan IDs de tarea",
         en: "no task IDs left",
     }
+    AVISO_PARECIDAS {
+        es: "aviso: ya hay tareas abiertas con un titulo igual o parecido: {lista}",
+        en: "warning: there are already open tasks with the same or a similar title: {lista}",
+    }
+    PARECIDA_DUPLICADO {
+        es: "{id} \"{titulo}\" (duplicado)",
+        en: "{id} \"{titulo}\" (duplicate)",
+    }
+    PARECIDA_CASI {
+        es: "{id} \"{titulo}\" (parecido {unidad},{centesimas})",
+        en: "{id} \"{titulo}\" (similarity {unidad}.{centesimas})",
+    }
     RAMA_DERIVADA_INVALIDA {
         es: "la rama derivada de {id} no es valida ({motivo})",
         en: "the branch derived from {id} is not valid ({motivo})",
