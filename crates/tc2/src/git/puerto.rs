@@ -113,7 +113,7 @@ impl Subcomando {
 
 /// Prefijo de las unicas refs que puede escribir `update-ref` (pendientes y
 /// rechazadas de la rama de estado, F2-3). Nunca `refs/heads/*` (F1-4 D3).
-pub const PREFIJO_REFS_PROPIAS: &str = "refs/taskcode/";
+pub const PREFIJO_REFS_PROPIAS: &str = crate::huella::PREFIJO_REFS;
 
 /// Lo que devolvio una llamada a `git` que llego a ejecutarse.
 #[derive(Debug, Clone)]

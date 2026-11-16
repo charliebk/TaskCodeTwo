@@ -26,7 +26,8 @@ const OP: &str = "montar-estado";
 /// Fichero que deja el commit raiz.
 pub(crate) const LEEME: &str = "LEEME.md";
 
-const TEXTO_LEEME: &str = "# Rama de estado de TaskCodeTwo\n\nEsta rama (`taskcode/tareas`) guarda las tareas y el roadmap (ADR F1-1).\nNo tiene historia comun con las ramas de codigo: no la mezcles con ellas.\nLa escribe el CLI; se monta como worktree en `tareas/`.\n";
+/// Texto del [`LEEME`], compuesto desde el nombre de la rama.
+use crate::huella::TEXTO_LEEME;
 
 /// Operacion que crea la rama: solo escribe [`LEEME`] si no esta.
 struct Inicializar;

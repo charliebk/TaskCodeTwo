@@ -30,18 +30,18 @@ pub use lectura::{Estado, Vista, leer};
 pub use montaje::{montar, montar_con};
 pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};
 
-/// Rama huerfana del estado (ADR F1-1).
-pub const RAMA: &str = "taskcode/tareas";
+/// Rama huerfana del estado (ADR F1-1; nombre en [`crate::huella`]).
+pub const RAMA: &str = crate::huella::RAMA_ESTADO;
 
 /// Carpeta del worktree principal donde se monta (ADR F1-1).
 pub const CARPETA: &str = "tareas";
 
 /// Refs de las operaciones pendientes de publicar (sin red, D2b).
-pub const REFS_PENDIENTES: &str = "refs/taskcode/pendientes/";
+pub const REFS_PENDIENTES: &str = crate::huella::REFS_PENDIENTES;
 
 /// Refs de las pendientes que al re-ejecutarse ya no procedian: su contenido
 /// queda en un objeto de git y no se pierde (pregunta abierta de F1-2).
-pub const REFS_RECHAZADAS: &str = "refs/taskcode/rechazadas/";
+pub const REFS_RECHAZADAS: &str = crate::huella::REFS_RECHAZADAS;
 
 /// Nombre de la operacion en la linea de contrato.
 pub(crate) const OP: &str = "estado";

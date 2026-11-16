@@ -42,7 +42,7 @@ use crate::i18n::catalogo::git as txt;
 pub const REMOTO: &str = "origin";
 
 /// Carpeta de los worktrees de tarea, relativa al worktree principal.
-pub const CARPETA_WORKTREES: &str = ".taskcode/worktrees";
+pub const CARPETA_WORKTREES: &str = crate::huella::CARPETA_WORKTREES;
 
 /// Resultado interno: el `Err` ya es el informe que se devuelve.
 pub(crate) type Paso<T> = Result<T, Informe>;
