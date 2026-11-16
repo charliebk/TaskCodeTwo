@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use distribucion::Target;
 
 use crate::contrato::{Informe, Resultado};
-use crate::descarga::{self, Descargador, Origen};
+use crate::descarga::{self, Descargador, Fallo, Origen};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::actualizar as txt;
 
@@ -312,18 +312,205 @@ pub fn actualizar(exe: &Path, op: &Opciones, origen: &Origen, d: &Descargador) -
     instalar(exe, target, &publicado, origen, d)
 }
 
-/// Baja, comprueba y sustituye (paso 4 del plan).
+/// Baja el binario junto a `exe`, comprueba su sha256 contra `SHA256SUMS`
+/// (lo calcula este proceso, no el binario nuevo), le pide `version --json`
+/// y lo pone en el sitio de `exe`. Si algo falla antes del ultimo paso, no
+/// queda nada nuevo en la carpeta.
 fn instalar(
     exe: &Path,
-    _target: Target,
+    target: Target,
     publicado: &Publicado,
-    _origen: &Origen,
-    _d: &Descargador,
+    origen: &Origen,
+    d: &Descargador,
 ) -> Informe {
+    let Some(dir) = exe.parent() else {
+        return sin_permiso(exe, "sin carpeta");
+    };
+    let temporal = dir.join(format!(
+        ".tc2-{}-{}.descarga",
+        publicado.version,
+        std::process::id()
+    ));
+    // Abrirlo es tambien la comprobacion de permisos: antes de bajar nada.
+    let mut fichero = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporal)
+    {
+        Ok(f) => f,
+        Err(e) => return sin_permiso(dir, &e.to_string()),
+    };
+    let guarda = Borrar(Some(temporal.clone()));
+    let url = origen.url_binario(&publicado.version, &publicado.fichero);
+    let bajada = d
+        .a_escritor(&url, &mut fichero, descarga::LIMITE_BINARIO)
+        .map_err(|f| match f {
+            Fallo::Escritura { error } => sin_permiso(&temporal, &error),
+            otro => otro.informe(NOMBRE),
+        })
+        .and_then(|_| {
+            fichero
+                .sync_all()
+                .map_err(|e| sin_permiso(&temporal, &e.to_string()))
+        });
+    drop(fichero);
+    if let Err(i) = bajada {
+        return i;
+    }
+    let obtenido = match std::fs::read(&temporal) {
+        Ok(b) => distribucion::sha256::hex(&b),
+        Err(e) => return sin_permiso(&temporal, &e.to_string()),
+    };
+    if obtenido != publicado.sha256 {
+        return Informe::nuevo(NOMBRE, Resultado::Rechazada)
+            .con("motivo", "sha256-no-casa")
+            .con("fichero", publicado.fichero.clone())
+            .con("esperado", publicado.sha256.clone())
+            .con("obtenido", obtenido.clone())
+            .diagnostico(
+                Mensaje::nuevo(&txt::SHA256_NO_CASA)
+                    .con("fichero", publicado.fichero.clone())
+                    .con("obtenido", obtenido)
+                    .con("esperado", publicado.sha256.clone()),
+            );
+    }
+    if let Err(e) = hacer_ejecutable(&temporal) {
+        return sin_permiso(&temporal, &e.to_string());
+    }
+    if let Err(detalle) = comprobar_nuevo(&temporal, &publicado.version, target.alias, &obtenido) {
+        return Informe::nuevo(NOMBRE, Resultado::Rechazada)
+            .con("motivo", "binario-no-arranca")
+            .diagnostico(
+                Mensaje::nuevo(&txt::NO_ARRANCA)
+                    .con("version", publicado.version.clone())
+                    .con("target", target.alias)
+                    .con("detalle", detalle),
+            );
+    }
+    if let Err(e) = sustituir_con(exe, &temporal, cfg!(windows), |a, b| std::fs::rename(a, b)) {
+        return Informe::nuevo(NOMBRE, Resultado::Error)
+            .con("motivo", "no-se-sustituye")
+            .con("ruta", exe.display().to_string())
+            .diagnostico(
+                Mensaje::nuevo(&txt::NO_SE_SUSTITUYE)
+                    .con("ruta", exe.display().to_string())
+                    .con("error", e.to_string()),
+            );
+    }
+    guarda.desarmar();
+    // En Unix no hay `.old`; en Windows sigue en uso hasta que este proceso
+    // acabe y lo borra la siguiente ejecucion.
+    limpiar_old(exe);
+    Informe::nuevo(NOMBRE, Resultado::Ok)
+        .con("anterior", crate::VERSION)
+        .con("version", publicado.version.clone())
+        .con("sha256", obtenido)
+}
+
+/// `rechazada motivo=sin-permiso` con la ruta.
+fn sin_permiso(ruta: &Path, error: &str) -> Informe {
     Informe::nuevo(NOMBRE, Resultado::Rechazada)
-        .con("motivo", "sin-implementar")
-        .con("disponible", publicado.version.clone())
-        .con("ruta", exe.display().to_string())
+        .con("motivo", "sin-permiso")
+        .con("ruta", ruta.display().to_string())
+        .diagnostico(
+            Mensaje::nuevo(&txt::SIN_PERMISO)
+                .con("ruta", ruta.display().to_string())
+                .con("error", error),
+        )
+}
+
+/// Borra el fichero al salir de su ambito, salvo que se desarme.
+struct Borrar(Option<PathBuf>);
+
+impl Borrar {
+    fn desarmar(mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for Borrar {
+    fn drop(&mut self) {
+        if let Some(r) = self.0.take() {
+            let _ = std::fs::remove_file(r);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn hacer_ejecutable(ruta: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(ruta, std::fs::Permissions::from_mode(0o755))
+}
+
+#[cfg(not(unix))]
+fn hacer_ejecutable(_ruta: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// Lanza `nuevo version --json` y exige su version, su target y el sha256
+/// que ya calculo este proceso. `Err` con el detalle si no.
+fn comprobar_nuevo(nuevo: &Path, version: &str, alias: &str, sha256: &str) -> Result<(), String> {
+    let salida = std::process::Command::new(nuevo)
+        .args(["version", "--json"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !salida.status.success() {
+        return Err(format!("version --json salio con {}", salida.status));
+    }
+    let v: serde_json::Value = serde_json::from_slice(&salida.stdout)
+        .map_err(|e| format!("version --json no es JSON: {e}"))?;
+    let campo = |k: &str| {
+        v.get(k)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    if campo("version") != version {
+        return Err(format!("dice ser la version {}", campo("version")));
+    }
+    if campo("target") != alias {
+        return Err(format!("dice ser del target {}", campo("target")));
+    }
+    if campo("sha256") != sha256 {
+        return Err(format!("da otro sha256 ({})", campo("sha256")));
+    }
+    if !v.get("protocolo").is_some_and(serde_json::Value::is_u64) {
+        return Err("version --json sin protocolo".to_owned());
+    }
+    Ok(())
+}
+
+/// Pone `nuevo` en el sitio de `viejo` con `renombrar`.
+///
+/// - `por_old` (Windows, donde un ejecutable en marcha se puede renombrar
+///   pero no sobrescribir): `viejo` → `<viejo>.old` y `nuevo` → `viejo`; si
+///   el segundo falla, `<viejo>.old` vuelve a `viejo` (vuelta atras) y el
+///   error lo dice.
+/// - si no (Unix): un solo renombrado atomico de `nuevo` sobre `viejo`.
+pub fn sustituir_con(
+    viejo: &Path,
+    nuevo: &Path,
+    por_old: bool,
+    mut renombrar: impl FnMut(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    if !por_old {
+        return renombrar(nuevo, viejo);
+    }
+    let old = ruta_old(viejo);
+    // Uno de una actualizacion anterior que no se pudo borrar.
+    let _ = std::fs::remove_file(&old);
+    renombrar(viejo, &old)?;
+    if let Err(e) = renombrar(nuevo, viejo) {
+        return match renombrar(&old, viejo) {
+            Ok(()) => Err(e),
+            Err(e2) => Err(std::io::Error::other(format!(
+                "{e}; y al volver atras: {e2}; el binario anterior esta en {}",
+                old.display()
+            ))),
+        };
+    }
+    Ok(())
 }
 
 /// `<exe>.old`: donde queda el binario anterior en Windows hasta la
@@ -432,6 +619,42 @@ mod tests {
                 "{args:?}"
             );
         }
+    }
+
+    /// Vuelta atras (plan, plan de pruebas): si falla el segundo renombrado,
+    /// el original vuelve a su sitio intacto y no queda `.old`.
+    #[test]
+    fn fallo_en_el_segundo_renombrado_deja_el_original() {
+        let dir = std::env::temp_dir().join(format!("tc2-sustituir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(std::fs::create_dir_all(&dir).is_ok());
+        let viejo = dir.join("tc2.exe");
+        let nuevo = dir.join(".tc2-9.9.9-1.descarga");
+        assert!(std::fs::write(&viejo, b"viejo").is_ok());
+        assert!(std::fs::write(&nuevo, b"nuevo").is_ok());
+        let mut llamadas = 0;
+        let r = sustituir_con(&viejo, &nuevo, true, |a, b| {
+            llamadas += 1;
+            if llamadas == 2 {
+                Err(std::io::Error::other("inyectado"))
+            } else {
+                std::fs::rename(a, b)
+            }
+        });
+        assert_eq!(r.map_err(|e| e.to_string()), Err("inyectado".to_owned()));
+        assert_eq!(llamadas, 3);
+        assert_eq!(std::fs::read(&viejo).ok().as_deref(), Some(&b"viejo"[..]));
+        assert!(!ruta_old(&viejo).exists());
+        // Sin fallos: el nuevo en su sitio y el viejo en `.old`.
+        assert!(sustituir_con(&viejo, &nuevo, true, |a, b| std::fs::rename(a, b)).is_ok());
+        assert_eq!(std::fs::read(&viejo).ok().as_deref(), Some(&b"nuevo"[..]));
+        assert_eq!(
+            std::fs::read(ruta_old(&viejo)).ok().as_deref(),
+            Some(&b"viejo"[..])
+        );
+        limpiar_old(&viejo);
+        assert!(!ruta_old(&viejo).exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

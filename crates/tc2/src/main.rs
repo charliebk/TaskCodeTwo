@@ -10,6 +10,13 @@ use tc2::i18n::catalogo::cli as txt;
 use tc2::i18n::{Idioma, Mensaje};
 
 fn main() -> ExitCode {
+    // F2-12: en Windows, `actualizar --cli` deja `tc2.exe.old` (un ejecutable
+    // en marcha no se puede borrar); lo borra la siguiente ejecucion. Una
+    // llamada al sistema si no existe.
+    #[cfg(windows)]
+    if let Ok(exe) = std::env::current_exe() {
+        tc2::actualizar_cli::limpiar_old(&exe);
+    }
     let idioma = Idioma::de_entorno(|k| std::env::var(k).ok());
     let mut args = Vec::new();
     for a in std::env::args_os().skip(1) {

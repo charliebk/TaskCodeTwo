@@ -96,6 +96,21 @@ fn instalar_vx(dir: &Path) -> PathBuf {
     destino
 }
 
+/// El binario del doble `tc2_falso`, que `cargo test` deja en `examples/`.
+fn binario_vy() -> Vec<u8> {
+    let ruta = Path::new(env!("CARGO_BIN_EXE_tc2"))
+        .parent()
+        .unwrap()
+        .join("examples")
+        .join(format!("tc2_falso{}", std::env::consts::EXE_SUFFIX));
+    std::fs::read(&ruta).unwrap_or_else(|e| {
+        panic!(
+            "falta {} ({e}): lanza `cargo test -p tc2`, que compila los ejemplos",
+            ruta.display()
+        )
+    })
+}
+
 /// Release de ensayo con `binario` como version `version` del target actual,
 /// y `hash` en `SHA256SUMS` (el suyo si es `None`).
 fn release(version: &str, binario: &[u8], hash: Option<&str>) -> BTreeMap<String, Vec<u8>> {
@@ -233,4 +248,68 @@ fn actualizar_sin_cli_es_uso() {
         .unwrap();
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(texto(&o.stdout), "actualizar uso motivo=sin-cli\n");
+}
+
+/// Criterio 1: la instalacion vX pasa a vY sin reinstalar; despues
+/// `tc2 --version` da vY.
+#[test]
+fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
+    let f = Fixture::nueva("actualizar-vx-vy");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let vy = binario_vy();
+    let srv = Servidor::nuevo(release(VERSION_Y, &vy, None));
+
+    let antes = Command::new(&exe).arg("--version").output().unwrap();
+    assert_eq!(texto(&antes.stdout), format!("tc2 {VERSION_X}\n"));
+
+    let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stderr));
+    let hash_vy = distribucion::sha256::hex(&vy);
+    assert_eq!(
+        texto(&o.stdout),
+        format!("actualizar ok anterior={VERSION_X} version={VERSION_Y} sha256={hash_vy}\n")
+    );
+
+    let despues = Command::new(&exe).arg("--version").output().unwrap();
+    assert_eq!(texto(&despues.stdout), format!("tc2 {VERSION_Y}\n"));
+    assert_eq!(sha256(&exe), hash_vy);
+    // No queda la descarga. En Windows queda `tc2.exe.old` (el proceso que
+    // actualiza no puede borrarse a si mismo) hasta la siguiente ejecucion;
+    // ya terminado, se puede borrar.
+    let quedan = restos(&dir, &exe);
+    assert!(quedan.iter().all(|r| r == "tc2.exe.old"), "{quedan:?}");
+    tc2::actualizar_cli::limpiar_old(&exe);
+    assert!(restos(&dir, &exe).is_empty());
+    let pedidos = srv.peticiones();
+    assert!(pedidos.contains(&format!("/{}", target().fichero(VERSION_Y))));
+}
+
+/// Criterio 2: si el sha256 no casa con `SHA256SUMS`, `rechazada` (3), el
+/// binario instalado no cambia y no quedan `.descarga` ni `.old`.
+#[test]
+fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
+    let f = Fixture::nueva("actualizar-hash");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let antes = sha256(&exe);
+    let vy = binario_vy();
+    let otro = "0".repeat(64);
+    let srv = Servidor::nuevo(release(VERSION_Y, &vy, Some(&otro)));
+    for idioma in ["es", "en"] {
+        let o = lanzar(&exe, &srv.base(), idioma, &["actualizar", "--cli"]);
+        assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
+        let linea = texto(&o.stdout);
+        assert!(
+            linea.starts_with("actualizar rechazada motivo=sha256-no-casa fichero="),
+            "{linea}"
+        );
+        assert!(linea.contains(&format!("esperado={otro}")), "{linea}");
+        assert_eq!(sha256(&exe), antes);
+        let quedan = restos(&dir, &exe);
+        assert!(quedan.is_empty(), "{quedan:?}");
+    }
+    // Y sigue siendo la vX.
+    let v = Command::new(&exe).arg("--version").output().unwrap();
+    assert_eq!(texto(&v.stdout), format!("tc2 {VERSION_X}\n"));
 }
