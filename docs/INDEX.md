@@ -5,6 +5,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 
 ## Tareas terminadas
 
+- TASK-026 — F2-11 Instaladores de una linea · etiquetas: (sin etiquetas) · rama feature/task-026-f2-11-instaladores-de-una-linea · terminada 2026-11-16 · tareas/04-terminadas/TASK-026/
 - TASK-025 — F2-10 Build de ejecutables por sistema en la CI, firmados · etiquetas: (sin etiquetas) · rama feature/task-025-f2-10-build-de-ejecutables-por-sistema-e · terminada 2026-11-16 · tareas/04-terminadas/TASK-025/
 - TASK-024 — F2-8 i18n de mensajes · etiquetas: (sin etiquetas) · rama feature/task-024-f2-8-i18n-de-mensajes · terminada 2026-11-16 · tareas/04-terminadas/TASK-024/
 - TASK-023 — F2-7 Configuracion minima con esquema validado y valores por defecto · etiquetas: (sin etiquetas) · rama feature/task-023-f2-7-configuracion-minima-con-esquema-va · terminada 2026-11-15 · tareas/04-terminadas/TASK-023/
