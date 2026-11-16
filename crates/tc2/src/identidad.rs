@@ -157,11 +157,13 @@ pub fn asignable(
     if !personas.contiene(u.id) {
         return Err(NoAsignable::FueraDeLista);
     }
-    let a = Asignado::persona(u.id, &u.login).ok_or(NoAsignable::LoginNoValido)?;
+    // El mismo criterio de login que `asignado_a` (un login que la tarea no
+    // podria guardar no se acepta aqui).
+    Asignado::persona(u.id, &u.login).ok_or(NoAsignable::LoginNoValido)?;
     Ok(Cuenta {
         proveedor,
         id: u.id,
-        login: a.login().unwrap_or_default().to_owned(),
+        login: u.login.clone(),
     })
 }
 
@@ -221,12 +223,12 @@ impl Cache {
             "gitlab" => Proveedor::GitLab,
             _ => return None,
         };
-        let a = Asignado::persona(c.id, &c.login)?;
+        Asignado::persona(c.id, &c.login)?;
         Some(Guardada {
             cuenta: Cuenta {
                 proveedor,
                 id: c.id,
-                login: a.login().unwrap_or_default().to_owned(),
+                login: c.login,
             },
             verificado: c.verificado,
         })

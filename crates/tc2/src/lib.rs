@@ -8,7 +8,8 @@
 //! F2-9), [`carril`] (tabla de suelo de F1-10) y [`config`] (configuracion
 //! con esquema validado, F2-7) e [`i18n`] (mensajes en espanol e ingles,
 //! F2-8), [`version`] (`version --json` y `compatible`, F2-12) y
-//! [`actualizar_cli`] (`actualizar --cli`, F2-12). Las capas
+//! [`actualizar_cli`] (`actualizar --cli`, F2-12) e [`identidad`] (quien
+//! ejecuta y `tc2 identidad`, F2-13). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
