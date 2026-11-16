@@ -393,6 +393,49 @@ mod tests {
     }
 
     #[test]
+    fn aviso_de_parecidas_en_los_dos_idiomas() {
+        assert_eq!(aviso_parecidas(&[], Idioma::Es), None);
+        let p = [
+            Parecida {
+                id: "TASK-007".into(),
+                titulo: "Exportar informes".into(),
+                parecido: Parecido::Duplicado,
+            },
+            Parecida {
+                id: "TASK-009".into(),
+                titulo: "Exprotar informes".into(),
+                parecido: Parecido::Casi(86),
+            },
+            Parecida {
+                id: "TASK-010".into(),
+                titulo: "x".into(),
+                parecido: Parecido::Casi(100),
+            },
+        ];
+        assert_eq!(
+            aviso_parecidas(&p, Idioma::Es).as_deref(),
+            Some(
+                "aviso: ya hay tareas abiertas con un titulo igual o parecido: TASK-007 \"Exportar informes\" (duplicado); TASK-009 \"Exprotar informes\" (parecido 0,86); TASK-010 \"x\" (parecido 1,00)"
+            )
+        );
+        assert_eq!(
+            aviso_parecidas(&p[1..2], Idioma::En).as_deref(),
+            Some(
+                "warning: there are already open tasks with the same or a similar title: TASK-009 \"Exprotar informes\" (similarity 0.86)"
+            )
+        );
+        assert!(es_tarea_md("TASK-007/tarea.md") && es_tarea_md("task-7/tarea.md"));
+        for r in [
+            "TASK-007/plan.md",
+            "TASK-007/x/tarea.md",
+            "notas/tarea.md",
+            "TASK-x/tarea.md",
+        ] {
+            assert!(!es_tarea_md(r), "{r}");
+        }
+    }
+
+    #[test]
     fn fechas_civiles() {
         assert_eq!(fecha_de_dias(0), "1970-01-01");
         assert_eq!(fecha_de_dias(11_016), "2000-02-29");
