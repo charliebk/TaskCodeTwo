@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-027-f2-12-taskctl-actualizar-cli-y-aviso-de
 asignado_a: charlie.bk@gmail.com
@@ -43,3 +43,4 @@ Tarea F2-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 |---|---|---|---|---|
 | 2026-11-16T16:57:49Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T17:04:03Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T17:04:05Z | start | automatico | persona | 0.16.1 |
