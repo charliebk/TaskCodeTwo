@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 672873
 tokens_implementacion: 31680220
-tokens_revision: null
+tokens_revision: 11425969
 creado: 2026-11-14
 actualizado: 2026-11-15
 dependencias: [TASK-016]
@@ -49,7 +49,9 @@ Tarea F2-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | 2026-11-15T23:46:26Z | implementacion | sesion:1d6a1fb2-8f71-40e1-bb9f-dce13966fc92 | 116 | 101341 | 10513383 | 43116 | 15 | 10657956 | - | - |
 | 2026-11-15T23:46:26Z | implementacion | agente:a0305aaa8d64c32a4 | 108 | 427954 | 8067507 | 50129 | 23 | 8545698 | - | - |
 | 2026-11-15T23:46:26Z | implementacion | agente:a2223aabed12a30d0 | 146 | 253210 | 12142932 | 80278 | 13 | 12476566 | - | - |
+| 2026-11-16T00:06:14Z | revision | agente:abf52ef889130cb92 | 130 | 232574 | 11152206 | 41059 | 6 | 11425969 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — ce5b396
+- rust-wasm-reviewer — f46e10e
