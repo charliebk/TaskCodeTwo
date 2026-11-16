@@ -27,6 +27,7 @@ on:
       - .github/scripts/probar-instalador.sh
       - instalar/**
       - xtask/**
+      - crates/distribucion/**
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml

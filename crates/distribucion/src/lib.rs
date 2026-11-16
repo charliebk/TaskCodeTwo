@@ -1,15 +1,21 @@
-//! Distribucion (F2-10, ADR F1-14): los 6 targets de P12, el nombre de cada
-//! binario publicado, el formato de `SHA256SUMS` y la regla tag↔version.
+//! Distribucion (F2-10, F2-12, ADR F1-14): los 6 targets de P12, el nombre de
+//! cada binario publicado, el sha256, el formato de `SHA256SUMS` (escribirlo
+//! y leerlo) y la regla tag↔version.
 //!
-//! Es logica pura, sin E/S, para probarla en local: el empaquetado y la
-//! release de `.github/workflows/release.yml` llaman a `cargo xtask`, que
-//! usa este modulo.
+//! Es logica pura, sin E/S, para probarla en local. La comparten `xtask`
+//! (empaquetado y release de `.github/workflows/release.yml`) y `tc2`
+//! (`tc2 version --json` y `tc2 actualizar --cli`): asi el nombre que se
+//! publica y el que se busca al actualizar salen de la misma tabla.
+
+pub mod sha256;
 
 /// Un target de P12: el alias publico (contrato de `cli.lock`) y el triple de
 /// Rust con el que se compila.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Target {
+    /// Alias publico: `win-x64`, `linux-arm64`...
     pub alias: &'static str,
+    /// Triple de Rust con el que se compila.
     pub triple: &'static str,
 }
 
@@ -49,14 +55,44 @@ pub const SUFIJO_SUMA: &str = ".sha256";
 pub const SUMAS: &str = "SHA256SUMS";
 
 impl Target {
+    /// El target de un triple de P12.
     pub fn de_triple(triple: &str) -> Option<Target> {
         TARGETS.iter().copied().find(|t| t.triple == triple)
     }
 
+    /// El target de un alias de P12.
+    pub fn de_alias(alias: &str) -> Option<Target> {
+        TARGETS.iter().copied().find(|t| t.alias == alias)
+    }
+
+    /// El target para el que se compilo este binario, por sistema y
+    /// arquitectura (un build local en Linux con glibc cuenta como el alias
+    /// de Linux de su arquitectura). `None` fuera de P12.
+    pub fn actual() -> Option<Target> {
+        Self::de_sistema(std::env::consts::OS, std::env::consts::ARCH)
+    }
+
+    /// El target de un sistema y una arquitectura con los nombres de
+    /// `std::env::consts`.
+    pub fn de_sistema(os: &str, arch: &str) -> Option<Target> {
+        let alias = match (os, arch) {
+            ("windows", "x86_64") => "win-x64",
+            ("windows", "aarch64") => "win-arm64",
+            ("macos", "x86_64") => "darwin-x64",
+            ("macos", "aarch64") => "darwin-arm64",
+            ("linux", "x86_64") => "linux-x64",
+            ("linux", "aarch64") => "linux-arm64",
+            _ => return None,
+        };
+        Self::de_alias(alias)
+    }
+
+    /// Si es un target de Windows.
     pub fn es_windows(self) -> bool {
         self.alias.starts_with("win-")
     }
 
+    /// Si es un target de macOS.
     pub fn es_macos(self) -> bool {
         self.alias.starts_with("darwin-")
     }
@@ -68,9 +104,78 @@ impl Target {
 
     /// Nombre publicado (ADR F1-14, punto 4): `tc2-<version>-<alias>[.exe]`.
     pub fn fichero(self, version: &str) -> String {
-        let ext = if self.es_windows() { ".exe" } else { "" };
-        format!("tc2-{version}-{}{ext}", self.alias)
+        format!("tc2-{version}-{}{}", self.alias, self.extension())
     }
+
+    /// La version de un nombre publicado de este target, si lo es:
+    /// `tc2-2.0.0-win-x64.exe` → `2.0.0`. La version no puede estar vacia ni
+    /// llevar separadores de ruta ni espacios.
+    pub fn version_de_fichero(self, fichero: &str) -> Option<String> {
+        let sufijo = format!("-{}{}", self.alias, self.extension());
+        let version = fichero.strip_prefix("tc2-")?.strip_suffix(&sufijo)?;
+        version_valida(version).then(|| version.to_owned())
+    }
+
+    fn extension(self) -> &'static str {
+        if self.es_windows() { ".exe" } else { "" }
+    }
+}
+
+/// Una version con la forma de las publicadas: `1.2.3` o `1.2.3-sufijo`,
+/// con el sufijo de alfanumericos, `.` y `-`.
+pub fn version_valida(v: &str) -> bool {
+    let (nucleo, sufijo) = match v.split_once('-') {
+        Some((n, s)) => (n, Some(s)),
+        None => (v, None),
+    };
+    let partes: Vec<&str> = nucleo.split('.').collect();
+    partes.len() == 3
+        && partes
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 9 && p.bytes().all(|b| b.is_ascii_digit()))
+        && sufijo.is_none_or(|s| {
+            !s.is_empty()
+                && s.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        })
+}
+
+/// Lee un `SHA256SUMS` con el formato de [`sumas`] (tambien el modo binario
+/// de `sha256sum`, `<hex> *<fichero>`, y finales CRLF). Devuelve los pares
+/// (fichero, hash) en el orden del texto. Falla con la linea si una no tiene
+/// el formato o si un fichero se repite.
+pub fn leer_sumas(texto: &str) -> Result<Vec<(String, String)>, String> {
+    let mut pares: Vec<(String, String)> = Vec::new();
+    for (n, linea) in texto.lines().enumerate() {
+        let linea = linea.strip_suffix('\r').unwrap_or(linea);
+        if linea.is_empty() {
+            continue;
+        }
+        let formato = || {
+            format!(
+                "linea {} de {SUMAS} sin el formato `<sha256>  <fichero>`",
+                n + 1
+            )
+        };
+        let (hash, resto) = linea.split_once(' ').ok_or_else(formato)?;
+        let fichero = resto
+            .strip_prefix(' ')
+            .or_else(|| resto.strip_prefix('*'))
+            .ok_or_else(formato)?;
+        if !hash_valido(hash) || fichero.is_empty() || fichero.contains(['/', '\\']) {
+            return Err(formato());
+        }
+        if pares.iter().any(|(f, _)| f == fichero) {
+            return Err(format!("fichero repetido en {SUMAS}: {fichero}"));
+        }
+        pares.push((fichero.to_owned(), hash.to_owned()));
+    }
+    Ok(pares)
+}
+
+/// 64 hex en minusculas.
+pub fn hash_valido(hash: &str) -> bool {
+    hash.len() == 64 && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Una linea con el formato de `sha256sum` (modo texto): `<hex>  <fichero>`.
@@ -88,7 +193,7 @@ pub fn sumas(entradas: &[(String, String)]) -> Result<String, String> {
     let mut texto = String::new();
     let mut anterior: Option<&str> = None;
     for (fichero, hash) in ordenadas {
-        if hash.len() != 64 || !hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        if !hash_valido(hash) {
             return Err(format!("hash no valido para {fichero}: «{hash}»"));
         }
         if fichero.is_empty() || fichero.contains(['/', '\\', '\n', '\r']) {
@@ -209,6 +314,61 @@ mod tests {
                 sumas(&[(malo.to_owned(), abc.to_owned())]).is_err(),
                 "{malo:?}"
             );
+        }
+    }
+
+    #[test]
+    fn alias_sistema_y_version_de_fichero() {
+        for t in TARGETS {
+            assert_eq!(Target::de_alias(t.alias), Some(t));
+            assert_eq!(
+                t.version_de_fichero(&t.fichero("2.0.0-rc.1")).as_deref(),
+                Some("2.0.0-rc.1")
+            );
+        }
+        assert_eq!(Target::de_sistema("windows", "x86_64"), Some(TARGETS[0]));
+        assert_eq!(Target::de_sistema("macos", "aarch64"), Some(TARGETS[3]));
+        assert_eq!(Target::de_sistema("linux", "aarch64"), Some(TARGETS[5]));
+        assert_eq!(Target::de_sistema("freebsd", "x86_64"), None);
+        assert!(Target::actual().is_some());
+        let win = TARGETS[0];
+        for malo in [
+            "tc2-2.0.0-linux-x64",
+            "tc2-2.0.0-win-x64",
+            "tc2--win-x64.exe",
+            "tc2-2.0-win-x64.exe",
+            "tc2-../x-win-x64.exe",
+            "tc2-2.0.0-a b-win-x64.exe",
+            "x-2.0.0-win-x64.exe",
+        ] {
+            assert_eq!(win.version_de_fichero(malo), None, "{malo}");
+        }
+        assert!(version_valida("10.20.30"));
+        assert!(!version_valida("1.2.3-"));
+        assert!(!version_valida("1.2.x"));
+    }
+
+    #[test]
+    fn leer_sumas_es_la_inversa_de_sumas() {
+        let abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        let vacio = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let entradas = vec![
+            (String::from("tc2-0.0.0-linux-x64"), vacio.to_owned()),
+            (String::from("tc2-0.0.0-win-x64.exe"), abc.to_owned()),
+        ];
+        let texto = sumas(&entradas).unwrap_or_default();
+        assert_eq!(leer_sumas(&texto), Ok(entradas.clone()));
+        // CRLF y modo binario de sha256sum.
+        let crlf = format!("{vacio} *tc2-0.0.0-linux-x64\r\n{abc}  tc2-0.0.0-win-x64.exe\r\n");
+        assert_eq!(leer_sumas(&crlf), Ok(entradas));
+        for malo in [
+            format!("{abc} x"),
+            format!("{abc}  dir/x"),
+            format!("{}  x", abc.to_uppercase()),
+            format!("{abc}  x\n{vacio}  x"),
+            String::from("nada"),
+        ] {
+            assert!(leer_sumas(&malo).is_err(), "{malo}");
         }
     }
 

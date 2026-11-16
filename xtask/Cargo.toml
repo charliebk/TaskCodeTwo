@@ -9,3 +9,8 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+# F2-12: la tabla de targets, el sha256 y SHA256SUMS viven en la caja comun
+# con tc2.
+[dependencies]
+distribucion = { path = "../crates/distribucion" }

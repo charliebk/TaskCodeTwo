@@ -19,15 +19,17 @@
 //!
 //! El resultado va en el codigo de salida: 0 verde, 1 rojo, 2 mal invocado.
 
-mod dist;
 #[cfg(test)]
 mod instaladores;
-mod sha256;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use dist::{Clase, Target};
+// La tabla de targets, el nombre publicado y el sha256 son de la caja comun
+// con tc2 (F2-12).
+use distribucion as dist;
+use distribucion::sha256;
+use distribucion::{Clase, Target};
 
 /// Version del workspace (`version.workspace = true`): la misma que `tc2`.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
