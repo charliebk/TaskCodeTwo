@@ -37,6 +37,19 @@ Tarea F2-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 - [ ] Un `tc2` en la cache del plugin no se sustituye: `rechazada` con `motivo=gestionado-por-plugin` y el arreglo del plugin (test de `detectar_modo` con rutas de los tres sistemas)
 - [ ] `xtask` y `tc2` comparten la tabla de targets y el sha256 en `crates/distribucion`; `cargo xtask verificar` sigue en verde
 
+## Autorrevision
+
+- rust-wasm-reviewer — 94fd72e
+- code-quality-reviewer — 94fd72e
+
+Lo corregido en 94fd72e: JSON escrito dos veces (`version.rs` reutiliza
+`contrato::cadena_json`), mensaje de `TC2_BASE_URL` que hablaba de «la API»,
+literal en espanol en `sin_permiso`, y una descarga del binario que no
+aguantaba un corte de red (un reintento solo ante `sinred`). Queda como
+MENOR sin corregir: `descarga::Fallo::Escritura` da un informe generico con
+`ruta=-` (en `actualizar` no se usa: alli se convierte en `sin-permiso` con
+la ruta).
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
