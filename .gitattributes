@@ -8,3 +8,5 @@ Cargo.lock text eol=lf
 # Esquema publicado de la configuracion (F2-7): se compara byte a byte con
 # el que genera el codigo.
 crates/tc2/esquemas/*.json text eol=lf
+# Evidencia de mediciones (TASK-113): se compara por sha256 con el original.
+docs/mediciones/** -text

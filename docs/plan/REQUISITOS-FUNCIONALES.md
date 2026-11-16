@@ -33,7 +33,7 @@ de ellos, gana el requisito rector.
 | RR-17 | **Skills, agentes y modelo adecuados a cada tarea** | Para cada tarea y cada rol (diseño, implementación, revisión) se eligen las skills, los agentes y el modelo que corresponden según su dominio, complejidad y carril, **solo entre los que están instalados** en la máquina y el proyecto; la elección queda anotada en la tarea y se mide si acierta |
 | RR-18 | **Lotes desatendidos con revisión humana solo al final** | Un comando lanza una secuencia de tareas (rango o lista) que se ejecutan una tras otra sin preguntar: sin trocear, aceptando las recomendaciones, con revisión IA y verificación en cada tarea, y **una sola revisión humana al final del lote** (rama de lote y un único PR contra `develop`). Respeta dependencias, tiene presupuesto, se puede reanudar y deja un informe |
 | RR-19 | **Progreso en vivo en el terminal: fases que faltan y tiempo estimado** | En todo momento, para la tarea en curso: fase actual, fases que faltan y tiempo estimado restante (por fase y total), recalculado con lo real; en un lote, además, tareas que faltan y hora estimada de fin. Se ve en la status line de Claude Code y en `taskctl status --seguir`, lo escribe el CLI (sin tokens del agente). Al cerrar, resumen final: estimado frente a real por fase, tokens y rondas |
-| RR-20 | **Memoria del proyecto propia, compartida y nunca desactualizada** | Git es la fuente de verdad (tareas, etiquetas, ficheros tocados, memoria importada); una base SQLite local es un **índice reconstruible** que nunca se versiona. Toda búsqueda del plugin pasa por ese índice y **nunca responde con datos viejos**: comprueba en cada lectura hasta qué commit está indexado. Etiquetado automático acotado a un vocabulario cerrado. Sin dependencia de engram |
+| RR-20 | **Memoria del proyecto propia, compartida y nunca desactualizada** — **descartado el 2026-11-16** | Git es la fuente de verdad (tareas, etiquetas, ficheros tocados, memoria importada); una base SQLite local es un **índice reconstruible** que nunca se versiona. Toda búsqueda del plugin pasa por ese índice y **nunca responde con datos viejos**: comprueba en cada lectura hasta qué commit está indexado. Etiquetado automático acotado a un vocabulario cerrado. Sin dependencia de engram |
 | RR-14 | **Se construye con la versión actual de TaskCode** | El plan entero se ejecuta como tareas de TaskCode 0.16 en este repo (`taskctl import`, plan, revisión, finish). La 2.0 sustituye a la 0.16 en TaskCode solo cuando puede llevar su propio desarrollo |
 
 ## 1. Uso medido
@@ -202,6 +202,8 @@ Prioridad: **I** imprescindible (uso medido alto o sin él no hay producto),
 | RF-76 | Bloqueo del árbol mientras se encadenan fases (`cadena`) | interno | R | sobra con worktrees y PR |
 
 ### Memoria del proyecto (RR-20, 2026-11-16)
+
+> **Descartado el 2026-11-16** (TASK-113): la puerta de valor dio NO-GO y Carlos descartó la Fase 10; ver [informe](../mediciones/fase10-puerta-valor/informe.md). RF-77..RF-84 no se implementan; quedan como registro sin renumerar.
 
 Uso medido: engram, recurso «conveniente» del ADR F1-14, con 146 observaciones, 59
 sesiones y 228 relaciones en la máquina de Carlos (116 observaciones citan un

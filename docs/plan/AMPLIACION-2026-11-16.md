@@ -1,5 +1,7 @@
 # Pendiente de añadir a TaskCodeTwo: memoria del proyecto (índice de contexto, etiquetas, búsqueda y grafo)
 
+> **Descartado el 2026-11-16** (TASK-113): la puerta de valor dio NO-GO y Carlos descartó la Fase 10; ver [informe](../mediciones/fase10-puerta-valor/informe.md). Las tareas TASK-096..TASK-112 y el hito H10 se borraron.
+
 > **APLICADO el 2026-11-16** en TaskCodeTwo tras integrar TASK-026: plan y
 > requisitos (RR-20, RF-77..RF-84, F1-19 y Fase 10), tareas TASK-095..TASK-112
 > creadas con sus dependencias e hito H10 en la zona manual del ROADMAP. Este

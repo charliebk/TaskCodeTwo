@@ -1,5 +1,7 @@
 # ADR F1-19 — Memoria del proyecto: git como verdad, índice SQLite reconstruible, frescura, etiquetado y conversor de engram
 
+> **Descartado el 2026-11-16** (TASK-113): la puerta de valor dio NO-GO y Carlos descartó la Fase 10; ver [informe](../mediciones/fase10-puerta-valor/informe.md). Este ADR queda como registro; no se implementa.
+
 - Estado: **aceptada** (2026-11-16)
 - Tarea: TASK-095 · Plan: [F1-19 en PLAN-TASKCODE-2](../plan/PLAN-TASKCODE-2.md) (tabla de la Fase 1 y Fase 10) · Diseño de partida: [AMPLIACION-2026-11-16 §3](../plan/AMPLIACION-2026-11-16.md)
 - Requisitos: RR-20, RF-77 a RF-84 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md); se apoya en F1-1, F1-2, F1-9, F1-11 (decisión 10) y F1-14 (manifiesto)
