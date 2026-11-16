@@ -7,19 +7,25 @@
 //! [`plataforma`] (puerto Plataforma y adaptadores GitHub y GitLab, F2-6 y
 //! F2-9), [`carril`] (tabla de suelo de F1-10) y [`config`] (configuracion
 //! con esquema validado, F2-7) e [`i18n`] (mensajes en espanol e ingles,
-//! F2-8). Las capas
+//! F2-8), [`version`] (`version --json` y `compatible`, F2-12) y
+//! [`actualizar_cli`] (`actualizar --cli`, F2-12). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
+pub mod actualizar_cli;
 pub mod alta;
 pub mod carril;
 pub mod config;
 pub mod contrato;
+pub mod descarga;
 pub mod estado;
 pub mod git;
 pub mod i18n;
 pub mod plataforma;
 pub mod tarea;
+pub mod version;
 mod yaml;
+
+pub use version::PROTOCOLO;
 
 use contrato::{Informe, Resultado};
 use i18n::catalogo::cli as txt;
@@ -81,6 +87,18 @@ where
             };
             orden_new(resto).salida_en(json, idioma)
         }
+        [orden, resto @ ..] if orden == version::VERSION => {
+            let (json, resto) = con_json(resto);
+            orden_version(json, &resto, idioma)
+        }
+        [orden, resto @ ..] if orden == version::COMPATIBLE => {
+            let (json, resto) = con_json(resto);
+            version::compatible(&resto).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == actualizar_cli::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            actualizar_cli::orden(&resto).salida_en(json, idioma)
+        }
         [] => Salida {
             codigo: 2,
             stdout: String::new(),
@@ -104,6 +122,44 @@ where
                     .texto(idioma)
             ),
         },
+    }
+}
+
+/// Quita `--json` de donde este y dice si estaba.
+fn con_json(args: &[String]) -> (bool, Vec<String>) {
+    let json = args.iter().any(|a| a == "--json");
+    (
+        json,
+        args.iter().filter(|a| *a != "--json").cloned().collect(),
+    )
+}
+
+/// `version [--json]`: con `--json`, exactamente `{version, protocolo,
+/// target, sha256}` (ADR F1-14, punto 5); sin el, la linea de contrato.
+fn orden_version(json: bool, args: &[String], idioma: Idioma) -> Salida {
+    if !args.is_empty() {
+        return Informe::nuevo(version::VERSION, Resultado::Uso)
+            .con("motivo", "argumentos-de-mas")
+            .diagnostico(&i18n::catalogo::actualizar::USO_VERSION)
+            .salida_en(json, idioma);
+    }
+    let datos = std::env::current_exe()
+        .map_err(|e| {
+            Informe::nuevo(version::VERSION, Resultado::Error).diagnostico(
+                Mensaje::nuevo(&i18n::catalogo::actualizar::NO_SE_LEE_EL_EJECUTABLE)
+                    .con("ruta", "current_exe")
+                    .con("error", e.to_string()),
+            )
+        })
+        .and_then(|exe| version::datos(&exe));
+    match datos {
+        Ok(d) if json => Salida {
+            codigo: 0,
+            stdout: format!("{}\n", d.json()),
+            stderr: String::new(),
+        },
+        Ok(d) => version::informe(&d).salida_en(false, idioma),
+        Err(i) => i.salida_en(json, idioma),
     }
 }
 
@@ -208,6 +264,86 @@ mod tests {
             let s = ejecutar([a]);
             assert_eq!(s.codigo, 0);
             assert_eq!(s.stdout, format!("tc2 {VERSION}\n"));
+        }
+    }
+
+    /// TASK-027, criterio 4: `version --json` da exactamente las cuatro
+    /// claves del ADR F1-14 (punto 5), con el sha256 del ejecutable.
+    #[test]
+    fn version_json_exactamente_version_protocolo_target_sha256() {
+        let s = ejecutar(["version", "--json"]);
+        assert_eq!((s.codigo, s.stderr.as_str()), (0, ""));
+        let v: serde_json::Value = serde_json::from_str(&s.stdout).unwrap_or_default();
+        let claves: Vec<&str> = v
+            .as_object()
+            .map(|o| o.keys().map(String::as_str).collect())
+            .unwrap_or_default();
+        let mut ordenadas = claves.clone();
+        ordenadas.sort_unstable();
+        assert_eq!(ordenadas, ["protocolo", "sha256", "target", "version"]);
+        assert_eq!(v["version"], VERSION);
+        assert_eq!(v["protocolo"], PROTOCOLO);
+        let alias = distribucion::Target::actual().map(|t| t.alias);
+        assert_eq!(v["target"].as_str(), alias);
+        let exe = std::env::current_exe().unwrap_or_default();
+        let bytes = std::fs::read(exe).unwrap_or_default();
+        assert_eq!(v["sha256"], distribucion::sha256::hex(&bytes));
+        assert_eq!(s.stdout.lines().count(), 1);
+        // Sin --json, la linea de contrato con las mismas claves.
+        let l = ejecutar(["version"]);
+        assert_eq!(l.codigo, 0);
+        assert!(l.stdout.starts_with(&format!(
+            "version ok version={VERSION} protocolo={PROTOCOLO} target="
+        )));
+        assert_eq!(ejecutar(["version", "de-mas"]).codigo, 2);
+    }
+
+    /// TASK-027, criterio 5: un rango que no incluye el protocolo sale
+    /// `rechazada` (3) con el motivo y el arreglo, en los dos idiomas.
+    #[test]
+    fn compatible_fuera_de_rango_es_rechazada_con_el_arreglo() {
+        let fuera = format!("{}-{}", PROTOCOLO + 1, PROTOCOLO + 2);
+        let es = ejecutar_en(Idioma::Es, ["compatible", "--protocolo", &fuera]);
+        let en = ejecutar_en(Idioma::En, ["compatible", "--protocolo", &fuera]);
+        for s in [&es, &en] {
+            assert_eq!(s.codigo, 3);
+            assert_eq!(
+                s.stdout,
+                format!(
+                    "compatible rechazada protocolo={PROTOCOLO} rango={fuera} motivo=protocolo-incompatible arreglo=tc2%20actualizar%20--cli\n"
+                )
+            );
+            assert!(
+                s.stderr
+                    .contains("motivo=protocolo-incompatible arreglo=\"tc2 actualizar --cli\""),
+                "{}",
+                s.stderr
+            );
+            assert_eq!(s.stderr.lines().count(), 1);
+        }
+        assert!(es.stderr.starts_with("este tc2 habla el protocolo"));
+        assert!(en.stderr.starts_with("this tc2 speaks protocol"));
+        // En JSON el arreglo va tal cual.
+        let j = ejecutar_en(Idioma::En, ["compatible", "--json", "--protocolo", &fuera]);
+        assert_eq!(j.codigo, 3);
+        assert!(j.stdout.contains("\"arreglo\":\"tc2 actualizar --cli\""));
+        // Dentro del rango, ok; mal escrito, uso.
+        let dentro = format!("1-{PROTOCOLO}");
+        let ok = ejecutar(["compatible", "--protocolo", &dentro]);
+        assert_eq!(
+            (ok.codigo, ok.stdout),
+            (
+                0,
+                format!("compatible ok protocolo={PROTOCOLO} rango={dentro}\n")
+            )
+        );
+        for args in [
+            vec!["compatible"],
+            vec!["compatible", "--protocolo"],
+            vec!["compatible", "--protocolo", "3-1"],
+            vec!["compatible", "--protocolo", "x"],
+        ] {
+            assert_eq!(ejecutar(&args).codigo, 2, "{args:?}");
         }
     }
 

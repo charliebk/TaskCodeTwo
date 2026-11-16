@@ -1,0 +1,16 @@
+[package]
+name = "distribucion"
+description = "Distribucion de tc2 (F2-10, F2-12): targets de P12, nombre publicado, sha256 y SHA256SUMS, compartidos por xtask y tc2"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# Caja hoja: sin dependencias, para que xtask no traiga nada y tc2 no cambie
+# de arbol de dependencias por ella.
+[dependencies]
+
+[lints]
+workspace = true

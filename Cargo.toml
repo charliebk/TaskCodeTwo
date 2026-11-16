@@ -2,7 +2,7 @@
 # de verificacion `xtask` (`cargo xtask verificar --perfil rapida|completa`).
 [workspace]
 resolver = "3"
-members = ["crates/tc2", "xtask"]
+members = ["crates/distribucion", "crates/tc2", "xtask"]
 
 [workspace.package]
 version = "0.0.0"

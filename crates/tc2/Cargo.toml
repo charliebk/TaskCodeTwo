@@ -27,6 +27,9 @@ serde-saphyr = { version = "2.1", default-features = false, features = ["deseria
 # `plataforma::http`.
 serde_json = "1"
 ureq = { version = "3.5", default-features = false, features = ["rustls", "platform-verifier"] }
+# F2-12: tabla de targets, sha256 y SHA256SUMS compartidos con xtask
+# (`tc2 version --json` y `tc2 actualizar --cli`).
+distribucion = { path = "../distribucion" }
 
 # Parser YAML de otra base de codigo (port de libyaml, como el PyYAML del PoC
 # de F1-9) para la ida y vuelta de los tests: con el de produccion seria

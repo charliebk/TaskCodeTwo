@@ -67,3 +67,22 @@ fn tc2_idioma_en_da_el_diagnostico_en_ingles_con_el_mismo_codigo() {
         "usage: guardar \"<message>\" <paths...>\n"
     );
 }
+
+/// TASK-027, criterio 4: el binario real da en `version --json` el sha256 de
+/// su propio fichero, calculado aqui por otro proceso.
+#[test]
+fn version_json_del_binario_con_su_sha256() {
+    let o = tc2(&["version", "--json"]);
+    assert_eq!(o.status.code(), Some(0));
+    let v: serde_json::Value = match serde_json::from_slice(&o.stdout) {
+        Ok(v) => v,
+        Err(e) => panic!("version --json no es JSON: {e}"),
+    };
+    let bytes = match std::fs::read(env!("CARGO_BIN_EXE_tc2")) {
+        Ok(b) => b,
+        Err(e) => panic!("no se pudo leer tc2: {e}"),
+    };
+    assert_eq!(v["sha256"], distribucion::sha256::hex(&bytes));
+    assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(v.as_object().map(serde_json::Map::len), Some(4));
+}

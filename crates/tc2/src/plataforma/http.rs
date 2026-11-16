@@ -206,24 +206,10 @@ impl Cliente {
     /// Cliente para una base ya validada y su plataforma (que decide las
     /// cabeceras y si la ruta admite `%2F`).
     pub fn para(base: Base, proveedor: Proveedor) -> Self {
-        let tls = ureq::tls::TlsConfig::builder()
-            .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-            .build();
-        let agente: ureq::Agent = ureq::Agent::config_builder()
-            .tls_config(tls)
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .max_redirects_will_error(false)
-            .save_redirect_history(false)
-            .timeout_global(Some(ESPERA_TOTAL))
-            .timeout_connect(Some(ESPERA_CONEXION))
-            .user_agent(format!("taskcodetwo-tc2/{}", crate::VERSION))
-            .build()
-            .into();
         Self {
             base,
             proveedor,
-            agente,
+            agente: agente(ESPERA_TOTAL),
             registro: RefCell::new(Vec::new()),
         }
     }
@@ -330,9 +316,31 @@ impl Cliente {
     }
 }
 
+/// Agente ureq de `tc2`: TLS con el almacen del sistema, user-agent
+/// `taskcodetwo-tc2/<version>`, sin seguir redirecciones (quien lo usa decide
+/// que hacer con un 3xx), sin convertir los estados HTTP en errores, con
+/// `espera_total` por llamada y [`ESPERA_CONEXION`] para conectar. Lo usan el
+/// [`Cliente`] de la API y la descarga de `actualizar --cli` (F2-12).
+pub(crate) fn agente(espera_total: Duration) -> ureq::Agent {
+    let tls = ureq::tls::TlsConfig::builder()
+        .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+        .build();
+    ureq::Agent::config_builder()
+        .tls_config(tls)
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .max_redirects_will_error(false)
+        .save_redirect_history(false)
+        .timeout_global(Some(espera_total))
+        .timeout_connect(Some(ESPERA_CONEXION))
+        .user_agent(format!("taskcodetwo-tc2/{}", crate::VERSION))
+        .build()
+        .into()
+}
+
 /// Clasifica un error de ureq sin copiar nada que pueda llevar el token
 /// (ureq no pone cabeceras en sus errores; aun asi solo se usa el tipo).
-fn clasificar(e: ureq::Error) -> FalloHttp {
+pub(crate) fn clasificar(e: ureq::Error) -> FalloHttp {
     match e {
         ureq::Error::HostNotFound
         | ureq::Error::ConnectionFailed

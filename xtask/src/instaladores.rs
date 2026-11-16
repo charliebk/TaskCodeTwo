@@ -10,7 +10,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use crate::dist::TARGETS;
+use distribucion::TARGETS;
 
 fn leer(nombre: &str) -> String {
     let ruta = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
