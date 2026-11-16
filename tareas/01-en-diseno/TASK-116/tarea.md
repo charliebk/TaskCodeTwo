@@ -30,7 +30,8 @@ El codigo de tc2 usa nombres que chocan con la 0.16 y contradicen F1-12 D1a (tas
 - [ ] La rama de estado es taskcodetwo/tareas (estado::RAMA) y los tests de estado y alta pasan con ese nombre
 - [ ] El cerrojo, la cache de identidad y lo demas que tc2 guarda en el directorio comun de git viven bajo .git/taskcodetwo/ (grep sin taskcode-estado.lock ni .git/tc2 en crates/tc2/src)
 - [ ] La carpeta de worktrees de tarea no coincide con ninguna ruta de la 0.16 (constante en git/mod.rs y test)
-- [ ] Un repo con huella de la 0.16 (.git/taskcode/, tareas/ en develop) queda intacto tras new/start de la 2.0 (test)
+- [ ] Un repo con huella de la 0.16 (.git/taskcode/, .taskcode/config.yml y tareas/ en la historia de develop) queda intacto tras new/start de la 2.0 (test)
+- [ ] Las refs propias de la 2.0 viven bajo refs/taskcodetwo/ y todos los nombres salen de un unico modulo (huella.rs)
 - [ ] cargo xtask verificar --perfil rapida en verde
 
 ## Transiciones
