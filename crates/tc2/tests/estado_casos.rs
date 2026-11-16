@@ -345,3 +345,47 @@ fn sin_red_quedan_pendientes_y_se_re_ejecutan_al_volver() {
     );
     registro_permitido(&g.registro());
 }
+
+/// TASK-076 (paso 3 del plan): `leer_varios` da lo mismo que `leer` una a
+/// una, pero con un solo `git cat-file --batch` y ningun `git show`.
+#[test]
+fn leer_varios_en_un_solo_proceso_y_mismo_resultado() {
+    let f = Fixture::nueva("estado-leer-varios");
+    let (_bare, clon) = f.remoto_y_clon();
+    let g = f.git();
+    assert_eq!(estado::montar(&g, &clon).resultado, Resultado::Ok);
+    for r in ["notas/a b.md", "notas/ñandú.md", "c.md"] {
+        let i = escribir_estado(&g, &clon, &Anotar::nueva(r, true));
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    }
+    let rutas: Vec<String> = [
+        "notas/a b.md",
+        "no-existe.md",
+        "notas/ñandú.md",
+        "notas",
+        "c.md",
+        "notas/a b.md",
+    ]
+    .iter()
+    .map(|r| (*r).to_owned())
+    .collect();
+
+    let una_a_una = f.git();
+    let v = estado::leer(&una_a_una, &clon).unwrap();
+    let esperado: Vec<Option<String>> = rutas.iter().map(|r| v.leer(r).unwrap()).collect();
+    assert_eq!(esperado[0].as_deref(), Some("notas/a b.md\n"));
+    assert_eq!(esperado[1], None);
+    assert_eq!(esperado[3], None, "una carpeta no es un fichero");
+
+    let en_lote = f.git();
+    let v = estado::leer(&en_lote, &clon).unwrap();
+    let antes = en_lote.registro().len();
+    assert_eq!(v.leer_varios(&rutas).unwrap(), esperado);
+    let llamadas: Vec<String> = en_lote.registro().split_off(antes);
+    assert_eq!(llamadas, ["git cat-file --batch"], "{llamadas:?}");
+    // Sin nada del commit que leer, no se lanza nada.
+    let antes = en_lote.registro().len();
+    assert_eq!(v.leer_varios(&["no-existe.md".to_owned()]).unwrap(), [None]);
+    assert_eq!(en_lote.registro().len(), antes);
+    registro_permitido(&en_lote.registro());
+}

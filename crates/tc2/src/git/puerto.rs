@@ -8,8 +8,9 @@
 
 use std::cell::RefCell;
 use std::ffi::OsString;
+use std::io::Write as _;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -23,6 +24,8 @@ pub enum Subcomando {
     Add,
     /// `git branch`
     Branch,
+    /// `git cat-file` (lectura; `--batch` con la lista por stdin, F2-4b)
+    CatFile,
     /// `git commit`
     Commit,
     /// `git commit-tree` (crea un objeto commit; no mueve ninguna rama)
@@ -75,6 +78,7 @@ impl Subcomando {
         match self {
             Self::Add => "add",
             Self::Branch => "branch",
+            Self::CatFile => "cat-file",
             Self::Commit => "commit",
             Self::CommitTree => "commit-tree",
             Self::Diff => "diff",
@@ -137,6 +141,18 @@ impl SalidaGit {
             .unwrap_or("sin mensaje")
             .to_owned()
     }
+}
+
+/// Lo que devolvio una llamada con entrada por stdin: stdout en bytes, sin
+/// convertir (los tamanos de `cat-file --batch` son en bytes).
+#[derive(Debug, Clone)]
+pub struct SalidaCruda {
+    /// Codigo de salida (`-1` si el proceso murio por una senal).
+    pub codigo: i32,
+    /// Salida estandar, en bytes.
+    pub stdout: Vec<u8>,
+    /// Salida de error, tal cual.
+    pub stderr: String,
 }
 
 /// La llamada no llego a ejecutarse.
@@ -263,14 +279,56 @@ impl Git {
         self.lanzar(dir, sub, args, Some(indice))
     }
 
-    fn lanzar(
+    /// Lanza `git cat-file <args>` en `dir` con `entrada` por stdin (lectura
+    /// en lote, F2-4b). Solo `cat-file`: es el unico que lo necesita y no
+    /// escribe nada.
+    pub fn ejecutar_con_entrada(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        entrada: &[u8],
+    ) -> Result<SalidaCruda, ErrorGit> {
+        if sub != Subcomando::CatFile {
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::SIN_ENTRADA).con("sub", sub.nombre()),
+            ));
+        }
+        comprobar_argumentos(sub, args)?;
+        let mut cmd = self.comando(dir, sub, args, None);
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut hijo = cmd.spawn().map_err(|e| ErrorGit::Lanzar(e.to_string()))?;
+        let stdin = hijo.stdin.take();
+        // La entrada se escribe en otro hilo mientras se lee la salida: si
+        // no, con muchas rutas se llenarian las dos tuberias y se bloquearia.
+        // Un fallo al escribir (git ya termino) se ve en su codigo y stderr.
+        let salida = std::thread::scope(|s| {
+            s.spawn(move || {
+                if let Some(mut e) = stdin {
+                    let _ = e.write_all(entrada);
+                }
+            });
+            hijo.wait_with_output()
+        })
+        .map_err(|e| ErrorGit::Lanzar(e.to_string()))?;
+        Ok(SalidaCruda {
+            codigo: salida.status.code().unwrap_or(-1),
+            stdout: salida.stdout,
+            stderr: String::from_utf8_lossy(&salida.stderr).into_owned(),
+        })
+    }
+
+    /// `git -c ... <sub> <args>` en `dir` con el entorno fijo, y su linea en
+    /// el registro.
+    fn comando(
         &self,
         dir: &Path,
         sub: Subcomando,
         args: &[&str],
         indice: Option<&Path>,
-    ) -> Result<SalidaGit, ErrorGit> {
-        comprobar_argumentos(sub, args)?;
+    ) -> Command {
         let mut cmd = Command::new(&self.binario);
         cmd.current_dir(dir)
             .args(["-c", "color.ui=never", "-c", "core.quotepath=false"])
@@ -291,7 +349,21 @@ impl Git {
         self.registro
             .borrow_mut()
             .push(format!("git {} {}", sub.nombre(), args.join(" ")));
-        let salida = cmd.output().map_err(|e| ErrorGit::Lanzar(e.to_string()))?;
+        cmd
+    }
+
+    fn lanzar(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        indice: Option<&Path>,
+    ) -> Result<SalidaGit, ErrorGit> {
+        comprobar_argumentos(sub, args)?;
+        let salida = self
+            .comando(dir, sub, args, indice)
+            .output()
+            .map_err(|e| ErrorGit::Lanzar(e.to_string()))?;
         Ok(SalidaGit {
             codigo: salida.status.code().unwrap_or(-1),
             stdout: String::from_utf8_lossy(&salida.stdout).into_owned(),
@@ -518,6 +590,13 @@ mod tests {
             let r = git.ejecutar(Path::new("."), Subcomando::UpdateRef, ok);
             assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{ok:?}: {r:?}");
         }
+        // Entrada por stdin: solo `cat-file`.
+        for sub in [Subcomando::UpdateRef, Subcomando::Push, Subcomando::Show] {
+            let r = git.ejecutar_con_entrada(Path::new("."), sub, &["--stdin"], b"x\n");
+            assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{sub:?}: {r:?}");
+        }
+        let r = git.ejecutar_con_entrada(Path::new("."), Subcomando::CatFile, &["--batch"], b"");
+        assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
         // Tras `--` en push no hay rutas: se sigue mirando.
         let r = git.ejecutar(Path::new("."), Subcomando::Push, &["origin", "--", "+r:r"]);
         assert!(matches!(r, Err(ErrorGit::Prohibido(_))));

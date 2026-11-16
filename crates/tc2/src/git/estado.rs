@@ -114,6 +114,81 @@ pub(crate) fn leer_blob(git: &Git, dir: &Path, op: &str, commit: &str, ruta: &st
     )
 }
 
+/// Contenido de varias `rutas` de `commit` con un solo `git cat-file
+/// --batch` (F2-4b): en el mismo orden, `None` si no existe o no es un
+/// fichero. Una ruta con salto de linea no cabe en la lista de stdin: esa se
+/// lee sola con [`leer_blob`].
+pub(crate) fn leer_blobs(
+    git: &Git,
+    dir: &Path,
+    op: &str,
+    commit: &str,
+    rutas: &[&str],
+) -> Paso<Vec<Option<String>>> {
+    let (en_lote, sueltas): (Vec<&str>, Vec<&str>) =
+        rutas.iter().partition(|r| !r.contains(['\n', '\r']));
+    let mut leidos: std::collections::HashMap<&str, Option<String>> =
+        std::collections::HashMap::new();
+    if !en_lote.is_empty() {
+        let entrada: String = en_lote.iter().map(|r| format!("{commit}:{r}\n")).collect();
+        let s = git
+            .ejecutar_con_entrada(dir, Subcomando::CatFile, &["--batch"], entrada.as_bytes())
+            .map_err(|e| {
+                Informe::nuevo(op, Resultado::Error)
+                    .con("git", Subcomando::CatFile.nombre())
+                    .diagnostico(e.mensaje())
+            })?;
+        if s.codigo != 0 {
+            return Err(Informe::nuevo(op, Resultado::Error)
+                .con("git", Subcomando::CatFile.nombre())
+                .diagnostico(
+                    Mensaje::nuevo(&txt::GIT_FALLO)
+                        .con("subcomando", Subcomando::CatFile.nombre())
+                        .con("error", s.stderr.lines().next().unwrap_or_default()),
+                ));
+        }
+        let contenidos = partir_batch(&s.stdout, en_lote.len()).ok_or_else(|| {
+            Informe::nuevo(op, Resultado::Error).diagnostico(&txt::CAT_FILE_INCOMPLETO)
+        })?;
+        leidos.extend(en_lote.iter().copied().zip(contenidos));
+    }
+    for r in sueltas {
+        leidos.insert(r, Some(leer_blob(git, dir, op, commit, r)?));
+    }
+    Ok(rutas
+        .iter()
+        .map(|r| leidos.get(r).cloned().flatten())
+        .collect())
+}
+
+/// Parte la salida de `cat-file --batch` en `n` objetos: por cada uno,
+/// `<sha> <tipo> <bytes>\n<contenido>\n`, o `<nombre> missing\n`. Solo los
+/// `blob` dan contenido. `None` si la salida no tiene esa forma.
+fn partir_batch(salida: &[u8], n: usize) -> Option<Vec<Option<String>>> {
+    let mut v = Vec::with_capacity(n);
+    let mut resto = salida;
+    for _ in 0..n {
+        let fin = resto.iter().position(|b| *b == b'\n')?;
+        let cabecera = std::str::from_utf8(resto.get(..fin)?).ok()?;
+        resto = resto.get(fin + 1..)?;
+        let mut campos = cabecera.rsplitn(3, ' ');
+        let ultimo = campos.next()?;
+        if ultimo == "missing" || ultimo == "ambiguous" {
+            v.push(None);
+            continue;
+        }
+        let bytes: usize = ultimo.parse().ok()?;
+        let tipo = campos.next()?;
+        let contenido = resto.get(..bytes)?;
+        if resto.get(bytes) != Some(&b'\n') {
+            return None;
+        }
+        resto = resto.get(bytes + 1..)?;
+        v.push((tipo == "blob").then(|| String::from_utf8_lossy(contenido).into_owned()));
+    }
+    resto.is_empty().then_some(v)
+}
+
 /// Mensaje completo de un commit.
 pub(crate) fn mensaje_de(git: &Git, dir: &Path, op: &str, commit: &str) -> Paso<String> {
     exigir(
@@ -280,7 +355,33 @@ pub(crate) fn hay_remoto(git: &Git, dir: &Path, op: &str) -> Paso<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::ruta_valida;
+    use super::{partir_batch, ruta_valida};
+
+    #[test]
+    fn salida_de_cat_file_batch() {
+        let s = b"abc blob 5\nhola\n\nx:no missing\ndef tree 3\nabc\nghi blob 0\n\n";
+        assert_eq!(
+            partir_batch(s, 4),
+            Some(vec![
+                Some("hola\n".to_owned()),
+                None,
+                None,
+                Some(String::new())
+            ])
+        );
+        // Bytes que no casan con el tamano, de mas o de menos: no se entiende.
+        assert_eq!(partir_batch(b"abc blob 9\nhola\n", 1), None);
+        assert_eq!(partir_batch(b"abc blob 2\nhola\n", 1), None);
+        assert_eq!(partir_batch(s, 3), None);
+        assert_eq!(partir_batch(s, 5), None);
+        assert_eq!(partir_batch(b"", 0), Some(vec![]));
+        // Contenido multibyte: el tamano es en bytes.
+        let t = "a ñ".as_bytes();
+        let mut m = format!("abc blob {}\n", t.len()).into_bytes();
+        m.extend_from_slice(t);
+        m.push(b'\n');
+        assert_eq!(partir_batch(&m, 1), Some(vec![Some("a ñ".to_owned())]));
+    }
 
     #[test]
     fn rutas_de_la_rama_de_estado() {

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use super::transaccion::Fallo;
 use super::{CARPETA, OP, RAMA};
 use crate::contrato::{Informe, Resultado};
-use crate::git::estado::{hay_remoto, leer_blob, listar_arbol};
+use crate::git::estado::{hay_remoto, leer_blob, leer_blobs, listar_arbol};
 use crate::git::{Cambio, Git, REMOTO, localizar_principal};
 
 /// Lo que una operacion puede leer del estado.
@@ -18,6 +18,21 @@ pub trait Estado {
     fn rutas(&self) -> Vec<String>;
     /// Contenido de `ruta`, o `None` si no existe.
     fn leer(&self, ruta: &str) -> Result<Option<String>, Fallo>;
+    /// Contenido de varias rutas, en el mismo orden (F2-4b). Por defecto,
+    /// una a una con [`Estado::leer`]; [`Vista`] lo hace en un solo proceso.
+    fn leer_varios(&self, rutas: &[String]) -> Result<Vec<Option<String>>, Fallo> {
+        rutas.iter().map(|r| self.leer(r)).collect()
+    }
+}
+
+/// Un fallo de lectura de git como [`Fallo::Error`]. Sin diagnostico queda
+/// la linea de contrato, que no se traduce (ADR F1-4).
+fn fallo_de_lectura(i: &Informe) -> Fallo {
+    Fallo::Error(
+        i.diagnostico
+            .clone()
+            .unwrap_or_else(|| crate::i18n::Mensaje::externo(i.linea())),
+    )
 }
 
 /// Vista de un commit de la rama de estado (o del estado vacio si la rama no
@@ -82,17 +97,33 @@ impl Estado for Vista<'_> {
         match &self.commit {
             Some(c) if self.rutas.contains(ruta) => leer_blob(self.git, &self.dir, OP, c, ruta)
                 .map(Some)
-                .map_err(|i| {
-                    // Sin diagnostico queda la linea de contrato, que no se
-                    // traduce (ADR F1-4).
-                    Fallo::Error(
-                        i.diagnostico
-                            .clone()
-                            .unwrap_or_else(|| crate::i18n::Mensaje::externo(i.linea())),
-                    )
-                }),
+                .map_err(|i| fallo_de_lectura(&i)),
             _ => Ok(None),
         }
+    }
+
+    /// Las rutas del commit se leen con un solo `git cat-file --batch`; las
+    /// superpuestas y las que no existen no lanzan nada.
+    fn leer_varios(&self, rutas: &[String]) -> Result<Vec<Option<String>>, Fallo> {
+        let del_commit: Vec<&str> = rutas
+            .iter()
+            .filter(|r| !self.encima.contains_key(*r) && self.rutas.contains(*r))
+            .map(String::as_str)
+            .collect();
+        let mut leidos = match (&self.commit, del_commit.is_empty()) {
+            (Some(c), false) => leer_blobs(self.git, &self.dir, OP, c, &del_commit)
+                .map_err(|i| fallo_de_lectura(&i))?
+                .into_iter(),
+            _ => Vec::new().into_iter(),
+        };
+        Ok(rutas
+            .iter()
+            .map(|r| match self.encima.get(r) {
+                Some(c) => Some(c.clone()),
+                None if self.commit.is_some() && self.rutas.contains(r) => leidos.next().flatten(),
+                None => None,
+            })
+            .collect())
     }
 }
 

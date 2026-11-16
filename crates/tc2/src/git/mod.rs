@@ -21,7 +21,7 @@ mod worktree;
 pub use diff::diff_tarea;
 pub use estado::Cambio;
 pub use guardar::guardar;
-pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaGit, Subcomando};
+pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaCruda, SalidaGit, Subcomando};
 pub use rama::{
     comprobar_id, crear_rama_y_worktree, ids_con_rama, localizar_principal, reanudar, validar_base,
 };
