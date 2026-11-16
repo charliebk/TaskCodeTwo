@@ -103,18 +103,26 @@ Lectura:
   son contrato**: la huella es la del volcado canónico.
 - **La atribución solo por asunto se queda corta** (hallazgo IMP-1 de la
   revisión). De los 482 commits de `develop`, la PoC no atribuye 120 a ninguna
-  de las 30 terminadas. Solo 3 son de tareas no terminadas. El grueso son
-  commits del trabajo de las propias tareas sin `(TASK-NNN)` en el asunto:
-  18 `merge(feature): feature/task-N…`, 16 `chore(taskctl): import…` y unos
-  34 `docs(adr): F1-N corrige hallazgos…`. Consecuencia: de las tareas ADR,
-  solo 2 tienen su `docs/adr/F1-*` entre los ficheros tocados.
+  de las 30 terminadas. Solo 2 llevan `(TASK-NNN)` de una tarea no terminada.
+  El grueso son commits del trabajo de las propias tareas sin `(TASK-NNN)` en
+  el asunto: 30 `merge(feature): feature/task-N…`, 36
+  `docs(adr): F1-N corrige hallazgos…` y 16 `chore(taskctl): import…`.
+  Consecuencia: de las tareas ADR, solo 2 tienen su `docs/adr/F1-*` entre los
+  ficheros tocados.
 - Medido aparte con `git` sobre el mismo `e1bf456`, se añade la regla del
   rango del merge: todo commit de `merge^1..merge^2` de un merge cuyo asunto
-  nombra `feature/task-NNN`. Con ella quedan **467 de 482** commits
-  atribuidos y 15 sin atribuir, todos `docs:` del plan o del ROADMAP. Las 18
+  nombra `feature/task-NNN`, más el propio merge, con prioridad para el
+  asunto. Los dos recuentos, mirando solo el asunto (no el cuerpo):
+  - contando solo las 30 tareas terminadas: **447 de 482** atribuidos y 35
+    sin atribuir;
+  - contando cualquier tarea, como dice la decisión 3: **449 de 482** y 33 sin
+    atribuir.
+  Los 33 son 24 `chore:` (16 imports de `taskctl`, el alta de tareas, la
+  estructura inicial, la config…) y 9 `docs:` del plan o del ROADMAP. Las 18
   tareas ADR con fichero de ADR quedan **todas** con su ADR. La 19.ª, TASK-001
   («F1-0 Crear TaskCodeTwo»), no tiene ADR. Esta regla no la ejecuta la PoC;
-  la fija la decisión 3.
+  la fija la decisión 3. (Hallazgo IMP-3: la versión anterior citaba 467,
+  sacado de un `git log --grep` que también busca en el cuerpo del mensaje.)
 
 ### PoC 2 — merge en la plataforma sin hooks (criterio 2)
 
@@ -252,7 +260,7 @@ No verificado (diseño sin PoC):
         mismo también es de esa tarea;
      3. si nada lo atribuye, va a `commit_huerfano` y se cuenta.
      Un commit que cumple 1 para una tarea y 2 para otra se queda con la del
-     asunto. Medido en `e1bf456`: 467 de 482 atribuidos frente a 362 con la
+     asunto. Medido en `e1bf456`: 449 de 482 atribuidos frente a 364 con la
      regla 1 sola.
    - Lectura en lote:
      - `cat-file --batch`, un proceso para todos los blobs y no uno por
@@ -393,7 +401,7 @@ No verificado (diseño sin PoC):
 | RR-20, verdad en git e índice no versionado | A, decisiones 1 y 2 | Índice en `<git-common-dir>`; la PoC lee solo objetos de git |
 | RR-20, nunca datos viejos sin decirlo | F4, decisión 4 | PoC 2: con el TTL caducado aparece TASK-999; dentro del TTL, la marca «hace 17 s» |
 | RF-77, mismo resultado con los mismos SHA | Decisiones 3 y 6 | PoC 1: huella `9527d653…` dos veces; un árbol sucio con `autocrlf` no la cambia |
-| RF-78, conversor de tareas | Decisión 3 | PoC 1: 30 tareas; solo por asunto, 362 commits atribuidos y 120 huérfanos. Con la regla del rango del merge, medida con `git`, 467 de 482 |
+| RF-78, conversor de tareas | Decisión 3 | PoC 1: 30 tareas; solo por asunto, 362 commits atribuidos y 120 huérfanos. Con la regla del rango del merge, medida con `git`: 447 de 482 contando solo las terminadas, 449 contando cualquier tarea |
 | RF-79, ficheros tocados | Decisión 3 y 6 | PoC 1: 1307 filas tarea-fichero, pero **solo 2 tareas ADR con su ADR**. Con la regla del rango, 18 de 18 (medido con `git`; sin ejecutar en la PoC). A/M/D/R queda para F10-4 |
 | RF-80, conversor de engram | A, decisión 8 | Diseño. La base real (146/116) se verifica en F10-5 |
 | RF-81, `tc2 buscar` único con JSON | Decisión 4 | PoC 2: búsqueda FTS5 con BM25; de 6 a 7 ms dentro del proceso y dentro del TTL |
