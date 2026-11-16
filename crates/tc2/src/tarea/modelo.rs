@@ -209,9 +209,17 @@ impl Asignado {
     }
 }
 
-/// Login de una cuenta: no vacio, sin espacios ni caracteres de control.
-fn login_valido(login: &str) -> bool {
-    !login.is_empty() && texto_valido(login) && !login.chars().any(char::is_whitespace)
+/// Longitud maxima de un login, en caracteres (GitLab admite 255; GitHub,
+/// 39).
+pub const LOGIN_MAX: usize = 255;
+
+/// Login de una cuenta: no vacio, de [`LOGIN_MAX`] caracteres como mucho, sin
+/// espacios ni caracteres de control.
+pub fn login_valido(login: &str) -> bool {
+    !login.is_empty()
+        && login.chars().count() <= LOGIN_MAX
+        && texto_valido(login)
+        && !login.chars().any(char::is_whitespace)
 }
 
 /// `asignado_a` del formato 2: `null`, `{id, login}` o un texto heredado.

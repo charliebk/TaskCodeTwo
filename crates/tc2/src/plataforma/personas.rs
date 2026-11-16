@@ -95,6 +95,12 @@ fn palabra_valida(s: &str) -> bool {
             .any(|c| c.is_control() || c.is_whitespace() || matches!(c, '\u{2028}' | '\u{2029}'))
 }
 
+/// Dos correos son el mismo sin distinguir mayusculas, tambien fuera de
+/// ASCII (`É` y `é`), igual que el login.
+fn mismo_correo(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
 /// Rechazo de la lista con su diagnostico.
 fn rechazo(m: Mensaje) -> Informe {
     Informe::nuevo(OP, Resultado::Rechazada)
@@ -151,7 +157,7 @@ impl Personas {
             if e.id == 0 {
                 return Err(entrada(&t::ID_CERO));
             }
-            if !palabra_valida(&e.login) {
+            if !crate::tarea::login_valido(&e.login) {
                 return Err(entrada(&t::LOGIN_NO_VALIDO));
             }
             if e.nombre
@@ -191,7 +197,7 @@ impl Personas {
                 if let Some(c) = nueva
                     .correos
                     .iter()
-                    .find(|c| otra.correos.iter().any(|o| o.eq_ignore_ascii_case(c)))
+                    .find(|c| otra.correos.iter().any(|o| mismo_correo(o, c)))
                 {
                     return Err(rechazo(
                         Mensaje::nuevo(&t::CORREO_REPETIDO)
@@ -236,7 +242,7 @@ impl Personas {
         let correo = correo.trim();
         self.entradas
             .iter()
-            .find(|p| p.correos.iter().any(|c| c.eq_ignore_ascii_case(correo)))
+            .find(|p| p.correos.iter().any(|c| mismo_correo(c, correo)))
     }
 
     /// Las entradas, en el orden del fichero.
@@ -279,7 +285,26 @@ mod tests {
             Some("personas rechazada motivo=personas")
         );
         let correo = "personas:\n  - {id: 7, login: \"a\", correos: [\"x@y\"]}\n  - {id: 9, login: \"b\", correos: [\"X@Y\"]}\n";
-        assert!(error(correo).contains("x@y") || error(correo).contains("X@Y"));
+        let e = error(correo);
+        assert!(
+            e.contains("1 (a, id 7)") && e.contains("2 (b, id 9)") && e.contains("X@Y"),
+            "{e}"
+        );
+    }
+
+    /// Los correos se comparan sin distinguir mayusculas tambien fuera de
+    /// ASCII, como el login: `É@x` y `é@x` son el mismo.
+    #[test]
+    fn correos_sin_distinguir_mayusculas_fuera_de_ascii() -> Result<(), Informe> {
+        let repetido = "personas:\n  - {id: 7, login: \"a\", correos: [\"É@x\"]}\n  - {id: 9, login: \"b\", correos: [\"é@x\"]}\n";
+        let e = error(repetido);
+        assert!(
+            e.contains("1 (a, id 7)") && e.contains("2 (b, id 9)") && e.contains("é@x"),
+            "{e}"
+        );
+        let l = Personas::leer("personas:\n  - {id: 7, login: \"a\", correos: [\"É@x\"]}\n")?;
+        assert_eq!(l.por_correo("é@X").map(|p| p.id), Some(7));
+        Ok(())
     }
 
     #[test]
