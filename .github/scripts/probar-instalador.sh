@@ -94,19 +94,14 @@ medir() {
     frio=$(date +%s)
     powershell.exe -NoProfile -Command 'exit 0'
     echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
-    # El PSModulePath del runner trae los modulos de Azure (C:\Modules\az_*)
-    # y de SQL Server, que un Windows limpio no tiene: para encontrar irm,
-    # PowerShell los recorre en cada proceso (47 s medidos en windows-11-arm,
-    # TASK-026). Se mide con el PSModulePath de un Windows limpio, y el coste
-    # con el del runner queda en el log.
+    # Solo informativo, y DENTRO de la medida: lo que tarda en este runner un
+    # proceso nuevo de PowerShell que usa un cmdlet de
+    # Microsoft.PowerShell.Utility (irm lo es), sin el instalador. En
+    # windows-11-arm son 42-50 s (TASK-026; no depende de LOCALAPPDATA ni de
+    # los modulos de Azure del PSModulePath); en windows-latest, 0-1 s.
     t=$(date +%s)
     powershell.exe -NoProfile -Command "\$null = Get-Date" >/dev/null
-    echo "probar: con el PSModulePath del runner ($PSModulePath), un proceso nuevo que usa un cmdlet de Microsoft.PowerShell.Utility tarda $(($(date +%s) - t)) s (fuera de la medida)"
-    PSModulePath="$USERPROFILE\\Documents\\WindowsPowerShell\\Modules;C:\\Program Files\\WindowsPowerShell\\Modules;C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules"
-    export PSModulePath
-    t=$(date +%s)
-    powershell.exe -NoProfile -Command "\$null = Get-Date" >/dev/null
-    echo "probar: con el PSModulePath de un Windows limpio ($PSModulePath), el mismo proceso tarda $(($(date +%s) - t)) s"
+    echo "probar: coste del runner: un proceso nuevo de PowerShell con un cmdlet de Utility tarda $(($(date +%s) - t)) s (incluido en la medida)"
   fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
