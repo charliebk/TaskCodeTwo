@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-078-f2-14-taskctl-desinstalar-quitar-taskcod
 asignado_a: charlie.bk@gmail.com
@@ -49,3 +49,4 @@ Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de 
 |---|---|---|---|---|
 | 2026-11-16T22:31:19Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T22:37:05Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T23:54:31Z | start | automatico | persona | 0.16.1 |
