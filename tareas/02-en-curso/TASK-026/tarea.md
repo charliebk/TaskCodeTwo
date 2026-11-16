@@ -45,3 +45,8 @@ Tarea F2-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T09:00:18Z | diseno | agente:a5d80e07e9effb23b | 16 | 66714 | 268770 | 16573 | 21 | 352073 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — f309ec2
+- code-quality-reviewer — f309ec2
