@@ -463,6 +463,15 @@ Pasa como criterio a F2-5 (verlo en el repo de pruebas de F2-6).
 - **F1-10** fija los valores de `carril`; **F1-15** el contenido de `roles`;
   **F1-17** la forma de `estimacion`; **F2-13** el valor de `asignado_a`;
   **F3-4** lee `estado` (y no carpetas) para el roadmap.
+
+  > **Nota (TASK-077, F2-13, 2026-11-16)**: `asignado_a` es `null` o el
+  > objeto en flujo `{id: <entero sin comillas>, login: "<login>"}` de la
+  > cuenta de GitHub o GitLab. Se compara solo por `id` (F1-6, decisión 3);
+  > `login` es una copia para mostrar que refresca `.taskcode/personas.yml`.
+  > Un texto libre de la 0.16 se lee como `Heredado`: la 2.0 nunca crea
+  > uno; si lo lee en formato 2 lo conserva tal cual (cadena entre
+  > comillas) hasta que se convierta por los `correos:` de
+  > `personas.yml` o lo resuelva `reasignar` (F3-10). No reabre este ADR.
 - **F1-11**: las claves desconocidas son la costura de las extensiones.
 - **Este repo no cambia de formato** (RR-14): sus tareas siguen en la 0.16
   hasta el relevo (F4-5) y la migración de F1-12.

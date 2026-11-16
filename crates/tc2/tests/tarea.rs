@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 use serde_yaml::Value;
 use tc2::alta::tarea_md;
+use tc2::identidad::convertir_heredado;
+use tc2::plataforma::Personas;
 use tc2::tarea::{self, Asignado, Cuerpo, Documento, Tarea};
 
 /// Lo que escribia `alta` con su plantilla de texto antes de F2-5 (F1-9
@@ -611,6 +613,17 @@ fn asignado_a_de_texto_de_la_0_16_es_heredado() {
     assert_eq!(a.heredado(), Some("charlie.bk@gmail.com"));
     assert_eq!((a.id(), a.login()), (None, None));
     assert!(!a.la_lleva(1001));
+    // Si coincide con un `correos:` de `personas.yml` se convierte a esa
+    // persona; si no, queda heredado.
+    let personas = Personas::leer(
+        "personas:\n  - {id: 1001, login: \"charliebk\", correos: [\"Charlie.BK@gmail.com\"]}\n",
+    )
+    .unwrap();
+    let convertido = convertir_heredado(a.clone(), &personas);
+    assert_eq!(convertido, Asignado::persona(1001, "charliebk").unwrap());
+    assert!(convertido.la_lleva(1001));
+    let otra = Personas::leer("personas:\n  - {id: 1001, login: \"charliebk\"}\n").unwrap();
+    assert_eq!(convertir_heredado(a.clone(), &otra), a);
     for vacio in ["asignado_a: null", "asignado_a: \"\""] {
         let t = con_linea(&base, "asignado_a", vacio);
         let Ok(Documento::Formato1(m, _)) = tarea::leer(&t) else {
