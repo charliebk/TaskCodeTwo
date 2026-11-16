@@ -334,7 +334,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F2-9 | Adaptador GitLab (MR, pipelines, approvals, identidad) con la misma interfaz y la misma batería E2E (RR-15) | E2E contra un proyecto de pruebas en GitLab | F1-13, F2-2 |
 | F2-7 | Configuración mínima con esquema validado y valores por defecto | ≤ 12 claves; esquema publicado; tests | F1-10 |
 | F2-8 | i18n de mensajes (es, en) | Test que falla si falta una traducción | F2-1 |
-| F2-10 | Build de ejecutables por sistema en la CI, firmados, con su hash, publicados en cada release (RR-16) | El ejecutable arranca en Windows, macOS y Linux limpios sin Node | F1-14, F2-1 |
+| F2-10 | Build de ejecutables por sistema en la CI, con su hash, publicados en cada release (RR-16); firmados desde la primera release con attestation de procedencia y firma ad hoc en macOS, Authenticode y Developer ID al entrar en winget y Homebrew (ADR F1-14, D4a) | El ejecutable arranca en Windows, macOS y Linux limpios sin Node | F1-14, F2-1 |
 | F2-11 | Instaladores de una línea (PowerShell y shell) que descargan, verifican la firma o el hash y ponen `taskctl` en el PATH | Instalación en una máquina limpia de cada sistema en menos de un minuto | F2-10 |
 | F2-12 | `taskctl actualizar --cli` y aviso de versión nueva; el plugin del marketplace comprueba la versión del ejecutable | Actualización sin reinstalar; incompatibilidad avisada con el comando que la arregla | F2-10 |
 | F2-13 | Identidad de la persona: el «quién» de una tarea es el usuario de GitHub o GitLab autenticado, no un texto libre (RR-12) | Dos personas no pueden figurar con el mismo nombre; el agente figura como agente | F1-6, F2-6, F2-9 |

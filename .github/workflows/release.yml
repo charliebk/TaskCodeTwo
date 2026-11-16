@@ -1,0 +1,237 @@
+# Release de TaskCodeTwo (TASK-025, F2-10; ADR F1-14 D4a, F1-3 D3a, F1-8).
+#
+# - Con tag `v*` (anotado sobre el merge en main): compila los 6 targets de
+#   P12 en runners nativos, prueba que arrancan sin Node, publica la release
+#   con los 6 binarios, `SHA256SUMS` y attestation de procedencia (Sigstore),
+#   y la vuelve a descargar desde la URL publica para comprobarla.
+# - Con `workflow_dispatch`, o con un push a una rama que toque lo que entra
+#   en la release (este workflow, el humo, xtask, Cargo): ensayo. Compila y
+#   prueba, pero no publica. (Los filtros de rutas no se aplican a los tags.)
+#
+# "Firmados" es lo de D4a: hash, attestation y firma ad hoc en macOS.
+# Authenticode y Developer ID llegan con winget y Homebrew.
+# Cada job es de una sola clase (F1-8): ninguno compila y publica a la vez.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - .github/workflows/release.yml
+      - .github/scripts/humo.sh
+      - xtask/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .cargo/**
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preparar:
+    name: preparar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      clase: ${{ steps.version.outputs.clase }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain de rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Version y tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+          ES_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          version="$(cargo xtask version)"
+          if [ "$ES_TAG" = "true" ]; then
+            clase="$(cargo xtask comprobar-tag "$TAG")"
+          else
+            clase="ensayo"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "clase=$clase" >> "$GITHUB_OUTPUT"
+          echo "version $version, release: $clase"
+
+  build:
+    name: build (${{ matrix.alias }})
+    needs: preparar
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { alias: win-x64, target: x86_64-pc-windows-msvc, runner: windows-latest }
+          - { alias: win-arm64, target: aarch64-pc-windows-msvc, runner: windows-11-arm }
+          - { alias: darwin-x64, target: x86_64-apple-darwin, runner: macos-15-intel }
+          - { alias: darwin-arm64, target: aarch64-apple-darwin, runner: macos-latest }
+          - { alias: linux-x64, target: x86_64-unknown-linux-musl, runner: ubuntu-latest }
+          - { alias: linux-arm64, target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain y target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup toolchain install
+          rustup target add "$TARGET"
+          rustc --version
+      - name: musl-tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - name: cargo xtask empaquetar
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo xtask empaquetar --target "$TARGET" --salida dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bin-${{ matrix.alias }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  humo:
+    name: humo (${{ matrix.alias }})
+    needs: [preparar, build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { alias: win-x64, runner: windows-latest, ext: .exe }
+          - { alias: win-arm64, runner: windows-11-arm, ext: .exe }
+          - { alias: darwin-x64, runner: macos-15-intel, ext: "" }
+          - { alias: darwin-arm64, runner: macos-latest, ext: "" }
+          - { alias: linux-x64, runner: ubuntu-latest, ext: "" }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, ext: "" }
+    steps:
+      # Solo el script de humo: el binario no se compila aqui.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bin-${{ matrix.alias }}
+          path: dist
+      - name: sha256 del artefacto
+        working-directory: dist
+        run: |
+          if command -v sha256sum >/dev/null; then sha256sum -c ./*.sha256; else shasum -a 256 -c ./*.sha256; fi
+      - name: Arranca sin Node
+        env:
+          FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
+          VERSION: ${{ needs.preparar.outputs.version }}
+        run: bash .github/scripts/humo.sh "dist/$FICHERO" "$VERSION"
+
+  publicar:
+    name: publicar
+    needs: [preparar, build, humo]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain de rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bin-*
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        run: |
+          cargo xtask sumas dist
+          # Las sumas de la release tienen que ser las mismas que dejo cada build.
+          diff <(cat dist/*.sha256 | sort -k 2) dist/SHA256SUMS
+          rm dist/*.sha256
+          test "$(ls dist/tc2-* | wc -l)" -eq 6
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/tc2-*
+      - name: Crear la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          CLASE: ${{ needs.preparar.outputs.clase }}
+        run: |
+          extra=()
+          if [ "$CLASE" = "prerelease" ]; then extra+=(--prerelease); fi
+          gh release create "$TAG" dist/tc2-* dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" "${extra[@]}" \
+            --notes "Binarios de tc2 para los 6 sistemas de P12, con SHA256SUMS y attestation de procedencia. Verificacion: docs/distribucion/releases.md"
+
+  verificar-release:
+    name: verificar-release (${{ matrix.alias }})
+    needs: [preparar, publicar]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { alias: win-x64, runner: windows-latest, ext: .exe }
+          - { alias: win-arm64, runner: windows-11-arm, ext: .exe }
+          - { alias: darwin-x64, runner: macos-15-intel, ext: "" }
+          - { alias: darwin-arm64, runner: macos-latest, ext: "" }
+          - { alias: linux-x64, runner: ubuntu-latest, ext: "" }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, ext: "" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Descarga anonima desde la URL publica
+        env:
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+          FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
+        run: |
+          mkdir -p pub && cd pub
+          curl -fsSL --retry 3 -o SHA256SUMS "$BASE/SHA256SUMS"
+          curl -fsSL --retry 3 -o "$FICHERO" "$BASE/$FICHERO"
+          grep -F "  $FICHERO" SHA256SUMS > una.sha256
+          test "$(wc -l < una.sha256)" -eq 1
+          if command -v sha256sum >/dev/null; then sha256sum -c una.sha256; else shasum -a 256 -c una.sha256; fi
+      - name: gh attestation verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
+        run: gh attestation verify "pub/$FICHERO" --repo "$GITHUB_REPOSITORY"
+      - name: Arranca sin Node
+        env:
+          FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
+          VERSION: ${{ needs.preparar.outputs.version }}
+        run: bash .github/scripts/humo.sh "pub/$FICHERO" "$VERSION"
