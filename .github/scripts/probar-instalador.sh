@@ -94,10 +94,13 @@ medir() {
     frio=$(date +%s)
     powershell.exe -NoProfile -Command 'exit 0'
     echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
-    # Desglose, solo informativo: un arranque ya en caliente y lo que tarda
-    # dentro de PowerShell bajar el script con irm (la primera peticion web
-    # del proceso; en Windows incluye la autodeteccion del proxy).
-    powershell.exe -NoProfile -Command "\$a = Measure-Command { powershell.exe -NoProfile -Command 'exit 0' }; \$b = Measure-Command { \$null = irm '$url/install.ps1' }; 'probar: desglose: arranque en caliente {0:N1} s, irm del script {1:N1} s' -f \$a.TotalSeconds, \$b.TotalSeconds" | tr -d '\r'
+    # Desglose, solo informativo, con un cronometro de .NET (Measure-Command
+    # cargaria el modulo que se quiere medir): cargar el modulo de irm
+    # (Microsoft.PowerShell.Utility) y bajar el script.
+    powershell.exe -NoProfile -Command "\$c = [Diagnostics.Stopwatch]::StartNew(); Import-Module Microsoft.PowerShell.Utility; \$m = \$c.Elapsed.TotalSeconds; \$c.Restart(); \$null = irm '$url/install.ps1'; \$i = \$c.Elapsed.TotalSeconds; [Console]::WriteLine(('probar: desglose: cargar Microsoft.PowerShell.Utility {0:N1} s, irm del script {1:N1} s' -f \$m, \$i)); [Console]::WriteLine('probar: PSModulePath: ' + \$env:PSModulePath)" | tr -d '\r'
+    t=$(date +%s)
+    powershell.exe -NoProfile -Command "\$null = Get-Date" >/dev/null
+    echo "probar: desglose: proceso nuevo con un cmdlet de Utility: $(($(date +%s) - t)) s"
   fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
