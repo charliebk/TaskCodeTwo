@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 3604162
-tokens_revision: null
+tokens_revision: 799199
 creado: 2026-11-16
 actualizado: 2026-11-16
 dependencias: []
@@ -49,3 +49,4 @@ Dejar en el repo la evidencia de la puerta de valor de la Fase 10 (experimento A
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T16:50:53Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 18 | 12299 | 3585867 | 5978 | 0 | 3604162 | - | - |
+| 2026-11-16T16:53:54Z | revision | agente:ae378f1d4e79c4b0d | 18 | 101798 | 689153 | 8230 | 3 | 799199 | 1 | - |
