@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-113 — Puerta de valor F10: informe, datos y descarte del H10 · etiquetas: fase10, medicion, docs · rama feature/task-113-puerta-de-valor-f10-informe-y-datos-del · terminada 2026-11-16 · tareas/04-terminadas/TASK-113/
 
 - TASK-095 — F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda · etiquetas: (sin etiquetas) · rama feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de · terminada 2026-11-16 · tareas/04-terminadas/TASK-095/
 - TASK-026 — F2-11 Instaladores de una linea · etiquetas: (sin etiquetas) · rama feature/task-026-f2-11-instaladores-de-una-linea · terminada 2026-11-16 · tareas/04-terminadas/TASK-026/

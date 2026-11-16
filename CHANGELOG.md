@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-113 (feature) — Puerta de valor F10: informe, datos y descarte del H10 (2026-11-16)
 - TASK-095 (feature) — F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda (2026-11-16)
 - TASK-026 (feature) — F2-11 Instaladores de una linea (2026-11-16)
 - TASK-025 (feature) — F2-10 Build de ejecutables por sistema en la CI, firmados (2026-11-16)

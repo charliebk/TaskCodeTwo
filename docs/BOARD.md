@@ -1,6 +1,6 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl board --escribir el 2026-11-16. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-16. No editar a mano.
 
 ## Planificadas (00-planificadas) — 64
 
@@ -73,15 +73,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                  (
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                         (sin asignar)
 ```
 
-## En revision (03-en-revision) — 1
-
-```text
-ID        Titulo                                                  Asignado
---------  ------------------------------------------------------  --------------------
-TASK-113  Puerta de valor F10: informe, datos y descarte del H10  charlie.bk@gmail.com
-```
-
-## Terminadas (04-terminadas) — 31
+## Terminadas (04-terminadas) — 32
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -117,4 +109,5 @@ TASK-074  F1-16 ADR lotes desatendidos con revision humana al final             
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda  charlie.bk@gmail.com
+TASK-113  Puerta de valor F10: informe, datos y descarte del H10                    charlie.bk@gmail.com
 ```

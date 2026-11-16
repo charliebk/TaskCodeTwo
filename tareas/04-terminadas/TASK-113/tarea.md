@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: [fase10, medicion, docs]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-113-puerta-de-valor-f10-informe-y-datos-del
 asignado_a: charlie.bk@gmail.com
@@ -52,6 +52,7 @@ Revision ronda 1 (code-quality-reviewer, sonnet): aprobada con correcciones, sin
 | 2026-11-16T16:49:04Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T16:49:06Z | start | automatico | persona | 0.16.1 |
 | 2026-11-16T16:50:53Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T16:57:21Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -63,3 +64,9 @@ Revision ronda 1 (code-quality-reviewer, sonnet): aprobada con correcciones, sin
 ## Verificacion ligera
 
 - 2026-11-16T16:53:59Z: ronda 1; commit revisado faaaba2f9fcda500f56fc13d74d758f762ffd4be; commit verificado 8a4ac9084e6ddb6114100bd6a33fcd5be6a17740; ficheros: docs/BOARD.md; corregidos: MEN-2; pendientes: MEN-1, MEN-3
+
+## Duracion
+
+- Estimada: 60 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 8 min
+- Cierre (finish): 184 s, de 2026-11-16T16:54:17Z a 2026-11-16T16:57:21Z
