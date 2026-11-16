@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-076-f2-4b-nombres-unicos-de-tarea-y-rama
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 23113641
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-16
@@ -46,6 +46,7 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | 2026-11-16T19:49:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:15Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:16Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T20:26:32Z | review | automatico | persona | 0.16.1 |
 
 ## Autorrevision
 
@@ -57,3 +58,10 @@ en dos sitios (`Tarea::nueva` y `alta::TIPO`); el alta lo fija ahora desde
 su constante (0f11a56). Sin `unwrap`, `expect` ni `panic` nuevos en
 produccion; el unico error tragado (`let _ = write_all` hacia `cat-file`)
 lo delata el parseo de la salida, que exige un objeto por ruta.
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16T20:26:32Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 32 | 14671 | 5145151 | 3552 | 1 | 5163406 | - | - |
+| 2026-11-16T20:26:32Z | implementacion | agente:a95f8bf4e6c3190ce | 174 | 276857 | 17597027 | 76177 | 42 | 17950235 | - | - |
