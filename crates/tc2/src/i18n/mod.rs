@@ -160,6 +160,14 @@ impl Mensaje {
                         Some((_, Arg::Texto(t))) => s.push_str(t),
                         Some((_, Arg::Mensaje(m))) => s.push_str(&m.texto(idioma)),
                         None => {
+                            // Un hueco sin valor es un fallo de quien arma el
+                            // mensaje: en los tests (debug) revienta; en
+                            // release se deja visible, sin perder el resto.
+                            debug_assert!(
+                                false,
+                                "{}: falta el valor del hueco {{{nombre}}}",
+                                self.texto.clave
+                            );
                             let _ = write!(s, "{{{nombre}}}");
                         }
                     }

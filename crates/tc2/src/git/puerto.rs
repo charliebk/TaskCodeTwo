@@ -142,8 +142,9 @@ impl SalidaGit {
 /// La llamada no llego a ejecutarse.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorGit {
-    /// Argumento prohibido dentro de un subcomando permitido.
-    Prohibido(String),
+    /// Llamada prohibida por la capa (argumento o indice), ya como mensaje
+    /// del catalogo.
+    Prohibido(Mensaje),
     /// No se pudo lanzar el binario.
     Lanzar(String),
 }
@@ -160,7 +161,7 @@ impl ErrorGit {
     /// se traduce; `Display` es su texto en espanol.
     pub fn mensaje(&self) -> Mensaje {
         match self {
-            Self::Prohibido(a) => Mensaje::nuevo(&txt::ARGUMENTO_PROHIBIDO).con("argumento", a),
+            Self::Prohibido(m) => m.clone(),
             Self::Lanzar(e) => Mensaje::nuevo(&txt::NO_SE_PUDO_LANZAR_GIT).con("error", e),
         }
     }
@@ -232,10 +233,9 @@ impl Git {
         args: &[&str],
     ) -> Result<SalidaGit, ErrorGit> {
         if sub.exige_indice_temporal() {
-            return Err(ErrorGit::Prohibido(format!(
-                "{} sin indice temporal",
-                sub.nombre()
-            )));
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::SIN_INDICE_TEMPORAL).con("sub", sub.nombre()),
+            ));
         }
         self.lanzar(dir, sub, args, None)
     }
@@ -251,16 +251,14 @@ impl Git {
         indice: &Path,
     ) -> Result<SalidaGit, ErrorGit> {
         if !sub.exige_indice_temporal() {
-            return Err(ErrorGit::Prohibido(format!(
-                "{} con indice temporal",
-                sub.nombre()
-            )));
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::CON_INDICE_TEMPORAL).con("sub", sub.nombre()),
+            ));
         }
         if !indice.is_absolute() {
-            return Err(ErrorGit::Prohibido(format!(
-                "{} con indice relativo",
-                sub.nombre()
-            )));
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::INDICE_RELATIVO).con("sub", sub.nombre()),
+            ));
         }
         self.lanzar(dir, sub, args, Some(indice))
     }
@@ -308,7 +306,12 @@ impl Git {
 /// rutas tras `--` en los subcomandos que las aceptan (`add`, `commit`,
 /// `status`, `diff`): ahi una palabra como `--force` es dato, no opcion.
 fn comprobar_argumentos(sub: Subcomando, args: &[&str]) -> Result<(), ErrorGit> {
-    let prohibido = |a: &str| Err(ErrorGit::Prohibido(format!("{} {a}", sub.nombre())));
+    let prohibido = |a: &str| {
+        Err(ErrorGit::Prohibido(
+            Mensaje::nuevo(&txt::ARGUMENTO_PROHIBIDO)
+                .con("argumento", format!("{} {a}", sub.nombre())),
+        ))
+    };
     let con_rutas = matches!(
         sub,
         Subcomando::Add | Subcomando::Commit | Subcomando::Status | Subcomando::Diff

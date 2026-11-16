@@ -326,7 +326,8 @@ impl Plataforma for GitHub {
         {
             return i;
         }
-        let permiso = "pull_requests:read y checks:read";
+        // Dos alcances unidos por una conjuncion: se traduce (IMP-1 de F2-8).
+        let permiso = &t::PERMISO_PR_Y_CHECKS;
         let p: PrApi = match self.con.leer(op, rol, permiso, self.ep(&Endpoint::Pr(pr))) {
             Ok(p) => p,
             Err(i) => return i,

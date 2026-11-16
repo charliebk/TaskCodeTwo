@@ -160,6 +160,10 @@ crate::i18n::textos! {
         es: "(ninguno)",
         en: "(none)",
     }
+    PERMISO_PR_Y_CHECKS {
+        es: "pull_requests:read y checks:read",
+        en: "pull_requests:read and checks:read",
+    }
     PERMISO_LECTURA_GITLAB {
         es: "el scope api (o read_api) y el rol Developer en el proyecto",
         en: "the api scope (or read_api) and the Developer role in the project",

@@ -6,6 +6,18 @@ crate::i18n::textos! {
         es: "argumento prohibido para la capa: {argumento}",
         en: "argument not allowed for the layer: {argumento}",
     }
+    SIN_INDICE_TEMPORAL {
+        es: "argumento prohibido para la capa: {sub} sin indice temporal",
+        en: "argument not allowed for the layer: {sub} without a temporary index",
+    }
+    CON_INDICE_TEMPORAL {
+        es: "argumento prohibido para la capa: {sub} con indice temporal",
+        en: "argument not allowed for the layer: {sub} with a temporary index",
+    }
+    INDICE_RELATIVO {
+        es: "argumento prohibido para la capa: {sub} con indice relativo",
+        en: "argument not allowed for the layer: {sub} with a relative index",
+    }
     NO_SE_PUDO_LANZAR_GIT {
         es: "no se pudo lanzar git: {error}",
         en: "could not run git: {error}",

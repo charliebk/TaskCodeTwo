@@ -240,4 +240,30 @@ mod tests {
 "
         );
     }
+
+    #[test]
+    fn new_y_actualizar_rama_en_ingles_mismo_stdout_y_codigo() {
+        for args in [
+            vec!["new"],
+            vec!["new", "a\tb"],
+            vec!["new", "--json", "a", "b"],
+            vec!["actualizar-rama", "de-mas"],
+            vec!["guardar"],
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!(es.codigo, en.codigo, "{args:?}");
+            assert!(!en.stderr.is_empty(), "{args:?}");
+            assert_ne!(es.stderr, en.stderr, "{args:?}: stderr sin traducir");
+            if args.contains(&"--json") {
+                assert!(en.stdout.contains("\"diagnostico\":"), "{args:?}");
+            } else {
+                assert_eq!(es.stdout, en.stdout, "{args:?}");
+            }
+        }
+        assert_eq!(
+            ejecutar_en(Idioma::En, ["new"]).stderr,
+            "usage: new [--json] \"<title>\"\n"
+        );
+    }
 }
