@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1093445
-tokens_implementacion: null
+tokens_implementacion: 4692745
 tokens_revision: null
 creado: 2026-11-16
 actualizado: 2026-11-16
@@ -42,12 +42,14 @@ Contexto (Carlos, 2026-11-16, RR-20, hito H10): memoria del proyecto propia que 
 | 2026-11-16T12:55:18Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T13:06:31Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T13:06:45Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T13:30:43Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T13:03:25Z | diseno | agente:ab69920f34bade972,ac5f927590e26cbe9,a4a936ae6ac2f3123 | 56 | 154965 | 906531 | 31893 | 42 | 1093445 | - | - |
+| 2026-11-16T13:30:43Z | implementacion | sesion:a5dfc352-0a22-4b82-bbd5-fc62af318858 | 52 | 76920 | 4570682 | 45091 | 10 | 4692745 | - | - |
 
 ## Autorrevision
 
