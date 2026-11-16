@@ -23,7 +23,7 @@ use crate::i18n::catalogo::actualizar as txt;
 use crate::plataforma::http::{self, Base, FalloHttp};
 
 /// Releases del repositorio.
-pub const RELEASES: &str = "https://github.com/charliebk/TaskCodeTwo/releases";
+pub const RELEASES: &str = distribucion::RELEASES;
 
 /// Variable de ensayo con la carpeta de una release (la de los instaladores).
 pub const VARIABLE_BASE: &str = "TC2_BASE_URL";
@@ -85,12 +85,13 @@ impl Origen {
         }
     }
 
-    /// URL del binario `fichero` de la release `version` (por su tag, no por
-    /// `latest`: entre leer `SHA256SUMS` y bajar el binario puede salir otra).
-    pub fn url_binario(&self, version: &str, fichero: &str) -> String {
+    /// URL del binario `fichero` de la release del tag `v<tag>` (por su tag,
+    /// no por `latest`: entre leer `SHA256SUMS` y bajar el binario puede
+    /// salir otra).
+    pub fn url_binario(&self, tag: &str, fichero: &str) -> String {
         match self {
             Self::Ensayo(base) => format!("{base}/{fichero}"),
-            Self::GitHub => format!("{RELEASES}/download/v{version}/{fichero}"),
+            Self::GitHub => format!("{RELEASES}/download/v{tag}/{fichero}"),
         }
     }
 }

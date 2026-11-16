@@ -16,8 +16,9 @@ use crate::i18n::Mensaje;
 use crate::i18n::catalogo::actualizar as txt;
 
 /// Protocolo entre el plugin y el CLI: sube cuando cambia algo que el plugin
-/// usa (subcomandos, `--json`, codigos de salida). ADR F1-14, punto 5.
-pub const PROTOCOLO: u32 = 1;
+/// usa (subcomandos, `--json`, codigos de salida). ADR F1-14, punto 5. Es
+/// el de la caja `distribucion`, el mismo que escribe `cargo xtask cli-lock`.
+pub const PROTOCOLO: u32 = distribucion::PROTOCOLO;
 
 /// Nombre de la orden `version`.
 pub const VERSION: &str = "version";

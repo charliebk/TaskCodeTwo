@@ -9,6 +9,15 @@
 
 pub mod sha256;
 
+/// Protocolo entre el plugin y el CLI (ADR F1-14, punto 5): sube cuando
+/// cambia algo que el plugin usa (subcomandos, `--json`, codigos de salida).
+/// Vive aqui para que `tc2 version --json` y `cargo xtask cli-lock` den el
+/// mismo.
+pub const PROTOCOLO: u32 = 1;
+
+/// Releases del repositorio: `cli.lock` apunta a `<RELEASES>/download/<tag>/`.
+pub const RELEASES: &str = "https://github.com/charliebk/TaskCodeTwo/releases";
+
 /// Un target de P12: el alias publico (contrato de `cli.lock`) y el triple de
 /// Rust con el que se compila.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -244,9 +253,72 @@ pub fn clase_de_tag(tag: &str, version: &str) -> Result<Clase, String> {
     }
 }
 
+/// `cli.lock` del plugin (ADR F1-14, punto 4) para la release `tag` de
+/// `version`, desde su `SHA256SUMS`: los 6 targets, cada uno con su fichero y
+/// su sha256, y el rango de protocolo `[PROTOCOLO, PROTOCOLO]`. Falla si el
+/// tag no casa con la version, si `SHA256SUMS` no se lee o si le falta un
+/// target. Sale ordenado por la tabla de targets, asi que no depende del
+/// orden de `SHA256SUMS`.
+pub fn cli_lock(tag: &str, version: &str, texto_sumas: &str) -> Result<String, String> {
+    clase_de_tag(tag, version)?;
+    let pares = leer_sumas(texto_sumas)?;
+    let mut s = format!(
+        "# cli.lock de TaskCodeTwo (ADR F1-14, punto 4). Lo genera `cargo xtask cli-lock`\n\
+         # desde el SHA256SUMS de la release {tag}; no se edita a mano.\n\
+         formato: 1\n\
+         version: \"{version}\"\n\
+         protocolo: [{PROTOCOLO}, {PROTOCOLO}]\n\
+         base_url: \"{RELEASES}/download/{tag}/\"\n\
+         targets:\n"
+    );
+    for t in TARGETS {
+        let fichero = t.fichero(version);
+        let hash = pares
+            .iter()
+            .find(|(f, _)| *f == fichero)
+            .map(|(_, h)| h)
+            .ok_or_else(|| format!("{SUMAS} no trae {fichero}"))?;
+        s.push_str(&format!(
+            "  {}: {{fichero: \"{fichero}\", sha256: \"{hash}\"}}\n",
+            t.alias
+        ));
+    }
+    Ok(s)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cli_lock_con_los_6_targets_desde_sha256sums() {
+        let entradas: Vec<(String, String)> = TARGETS
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (t.fichero("2.0.0"), format!("{i}").repeat(64)))
+            .collect();
+        let sumas_texto = sumas(&entradas).unwrap_or_default();
+        let lock = cli_lock("v2.0.0", "2.0.0", &sumas_texto).unwrap_or_default();
+        assert!(lock.contains("\nformato: 1\nversion: \"2.0.0\"\n"));
+        assert!(lock.contains(&format!("\nprotocolo: [{PROTOCOLO}, {PROTOCOLO}]\n")));
+        assert!(lock.contains(
+            "\nbase_url: \"https://github.com/charliebk/TaskCodeTwo/releases/download/v2.0.0/\"\n"
+        ));
+        assert!(lock.contains(&format!(
+            "\n  win-x64: {{fichero: \"tc2-2.0.0-win-x64.exe\", sha256: \"{}\"}}\n",
+            "0".repeat(64)
+        )));
+        assert_eq!(lock.lines().filter(|l| l.starts_with("  ")).count(), 6);
+        // Prerelease: el tag lleva el sufijo y los ficheros, la version.
+        assert!(
+            cli_lock("v2.0.0-rc.1", "2.0.0", &sumas_texto)
+                .is_ok_and(|l| l.contains("/download/v2.0.0-rc.1/\""))
+        );
+        // Falta un target, o el tag no casa.
+        let cinco = sumas(&entradas[..5]).unwrap_or_default();
+        assert!(cli_lock("v2.0.0", "2.0.0", &cinco).is_err());
+        assert!(cli_lock("v2.0.1", "2.0.0", &sumas_texto).is_err());
+    }
 
     #[test]
     fn seis_targets_de_p12_con_exe_solo_en_windows() {

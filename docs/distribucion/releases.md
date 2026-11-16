@@ -81,7 +81,17 @@ cargo xtask comprobar-tag v0.0.0
 Un build local no da el mismo sha256 que el del runner (TASK-016: rutas del
 checkout distintas). El hash que vale es **siempre** el del `SHA256SUMS` de la
 release, y `cli.lock` (F2-12) se rellena desde ese fichero, nunca desde un
-build local.
+build local:
+
+```bash
+gh release download v2.0.0 --pattern SHA256SUMS --dir rel
+cargo xtask cli-lock rel/SHA256SUMS --tag v2.0.0 > cli.lock
+```
+
+`cli-lock` exige los 6 targets y que el tag case con la versión del workspace
+(como `comprobar-tag`), y escribe el rango de protocolo del CLI
+(`[PROTOCOLO, PROTOCOLO]`, de la caja `crates/distribucion`). Dónde vive el
+`cli.lock` y cómo lo usa el lanzador del plugin es de una tarea posterior.
 
 ## Cómo se verifica un binario descargado
 

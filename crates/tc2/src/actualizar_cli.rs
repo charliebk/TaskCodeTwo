@@ -199,23 +199,35 @@ pub fn orden(args: &[String]) -> Informe {
 /// Lo que publica la release para un target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Publicado {
+    /// Version del binario (la de su nombre).
     version: String,
+    /// Version del tag de la release (`v<tag>`): la del binario, o con un
+    /// sufijo en una prerelease (`v0.0.0-prueba.1` publica `tc2-0.0.0-*`,
+    /// regla de `distribucion::clase_de_tag`).
+    tag: String,
     fichero: String,
     sha256: String,
 }
 
-/// El binario de `target` en `SHA256SUMS`: el de `version` si se pide, y si
-/// no, el de version mas alta.
-fn elegir(pares: &[(String, String)], target: Target, version: Option<&str>) -> Option<Publicado> {
+/// El binario de `target` en `SHA256SUMS`. Con `tag` (la de `--version`),
+/// el de esa release: su version es la del tag o la del tag sin el sufijo de
+/// prerelease. Sin `tag`, el de version mas alta, y el tag es su version (la
+/// ultima estable).
+fn elegir(pares: &[(String, String)], target: Target, tag: Option<&str>) -> Option<Publicado> {
     let mut candidatos = pares.iter().filter_map(|(f, h)| {
         target.version_de_fichero(f).map(|v| Publicado {
+            tag: tag.map_or_else(|| v.clone(), str::to_owned),
             version: v,
             fichero: f.clone(),
             sha256: h.clone(),
         })
     });
-    match version {
-        Some(v) => candidatos.find(|p| p.version == v),
+    match tag {
+        Some(t) => candidatos.find(|p| {
+            t == p.version
+                || t.strip_prefix(p.version.as_str())
+                    .is_some_and(|r| r.starts_with('-'))
+        }),
         None => {
             candidatos.max_by(|a, b| comparar(&a.version, &b.version).unwrap_or(Ordering::Equal))
         }
@@ -341,7 +353,7 @@ fn instalar(
         Err(e) => return sin_permiso(dir, &e.to_string()),
     };
     let guarda = Borrar(Some(temporal.clone()));
-    let url = origen.url_binario(&publicado.version, &publicado.fichero);
+    let url = origen.url_binario(&publicado.tag, &publicado.fichero);
     let bajada = d
         .a_escritor(&url, &mut fichero, descarga::LIMITE_BINARIO)
         .map_err(|f| match f {
@@ -681,5 +693,16 @@ mod tests {
         );
         assert_eq!(elegir(&pares, linux, Some("2.0.0")), None);
         assert_eq!(elegir(&pares, distribucion::TARGETS[1], None), None);
+        // Sin --version, el tag es la version del binario.
+        assert_eq!(
+            elegir(&pares, win, None).map(|p| p.tag),
+            Some("2.1.0".into())
+        );
+        // Prerelease: el tag v2.1.0-rc.1 publica tc2-2.1.0-*.
+        assert_eq!(
+            elegir(&pares, linux, Some("2.1.0-rc.1")).map(|p| (p.version, p.tag)),
+            Some(("2.1.0".into(), "2.1.0-rc.1".into()))
+        );
+        assert_eq!(elegir(&pares, linux, Some("2.1.00")), None);
     }
 }

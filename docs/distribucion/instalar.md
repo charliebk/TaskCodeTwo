@@ -70,8 +70,71 @@ curl -fsSL https://github.com/charliebk/TaskCodeTwo/releases/download/v0.0.0-pru
    Un directorio con `;` (el separador del PATH) se rechaza.
 
 Volver a ejecutar la línea reinstala (o cambia de versión con `TC2_VERSION`).
-Actualizar con `tc2 actualizar --cli` es de F2-12. No toca `taskctl` ni nada
-de TaskCode 0.16.
+Para actualizar sin reinstalar está `tc2 actualizar --cli` (abajo). No toca
+`taskctl` ni nada de TaskCode 0.16.
+
+## Actualizar y comprobar la versión
+
+Lo construyó TASK-027 (F2-12; ADR F1-14, puntos 4 y 5).
+
+```bash
+tc2 actualizar --cli --comprobar   # ¿hay una versión nueva? No toca nada
+tc2 actualizar --cli               # sustituye el tc2 instalado por la última estable
+tc2 actualizar --cli --version 2.1.0-rc.1   # una versión concreta (también hacia atrás)
+```
+
+- **De dónde sale la versión disponible**: del `SHA256SUMS` de la última
+  release estable (`releases/latest/download/SHA256SUMS`), o de la de
+  `--version`. Una sola petición, la misma fuente que los instaladores.
+- **`--comprobar`** escribe `actualizar ok actual=X disponible=Y` si hay una
+  más nueva y `actualizar sin-cambios actual=X disponible=Y` si no; código 0
+  en los dos casos. Es el aviso de versión nueva: lo llaman `doctor` y, si se
+  quiere, un hook de inicio de sesión. Nunca se consulta la red por sí solo.
+- **Cómo sustituye**: baja el binario junto al actual
+  (`.tc2-<versión>-<pid>.descarga`), calcula su sha256 (lo calcula el `tc2`
+  viejo, nunca el binario nuevo sobre sí mismo) y lo compara con
+  `SHA256SUMS`; le pide `version --json` y comprueba versión, sistema y hash;
+  y solo entonces lo pone en su sitio. En Windows lo hace por renombrados
+  (el actual pasa a `tc2.exe.old`, el nuevo a `tc2.exe`) con vuelta atrás si
+  el segundo falla; el `tc2.exe.old` lo borra la siguiente ejecución de `tc2`.
+  Sale `actualizar ok anterior=X version=Y sha256=...`.
+- **Si algo falla, no se cambia nada** y no quedan ficheros a medias:
+  - sin red: `actualizar sinred url=...` (código 4);
+  - el sha256 no casa: `rechazada motivo=sha256-no-casa` (3);
+  - sin permiso de escritura en la carpeta del binario: `rechazada
+    motivo=sin-permiso ruta=...` (3), antes de bajar nada;
+  - el binario nuevo no arranca o no dice lo esperado: `rechazada
+    motivo=binario-no-arranca` (3);
+  - no se pudo renombrar (otro `tc2` abierto, un antivirus):
+    `error motivo=no-se-sustituye` (1), con el binario anterior en su sitio.
+- **Lo que no actualiza**: el `tc2` de la caché del plugin
+  (`.../taskcodetwo/cli/<versión>/`), que gestiona el plugin con su
+  `cli.lock` (`rechazada motivo=gestionado-por-plugin`: se actualiza el
+  plugin), ni uno instalado con un gestor de paquetes (npm, Homebrew, winget,
+  Scoop, cargo: `rechazada motivo=gestionado-por-gestor`).
+- Sin `--cli`, `tc2 actualizar` da `uso`: actualizar un proyecto es de F9-2.
+- `TC2_BASE_URL` vale igual que en los instaladores (solo ensayos): la carpeta
+  con los ficheros de una release; aquí, https o http a `127.0.0.1`.
+- Como en los instaladores, el hash prueba que el fichero llegó entero, no
+  quién lo construyó: sin Authenticode (D4a), comprometer la release
+  compromete binario y `SHA256SUMS` a la vez. La attestation se comprueba con
+  `gh attestation verify` (ver [releases.md](releases.md)).
+
+## Compatibilidad con el plugin
+
+El plugin pregunta al `tc2` que encuentra (ADR F1-14, punto 5):
+
+```bash
+tc2 version --json
+# {"version":"2.0.0","protocolo":1,"target":"win-x64","sha256":"<64 hex>"}
+tc2 compatible --protocolo 1-1
+# compatible ok protocolo=1 rango=1-1
+```
+
+Si el protocolo no cae en el rango, `compatible` sale con `rechazada` (3),
+`motivo=protocolo-incompatible` y el arreglo `tc2 actualizar --cli`. El
+`cli.lock` del plugin lo genera `cargo xtask cli-lock <SHA256SUMS> [--tag
+<tag>]` desde el `SHA256SUMS` de la release, nunca desde un build local.
 
 ## Variables
 
@@ -109,6 +172,20 @@ En cada cambio, el job `instaladores-ensayo` de `release.yml` sirve en
 Al publicar, `verificar-instaladores` ejecuta la línea real contra la release
 en los mismos sistemas, con la misma medida, y comprueba la attestation donde
 hay `gh`.
+
+`tc2 actualizar --cli` se prueba en dos sitios:
+
+- `cargo test -p tc2` (`crates/tc2/tests/actualizar_cli.rs`): una copia del
+  `tc2` compilado se actualiza a un doble de la versión 9.9.9
+  (`examples/tc2_falso.rs`) servido en `127.0.0.1`; el hash alterado, sin red,
+  `--comprobar` y la caché del plugin. El fallo del segundo renombrado se
+  prueba con un fallo inyectado.
+- el job `actualizar-ensayo` de `release.yml`
+  (`.github/scripts/probar-actualizar.sh`): en los 6 runners nativos, instala
+  el binario del build con la línea de instalación y lo actualiza a otro
+  compilado con la versión siguiente, con `--comprobar` y el hash alterado.
+  Hasta el primer push con el job, **no verificado** en CI (TASK-027); su
+  paso en Windows x64 se ensayó en local.
 
 Los runners no son máquinas limpias (traen curl, gh y Node). La prueba en
 máquinas limpias de verdad es de F9-9a (TASK-071).

@@ -16,6 +16,10 @@
 //! - `comprobar-tag <tag>`: escribe `estable` o `prerelease`, o falla si el
 //!   tag no casa con la version del workspace.
 //! - `version`: escribe la version del workspace.
+//! - `cli-lock <SHA256SUMS> [--tag <tag>]` (F2-12): escribe en stdout el
+//!   `cli.lock` del plugin (ADR F1-14, punto 4) para la release `<tag>` (por
+//!   defecto `v<version>`), con los 6 targets y sus sha256 tomados del
+//!   `SHA256SUMS` de esa release, nunca de un build local.
 //!
 //! El resultado va en el codigo de salida: 0 verde, 1 rojo, 2 mal invocado.
 
@@ -38,7 +42,8 @@ const USO: &str = "Uso: cargo xtask verificar --perfil rapida|completa
      cargo xtask empaquetar --target <triple> --salida <dir>
      cargo xtask sumas <dir>
      cargo xtask comprobar-tag <tag>
-     cargo xtask version";
+     cargo xtask version
+     cargo xtask cli-lock <SHA256SUMS> [--tag <tag>]";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Perfil {
@@ -53,6 +58,7 @@ enum Orden {
     Sumas(PathBuf),
     ComprobarTag(String),
     Version,
+    CliLock { sumas: PathBuf, tag: String },
 }
 
 fn main() -> ExitCode {
@@ -79,6 +85,10 @@ fn main() -> ExitCode {
             println!("{VERSION}");
             Ok(())
         }
+        Orden::CliLock { sumas, tag } => std::fs::read_to_string(&sumas)
+            .map_err(|e| format!("{}: {e}", sumas.display()))
+            .and_then(|texto| dist::cli_lock(&tag, VERSION, &texto))
+            .map(|lock| print!("{lock}")),
     };
     match resultado {
         Ok(()) => ExitCode::SUCCESS,
@@ -108,6 +118,14 @@ fn leer_orden(args: &[String]) -> Result<Orden, String> {
         ["sumas", dir] => Ok(Orden::Sumas(PathBuf::from(dir))),
         ["comprobar-tag", tag] => Ok(Orden::ComprobarTag((*tag).to_owned())),
         ["version"] => Ok(Orden::Version),
+        ["cli-lock", sumas] => Ok(Orden::CliLock {
+            sumas: PathBuf::from(sumas),
+            tag: format!("v{VERSION}"),
+        }),
+        ["cli-lock", sumas, "--tag", tag] => Ok(Orden::CliLock {
+            sumas: PathBuf::from(sumas),
+            tag: (*tag).to_owned(),
+        }),
         _ => Err("argumentos no validos".to_owned()),
     }
 }
@@ -435,6 +453,22 @@ mod tests {
             Ok(Orden::ComprobarTag("v1.0.0".to_owned()))
         );
         assert_eq!(leer_orden(&v(&["version"])), Ok(Orden::Version));
+        assert_eq!(
+            leer_orden(&v(&["cli-lock", "dist/SHA256SUMS"])),
+            Ok(Orden::CliLock {
+                sumas: PathBuf::from("dist/SHA256SUMS"),
+                tag: format!("v{VERSION}")
+            })
+        );
+        assert_eq!(
+            leer_orden(&v(&["cli-lock", "S", "--tag", "v1.0.0-rc.1"])),
+            Ok(Orden::CliLock {
+                sumas: PathBuf::from("S"),
+                tag: "v1.0.0-rc.1".to_owned()
+            })
+        );
+        assert!(leer_orden(&v(&["cli-lock"])).is_err());
+        assert!(leer_orden(&v(&["cli-lock", "S", "--tag"])).is_err());
         assert!(leer_orden(&v(&["version", "x"])).is_err());
         assert!(leer_orden(&v(&["sumas", "a", "b"])).is_err());
         assert!(leer_orden(&v(&["sumas"])).is_err());
