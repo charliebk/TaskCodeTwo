@@ -4,6 +4,8 @@ Lo construyó TASK-025 (F2-10). Aplica lo decidido en
 [ADR F1-14](../adr/F1-14-distribucion-e-instalacion.md) (D4a) y en
 [ADR F1-3](../adr/F1-3-flujo-de-ramas-worktrees-release.md) (D3a).
 
+Para instalar `tc2` con una línea, ver [instalar.md](instalar.md) (TASK-026).
+
 ## Qué trae cada release
 
 - Un binario por cada uno de los 6 targets de P12, con el nombre
@@ -22,6 +24,10 @@ Lo construyó TASK-025 (F2-10). Aplica lo decidido en
 - `SHA256SUMS`, con el formato de `sha256sum`.
 - Una attestation de procedencia de GitHub (Sigstore) por binario.
 - En macOS, firma ad hoc (`codesign --sign -`).
+- Los instaladores de una línea, `install.sh` e `install.ps1`
+  ([instalar.md](instalar.md)). Tienen attestation, pero no van en
+  `SHA256SUMS`, que es el contrato de los 6 binarios del que se rellena
+  `cli.lock` (F2-12). En total, 9 assets.
 
 "Firmado" significa eso (D4a). Authenticode y Developer ID con notarización
 llegan con winget y Homebrew, así que en esta versión Windows puede mostrar
@@ -36,8 +42,8 @@ El workflow `.github/workflows/release.yml` se lanza de dos formas:
   de `Cargo.toml`, y un tag estable tiene que estar sobre un commit de `main`:
   si no se cumple, el job `preparar` falla y no se publica nada.
 - **`workflow_dispatch`, o un push a una rama que toque lo que entra en la
-  release** (el workflow, el humo, `xtask`, Cargo): ensayo. Compila y prueba
-  los 6 binarios, pero no publica.
+  release** (el workflow, el humo, los instaladores, `xtask`, Cargo): ensayo.
+  Compila y prueba los 6 binarios y los instaladores, pero no publica.
 
 Jobs, en orden:
 
@@ -45,12 +51,16 @@ Jobs, en orden:
    `cargo xtask empaquetar`.
 2. `humo`: comprueba que cada binario arranca sin Node, con
    `.github/scripts/humo.sh`.
-3. `publicar`: genera `SHA256SUMS`, crea la attestation y la release, primero
+3. `instaladores-ensayo`: prueba los instaladores de una línea contra los
+   binarios del build servidos en `127.0.0.1` ([instalar.md](instalar.md)).
+4. `publicar`: genera `SHA256SUMS`, crea la attestation y la release, primero
    como borrador y después la publica.
-4. `verificar-release`: vuelve a descargar los binarios desde la URL pública,
+5. `verificar-release`: vuelve a descargar los binarios desde la URL pública,
    sin credenciales, y comprueba todo otra vez.
+6. `verificar-instaladores`: ejecuta la línea de instalación real contra la
+   release en cada sistema y mide que tarda menos de 60 s.
 
-Si un solo target falla, no se publica la release.
+Si un solo target o un instalador falla, no se publica la release.
 
 Si `publicar` se corta a medias, queda como mucho un borrador, que no ven los
 demás. Para reintentar, borra el borrador (`gh release delete <tag>`, sin
