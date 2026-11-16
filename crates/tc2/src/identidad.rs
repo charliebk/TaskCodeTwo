@@ -137,7 +137,8 @@ impl NoAsignable {
             Self::FueraDeLista => Mensaje::nuevo(&t::CUENTA_FUERA_DE_LISTA)
                 .con("login", login)
                 .con("id", u.id.to_string())
-                .con("ruta", RUTA_PERSONAS),
+                .con("ruta", RUTA_PERSONAS)
+                .con("base", config::BASE),
             Self::LoginNoValido => Mensaje::nuevo(&t::LOGIN_DE_LA_API)
                 .con("login", login)
                 .con("id", u.id.to_string()),

@@ -55,8 +55,8 @@ crate::i18n::textos! {
         en: "the account of the person token is web-flow, GitHub's web account: TC2_TOKEN_PERSONA must be your user's token",
     }
     CUENTA_FUERA_DE_LISTA {
-        es: "la cuenta {login} (id {id}) no esta en {ruta}: pide que la anadan con un PR, o usa el token de una persona de la lista; si ya la anadieron, ejecuta `tc2 identidad` (actualiza la lista)",
-        en: "account {login} (id {id}) is not in {ruta}: ask for it to be added with a PR, or use the token of a person on the list; if it was already added, run `tc2 identidad` (it updates the list)",
+        es: "la cuenta {login} (id {id}) no esta en {ruta} de la rama base actualizada ({base}): pide que la anadan con un PR, o usa el token de una persona de la lista",
+        en: "account {login} (id {id}) is not in {ruta} of the updated base branch ({base}): ask for it to be added with a PR, or use the token of a person on the list",
     }
     LOGIN_DE_LA_API {
         es: "la plataforma devolvio un login que no vale para {login} (id {id}): revisa la cuenta del token",

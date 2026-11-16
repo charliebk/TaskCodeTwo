@@ -181,7 +181,9 @@ fn fallo_fetch(op: &str, s: &SalidaGit) -> Informe {
 }
 
 /// Trae solo `rama` de `origin` (actualiza `origin/<rama>`), con la misma
-/// clasificacion de fallos que [`fetch`].
+/// clasificacion de fallos que [`fetch`], salvo que `origin` no tenga la
+/// rama: eso no es falta de red sino `rechazada motivo=sin-rama-base
+/// rama=<rama>`.
 pub(crate) fn traer_rama(git: &Git, dir: &Path, op: &str, rama: &str) -> Paso<()> {
     let s = correr(
         git,
@@ -191,10 +193,19 @@ pub(crate) fn traer_rama(git: &Git, dir: &Path, op: &str, rama: &str) -> Paso<()
         &["-q", "--end-of-options", REMOTO, rama],
     )?;
     if s.exito() {
-        Ok(())
-    } else {
-        Err(fallo_fetch(op, &s))
+        return Ok(());
     }
+    if clasificar_fallo_remoto(&s.stderr) == FalloRemoto::RamaInexistente {
+        return Err(Informe::nuevo(op, Resultado::Rechazada)
+            .con("motivo", "sin-rama-base")
+            .con("rama", rama)
+            .diagnostico(
+                Mensaje::nuevo(&txt::SIN_RAMA_BASE)
+                    .con("rama", rama)
+                    .con("remoto", REMOTO),
+            ));
+    }
+    Err(fallo_fetch(op, &s))
 }
 
 fn traer(git: &Git, dir: &Path, op: &str) -> Paso<Informe> {

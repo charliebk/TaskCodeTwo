@@ -316,8 +316,53 @@ fn cuenta_fuera_de_lista_bot_o_web_flow_no_toca_la_cache() {
             );
             assert_eq!(i.resultado.codigo(), 3);
             assert_eq!(std::fs::read(cache.ruta()).unwrap(), antes, "{login}");
+            // Con terminal la base ya se acaba de traer: el arreglo es el PR,
+            // no volver a lanzar `tc2 identidad` (revision 2, IMP-2).
+            if cuenta == "fuera-de-lista" {
+                for idioma in [tc2::i18n::Idioma::Es, tc2::i18n::Idioma::En] {
+                    let d = i.diagnostico_en(idioma).unwrap();
+                    assert!(
+                        d.contains(".taskcode/personas.yml")
+                            && d.contains("origin/develop")
+                            && d.contains("PR")
+                            && !d.contains("tc2 identidad"),
+                        "{d}"
+                    );
+                }
+            }
         }
     }
+}
+
+/// Revision 2, MEN-2/MEN-4: si `origin` no tiene la rama base, `tc2
+/// identidad` no dice `sinred` (reintentar no lo arregla): `rechazada
+/// motivo=sin-rama-base rama=develop`, sin hablar con la API ni tocar la
+/// cache.
+#[test]
+fn origin_sin_rama_base_no_es_sin_red() {
+    let s = Servidor::nuevo(&[("/user", &Prov::GitHub.usuario("carlos", 1001, false))]);
+    let f = Fixture::nueva("identidad-sin-base");
+    let clon = repo(&f, Prov::GitHub, Some(&s.base()), Some(PERSONAS));
+    let bare = f.raiz.join("remoto.git");
+    f.crudo(&bare, &["update-ref", "-d", "refs/heads/develop"]);
+    let i = lanzar(&f, &clon, true);
+    assert_eq!(
+        (i.linea().as_str(), i.resultado),
+        (
+            "identidad rechazada motivo=sin-rama-base rama=develop",
+            Resultado::Rechazada
+        )
+    );
+    let es = i.diagnostico_en(tc2::i18n::Idioma::Es).unwrap();
+    let en = i.diagnostico_en(tc2::i18n::Idioma::En).unwrap();
+    assert!(es.contains("develop") && es.contains("no tiene"), "{es}");
+    assert!(en.contains("develop") && en.contains("has no"), "{en}");
+    assert!(s.peticiones().is_empty());
+    assert!(!cache_de(&clon).ruta().exists());
+    // El `fetch` de siempre no cambia: el remoto sin `develop` se trae sin
+    // error (solo `traer_rama` pide la rama).
+    let g = git_con_ssh(&f);
+    assert!(tc2::git::fetch(&g, &clon).resultado.es_exito());
 }
 
 /// C7: sin red, `tc2 identidad` falla (`sinred`, codigo 4) sin tocar la
