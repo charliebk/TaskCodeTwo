@@ -2,7 +2,7 @@
 
 - Commit revisado: 0097ddc (HEAD de la rama; el codigo no cambia respecto a 9290052, solo la peticion)
 - Revisor: rust-wasm-reviewer
-- Veredicto: aprobada con correcciones
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 
