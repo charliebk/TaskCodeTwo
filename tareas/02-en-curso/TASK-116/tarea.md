@@ -41,3 +41,8 @@ El codigo de tc2 usa nombres que chocan con la 0.16 y contradicen F1-12 D1a (tas
 | 2026-11-16T22:37:06Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T22:40:57Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T22:40:58Z | start | automatico | persona | 0.16.1 |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 03c6f87
+- code-quality-reviewer — 03c6f87
