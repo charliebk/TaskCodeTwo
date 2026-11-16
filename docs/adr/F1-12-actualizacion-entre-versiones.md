@@ -544,6 +544,36 @@ Las órdenes que esos ADR nombran para la 2.0 (`taskctl actualizar`,
 `taskctl doctor`, `taskctl tareas --json`, `taskctl confiar`,
 `taskctl derivados`…) son `tc2 actualizar`, `tc2 doctor`, etc.
 
+#### Adenda de TASK-116 (2026-11-16): todos los nombres de la huella
+
+La nota anterior solo cubría la rama y `.git/taskcode`. Al implementar
+F2-2..F2-13 quedaron en el código otros nombres que chocan con la 0.16 o no
+se reconocen como de la 2.0; TASK-116 los alinea con D1a. Son la **única
+lectura válida** de F1-2, F1-3, F1-4 y F1-16 donde nombran estas piezas, y
+salen todos de un único módulo, `crates/tc2/src/huella.rs`:
+
+| Pieza | Nombre en F1-2/F1-3/F1-4/F1-16 y en el código anterior | Nombre de la 2.0 |
+|---|---|---|
+| Rama de estado | `taskcode/tareas` | **`taskcodetwo/tareas`** |
+| Cerrojo local del clon | `.git/taskcode-estado.lock` | **`.git/taskcodetwo/estado.lock`** |
+| Caché de identidad (F2-13) | `.git/tc2/identidad.yml` | **`.git/taskcodetwo/identidad.yml`** |
+| Índices temporales de la transacción | `.git/taskcode-estado-tmp/` | **`.git/taskcodetwo/estado-tmp/`** |
+| Refs de pendientes y rechazadas | `refs/taskcode/{pendientes,rechazadas}/` | **`refs/taskcodetwo/{pendientes,rechazadas}/`** |
+| Worktrees de tarea | `.taskcode/worktrees/TASK-NNN` | **`.taskcodetwo/worktrees/TASK-NNN`** (sigue dentro del proyecto y excluida por `info/exclude`, F1-3 D2a) |
+| Config del proyecto | `.taskcode/config.yml`, `personas.yml`, vocabulario | **sin cambio**: compartida con la 0.16 (D4a) |
+
+Lo que deja la 0.16.1 en un repo (medido en su código y en OpenDockTrading
+y ToolsaWeb el 2026-11-16): `.git/taskcode/` (`puertas.log`, `gitflow/`,
+`cadena.lock`, `progreso.json`, `progreso-contador`,
+`freno-ultimo-verde.json`), `.taskcode/config.yml`,
+`.taskcode/doctor-deploy.yml` y `tareas/` en las ramas de código. No usa
+`refs/taskcode/`, `.taskcode/worktrees` ni nada con `taskcodetwo`, así que
+los nombres nuevos no comparten nada con ella. La 2.0 no estaba desplegada
+en ningún repo real (ni rama `taskcode*`, ni `refs/taskcode`, ni
+`.git/tc2`, ni `.git/taskcode-estado.lock`): el cambio no necesita migración.
+`tests/convivencia_016.rs` comprueba que `alta` y `crear_rama_y_worktree`
+dejan intacta la huella de la 0.16.
+
 ### Divergencia con el plan
 
 1. **Recuento de OpenDockTrading**: el plan decía 33 planificadas, 61
