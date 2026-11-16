@@ -2,7 +2,7 @@
 
 - Commit revisado: a206230 (HEAD de la rama; el codigo es el de 727d2c5, el ultimo commit solo anade la peticion)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE
+- Veredicto: aprobada
 
 ## Hallazgos
 
