@@ -33,6 +33,8 @@ Métricas, presupuesto de tokens, ciclo de iteración, guía.
 
 ### H9 — Actualización de proyectos, piloto y 2.0.0
 taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTrading y ToolsaWeb.
+### H10 — Memoria del proyecto
+Índice de contexto propio (sustituye a engram), etiquetas, `tc2 buscar`, conversores de tareas y de engram, grafo y visor 3D con dockview.
 <!-- manual:fin -->
 
 ## Estado del trabajo
