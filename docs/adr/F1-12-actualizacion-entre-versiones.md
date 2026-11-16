@@ -549,10 +549,11 @@ Las órdenes que esos ADR nombran para la 2.0 (`taskctl actualizar`,
 La nota anterior solo cubría la rama y `.git/taskcode`. Al implementar
 F2-2..F2-13 quedaron en el código otros nombres que chocan con la 0.16 o no
 se reconocen como de la 2.0; TASK-116 los alinea con D1a. Son la **única
-lectura válida** de F1-2, F1-3, F1-4 y F1-16 donde nombran estas piezas, y
-salen todos de un único módulo, `crates/tc2/src/huella.rs`:
+lectura válida** de F1-1, F1-2, F1-3, F1-4, F1-5, F1-6, F1-7, F1-8, F1-9,
+F1-10, F1-11 y F1-16 donde nombran estas piezas (cada uno lo dice en su
+cabecera), y salen todos de un único módulo, `crates/tc2/src/huella.rs`:
 
-| Pieza | Nombre en F1-2/F1-3/F1-4/F1-16 y en el código anterior | Nombre de la 2.0 |
+| Pieza | Nombre en esos ADR y en el código anterior | Nombre de la 2.0 |
 |---|---|---|
 | Rama de estado | `taskcode/tareas` | **`taskcodetwo/tareas`** |
 | Cerrojo local del clon | `.git/taskcode-estado.lock` | **`.git/taskcodetwo/estado.lock`** |

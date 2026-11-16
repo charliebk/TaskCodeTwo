@@ -5,6 +5,7 @@
 - Requisitos: la fila F1-8 del plan no cita ninguno; este ADR responde a RR-03, RR-08, RR-13, RR-15, RR-18, RF-70, RN-02 y RN-06 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md), a las viñetas 3 y 4 de P6 del plan y a H2 y H9 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-5](F1-5-puertas-en-github.md) (checks `carril`, `verificacion` y `revision-ia`, `integration_id` 15368, CODEOWNERS en `/.github/` y `/.taskcode/`), [ADR F1-6](F1-6-identidades-agente-revisor-persona.md) (dos Apps, el agente sin `workflows` ni `secrets`, la clave del revisor en Actions —D5a—, firma de la persona con FIDO o frase sin caché) y [ADR F1-7](F1-7-verificacion-ci-perfiles-cache-runners.md) (caché por árbol en el resumen del check, runner por perfil, runner propio solo en privados, hook con la rápida)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1b, D2b, D3b, D4b y D5a del plan de TASK-009)
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 

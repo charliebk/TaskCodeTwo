@@ -5,6 +5,7 @@
 - Requisitos: la fila F1-9 del plan no cita ninguno; este ADR responde a RR-10, RR-13, RR-14, RR-17, RR-19, RF-01, RF-07, RF-22, RF-34, RF-51, RF-62 y RF-71 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md) y a H11 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (carpeta fija `TASK-NNN/`, estado como campo), [ADR F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) (ID y toma con el «quién»), [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (nombre de rama), [ADR F1-5](F1-5-puertas-en-github.md) (decisión 4: la aprobación es el commit firmado con `Plan-Blob` sobre el blob de `plan-final.md`) y [ADR F1-8](F1-8-seguridad-modelo-de-amenazas.md) (zona Z2 y activo `A10`: el texto de las tareas es dato no confiable)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a y D5a del plan de TASK-010)
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 

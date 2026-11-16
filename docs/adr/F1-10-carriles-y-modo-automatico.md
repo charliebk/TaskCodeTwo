@@ -5,6 +5,7 @@
 - Requisitos: la fila F1-10 del plan cita P7; este ADR responde a RR-02, RR-04, RR-07, RR-08, RR-17, RR-18, RF-21, RF-27, RF-33, RF-50, RF-51 y RN-06 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md) (RR-18 viene de la [ampliación del 2026-11-14](../plan/AMPLIACION-2026-11-14.md)) y a H5 y H6 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (release y hotfix), [ADR F1-5](F1-5-puertas-en-github.md) (tabla de carriles, check `carril`, carril efectivo, errata solo con `docs/`), [ADR F1-6](F1-6-identidades-agente-revisor-persona.md) (operación → identidad, lista de firmantes en `.taskcode/`), [ADR F1-7](F1-7-verificacion-ci-perfiles-cache-runners.md) (perfil por evento), [ADR F1-8](F1-8-seguridad-modelo-de-amenazas.md) (`carril` en `pull_request_target`, D1b) y [ADR F1-9](F1-9-formato-de-tarea-plan-y-especificacion.md) (campo `carril`, modo congelado en la tarea)
 - Decide: Carlos, con la consigna «la opción recomendada» (D0a, D1a, D2a, D3a, D4a, D5a, D6a y D7a del plan de TASK-011) y «no trocear»
+- Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
 
