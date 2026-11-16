@@ -55,10 +55,19 @@ terminal_nueva_unix() { # <home>
   env -i HOME="$1" PATH=/usr/bin:/bin sh -l -c 'command -v tc2 && tc2 --version'
 }
 
-# --- Windows: la linea de PowerShell 5.1 con un LOCALAPPDATA nuevo ---------
+# --- Windows: la linea de PowerShell 5.1 ----------------------------------
+#
+# Sin cambiar LOCALAPPDATA: ahi guarda PowerShell su cache de modulos, y con
+# uno vacio la reconstruye en cada proceso (unos 40 s en windows-11-arm), algo
+# que no le pasa a nadie que instala. La medida usa el destino por defecto; el
+# resto de pruebas aislan el destino con TC2_INSTALL_DIR.
 
-linea_windows() { # <localappdata en formato Windows>
-  LOCALAPPDATA="$1" powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm '$url/install.ps1' | iex"
+linea_windows() { # [dir de instalacion en formato Windows]
+  if [ -n "${1:-}" ]; then
+    TC2_INSTALL_DIR="$1" powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm '$url/install.ps1' | iex"
+  else
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm '$url/install.ps1' | iex"
+  fi
 }
 
 # Un proceso nuevo que lee el PATH del registro, como una ventana nueva.
@@ -79,9 +88,9 @@ dir_windows() { # <ruta de sh>
 medir() {
   if [ "$so" = windows ]; then
     # La persona escribe la linea en una ventana de PowerShell ya abierta: el
-    # primer arranque de powershell.exe en un runner recien creado (mas de un
-    # minuto en windows-11-arm) no es parte de la instalacion. Se paga aqui,
-    # fuera de la medida, y se deja en el log.
+    # primer arranque de powershell.exe en un runner recien creado (unos 12 s
+    # en windows-11-arm) no es parte de la instalacion. Se paga aqui, fuera de
+    # la medida, y se deja en el log.
     frio=$(date +%s)
     powershell.exe -NoProfile -Command 'exit 0'
     echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
@@ -92,10 +101,9 @@ medir() {
   fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
-    lad=$(dir_windows "$tmp/lad-medida")
-    linea_windows "$lad"
+    linea_windows
     encontrado=$(terminal_nueva_windows)
-    esperado_dir="$lad\\taskcodetwo\\bin\\tc2.exe"
+    esperado_dir="$LOCALAPPDATA\\taskcodetwo\\bin\\tc2.exe"
   else
     mkdir -p "$tmp/home-medida"
     linea_unix "$tmp/home-medida"
@@ -118,9 +126,8 @@ medir() {
 hash_alterado() {
   export TC2_BASE_URL="$url/malo"
   if [ "$so" = windows ]; then
-    lad=$(dir_windows "$tmp/lad-malo")
-    if linea_windows "$lad"; then rojo "con un hash alterado el instalador salio con 0"; fi
-    [ ! -e "$tmp/lad-malo/taskcodetwo/bin/tc2.exe" ] || rojo "con un hash alterado quedo tc2.exe instalado"
+    if linea_windows "$(dir_windows "$tmp/dest-malo")"; then rojo "con un hash alterado el instalador salio con 0"; fi
+    [ ! -e "$tmp/dest-malo/tc2.exe" ] || rojo "con un hash alterado quedo tc2.exe instalado"
   else
     mkdir -p "$tmp/home-malo"
     if linea_unix "$tmp/home-malo"; then rojo "con un hash alterado el instalador salio con 0"; fi
@@ -132,14 +139,15 @@ hash_alterado() {
 
 path_idempotente() {
   if [ "$so" = windows ]; then
-    lad=$(dir_windows "$tmp/lad-doble")
-    linea_windows "$lad"
-    linea_windows "$lad"
-    n=$(veces_en_path_usuario "$lad\\taskcodetwo\\bin")
+    dest=$(dir_windows "$tmp/dest-doble")
+    linea_windows "$dest"
+    linea_windows "$dest"
+    n=$(veces_en_path_usuario "$dest")
     [ "$n" = 1 ] || rojo "tras instalar dos veces, el dir esta $n veces en el PATH del usuario"
-    lad=$(dir_windows "$tmp/lad-sin-path")
-    (export TC2_NO_MODIFY_PATH=1; linea_windows "$lad")
-    n=$(veces_en_path_usuario "$lad\\taskcodetwo\\bin")
+    dest=$(dir_windows "$tmp/dest-sin-path")
+    (export TC2_NO_MODIFY_PATH=1; linea_windows "$dest")
+    [ -e "$tmp/dest-sin-path/tc2.exe" ] || rojo "con TC2_NO_MODIFY_PATH=1 no se instalo tc2.exe"
+    n=$(veces_en_path_usuario "$dest")
     [ "$n" = 0 ] || rojo "con TC2_NO_MODIFY_PATH=1 el dir esta $n veces en el PATH del usuario"
   else
     h="$tmp/home-doble"
@@ -161,7 +169,7 @@ sin_version() {
   unset TC2_VERSION
   set +e
   if [ "$so" = windows ]; then
-    salida=$(linea_windows "$(dir_windows "$tmp/lad-ultima")" 2>&1)
+    salida=$(linea_windows "$(dir_windows "$tmp/dest-ultima")" 2>&1)
   else
     mkdir -p "$tmp/home-ultima"
     salida=$(linea_unix "$tmp/home-ultima" 2>&1)

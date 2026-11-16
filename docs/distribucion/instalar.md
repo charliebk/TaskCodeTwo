@@ -87,8 +87,8 @@ En cada cambio, el job `instaladores-ensayo` de `release.yml` sirve en
 
 - instalación medida: desde la línea hasta que una terminal nueva encuentra
   `tc2` y escribe `tc2 <version>`, en menos de 60 s. En Windows, el primer
-  arranque de `powershell.exe` en un runner recién creado (más de un minuto
-  en `windows-11-arm`) queda fuera: la persona escribe la línea en una ventana
+  arranque de `powershell.exe` en un runner recién creado (unos 12 s en
+  `windows-11-arm`) queda fuera: la persona escribe la línea en una ventana
   ya abierta. Se mide aparte y queda en el log;
 - con un `SHA256SUMS` alterado, sale con error y no queda `tc2`;
 - dos instalaciones dejan una sola entrada en el PATH, y
