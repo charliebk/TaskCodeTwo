@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [convivencia, git]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-116-nombres-de-la-2-0-alineados-con-f1-12-d1
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 9610206
 tokens_revision: null
 creado: 2026-11-16
 actualizado: 2026-11-16
@@ -41,8 +41,16 @@ El codigo de tc2 usa nombres que chocan con la 0.16 y contradicen F1-12 D1a (tas
 | 2026-11-16T22:37:06Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T22:40:57Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T22:40:58Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T23:02:23Z | review | automatico | persona | 0.16.1 |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 03c6f87
 - code-quality-reviewer — 03c6f87
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16T23:02:23Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 8 | 9091 | 1905964 | 2056 | 0 | 1917119 | - | - |
+| 2026-11-16T23:02:23Z | implementacion | agente:abed89afa4dbae9c1 | 124 | 178848 | 7473266 | 40849 | 7 | 7693087 | - | - |
