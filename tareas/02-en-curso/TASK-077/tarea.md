@@ -41,6 +41,11 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 - [ ] C8: sin plataforma reconocida `detectar` rechaza; no hay vuelta a texto libre (`tests/identidad.rs`)
 - [ ] C9: un `asignado_a` de texto de la 0.16 se lee como `Heredado` y la 2.0 nunca lo escribe; si coincide con un `correos:` de `personas.yml` se convierte (`tests/tarea.rs`)
 
+## Autorrevision
+
+- rust-wasm-reviewer — ce6cc61
+- code-quality-reviewer — ce6cc61
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
