@@ -195,6 +195,11 @@ main() {
   else
     fallo "no hay HOME" "define TC2_INSTALL_DIR=<directorio>"
   fi
+  # Absoluto: el directorio acaba en el PATH y en el perfil del shell.
+  case "$destino" in
+    /*) ;;
+    *) destino="$(pwd)/$destino" ;;
+  esac
 
   tmp=$(mktemp -d 2>/dev/null || mktemp -d -t tc2-instalar)
   trap 'rm -rf "$tmp"' EXIT

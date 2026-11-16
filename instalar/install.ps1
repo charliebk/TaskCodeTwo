@@ -174,6 +174,9 @@ function Install-Tc2 {
     if (-not $destino) {
         $destino = Join-Path $env:LOCALAPPDATA 'taskcodetwo\bin'
     }
+    # Absoluto (respecto al directorio actual de PowerShell): el directorio
+    # acaba en el PATH del usuario.
+    $destino = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($destino)
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('tc2-instalar-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null
