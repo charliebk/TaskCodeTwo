@@ -45,3 +45,8 @@ Tarea F2-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T00:50:33Z | diseno | agente:adeb100acb51b0731 | 22 | 71992 | 485910 | 13401 | 24 | 571325 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 7527334
+- code-quality-reviewer — 7527334
