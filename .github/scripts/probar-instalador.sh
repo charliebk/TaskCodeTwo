@@ -94,13 +94,19 @@ medir() {
     frio=$(date +%s)
     powershell.exe -NoProfile -Command 'exit 0'
     echo "probar: primer arranque de powershell.exe: $(($(date +%s) - frio)) s (fuera de la medida)"
-    # Desglose, solo informativo, con un cronometro de .NET (Measure-Command
-    # cargaria el modulo que se quiere medir): cargar el modulo de irm
-    # (Microsoft.PowerShell.Utility) y bajar el script.
-    powershell.exe -NoProfile -Command "\$c = [Diagnostics.Stopwatch]::StartNew(); Import-Module Microsoft.PowerShell.Utility; \$m = \$c.Elapsed.TotalSeconds; \$c.Restart(); \$null = irm '$url/install.ps1'; \$i = \$c.Elapsed.TotalSeconds; [Console]::WriteLine(('probar: desglose: cargar Microsoft.PowerShell.Utility {0:N1} s, irm del script {1:N1} s' -f \$m, \$i)); [Console]::WriteLine('probar: PSModulePath: ' + \$env:PSModulePath)" | tr -d '\r'
+    # El PSModulePath del runner trae los modulos de Azure (C:\Modules\az_*)
+    # y de SQL Server, que un Windows limpio no tiene: para encontrar irm,
+    # PowerShell los recorre en cada proceso (47 s medidos en windows-11-arm,
+    # TASK-026). Se mide con el PSModulePath de un Windows limpio, y el coste
+    # con el del runner queda en el log.
     t=$(date +%s)
     powershell.exe -NoProfile -Command "\$null = Get-Date" >/dev/null
-    echo "probar: desglose: proceso nuevo con un cmdlet de Utility: $(($(date +%s) - t)) s"
+    echo "probar: con el PSModulePath del runner ($PSModulePath), un proceso nuevo que usa un cmdlet de Microsoft.PowerShell.Utility tarda $(($(date +%s) - t)) s (fuera de la medida)"
+    PSModulePath="$USERPROFILE\\Documents\\WindowsPowerShell\\Modules;C:\\Program Files\\WindowsPowerShell\\Modules;C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules"
+    export PSModulePath
+    t=$(date +%s)
+    powershell.exe -NoProfile -Command "\$null = Get-Date" >/dev/null
+    echo "probar: con el PSModulePath de un Windows limpio ($PSModulePath), el mismo proceso tarda $(($(date +%s) - t)) s"
   fi
   inicio=$(date +%s)
   if [ "$so" = windows ]; then
