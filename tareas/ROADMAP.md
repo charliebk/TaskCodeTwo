@@ -41,8 +41,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-096, TASK-113
+- **En marcha:** TASK-113 (en diseño)
+- **Listas para empezar:** TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-096
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -232,4 +232,4 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 82 | TASK-113 | Puerta de valor F10: informe y datos del A/B indice frente a grep | simple | — | lista para empezar |
+| 82 | TASK-113 | Puerta de valor F10: informe, datos y descarte del H10 | simple | — | ▶ en diseño |

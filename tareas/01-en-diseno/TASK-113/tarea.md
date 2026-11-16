@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: [fase10, medicion, docs]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-113-puerta-de-valor-f10-informe-y-datos-del
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -34,3 +34,9 @@ Dejar en el repo la evidencia de la puerta de valor de la Fase 10 (experimento A
 - [ ] Las tareas TASK-096..TASK-112 (F10-1..F10-17) ya no existen en tareas/ y ninguna tarea viva depende de ellas
 - [ ] tareas/ROADMAP.md y docs/BOARD.md, regenerados con taskctl, no contienen el hito H10 ni esas tareas
 - [ ] RR-20 y RF-77..RF-84 (requisitos y plan), la seccion Fase 10 del plan, el ADR F1-19 (y su fila en docs/adr/README.md) y docs/plan/AMPLIACION-2026-11-16.md quedan marcados como descartados el 2026-11-16 con enlace al informe
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-16T16:43:04Z | plan | automatico | persona | 0.16.1 |
