@@ -150,8 +150,114 @@ fn el_segundo_clon_recibe_el_siguiente_id_sin_fetch_previo() {
     );
 }
 
+/// Valor de `clave=` en una linea de contrato.
+fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
+    linea
+        .split(' ')
+        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+}
+
+/// TASK-076 C2: una rama de tarea que solo esta en el remoto (sin carpeta)
+/// ocupa su numero: el siguiente `new` da un ID mayor.
+#[test]
+fn rama_solo_en_el_remoto_ocupa_su_id() {
+    let f = Fixture::nueva("alta-rama-remota");
+    let (bare, a) = f.remoto_y_clon();
+    let b = f.otro_clon(&bare, "clon-b");
+    // Otra persona publica la rama sin pasar por `new` (ni carpeta).
+    f.crudo(&b, &["branch", "feature/task-005-x"]);
+    f.crudo(&b, &["push", "-q", "origin", "feature/task-005-x"]);
+    let o = tc2(&f, &a, &["new", "Despues de la rama"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-006"), "{out}");
+    assert_eq!(
+        valor(&out, "rama"),
+        Some("feature/task-006-despues-de-la-rama"),
+        "{out}"
+    );
+    let md = f.crudo(&bare, &["show", &format!("{RAMA}:TASK-006/tarea.md")]);
+    assert!(
+        md.contains("\nrama: \"feature/task-006-despues-de-la-rama\"\n"),
+        "{md}"
+    );
+    assert!(
+        !f.crudo(&bare, &["ls-tree", "--name-only", RAMA])
+            .contains("TASK-005")
+    );
+}
+
+/// TASK-076 C3: lo mismo con una rama `*/task-NNN-*` que solo existe en
+/// local (tambien en un repo sin remoto, que solo mira la local).
+#[test]
+fn rama_solo_en_local_ocupa_su_id() {
+    let f = Fixture::nueva("alta-rama-local");
+    let (_bare, a) = f.remoto_y_clon();
+    f.crudo(&a, &["branch", "fix/task-009-y"]);
+    let o = tc2(&f, &a, &["new", "Tras la local"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-010"), "{out}");
+
+    // Sin remoto: la rama local tambien cuenta.
+    let solo = f.raiz.join("solo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
+    f.crudo(&solo, &["commit", "-q", "--allow-empty", "-m", "inicial"]);
+    f.crudo(&solo, &["branch", "a/b/task-020-z"]);
+    let o = tc2(&f, &solo, &["new", "Sin remoto"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-021"), "{out}");
+}
+
+/// TASK-076 C6: si el remoto no responde, el `ls-remote` previo sale
+/// `sinred` (4) antes de la transaccion (sin `fetch` ni `push`) y no deja
+/// refs; un remoto que no existe es `denegada` (8), como en `fetch`.
+#[test]
+fn ls_remote_previo_sin_red_o_denegado_no_deja_nada() {
+    let f = Fixture::nueva("alta-lsremote");
+    let (_bare, a) = f.remoto_y_clon();
+    let antes = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
+    f.crudo(
+        &a,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "http://127.0.0.1:1/remoto.git",
+        ],
+    );
+    let g = f.git();
+    let i = tc2::git::ids_con_rama(&g, &a, "new").expect_err("sin red");
+    assert_eq!(
+        i.resultado,
+        tc2::contrato::Resultado::Sinred,
+        "{}",
+        i.linea()
+    );
+    let remotas: Vec<String> = g
+        .registro()
+        .into_iter()
+        .filter(|l| l.starts_with("git fetch") || l.starts_with("git push"))
+        .collect();
+    assert!(remotas.is_empty(), "{remotas:?}");
+    let no_existe = f.raiz.join("no-existe.git");
+    f.crudo(
+        &a,
+        &["remote", "set-url", "origin", no_existe.to_str().unwrap()],
+    );
+    let o = tc2(&f, &a, &["new", "Remoto que no existe"]);
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(8), "{out} {}", texto(&o.stderr));
+    assert!(out.starts_with("new denegada "), "{out}");
+    assert_eq!(valor(&out, "operacion"), None, "{out}");
+    let despues = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
+    assert_eq!(antes, despues, "new dejo refs");
+}
+
 /// C2b: sin red, `new` no reserva nada: `sinred pendiente=no` (4), sin
-/// commit local ni operacion pendiente (D2b de F1-2).
+/// commit local ni operacion pendiente (D2b de F1-2). Desde F2-4b lo corta
+/// el `ls-remote` previo: la linea no lleva `operacion=` (TASK-076 C6).
 #[test]
 fn sin_red_falla_sin_dejar_nada() {
     let f = Fixture::nueva("alta-sinred");
@@ -171,6 +277,8 @@ fn sin_red_falla_sin_dejar_nada() {
     assert_eq!(o.status.code(), Some(4), "{out} {}", texto(&o.stderr));
     assert!(out.starts_with("new sinred "), "{out}");
     assert!(out.contains(" pendiente=no"), "{out}");
+    assert_eq!(valor(&out, "operacion"), None, "{out}");
+    assert_eq!(valor(&out, "remoto"), Some("origin"), "{out}");
     let despues = f.crudo(&a, &["for-each-ref", "--format=%(refname) %(objectname)"]);
     assert_eq!(antes, despues, "new sin red dejo refs");
 }

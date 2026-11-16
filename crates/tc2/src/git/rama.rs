@@ -1,8 +1,11 @@
 //! Operaciones de rama y worktree de tarea: `localizar-principal`,
 //! `validar-base`, `comprobar-id`, `crear-rama-y-worktree` y `reanudar`.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use super::estado::hay_remoto;
+use super::remoto::{FalloRemoto, clasificar_fallo_remoto};
 use super::{
     CARPETA_WORKTREES, Git, Paso, REMOTO, Subcomando, commit_de, correr, es_id, exigir, misma_ruta,
     nombre_de_rama, worktree_relativo, worktrees,
@@ -87,8 +90,13 @@ fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> 
         Subcomando::Branch,
         &["--list", "--format=%(refname:short)", &patron],
     )?;
+    Ok(nombres(&remoto.stdout, &local))
+}
+
+/// Nombres de rama de la salida de `ls-remote --heads` y de `branch --list
+/// --format=%(refname:short)`, ordenados y sin repetir.
+fn nombres(remoto: &str, local: &str) -> Vec<String> {
     let mut ramas: Vec<String> = remoto
-        .stdout
         .lines()
         .filter_map(|l| l.split('\t').nth(1))
         .filter_map(|r| r.strip_prefix("refs/heads/"))
@@ -97,7 +105,70 @@ fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> 
         .collect();
     ramas.sort();
     ramas.dedup();
-    Ok(ramas)
+    ramas
+}
+
+/// Patron de las ramas de tarea (ADR F1-3: `<tipo>/task-nnn-<slug>`).
+/// `ls-remote` lo casa por sufijo (tambien `refs/heads/task-1-x`, sin tipo) y
+/// `branch --list` contra el nombre entero: lo que cuenta lo decide
+/// [`id_de_rama`], igual para los dos.
+const PATRON_TAREAS: &str = "*/task-*";
+
+/// Numero de tarea de una rama: el primer componente, salvo el primero (el
+/// tipo), de la forma `task-<cifras>` o `task-<cifras>-<resto>`.
+fn id_de_rama(rama: &str) -> Option<u32> {
+    rama.split('/').skip(1).find_map(|c| {
+        let resto = c.strip_prefix("task-")?;
+        let fin = resto
+            .find(|ch: char| !ch.is_ascii_digit())
+            .unwrap_or(resto.len());
+        let (cifras, tras) = resto.split_at(fin);
+        (!cifras.is_empty() && (tras.is_empty() || tras.starts_with('-')))
+            .then(|| cifras.parse().ok())
+            .flatten()
+    })
+}
+
+/// IDs que ya tienen rama de tarea (`*/task-nnn-*`) en local o, si hay
+/// `origin`, en el remoto (F2-4b): el alta no nombra una rama que ya existe.
+/// Un fallo del remoto se clasifica como en `fetch`: `sinred` (4),
+/// `denegada` (8) o `error` local.
+pub fn ids_con_rama(git: &Git, dir: &Path, op: &str) -> Paso<BTreeSet<u32>> {
+    let principal = localizar_principal(git, dir)?;
+    let remoto = if hay_remoto(git, &principal, op)? {
+        let s = correr(
+            git,
+            &principal,
+            op,
+            Subcomando::LsRemote,
+            &["--heads", REMOTO, PATRON_TAREAS],
+        )?;
+        if !s.exito() {
+            return Err(match clasificar_fallo_remoto(&s.stderr) {
+                FalloRemoto::SinRed | FalloRemoto::RamaInexistente => {
+                    Informe::nuevo(op, Resultado::Sinred)
+                        .con("remoto", REMOTO)
+                        .diagnostico(super::remoto::sin_red_remoto(op))
+                }
+                FalloRemoto::Local => super::remoto::error_local(op, &s.primera_linea_error()),
+                otro => super::remoto::denegada(op, otro, &s.primera_linea_error()),
+            });
+        }
+        s.stdout
+    } else {
+        String::new()
+    };
+    let local = exigir(
+        git,
+        &principal,
+        op,
+        Subcomando::Branch,
+        &["--list", "--format=%(refname:short)", PATRON_TAREAS],
+    )?;
+    Ok(nombres(&remoto, &local)
+        .iter()
+        .filter_map(|r| id_de_rama(r))
+        .collect())
 }
 
 /// Valida `id`, `tipo` y `slug` y devuelve el nombre de rama.
@@ -332,4 +403,36 @@ pub(crate) fn error_de_fichero(ruta: &Path, e: &std::io::Error) -> Mensaje {
 pub(crate) fn renombrar(mut i: Informe, op: &str) -> Informe {
     op.clone_into(&mut i.comando);
     i
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{id_de_rama, nombres};
+
+    /// Lo que devuelve `ls-remote` por sufijo (comprobado con git 2.56):
+    /// cuenta un componente `task-<cifras>` que no sea el primero.
+    #[test]
+    fn id_de_las_ramas_de_tarea() {
+        for (rama, id) in [
+            ("feature/task-005-y", Some(5)),
+            ("a/b/task-1-x", Some(1)),
+            ("feature/task-10", Some(10)),
+            ("feature/task-12-s/sub", Some(12)),
+            ("fix/task-0042-x", Some(42)),
+            ("task-7-raiz", None),
+            ("feature/xtask-9-z", None),
+            ("feature/task-x", None),
+            ("feature/task-9x", None),
+            ("feature/task--1", None),
+            ("fix/TASK-11-m", None),
+            ("feature/task-99999999999-x", None),
+        ] {
+            assert_eq!(id_de_rama(rama), id, "{rama}");
+        }
+        let n = nombres(
+            "abc\trefs/heads/feature/task-005-y\nabc\trefs/heads/task-7-raiz\n",
+            "feature/task-005-y\n  \nfix/task-3-z\n",
+        );
+        assert_eq!(n, ["feature/task-005-y", "fix/task-3-z", "task-7-raiz"]);
+    }
 }

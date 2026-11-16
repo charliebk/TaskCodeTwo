@@ -225,15 +225,29 @@ fn orden_new(args: &[String]) -> Informe {
         }
     };
     let g = git::Git::nuevo();
-    let op = alta::Alta::nueva(titulo);
+    // Las ramas `*/task-*` se leen una vez, antes de la transaccion: el ID
+    // nuevo queda por encima de todas (F2-4b). Sin red no se reserva nada.
+    let ocupados = match git::ids_con_rama(&g, &dir, alta::NOMBRE) {
+        Ok(o) => o,
+        Err(mut i) => {
+            alta::NOMBRE.clone_into(&mut i.comando);
+            if i.resultado == Resultado::Sinred {
+                i = i.con("pendiente", "no");
+            }
+            return i;
+        }
+    };
+    let op = alta::Alta::nueva(titulo).con_ocupados(ocupados);
     let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
     let mut i = estado::transaccion(&c, &op);
     alta::NOMBRE.clone_into(&mut i.comando);
     if i.resultado == Resultado::Ok
-        && let Some(id) = op.id()
+        && let (Some(id), Some(rama)) = (op.id(), op.rama())
     {
         i.claves
             .insert(0, ("id".to_owned(), contrato::Valor::Texto(id)));
+        i.claves
+            .insert(1, ("rama".to_owned(), contrato::Valor::Texto(rama)));
     }
     i
 }

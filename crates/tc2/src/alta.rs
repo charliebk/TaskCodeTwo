@@ -8,6 +8,7 @@
 //! es el compare-and-swap: reservar un numero sin crearla no reservaria nada.
 
 use std::cell::Cell;
+use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::estado::{Cambio, Estado, Fallo, Operacion};
@@ -25,6 +26,7 @@ const PREFIJO: &str = "TASK-";
 pub struct Alta {
     titulo: String,
     fecha: String,
+    ocupados: BTreeSet<u32>,
     id: Cell<Option<u32>>,
 }
 
@@ -39,8 +41,17 @@ impl Alta {
         Self {
             titulo: titulo.to_owned(),
             fecha: fecha.to_owned(),
+            ocupados: BTreeSet::new(),
             id: Cell::new(None),
         }
+    }
+
+    /// IDs que ya tienen rama de tarea (`git::ids_con_rama`, leidos una vez
+    /// antes de la transaccion): el ID nuevo queda por encima (F2-4b).
+    #[must_use]
+    pub fn con_ocupados(mut self, ocupados: BTreeSet<u32>) -> Self {
+        self.ocupados = ocupados;
+        self
     }
 
     /// Rama derivada del ID del ultimo intento (F2-4b).
@@ -67,7 +78,7 @@ impl Operacion for Alta {
         true
     }
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let n = siguiente_id(&estado.rutas())?;
+        let n = siguiente_id(&estado.rutas(), &self.ocupados)?;
         self.id.set(Some(n));
         let id = formato_id(n);
         comprobar_rama(&id, &self.titulo)?;
@@ -107,10 +118,16 @@ fn numero(ruta: &str) -> Option<u32> {
     cifras.parse().ok()
 }
 
-/// Siguiente ID: el maximo de las carpetas `TASK-<cifras>` mas uno (cuentan
-/// terminadas y descartadas, que no se borran; los huecos no se rellenan).
-pub fn siguiente_id(rutas: &[String]) -> Result<u32, Fallo> {
-    let maximo = rutas.iter().filter_map(|r| numero(r)).max().unwrap_or(0);
+/// Siguiente ID: el maximo de las carpetas `TASK-<cifras>` y de los IDs con
+/// rama (`ocupados`) mas uno (cuentan terminadas y descartadas, que no se
+/// borran; los huecos no se rellenan). Adenda de F2-4b al ADR F1-2 punto 3.
+pub fn siguiente_id(rutas: &[String], ocupados: &BTreeSet<u32>) -> Result<u32, Fallo> {
+    let maximo = rutas
+        .iter()
+        .filter_map(|r| numero(r))
+        .chain(ocupados.iter().copied())
+        .max()
+        .unwrap_or(0);
     maximo
         .checked_add(1)
         .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))
@@ -193,19 +210,27 @@ mod tests {
             "TASK-/tarea.md",
             "TASK-+9/tarea.md",
         ]);
-        assert_eq!(siguiente_id(&r), Ok(8));
+        let sin = BTreeSet::new();
+        assert_eq!(siguiente_id(&r, &sin), Ok(8));
         // Una carpeta en minusculas puesta a mano tambien ocupa su numero.
         assert_eq!(
-            siguiente_id(&rutas(&["task-013/tarea.md", "TASK-002/tarea.md"])),
+            siguiente_id(&rutas(&["task-013/tarea.md", "TASK-002/tarea.md"]), &sin),
             Ok(14)
         );
-        assert_eq!(siguiente_id(&rutas(&["ñ/x", "TAS"])), Ok(1));
-        assert_eq!(siguiente_id(&[]), Ok(1));
-        assert_eq!(siguiente_id(&rutas(&["TASK-999/tarea.md"])), Ok(1000));
+        assert_eq!(siguiente_id(&rutas(&["ñ/x", "TAS"]), &sin), Ok(1));
+        assert_eq!(siguiente_id(&[], &sin), Ok(1));
+        assert_eq!(siguiente_id(&rutas(&["TASK-999/tarea.md"]), &sin), Ok(1000));
         assert_eq!(formato_id(1000), "TASK-1000");
         assert_eq!(formato_id(8), "TASK-008");
         let tope = rutas(&[&format!("TASK-{}/tarea.md", u32::MAX)]);
-        assert!(matches!(siguiente_id(&tope), Err(Fallo::Error(_))));
+        assert!(matches!(siguiente_id(&tope, &sin), Err(Fallo::Error(_))));
+        // F2-4b: una rama sin carpeta tambien ocupa su numero (adenda F1-2).
+        assert_eq!(siguiente_id(&r, &BTreeSet::from([5, 12])), Ok(13));
+        assert_eq!(siguiente_id(&r, &BTreeSet::from([3])), Ok(8));
+        assert!(matches!(
+            siguiente_id(&[], &BTreeSet::from([u32::MAX])),
+            Err(Fallo::Error(_))
+        ));
     }
 
     #[test]
