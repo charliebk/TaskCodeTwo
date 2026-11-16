@@ -15,6 +15,13 @@ pub mod sha256;
 /// mismo.
 pub const PROTOCOLO: u32 = 1;
 
+/// Repositorio de las releases (`gh attestation verify --repo`).
+pub const REPO: &str = "charliebk/TaskCodeTwo";
+
+/// Workflow que firma la attestation de los binarios
+/// (`gh attestation verify --signer-workflow`), como en los instaladores.
+pub const WORKFLOW_RELEASE: &str = "charliebk/TaskCodeTwo/.github/workflows/release.yml";
+
 /// Releases del repositorio: `cli.lock` apunta a `<RELEASES>/download/<tag>/`.
 pub const RELEASES: &str = "https://github.com/charliebk/TaskCodeTwo/releases";
 

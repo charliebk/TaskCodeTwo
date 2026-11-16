@@ -31,7 +31,7 @@ crate::i18n::textos! {
         en: "this tc2 belongs to the plugin ({ruta}) and the plugin updates it: motivo=gestionado-por-plugin arreglo=\"update the taskcodetwo plugin with /plugin in Claude Code\"",
     }
     GESTIONADO_POR_GESTOR {
-        es: "este tc2 lo instalo {gestor} ({ruta}): actualizalo con {gestor}, no con tc2 actualizar --cli",
+        es: "este tc2 lo ha instalado {gestor} ({ruta}): actualizalo con {gestor}, no con tc2 actualizar --cli",
         en: "this tc2 was installed by {gestor} ({ruta}): update it with {gestor}, not with tc2 actualizar --cli",
     }
     BASE_URL_INVALIDA {
@@ -85,5 +85,17 @@ crate::i18n::textos! {
     NO_SE_SUSTITUYE {
         es: "no se pudo sustituir {ruta}: {error}. Queda el binario anterior; cierra los tc2 abiertos y repite",
         en: "could not replace {ruta}: {error}. The previous binary is kept; close any running tc2 and retry",
+    }
+    ESCRITURA {
+        es: "no se pudo escribir {ruta}: {error}. Comprueba el espacio libre en disco y repite; no se ha cambiado nada",
+        en: "could not write {ruta}: {error}. Check the free disk space and retry; nothing was changed",
+    }
+    ESCRITURA_DESCARGA {
+        es: "no se pudo escribir la descarga: {error}. Comprueba el espacio libre en disco y repite",
+        en: "could not write the download: {error}. Check the free disk space and retry",
+    }
+    ATTESTATION_NO_VALIDA {
+        es: "la attestation de procedencia de {fichero} no es valida ({detalle}): no se ha cambiado nada. Avisa en https://github.com/charliebk/TaskCodeTwo/issues",
+        en: "the provenance attestation of {fichero} is not valid ({detalle}): nothing was changed. Report it at https://github.com/charliebk/TaskCodeTwo/issues",
     }
 }

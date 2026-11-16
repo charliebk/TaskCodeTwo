@@ -136,19 +136,25 @@ fn instalar_vx(dir: &Path) -> PathBuf {
     destino
 }
 
-/// El binario del doble `tc2_falso`, que `cargo test` deja en `examples/`.
-fn binario_vy() -> Vec<u8> {
+/// Ruta de un ejemplo (`tc2_falso`, `gh_falso`), que `cargo test` deja en
+/// `examples/`.
+fn ejemplo(nombre: &str) -> PathBuf {
     let ruta = Path::new(env!("CARGO_BIN_EXE_tc2"))
         .parent()
         .unwrap()
         .join("examples")
-        .join(format!("tc2_falso{}", std::env::consts::EXE_SUFFIX));
-    std::fs::read(&ruta).unwrap_or_else(|e| {
-        panic!(
-            "falta {} ({e}): lanza `cargo test -p tc2`, que compila los ejemplos",
-            ruta.display()
-        )
-    })
+        .join(format!("{nombre}{}", std::env::consts::EXE_SUFFIX));
+    assert!(
+        ruta.is_file(),
+        "falta {}: lanza `cargo test -p tc2`, que compila los ejemplos",
+        ruta.display()
+    );
+    ruta
+}
+
+/// El binario del doble `tc2_falso`.
+fn binario_vy() -> Vec<u8> {
+    std::fs::read(ejemplo("tc2_falso")).unwrap()
 }
 
 /// Release de ensayo con `binario` como version `version` del target actual,
@@ -164,12 +170,29 @@ fn release(version: &str, binario: &[u8], hash: Option<&str>) -> BTreeMap<String
 }
 
 fn lanzar(exe: &Path, base: &str, idioma: &str, args: &[&str]) -> Output {
-    Command::new(exe)
-        .args(args)
+    lanzar_con(exe, base, idioma, args, &[])
+}
+
+/// Como [`lanzar`], con variables de mas. Sin `TC2_GH` ni `GH_FALSO*`
+/// heredadas de quien corre los tests.
+fn lanzar_con(
+    exe: &Path,
+    base: &str,
+    idioma: &str,
+    args: &[&str],
+    entorno: &[(&str, &std::ffi::OsStr)],
+) -> Output {
+    let mut c = Command::new(exe);
+    c.args(args)
         .env("TC2_BASE_URL", base)
         .env("TC2_IDIOMA", idioma)
-        .output()
-        .unwrap()
+        .env_remove("TC2_GH")
+        .env_remove("GH_FALSO")
+        .env_remove("GH_FALSO_REGISTRO");
+    for (k, v) in entorno {
+        c.env(k, v);
+    }
+    c.output().unwrap()
 }
 
 fn texto(b: &[u8]) -> String {
@@ -230,6 +253,22 @@ fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
     assert_eq!(
         texto(&o.stdout),
         format!("actualizar sin-cambios actual={VERSION_X} disponible={VERSION_X}\n")
+    );
+
+    // Revision 1, MEN-6: con --version de una anterior, `ok` lo dice
+    // (`cambio=anterior`) y no se confunde con una mas nueva.
+    let anterior = format!("{VERSION_X}-anterior");
+    let srv = Servidor::nuevo(release(&anterior, b"binario-anterior", None));
+    let o = lanzar(
+        &exe,
+        &srv.base(),
+        "es",
+        &["actualizar", "--cli", "--comprobar", "--version", &anterior],
+    );
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stderr));
+    assert_eq!(
+        texto(&o.stdout),
+        format!("actualizar ok actual={VERSION_X} disponible={anterior} cambio=anterior\n")
     );
 
     // Sin red: un puerto en el que ya no escucha nadie.
@@ -308,7 +347,9 @@ fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
     let hash_vy = distribucion::sha256::hex(&vy);
     assert_eq!(
         texto(&o.stdout),
-        format!("actualizar ok anterior={VERSION_X} version={VERSION_Y} sha256={hash_vy}\n")
+        format!(
+            "actualizar ok anterior={VERSION_X} version={VERSION_Y} sha256={hash_vy} attestation=ensayo\n"
+        )
     );
 
     let despues = Command::new(&exe).arg("--version").output().unwrap();
@@ -352,4 +393,134 @@ fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
     // Y sigue siendo la vX.
     let v = Command::new(&exe).arg("--version").output().unwrap();
     assert_eq!(texto(&v.stdout), format!("tc2 {VERSION_X}\n"));
+}
+
+/// Revision 1, IMP-1: con `gh` disponible se comprueba la attestation, como
+/// en los instaladores. Tres casos con el doble `gh_falso` (`TC2_GH`): sin
+/// `gh` sigue con el sha256 (`attestation=sin-gh`); con `gh` que la da por
+/// buena, `attestation=comprobada`; con `gh` que la rechaza, `rechazada` (3)
+/// y el binario instalado no cambia.
+#[test]
+fn attestation_con_gh_ausente_valido_y_que_falla() {
+    let vy = binario_vy();
+    let hash_vy = distribucion::sha256::hex(&vy);
+    let gh = ejemplo("gh_falso");
+    let srv = Servidor::nuevo(release(VERSION_Y, &vy, None));
+
+    // gh ausente.
+    let f = Carpeta::nueva("attestation-sin-gh");
+    let exe = instalar_vx(&f.raiz.join("bin"));
+    let no_hay = f
+        .raiz
+        .join(format!("gh-no-existe{}", std::env::consts::EXE_SUFFIX));
+    let o = lanzar_con(
+        &exe,
+        &srv.base(),
+        "es",
+        &["actualizar", "--cli"],
+        &[("TC2_GH", no_hay.as_os_str())],
+    );
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stderr));
+    assert!(
+        texto(&o.stdout).ends_with(" attestation=sin-gh\n"),
+        "{}",
+        texto(&o.stdout)
+    );
+    assert_eq!(sha256(&exe), hash_vy);
+
+    // gh que da la attestation por buena, con los argumentos del instalador.
+    let f = Carpeta::nueva("attestation-ok");
+    let exe = instalar_vx(&f.raiz.join("bin"));
+    let registro = f.raiz.join("gh.log");
+    let o = lanzar_con(
+        &exe,
+        &srv.base(),
+        "es",
+        &["actualizar", "--cli"],
+        &[
+            ("TC2_GH", gh.as_os_str()),
+            ("GH_FALSO", std::ffi::OsStr::new("ok")),
+            ("GH_FALSO_REGISTRO", registro.as_os_str()),
+        ],
+    );
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stderr));
+    assert_eq!(
+        texto(&o.stdout),
+        format!(
+            "actualizar ok anterior={VERSION_X} version={VERSION_Y} sha256={hash_vy} attestation=comprobada\n"
+        )
+    );
+    assert_eq!(sha256(&exe), hash_vy);
+    let llamadas = std::fs::read_to_string(&registro).unwrap();
+    let verify: Vec<&str> = llamadas
+        .lines()
+        .find(|l| l.starts_with("attestation\tverify\t"))
+        .unwrap_or_default()
+        .split('\t')
+        .collect();
+    assert_eq!(
+        verify.get(3..),
+        Some(
+            &[
+                "--repo",
+                "charliebk/TaskCodeTwo",
+                "--signer-workflow",
+                "charliebk/TaskCodeTwo/.github/workflows/release.yml"
+            ][..]
+        ),
+        "{llamadas}"
+    );
+    assert!(
+        verify.get(2).is_some_and(|f| f.ends_with(".descarga")),
+        "{llamadas}"
+    );
+
+    // gh que la rechaza: rechazada y nada cambia.
+    let f = Carpeta::nueva("attestation-falla");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let antes = sha256(&exe);
+    for idioma in ["es", "en"] {
+        let o = lanzar_con(
+            &exe,
+            &srv.base(),
+            idioma,
+            &["actualizar", "--cli"],
+            &[
+                ("TC2_GH", gh.as_os_str()),
+                ("GH_FALSO", std::ffi::OsStr::new("falla")),
+            ],
+        );
+        assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
+        assert_eq!(
+            texto(&o.stdout),
+            format!(
+                "actualizar rechazada motivo=attestation-no-valida fichero={}\n",
+                target().fichero(VERSION_Y)
+            )
+        );
+        assert!(
+            texto(&o.stderr).contains("no attestations found"),
+            "{}",
+            texto(&o.stderr)
+        );
+        assert_eq!(sha256(&exe), antes);
+        let quedan = restos(&dir, &exe);
+        assert!(quedan.is_empty(), "{quedan:?}");
+    }
+}
+
+/// Revision 1, MEN-3: en Windows, el `tc2.exe.old` que deja una
+/// actualizacion lo borra la siguiente ejecucion de `tc2` (`main.rs`).
+#[cfg(windows)]
+#[test]
+fn la_siguiente_ejecucion_borra_el_old() {
+    let f = Carpeta::nueva("old-al-arrancar");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let old = tc2::actualizar_cli::ruta_old(&exe);
+    std::fs::write(&old, b"binario anterior").unwrap();
+    let o = Command::new(&exe).arg("--version").output().unwrap();
+    assert_eq!(texto(&o.stdout), format!("tc2 {VERSION_X}\n"));
+    assert!(!old.exists(), "{} sigue ahi", old.display());
 }

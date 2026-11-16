@@ -6,8 +6,13 @@
 //!   estable, o la de `--version`): una peticion, la misma fuente que los
 //!   instaladores de F2-11.
 //! - `--comprobar` solo lee: `actualizar ok actual=X disponible=Y` si hay una
-//!   mas nueva, `sin-cambios` si no. Es el aviso de version nueva: lo usan
-//!   `doctor` y un hook opcional, nunca una consulta pasiva.
+//!   mas nueva, `sin-cambios` si no (con `--version` de una anterior, `ok`
+//!   con `cambio=anterior`). Es el aviso de version nueva: es una orden
+//!   explicita, nunca una consulta pasiva; la llamara `doctor` cuando exista
+//!   (F3-8) y, si se quiere, un hook de inicio de sesion.
+//! - Si hay `gh` con sesion, comprueba la attestation de procedencia del
+//!   binario nuevo como los instaladores de F2-11; sin `gh`, sigue con el
+//!   sha256 y lo dice en la linea (`attestation=sin-gh`).
 //! - Un `tc2` de la cache del plugin no se toca (lo gestiona el plugin con su
 //!   `cli.lock`), ni uno de un gestor de paquetes.
 //! - El binario nuevo se baja junto al actual (`.tc2-<v>-<pid>.descarga`),
@@ -18,6 +23,8 @@
 
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
+use std::time::{Duration, Instant};
 
 use distribucion::Target;
 
@@ -59,18 +66,37 @@ pub fn detectar_modo(ruta: &str) -> Modo {
     {
         return Modo::Plugin;
     }
-    for p in &partes {
-        let gestor = match p.as_str() {
-            "node_modules" => "npm",
-            "cellar" | "homebrew" | ".linuxbrew" | "linuxbrew" => "homebrew",
-            "winget" => "winget",
-            "scoop" => "scoop",
-            ".cargo" => "cargo",
-            _ => continue,
-        };
-        return Modo::Gestor(gestor);
-    }
-    Modo::Instalador
+    // Cada gestor por su propia estructura de carpetas, no por un nombre
+    // suelto: una carpeta `Scoop\bin` o `~/.cargo/otra` de la persona no es
+    // de un gestor. `dir` son las carpetas, sin el fichero.
+    let dir = partes.get(..n.saturating_sub(1)).unwrap_or_default();
+    let seguidas = |a: &str, b: &str| dir.windows(2).any(|w| w[0] == a && w[1] == b);
+    // `<raiz>/node_modules/<paquete>/...`: el binario dentro de un paquete.
+    let npm = dir
+        .iter()
+        .position(|p| p == "node_modules")
+        .is_some_and(|i| i + 1 < dir.len());
+    // `Cellar/<formula>/<version>/...`, o el prefijo de Homebrew.
+    let homebrew = dir
+        .iter()
+        .position(|p| p == "cellar")
+        .is_some_and(|i| i + 2 < dir.len())
+        || dir.starts_with(&["opt".to_owned(), "homebrew".to_owned()])
+        || seguidas("linuxbrew", ".linuxbrew");
+    let gestor = if npm {
+        Some("npm")
+    } else if homebrew {
+        Some("homebrew")
+    } else if seguidas("winget", "packages") || seguidas("winget", "links") {
+        Some("winget")
+    } else if seguidas("scoop", "apps") || seguidas("scoop", "shims") {
+        Some("scoop")
+    } else if dir.len() >= 2 && dir[dir.len() - 2] == ".cargo" && dir[dir.len() - 1] == "bin" {
+        Some("cargo")
+    } else {
+        None
+    };
+    gestor.map_or(Modo::Instalador, Modo::Gestor)
 }
 
 /// Compara dos versiones `X.Y.Z[-pre]` con las reglas de semver: el nucleo
@@ -193,7 +219,24 @@ pub fn orden(args: &[String]) -> Informe {
             );
         }
     };
-    actualizar(&exe, &op, &origen, &Descargador::nuevo())
+    let gh = gh_de_variable(std::env::var(VARIABLE_GH).ok().as_deref(), &origen);
+    actualizar(&exe, &op, &origen, &Descargador::nuevo(), gh.as_deref())
+}
+
+/// Variable con el `gh` que se usa para la attestation (por defecto, el del
+/// PATH).
+pub const VARIABLE_GH: &str = "TC2_GH";
+
+/// El `gh` para la attestation: el de `TC2_GH` si esta definida y, si no,
+/// `gh` del PATH. En un ensayo (`TC2_BASE_URL`) los binarios no tienen
+/// attestation, asi que solo se comprueba si `TC2_GH` lo pide, como en los
+/// instaladores, que no la comprueban con `TC2_BASE_URL`.
+pub fn gh_de_variable(valor: Option<&str>, origen: &Origen) -> Option<String> {
+    match (valor.filter(|v| !v.is_empty()), origen) {
+        (Some(v), _) => Some(v.to_owned()),
+        (None, Origen::GitHub) => Some("gh".to_owned()),
+        (None, Origen::Ensayo(_)) => None,
+    }
 }
 
 /// Lo que publica la release para un target.
@@ -234,9 +277,15 @@ fn elegir(pares: &[(String, String)], target: Target, tag: Option<&str>) -> Opti
     }
 }
 
-/// `actualizar --cli` sobre el ejecutable `exe`.
-pub fn actualizar(exe: &Path, op: &Opciones, origen: &Origen, d: &Descargador) -> Informe {
-    limpiar_old(exe);
+/// `actualizar --cli` sobre el ejecutable `exe`, con `gh` para la
+/// attestation (`None`: no se comprueba, en un ensayo).
+pub fn actualizar(
+    exe: &Path,
+    op: &Opciones,
+    origen: &Origen,
+    d: &Descargador,
+    gh: Option<&str>,
+) -> Informe {
     match detectar_modo(&exe.to_string_lossy()) {
         Modo::Instalador => {}
         Modo::Plugin => {
@@ -319,9 +368,15 @@ pub fn actualizar(exe: &Path, op: &Opciones, origen: &Origen, d: &Descargador) -
         return base(Resultado::SinCambios);
     }
     if op.comprobar {
-        return base(Resultado::Ok);
+        // Con --version de una anterior, `ok` no quiere decir que haya una
+        // mas nueva: se dice.
+        return if orden == Some(Ordering::Greater) {
+            base(Resultado::Ok).con("cambio", "anterior")
+        } else {
+            base(Resultado::Ok)
+        };
     }
-    instalar(exe, target, &publicado, origen, d)
+    instalar(exe, target, &publicado, origen, d, gh)
 }
 
 /// Baja el binario junto a `exe`, comprueba su sha256 contra `SHA256SUMS`
@@ -334,7 +389,11 @@ fn instalar(
     publicado: &Publicado,
     origen: &Origen,
     d: &Descargador,
+    gh: Option<&str>,
 ) -> Informe {
+    // Un `.old` de una actualizacion anterior (Windows). Aqui y no antes:
+    // `--comprobar` no toca nada.
+    limpiar_old(exe);
     let Some(dir) = exe.parent() else {
         return sin_permiso(
             exe,
@@ -359,13 +418,13 @@ fn instalar(
     let url = origen.url_binario(&publicado.tag, &publicado.fichero);
     let bajada = bajar_con_un_reintento(d, &url, &mut fichero)
         .map_err(|f| match f {
-            Fallo::Escritura { error } => sin_permiso(&temporal, &error),
+            Fallo::Escritura { error, tipo } => fallo_de_escritura(&temporal, tipo, &error),
             otro => otro.informe(NOMBRE),
         })
         .and_then(|_| {
             fichero
                 .sync_all()
-                .map_err(|e| sin_permiso(&temporal, &e.to_string()))
+                .map_err(|e| fallo_de_escritura(&temporal, e.kind(), &e.to_string()))
         });
     drop(fichero);
     if let Err(i) = bajada {
@@ -373,7 +432,7 @@ fn instalar(
     }
     let obtenido = match std::fs::read(&temporal) {
         Ok(b) => distribucion::sha256::hex(&b),
-        Err(e) => return sin_permiso(&temporal, &e.to_string()),
+        Err(e) => return fallo_de_escritura(&temporal, e.kind(), &e.to_string()),
     };
     if obtenido != publicado.sha256 {
         return Informe::nuevo(NOMBRE, Resultado::Rechazada)
@@ -388,8 +447,22 @@ fn instalar(
                     .con("esperado", publicado.sha256.clone()),
             );
     }
+    // La procedencia, antes de ejecutar nada del binario nuevo.
+    let attestation = match comprobar_attestation(gh, &temporal) {
+        Ok(a) => a,
+        Err(detalle) => {
+            return Informe::nuevo(NOMBRE, Resultado::Rechazada)
+                .con("motivo", "attestation-no-valida")
+                .con("fichero", publicado.fichero.clone())
+                .diagnostico(
+                    Mensaje::nuevo(&txt::ATTESTATION_NO_VALIDA)
+                        .con("fichero", publicado.fichero.clone())
+                        .con("detalle", detalle),
+                );
+        }
+    };
     if let Err(e) = hacer_ejecutable(&temporal) {
-        return sin_permiso(&temporal, &e.to_string());
+        return fallo_de_escritura(&temporal, e.kind(), &e.to_string());
     }
     if let Err(detalle) = comprobar_nuevo(&temporal, &publicado.version, target.alias, &obtenido) {
         return Informe::nuevo(NOMBRE, Resultado::Rechazada)
@@ -419,13 +492,150 @@ fn instalar(
         .con("anterior", crate::VERSION)
         .con("version", publicado.version.clone())
         .con("sha256", obtenido)
+        .con("attestation", attestation.texto())
 }
 
-/// Baja el binario a `fichero` y, si la conexion se corta (`sinred`), lo
-/// vacia y lo intenta una vez mas. Son unos MiB por una red que puede fallar
-/// a medias; y en Windows se ha visto (TASK-027) que la inspeccion de red de
-/// un antivirus corta a veces la primera descarga de un ejecutable a los
-/// ~19 s. Los demas fallos (404, hash, limite) no se reintentan.
+/// Como acabo la comprobacion de la attestation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Attestation {
+    /// `gh attestation verify` la dio por buena.
+    Comprobada,
+    /// No hay `gh`, o no tiene sesion: solo el sha256 (como el instalador).
+    SinGh,
+    /// Ensayo con `TC2_BASE_URL`: sus binarios no tienen attestation.
+    Ensayo,
+}
+
+impl Attestation {
+    /// Valor de la clave `attestation=`.
+    pub fn texto(self) -> &'static str {
+        match self {
+            Self::Comprobada => "comprobada",
+            Self::SinGh => "sin-gh",
+            Self::Ensayo => "ensayo",
+        }
+    }
+}
+
+/// Tiempo maximo de cada llamada a `gh`.
+const ESPERA_GH: Duration = Duration::from_secs(60);
+
+/// Comprueba la attestation de `fichero` con `gh` (paridad con los
+/// instaladores de F2-11): `gh auth status` y, si hay sesion,
+/// `gh attestation verify <fichero> --repo <REPO> --signer-workflow
+/// <WORKFLOW_RELEASE>`. Sin `gh` o sin sesion, `SinGh`. `Err` con el detalle
+/// si `gh` la rechaza o no responde.
+pub fn comprobar_attestation(gh: Option<&str>, fichero: &Path) -> Result<Attestation, String> {
+    let Some(gh) = gh else {
+        return Ok(Attestation::Ensayo);
+    };
+    let mut sesion = Command::new(gh);
+    sesion.args(["auth", "status"]);
+    match ejecutar_con_limite(sesion, ESPERA_GH) {
+        Ok(Some(s)) if s.status.success() => {}
+        // Sin gh, gh sin sesion, o un gh que no responde a `auth status`.
+        _ => return Ok(Attestation::SinGh),
+    }
+    let mut verificar = Command::new(gh);
+    verificar
+        .args(["attestation", "verify"])
+        .arg(fichero)
+        .args(["--repo", distribucion::REPO])
+        .args(["--signer-workflow", distribucion::WORKFLOW_RELEASE]);
+    match ejecutar_con_limite(verificar, ESPERA_GH) {
+        Ok(Some(s)) if s.status.success() => Ok(Attestation::Comprobada),
+        Ok(Some(s)) => Err(ultima_linea(&s.stderr)
+            .unwrap_or_else(|| format!("gh attestation verify salio con {}", s.status))),
+        Ok(None) => Err(format!(
+            "gh attestation verify no respondio en {} s",
+            ESPERA_GH.as_secs()
+        )),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// La ultima linea no vacia de una salida, para el diagnostico.
+fn ultima_linea(bytes: &[u8]) -> Option<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .map(|l| l.chars().take(300).collect())
+}
+
+/// Lanza `cmd` sin entrada y espera como mucho `limite`. `Ok(None)` si no
+/// termino a tiempo (se mata). stdout y stderr se leen en hilos aparte, hasta
+/// 1 MiB cada uno, para que un hijo que escribe mucho no se bloquee.
+fn ejecutar_con_limite(mut cmd: Command, limite: Duration) -> std::io::Result<Option<Output>> {
+    use std::io::Read;
+    let mut hijo = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let leer = |p: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut v = Vec::new();
+            if let Some(p) = p {
+                let _ = p.take(1024 * 1024).read_to_end(&mut v);
+            }
+            v
+        })
+    };
+    let out = leer(
+        hijo.stdout
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let err = leer(
+        hijo.stderr
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let inicio = Instant::now();
+    let status = loop {
+        if let Some(s) = hijo.try_wait()? {
+            break Some(s);
+        }
+        if inicio.elapsed() >= limite {
+            let _ = hijo.kill();
+            let _ = hijo.wait();
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let stdout = out.join().unwrap_or_default();
+    let stderr = err.join().unwrap_or_default();
+    Ok(status.map(|status| Output {
+        status,
+        stdout,
+        stderr,
+    }))
+}
+
+/// Un fallo de E/S sobre `ruta`: `sin-permiso` si es un permiso denegado y,
+/// si no (disco lleno, por ejemplo), `error motivo=escritura`.
+fn fallo_de_escritura(ruta: &Path, tipo: std::io::ErrorKind, error: &str) -> Informe {
+    if tipo == std::io::ErrorKind::PermissionDenied {
+        return sin_permiso(ruta, error);
+    }
+    Informe::nuevo(NOMBRE, Resultado::Error)
+        .con("motivo", "escritura")
+        .con("ruta", ruta.display().to_string())
+        .diagnostico(
+            Mensaje::nuevo(&txt::ESCRITURA)
+                .con("ruta", ruta.display().to_string())
+                .con("error", error),
+        )
+}
+
+/// Baja el binario a `fichero` y, si la conexion se corta a mitad del cuerpo,
+/// lo vacia y lo intenta una vez mas. Son unos MiB por una red que puede
+/// fallar a medias; y en una maquina de desarrollo con Windows se ha visto
+/// (TASK-027) que la red local corta a veces a los ~19 s las descargas de mas
+/// de ~450 KB. Los demas fallos no se reintentan: no conectar, TLS, un estado
+/// HTTP, el limite o una redireccion se repetirian igual.
 fn bajar_con_un_reintento(
     d: &Descargador,
     url: &str,
@@ -433,13 +643,14 @@ fn bajar_con_un_reintento(
 ) -> Result<u64, Fallo> {
     use std::io::{Seek, SeekFrom};
     match d.a_escritor(url, fichero, descarga::LIMITE_BINARIO) {
-        Err(Fallo::Sinred { .. }) => {
+        Err(Fallo::Sinred { corte: true, .. }) => {
             let vaciar = fichero
                 .set_len(0)
                 .and_then(|()| fichero.seek(SeekFrom::Start(0)).map(|_| ()));
             if let Err(e) = vaciar {
                 return Err(Fallo::Escritura {
                     error: e.to_string(),
+                    tipo: e.kind(),
                 });
             }
             d.a_escritor(url, fichero, descarga::LIMITE_BINARIO)
@@ -488,14 +699,23 @@ fn hacer_ejecutable(_ruta: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Lanza `nuevo version --json` y exige su version, su target y el sha256
-/// que ya calculo este proceso. `Err` con el detalle si no.
+/// Tiempo maximo del `version --json` del binario nuevo.
+const ESPERA_NUEVO: Duration = Duration::from_secs(30);
+
+/// Lanza `nuevo version --json` (como mucho [`ESPERA_NUEVO`]) y exige su
+/// version, su target y el sha256 que ya calculo este proceso. `Err` con el
+/// detalle si no.
 fn comprobar_nuevo(nuevo: &Path, version: &str, alias: &str, sha256: &str) -> Result<(), String> {
-    let salida = std::process::Command::new(nuevo)
-        .args(["version", "--json"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .map_err(|e| e.to_string())?;
+    let mut cmd = Command::new(nuevo);
+    cmd.args(["version", "--json"]);
+    let salida = ejecutar_con_limite(cmd, ESPERA_NUEVO)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| {
+            format!(
+                "version --json no respondio en {} s",
+                ESPERA_NUEVO.as_secs()
+            )
+        })?;
     if !salida.status.success() {
         return Err(format!("version --json salio con {}", salida.status));
     }
@@ -607,9 +827,47 @@ mod tests {
             ),
             (r"C:\Users\ana\scoop\apps\tc2\current\tc2.exe", "scoop"),
             ("/home/ana/.cargo/bin/tc2", "cargo"),
+            ("/home/linuxbrew/.linuxbrew/bin/tc2", "homebrew"),
+            (r"C:\Users\ana\scoop\shims\tc2.exe", "scoop"),
         ] {
             assert_eq!(detectar_modo(ruta), Modo::Gestor(gestor), "{ruta}");
         }
+        // Revision 1, MEN-1: un nombre de gestor suelto en la ruta no basta.
+        for propia in [
+            r"C:\Users\ana\Scoop\bin\tc2.exe",
+            r"C:\herramientas\scoop\tc2.exe",
+            "/home/ana/.cargo/otra/tc2",
+            "/home/ana/.cargo/bin/sub/tc2",
+            "/home/ana/node_modules/tc2",
+            "/home/ana/cellar/tc2",
+            "/home/ana/homebrew/tc2",
+            r"C:\Users\ana\winget\tc2.exe",
+        ] {
+            assert_eq!(detectar_modo(propia), Modo::Instalador, "{propia}");
+        }
+    }
+
+    /// Revision 1, IMP-1: que `gh` se usa, segun `TC2_GH` y el origen.
+    #[test]
+    fn gh_para_la_attestation() {
+        let ensayo = Origen::Ensayo("http://127.0.0.1:1".into());
+        assert_eq!(gh_de_variable(None, &Origen::GitHub).as_deref(), Some("gh"));
+        assert_eq!(
+            gh_de_variable(Some(""), &Origen::GitHub).as_deref(),
+            Some("gh")
+        );
+        assert_eq!(gh_de_variable(None, &ensayo), None);
+        assert_eq!(
+            gh_de_variable(Some("/x/gh"), &ensayo).as_deref(),
+            Some("/x/gh")
+        );
+        // Sin gh: solo el sha256; en ensayo: no se comprueba.
+        let f = Path::new("no-importa");
+        assert_eq!(comprobar_attestation(None, f), Ok(Attestation::Ensayo));
+        assert_eq!(
+            comprobar_attestation(Some("tc2-gh-que-no-existe-en-ningun-path"), f),
+            Ok(Attestation::SinGh)
+        );
     }
 
     /// TASK-027, criterio 3: orden de versiones con prereleases.

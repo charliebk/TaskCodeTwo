@@ -88,21 +88,30 @@ tc2 actualizar --cli --version 2.1.0-rc.1   # una versión concreta (también ha
   `--version`. Una sola petición, la misma fuente que los instaladores.
 - **`--comprobar`** escribe `actualizar ok actual=X disponible=Y` si hay una
   más nueva y `actualizar sin-cambios actual=X disponible=Y` si no; código 0
-  en los dos casos. Es el aviso de versión nueva: lo llaman `doctor` y, si se
-  quiere, un hook de inicio de sesión. Nunca se consulta la red por sí solo.
+  en los dos casos. Con `--version` de una anterior a la instalada añade
+  `cambio=anterior`, para que no se lea como una versión nueva. Es el aviso
+  de versión nueva y es una orden explícita: nunca se consulta la red por sí
+  solo. La llamará `doctor` cuando exista (F3-8) y, si se quiere, un hook de
+  inicio de sesión.
 - **Cómo sustituye**: baja el binario junto al actual
   (`.tc2-<versión>-<pid>.descarga`), calcula su sha256 (lo calcula el `tc2`
   viejo, nunca el binario nuevo sobre sí mismo) y lo compara con
-  `SHA256SUMS`; le pide `version --json` y comprueba versión, sistema y hash;
-  y solo entonces lo pone en su sitio. En Windows lo hace por renombrados
+  `SHA256SUMS`; si hay `gh` con sesión, comprueba la attestation de
+  procedencia (abajo); le pide `version --json` (como mucho 30 s) y comprueba
+  versión, sistema y hash; y solo entonces lo pone en su sitio. En Windows lo hace por renombrados
   (el actual pasa a `tc2.exe.old`, el nuevo a `tc2.exe`) con vuelta atrás si
   el segundo falla; el `tc2.exe.old` lo borra la siguiente ejecución de `tc2`.
-  Sale `actualizar ok anterior=X version=Y sha256=...`.
+  Sale `actualizar ok anterior=X version=Y sha256=... attestation=...`.
+  Si la descarga del binario se corta a mitad, se repite una vez; los demás
+  fallos de red no se reintentan.
 - **Si algo falla, no se cambia nada** y no quedan ficheros a medias:
   - sin red: `actualizar sinred url=...` (código 4);
   - el sha256 no casa: `rechazada motivo=sha256-no-casa` (3);
   - sin permiso de escritura en la carpeta del binario: `rechazada
     motivo=sin-permiso ruta=...` (3), antes de bajar nada;
+  - otro fallo al escribir la descarga (disco lleno): `error
+    motivo=escritura ruta=...` (1);
+  - `gh` rechaza la attestation: `rechazada motivo=attestation-no-valida` (3);
   - el binario nuevo no arranca o no dice lo esperado: `rechazada
     motivo=binario-no-arranca` (3);
   - no se pudo renombrar (otro `tc2` abierto, un antivirus):
@@ -115,10 +124,18 @@ tc2 actualizar --cli --version 2.1.0-rc.1   # una versión concreta (también ha
 - Sin `--cli`, `tc2 actualizar` da `uso`: actualizar un proyecto es de F9-2.
 - `TC2_BASE_URL` vale igual que en los instaladores (solo ensayos): la carpeta
   con los ficheros de una release; aquí, https o http a `127.0.0.1`.
-- Como en los instaladores, el hash prueba que el fichero llegó entero, no
-  quién lo construyó: sin Authenticode (D4a), comprometer la release
-  compromete binario y `SHA256SUMS` a la vez. La attestation se comprueba con
-  `gh attestation verify` (ver [releases.md](releases.md)).
+- **Attestation**, como en los instaladores: el hash solo prueba que el
+  fichero llegó entero. Si hay `gh` con sesión, `tc2 actualizar --cli` ejecuta
+  `gh attestation verify <descarga> --repo charliebk/TaskCodeTwo
+  --signer-workflow charliebk/TaskCodeTwo/.github/workflows/release.yml`
+  antes de ejecutar nada del binario nuevo, y si no la da por buena no
+  cambia nada. La línea dice cómo fue: `attestation=comprobada`,
+  `attestation=sin-gh` (no hay `gh` o no tiene sesión: solo el sha256, como
+  el instalador) o `attestation=ensayo` (con `TC2_BASE_URL`, cuyos binarios
+  no tienen attestation). `TC2_GH` fija el `gh` que se usa; en un ensayo, solo
+  se comprueba si `TC2_GH` está definida. Sin `gh` ni Authenticode (D4a),
+  comprometer la release compromete binario y `SHA256SUMS` a la vez (ver
+  [releases.md](releases.md)).
 
 ## Compatibilidad con el plugin
 
@@ -178,7 +195,9 @@ hay `gh`.
 - `cargo test -p tc2` (`crates/tc2/tests/actualizar_cli.rs`): una copia del
   `tc2` compilado se actualiza a un doble de la versión 9.9.9
   (`examples/tc2_falso.rs`) servido en `127.0.0.1`; el hash alterado, sin red,
-  `--comprobar` y la caché del plugin. El fallo del segundo renombrado se
+  `--comprobar` y la caché del plugin; la attestation con un `gh` simulado
+  (`examples/gh_falso.rs`: ausente, válida y rechazada), y en Windows que la
+  ejecución siguiente borra el `.old`. El fallo del segundo renombrado se
   prueba con un fallo inyectado.
 - el job `actualizar-ensayo` de `release.yml`
   (`.github/scripts/probar-actualizar.sh`): en los 6 runners nativos, instala

@@ -101,6 +101,9 @@ pub enum Fallo {
         url: String,
         /// Error del cliente.
         error: String,
+        /// Si fue un corte a mitad del cuerpo (lo unico que se reintenta):
+        /// un fallo de conexion, de TLS o de protocolo se repetiria igual.
+        corte: bool,
     },
     /// 404: no existe esa release o ese fichero.
     NoPublicada {
@@ -130,10 +133,19 @@ pub enum Fallo {
         /// Limite en bytes.
         limite: u64,
     },
+    /// La respuesta no es texto UTF-8 (un `SHA256SUMS` roto).
+    NoEsTexto {
+        /// URL pedida.
+        url: String,
+        /// Error de la decodificacion.
+        error: String,
+    },
     /// No se pudo escribir el fichero de destino.
     Escritura {
         /// Error del sistema.
         error: String,
+        /// Su tipo: distingue un permiso denegado de un disco lleno.
+        tipo: std::io::ErrorKind,
     },
 }
 
@@ -141,7 +153,7 @@ impl Fallo {
     /// El informe de `comando` para este fallo.
     pub fn informe(&self, comando: &str) -> Informe {
         match self {
-            Self::Sinred { url, error } => Informe::nuevo(comando, Resultado::Sinred)
+            Self::Sinred { url, error, .. } => Informe::nuevo(comando, Resultado::Sinred)
                 .con("url", url.clone())
                 .diagnostico(
                     Mensaje::nuevo(&txt::SIN_RED)
@@ -181,13 +193,17 @@ impl Fallo {
                         .con("url", url.clone())
                         .con("limite", limite.to_string()),
                 ),
-            Self::Escritura { error } => Informe::nuevo(comando, Resultado::Error)
-                .con("motivo", "escritura")
+            Self::NoEsTexto { url, error } => Informe::nuevo(comando, Resultado::Rechazada)
+                .con("motivo", "sumas-invalidas")
+                .con("url", url.clone())
                 .diagnostico(
-                    Mensaje::nuevo(&txt::SIN_PERMISO)
-                        .con("ruta", "-")
+                    Mensaje::nuevo(&txt::SUMAS_INVALIDAS)
+                        .con("url", url.clone())
                         .con("error", error.clone()),
                 ),
+            Self::Escritura { error, .. } => Informe::nuevo(comando, Resultado::Error)
+                .con("motivo", "escritura")
+                .diagnostico(Mensaje::nuevo(&txt::ESCRITURA_DESCARGA).con("error", error.clone())),
         }
     }
 }
@@ -231,9 +247,9 @@ impl Descargador {
     pub fn texto(&self, url: &str, limite: u64) -> Result<String, Fallo> {
         let mut v = Vec::new();
         self.a_escritor(url, &mut v, limite)?;
-        String::from_utf8(v).map_err(|_| Fallo::Grande {
+        String::from_utf8(v).map_err(|e| Fallo::NoEsTexto {
             url: url.to_owned(),
-            limite,
+            error: e.to_string(),
         })
     }
 
@@ -247,16 +263,19 @@ impl Descargador {
     ) -> Result<u64, Fallo> {
         let mut actual = url.to_owned();
         for _ in 0..=MAX_SALTOS {
-            let sinred = |e: String| Fallo::Sinred {
+            let sinred = |e: String, corte: bool| Fallo::Sinred {
                 url: url.to_owned(),
                 error: e,
+                corte,
             };
             let mut r = match self.agente.get(&actual).call() {
                 Ok(r) => r,
                 Err(e) => {
                     return Err(match http::clasificar(e) {
-                        FalloHttp::Sinred(e) | FalloHttp::Tls(e) | FalloHttp::Otro(e) => sinred(e),
-                        FalloHttp::RespuestaInvalida(e) => sinred(e),
+                        FalloHttp::Sinred(e)
+                        | FalloHttp::Tls(e)
+                        | FalloHttp::Otro(e)
+                        | FalloHttp::RespuestaInvalida(e) => sinred(e, false),
                         FalloHttp::CuerpoGrande => Fallo::Grande {
                             url: url.to_owned(),
                             limite,
@@ -317,7 +336,7 @@ impl Descargador {
                     Ok(0) => break,
                     Ok(n) => n,
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(e) => return Err(sinred(e.to_string())),
+                    Err(e) => return Err(sinred(e.to_string(), true)),
                 };
                 total = total.saturating_add(n as u64);
                 if total > limite {
@@ -327,6 +346,7 @@ impl Descargador {
                     .write_all(buf.get(..n).unwrap_or_default())
                     .map_err(|e| Fallo::Escritura {
                         error: e.to_string(),
+                        tipo: e.kind(),
                     })?;
             }
             return Ok(total);
