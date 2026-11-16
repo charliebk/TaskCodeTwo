@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-027-f2-12-taskctl-actualizar-cli-y-aviso-de
 asignado_a: charlie.bk@gmail.com
@@ -88,6 +88,7 @@ Entorno: en esta maquina las descargas por 127.0.0.1 se cuelgan a veces ~19 s; e
 | 2026-11-16T18:25:07Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T18:49:08Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T19:34:50Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T19:48:42Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -101,3 +102,10 @@ Entorno: en esta maquina las descargas por 127.0.0.1 se cuelgan a veces ~19 s; e
 | 2026-11-16T19:00:17Z | revision | agente:a678c163f4c332436 | 56 | 148516 | 3052927 | 44607 | 2 | 3246106 | 2 | rust-wasm-reviewer |
 | 2026-11-16T19:46:26Z | revision | agente:a12ecf0fd484966f3 | 60 | 140707 | 3295583 | 26695 | 15 | 3463045 | 3 | code-quality-reviewer |
 | 2026-11-16T19:46:26Z | revision | agente:a5d1f02d3619cad09 | 56 | 121837 | 2997364 | 41335 | 5 | 3160592 | 3 | rust-wasm-reviewer |
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 165 min
+- Paso de la hora: 165 min reales frente a 240 estimados
+- Cierre (finish): 111 s, de 2026-11-16T19:46:51Z a 2026-11-16T19:48:42Z
