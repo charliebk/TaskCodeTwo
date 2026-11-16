@@ -511,6 +511,7 @@ mod tests {
             // El prefijo viejo ya no es propio (TASK-116).
             (
                 Subcomando::UpdateRef,
+                // intencionado: caso de rechazo del nombre viejo
                 &["refs/taskcode/pendientes/000001", "abc"],
             ),
             (
