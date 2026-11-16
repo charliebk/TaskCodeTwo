@@ -101,9 +101,11 @@ pub enum Fallo {
         url: String,
         /// Error del cliente.
         error: String,
-        /// Si fue un corte a mitad del cuerpo (lo unico que se reintenta):
-        /// un fallo de conexion, de TLS o de protocolo se repetiria igual.
-        corte: bool,
+        /// Si es un fallo de transporte transitorio, antes o despues de las
+        /// cabeceras (no conecta, se corta, tiempo agotado, cuerpo parado):
+        /// lo unico que se reintenta. TLS y una respuesta invalida se
+        /// repetirian igual.
+        transitorio: bool,
     },
     /// 404: no existe esa release o ese fichero.
     NoPublicada {
@@ -263,17 +265,19 @@ impl Descargador {
     ) -> Result<u64, Fallo> {
         let mut actual = url.to_owned();
         for _ in 0..=MAX_SALTOS {
-            let sinred = |e: String, corte: bool| Fallo::Sinred {
+            let sinred = |e: String, transitorio: bool| Fallo::Sinred {
                 url: url.to_owned(),
                 error: e,
-                corte,
+                transitorio,
             };
             let mut r = match self.agente.get(&actual).call() {
                 Ok(r) => r,
                 Err(e) => {
                     return Err(match http::clasificar(e) {
-                        FalloHttp::Sinred(e)
-                        | FalloHttp::Tls(e)
+                        // DNS, conexion, tiempo agotado, E/S o cuerpo
+                        // parado: transitorio.
+                        FalloHttp::Sinred(e) => sinred(e, true),
+                        FalloHttp::Tls(e)
                         | FalloHttp::Otro(e)
                         | FalloHttp::RespuestaInvalida(e) => sinred(e, false),
                         FalloHttp::CuerpoGrande => Fallo::Grande {

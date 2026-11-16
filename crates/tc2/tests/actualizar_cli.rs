@@ -50,25 +50,42 @@ const VERSION_Y: &str = "9.9.9";
 const VERSION_X: &str = env!("CARGO_PKG_VERSION");
 
 /// Servidor de ficheros minimo: `GET /<nombre>` da el contenido o 404, y
-/// cuenta las peticiones.
+/// cuenta las peticiones. Puede cortar la primera peticion a una ruta.
 struct Servidor {
     puerto: u16,
     peticiones: Arc<Mutex<Vec<String>>>,
 }
 
+/// Como se corta la primera peticion a una ruta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Corte {
+    /// Se cierra la conexion sin enviar nada: el cliente no ve cabeceras.
+    AntesDeCabeceras,
+    /// Se envian las cabeceras y la mitad del cuerpo, y se cierra.
+    AMitadDelCuerpo,
+}
+
+/// La ruta cuya primera peticion se corta, y como.
+type Cortes = Mutex<Option<(String, Corte)>>;
+
 impl Servidor {
     fn nuevo(ficheros: BTreeMap<String, Vec<u8>>) -> Self {
+        Self::con_corte(ficheros, None)
+    }
+
+    fn con_corte(ficheros: BTreeMap<String, Vec<u8>>, corte: Option<(String, Corte)>) -> Self {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let puerto = l.local_addr().unwrap().port();
         let peticiones: Arc<Mutex<Vec<String>>> = Arc::default();
         let p = peticiones.clone();
         let ficheros = Arc::new(ficheros);
+        let cortes: Arc<Cortes> = Arc::new(Mutex::new(corte));
         std::thread::spawn(move || {
             for s in l.incoming().flatten() {
                 // Un hilo por conexion: el cierre ordenado de una no frena
                 // las demas.
-                let (p, ficheros) = (p.clone(), ficheros.clone());
-                std::thread::spawn(move || atender(s, &p, &ficheros));
+                let (p, ficheros, cortes) = (p.clone(), ficheros.clone(), cortes.clone());
+                std::thread::spawn(move || atender(s, &p, &ficheros, &cortes));
             }
         });
         Self { puerto, peticiones }
@@ -84,7 +101,12 @@ impl Servidor {
 }
 
 /// Sirve una peticion: `GET /<nombre>` da el contenido o 404.
-fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, ficheros: &BTreeMap<String, Vec<u8>>) {
+fn atender(
+    s: std::net::TcpStream,
+    p: &Mutex<Vec<String>>,
+    ficheros: &BTreeMap<String, Vec<u8>>,
+    cortes: &Cortes,
+) {
     let mut lector = BufReader::new(s.try_clone().unwrap());
     let mut primera = String::new();
     if lector.read_line(&mut primera).is_err() {
@@ -103,12 +125,32 @@ fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, ficheros: &BTreeMap<S
         None => ("404 Not Found", b"no".to_vec()),
     };
     let mut s = s;
-    let _ = write!(
-        s,
-        "HTTP/1.1 {estado}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        cuerpo.len()
-    );
-    let _ = s.write_all(&cuerpo);
+    let corte = {
+        let mut c = cortes.lock().unwrap();
+        match c.as_ref() {
+            Some((r, k)) if *r == ruta => {
+                let k = *k;
+                *c = None;
+                Some(k)
+            }
+            _ => None,
+        }
+    };
+    // Un corte se hace tambien con un cierre ordenado (FIN, no RST): el
+    // cliente ve el final de la conexion sin cabeceras, o antes de tener
+    // todo el cuerpo que anuncian.
+    if corte != Some(Corte::AntesDeCabeceras) {
+        let _ = write!(
+            s,
+            "HTTP/1.1 {estado}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            cuerpo.len()
+        );
+        let enviado = match corte {
+            Some(Corte::AMitadDelCuerpo) => cuerpo.get(..cuerpo.len() / 2).unwrap_or_default(),
+            _ => &cuerpo[..],
+        };
+        let _ = s.write_all(enviado);
+    }
     let _ = s.flush();
     // Cierre ordenado: en Windows, cerrar con datos sin leer en
     // el socket manda un RST que puede tirar la respuesta aun no
@@ -507,6 +549,51 @@ fn attestation_con_gh_ausente_valido_y_que_falla() {
         assert_eq!(sha256(&exe), antes);
         let quedan = restos(&dir, &exe);
         assert!(quedan.is_empty(), "{quedan:?}");
+    }
+}
+
+/// Revision 2, IMP-2: un corte de la conexion en la descarga del binario se
+/// reintenta una vez, tanto antes de las cabeceras como a mitad del cuerpo:
+/// termina en 0 con dos peticiones al binario, y vY queda instalada.
+#[test]
+fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
+    let vy = binario_vy();
+    let hash_vy = distribucion::sha256::hex(&vy);
+    let fichero = format!("/{}", target().fichero(VERSION_Y));
+    for (nombre, corte) in [
+        ("corte-antes", Corte::AntesDeCabeceras),
+        ("corte-mitad", Corte::AMitadDelCuerpo),
+    ] {
+        let f = Carpeta::nueva(nombre);
+        let dir = f.raiz.join("bin");
+        let exe = instalar_vx(&dir);
+        let srv = Servidor::con_corte(
+            release(VERSION_Y, &vy, None),
+            Some((fichero.clone(), corte)),
+        );
+        let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
+        assert_eq!(
+            o.status.code(),
+            Some(0),
+            "{corte:?}: {} {:?}",
+            texto(&o.stderr),
+            srv.peticiones()
+        );
+        assert_eq!(
+            texto(&o.stdout),
+            format!(
+                "actualizar ok anterior={VERSION_X} version={VERSION_Y} sha256={hash_vy} attestation=ensayo\n"
+            ),
+            "{corte:?}"
+        );
+        assert_eq!(sha256(&exe), hash_vy, "{corte:?}");
+        let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
+        assert_eq!(al_binario, 2, "{corte:?}: {:?}", srv.peticiones());
+        let quedan = restos(&dir, &exe);
+        assert!(
+            quedan.iter().all(|r| r == "tc2.exe.old"),
+            "{corte:?}: {quedan:?}"
+        );
     }
 }
 

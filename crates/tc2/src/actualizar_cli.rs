@@ -567,21 +567,33 @@ fn ultima_linea(bytes: &[u8]) -> Option<String> {
 /// Lanza `cmd` sin entrada y espera como mucho `limite`. `Ok(None)` si no
 /// termino a tiempo (se mata). stdout y stderr se leen en hilos aparte, hasta
 /// 1 MiB cada uno, para que un hijo que escribe mucho no se bloquee.
+///
+/// El plazo vale para todo, tambien para leer la salida: si el hijo deja un
+/// nieto con las tuberias heredadas (un `.bat` que lanza otro proceso), los
+/// hilos lectores pueden seguir bloqueados despues de que el hijo acabe o se
+/// mate. No se les espera mas alla del plazo: se devuelve lo leido hasta
+/// entonces y los hilos acaban solos cuando el nieto cierre las tuberias (o
+/// con el proceso). Al nieto no se le mata: no hay una forma portable de
+/// matar el arbol sin dependencias.
 fn ejecutar_con_limite(mut cmd: Command, limite: Duration) -> std::io::Result<Option<Output>> {
     use std::io::Read;
+    use std::sync::mpsc;
     let mut hijo = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
     let leer = |p: Option<Box<dyn Read + Send>>| {
+        let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
             let mut v = Vec::new();
             if let Some(p) = p {
                 let _ = p.take(1024 * 1024).read_to_end(&mut v);
             }
-            v
-        })
+            // Si nadie espera ya (plazo cumplido), se descarta.
+            let _ = tx.send(v);
+        });
+        rx
     };
     let out = leer(
         hijo.stdout
@@ -593,20 +605,33 @@ fn ejecutar_con_limite(mut cmd: Command, limite: Duration) -> std::io::Result<Op
             .take()
             .map(|p| Box::new(p) as Box<dyn Read + Send>),
     );
-    let inicio = Instant::now();
+    let fin = Instant::now() + limite;
     let status = loop {
-        if let Some(s) = hijo.try_wait()? {
-            break Some(s);
+        match hijo.try_wait() {
+            Ok(Some(s)) => break Some(s),
+            Ok(None) => {}
+            Err(e) => {
+                // Sin poder saber si sigue vivo: se mata antes de salir.
+                let _ = hijo.kill();
+                let _ = hijo.wait();
+                return Err(e);
+            }
         }
-        if inicio.elapsed() >= limite {
+        if Instant::now() >= fin {
             let _ = hijo.kill();
             let _ = hijo.wait();
             break None;
         }
         std::thread::sleep(Duration::from_millis(20));
     };
-    let stdout = out.join().unwrap_or_default();
-    let stderr = err.join().unwrap_or_default();
+    // Lo que quede del plazo, con un margen corto para recoger la salida de
+    // un hijo que acabo justo al limite.
+    let restante = || {
+        fin.saturating_duration_since(Instant::now())
+            .max(Duration::from_millis(100))
+    };
+    let stdout = out.recv_timeout(restante()).unwrap_or_default();
+    let stderr = err.recv_timeout(restante()).unwrap_or_default();
     Ok(status.map(|status| Output {
         status,
         stdout,
@@ -630,12 +655,14 @@ fn fallo_de_escritura(ruta: &Path, tipo: std::io::ErrorKind, error: &str) -> Inf
         )
 }
 
-/// Baja el binario a `fichero` y, si la conexion se corta a mitad del cuerpo,
-/// lo vacia y lo intenta una vez mas. Son unos MiB por una red que puede
-/// fallar a medias; y en una maquina de desarrollo con Windows se ha visto
-/// (TASK-027) que la red local corta a veces a los ~19 s las descargas de mas
-/// de ~450 KB. Los demas fallos no se reintentan: no conectar, TLS, un estado
-/// HTTP, el limite o una redireccion se repetirian igual.
+/// Baja el binario a `fichero` y, ante un fallo de transporte transitorio
+/// (no conecta, la conexion se corta antes o despues de las cabeceras,
+/// tiempo agotado), lo vacia y lo intenta una vez mas. Son unos MiB por una
+/// red que puede fallar a medias; y en una maquina de desarrollo con Windows
+/// se ha visto (TASK-027) que la red local corta a veces a los ~19 s las
+/// descargas de mas de ~450 KB. No se reintentan los fallos que se
+/// repetirian igual: 4xx, 5xx, TLS, una redireccion no permitida, el limite
+/// de tamano y una respuesta invalida.
 fn bajar_con_un_reintento(
     d: &Descargador,
     url: &str,
@@ -643,7 +670,9 @@ fn bajar_con_un_reintento(
 ) -> Result<u64, Fallo> {
     use std::io::{Seek, SeekFrom};
     match d.a_escritor(url, fichero, descarga::LIMITE_BINARIO) {
-        Err(Fallo::Sinred { corte: true, .. }) => {
+        Err(Fallo::Sinred {
+            transitorio: true, ..
+        }) => {
             let vaciar = fichero
                 .set_len(0)
                 .and_then(|()| fichero.seek(SeekFrom::Start(0)).map(|_| ()));
@@ -845,6 +874,46 @@ mod tests {
         ] {
             assert_eq!(detectar_modo(propia), Modo::Instalador, "{propia}");
         }
+    }
+
+    /// Revision 2, MEN-6: el plazo se cumple aunque el hijo deje un nieto
+    /// con las tuberias heredadas (aqui, un shell que lanza una espera larga
+    /// y no la sustituye con `exec`). Antes, la llamada esperaba al nieto.
+    #[test]
+    fn ejecutar_con_limite_cumple_el_plazo_con_un_nieto() {
+        let mut cmd = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/c", "ping -n 30 127.0.0.1 >nul & echo fin"]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", "sleep 30; echo fin"]);
+            c
+        };
+        cmd.env("TC2_PRUEBA", "1");
+        let inicio = Instant::now();
+        let r = ejecutar_con_limite(cmd, Duration::from_secs(1));
+        let tardo = inicio.elapsed();
+        assert!(matches!(r, Ok(None)), "{r:?}");
+        assert!(tardo < Duration::from_secs(10), "tardo {tardo:?}");
+        // Un hijo que acaba a tiempo da su salida y su codigo.
+        let mut eco = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/c", "echo hola"]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", "echo hola"]);
+            c
+        };
+        eco.env("TC2_PRUEBA", "1");
+        let s = ejecutar_con_limite(eco, Duration::from_secs(20));
+        let s = s.ok().flatten();
+        assert_eq!(s.as_ref().map(|o| o.status.success()), Some(true));
+        assert_eq!(
+            s.map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned()),
+            Some("hola".to_owned())
+        );
     }
 
     /// Revision 1, IMP-1: que `gh` se usa, segun `TC2_GH` y el origen.
