@@ -46,6 +46,10 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 - rust-wasm-reviewer — ce6cc61
 - code-quality-reviewer — ce6cc61
 
+## Rondas extra
+
+- Ronda 3: Carlos (consigna del 2026-11-16, «aceptamos todas las respuestas de forma recomendada»); IMP-2 de la ronda 2 es un texto ya corregido en 66fed63 y hay que verificarlo.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
