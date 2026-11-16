@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use super::rama::renombrar;
 use super::{
-    Git, Paso, REMOTO, Subcomando, base_de_rama, commit_de, correr, entradas_status, es_ancestro,
-    es_protegida, exigir, git_fallo, localizar_principal, rama_actual,
+    Git, Paso, REMOTO, SalidaGit, Subcomando, base_de_rama, commit_de, correr, entradas_status,
+    es_ancestro, es_protegida, exigir, git_fallo, localizar_principal, rama_actual,
 };
 use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::catalogo::git as txt;
@@ -171,15 +171,37 @@ pub fn fetch(git: &Git, dir: &Path) -> Informe {
     traer(git, dir, "fetch").unwrap_or_else(|i| i)
 }
 
+/// Informe de un `fetch` que fallo: sin red, fallo local o denegado.
+fn fallo_fetch(op: &str, s: &SalidaGit) -> Informe {
+    match clasificar_fallo_remoto(&s.stderr) {
+        FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(op),
+        FalloRemoto::Local => error_local(op, &s.primera_linea_error()),
+        otro => denegada(op, otro, &s.primera_linea_error()),
+    }
+}
+
+/// Trae solo `rama` de `origin` (actualiza `origin/<rama>`), con la misma
+/// clasificacion de fallos que [`fetch`].
+pub(crate) fn traer_rama(git: &Git, dir: &Path, op: &str, rama: &str) -> Paso<()> {
+    let s = correr(
+        git,
+        dir,
+        op,
+        Subcomando::Fetch,
+        &["-q", "--end-of-options", REMOTO, rama],
+    )?;
+    if s.exito() {
+        Ok(())
+    } else {
+        Err(fallo_fetch(op, &s))
+    }
+}
+
 fn traer(git: &Git, dir: &Path, op: &str) -> Paso<Informe> {
     let antes = refs_remotas(git, dir, op)?;
     let s = correr(git, dir, op, Subcomando::Fetch, &["-q", REMOTO])?;
     if !s.exito() {
-        return Err(match clasificar_fallo_remoto(&s.stderr) {
-            FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(op),
-            FalloRemoto::Local => error_local(op, &s.primera_linea_error()),
-            otro => denegada(op, otro, &s.primera_linea_error()),
-        });
+        return Err(fallo_fetch(op, &s));
     }
     let despues = refs_remotas(git, dir, op)?;
     let r = if antes == despues {

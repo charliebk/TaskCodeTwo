@@ -17,8 +17,8 @@ crate::i18n::textos! {
         en: "`id` must be the account number (greater than 0)",
     }
     LOGIN_NO_VALIDO {
-        es: "el `login` no puede estar vacio ni llevar espacios ni caracteres de control",
-        en: "`login` cannot be empty or contain spaces or control characters",
+        es: "el `login` no puede estar vacio, pasar de 255 caracteres ni llevar espacios ni caracteres de control",
+        en: "`login` cannot be empty, be longer than 255 characters or contain spaces or control characters",
     }
     NOMBRE_NO_VALIDO {
         es: "el `nombre` no puede estar vacio ni llevar caracteres de control",
@@ -46,13 +46,17 @@ crate::i18n::textos! {
         es: "la cuenta del token de persona ({login}) es un bot: TC2_TOKEN_PERSONA tiene que ser el token de tu usuario",
         en: "the account of the person token ({login}) is a bot: TC2_TOKEN_PERSONA must be your user's token",
     }
+    CUENTA_NO_PERSONA {
+        es: "la cuenta del token de persona ({login}) es de tipo {tipo}, no de una persona: TC2_TOKEN_PERSONA tiene que ser el token de tu usuario",
+        en: "the account of the person token ({login}) is of type {tipo}, not a person: TC2_TOKEN_PERSONA must be your user's token",
+    }
     CUENTA_WEB_FLOW {
         es: "la cuenta del token de persona es web-flow, la de la web de GitHub: TC2_TOKEN_PERSONA tiene que ser el token de tu usuario",
         en: "the account of the person token is web-flow, GitHub's web account: TC2_TOKEN_PERSONA must be your user's token",
     }
     CUENTA_FUERA_DE_LISTA {
-        es: "la cuenta {login} (id {id}) no esta en {ruta}: pide que la anadan con un PR, o usa el token de una persona de la lista",
-        en: "account {login} (id {id}) is not in {ruta}: ask for it to be added with a PR, or use the token of a person on the list",
+        es: "la cuenta {login} (id {id}) no esta en {ruta}: pide que la anadan con un PR, o usa el token de una persona de la lista; si ya la anadieron, ejecuta `tc2 identidad` (actualiza la lista)",
+        en: "account {login} (id {id}) is not in {ruta}: ask for it to be added with a PR, or use the token of a person on the list; if it was already added, run `tc2 identidad` (it updates the list)",
     }
     LOGIN_DE_LA_API {
         es: "la plataforma devolvio un login que no vale para {login} (id {id}): revisa la cuenta del token",
@@ -75,8 +79,8 @@ crate::i18n::textos! {
         en: "the stored one is from another platform",
     }
     CACHE_FUERA_DE_LISTA {
-        es: "la guardada ({login}, id {id}) ya no esta en la lista de personas",
-        en: "the stored one ({login}, id {id}) is no longer on the list of people",
+        es: "la guardada ({login}, id {id}) no esta en la lista de personas de esta copia; si ya la anadieron, ejecuta `tc2 identidad` (actualiza la lista)",
+        en: "the stored one ({login}, id {id}) is not on this copy's list of people; if it was already added, run `tc2 identidad` (it updates the list)",
     }
     NO_SE_ESCRIBE_CACHE {
         es: "no se pudo guardar la identidad en {ruta}: {error}",

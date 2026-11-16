@@ -47,6 +47,10 @@ const MARGEN_RELOJ: u64 = 5 * 60;
 const CARPETA_CACHE: &str = "tc2";
 const FICHERO_CACHE: &str = "identidad.yml";
 
+/// Tamano maximo de la cache que se lee (la que escribe `tc2` ocupa menos
+/// de 400 bytes).
+pub const LIMITE_CACHE: u64 = 64 * 1024;
+
 /// Cuenta de la plataforma que puede llevar tareas: persona de la lista.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cuenta {
@@ -97,8 +101,10 @@ impl Quien {
 /// Por que una cuenta no puede llevar una tarea.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoAsignable {
-    /// Cuenta `Bot` (o cualquier tipo que no sea `User`).
+    /// Cuenta `Bot`.
     Bot,
+    /// Otro tipo que no es `User` ni `Bot` (`Organization`, `Mannequin`).
+    NoPersona,
     /// `web-flow`, la cuenta de la web de GitHub.
     WebFlow,
     /// No esta en `.taskcode/personas.yml`.
@@ -112,6 +118,7 @@ impl NoAsignable {
     pub fn nombre(self) -> &'static str {
         match self {
             Self::Bot => "bot",
+            Self::NoPersona => "no-persona",
             Self::WebFlow => "web-flow",
             Self::FueraDeLista => "fuera-de-lista",
             Self::LoginNoValido => "login-no-valido",
@@ -123,6 +130,9 @@ impl NoAsignable {
         let login = crate::plataforma::errores::sanear(&u.login);
         let m = match self {
             Self::Bot => Mensaje::nuevo(&t::CUENTA_BOT).con("login", login),
+            Self::NoPersona => Mensaje::nuevo(&t::CUENTA_NO_PERSONA)
+                .con("login", login)
+                .con("tipo", crate::plataforma::errores::sanear(&u.tipo)),
             Self::WebFlow => Mensaje::nuevo(&t::CUENTA_WEB_FLOW),
             Self::FueraDeLista => Mensaje::nuevo(&t::CUENTA_FUERA_DE_LISTA)
                 .con("login", login)
@@ -148,8 +158,10 @@ pub fn asignable(
     personas: &Personas,
     proveedor: Proveedor,
 ) -> Result<Cuenta, NoAsignable> {
-    if u.tipo != "User" {
-        return Err(NoAsignable::Bot);
+    match u.tipo.as_str() {
+        "User" => {}
+        "Bot" => return Err(NoAsignable::Bot),
+        _ => return Err(NoAsignable::NoPersona),
     }
     if u.login == "web-flow" {
         return Err(NoAsignable::WebFlow);
@@ -215,7 +227,18 @@ impl Cache {
     /// Lo guardado; `None` si no hay o no se entiende (se trata como si no
     /// hubiera: hay que volver a lanzar `tc2 identidad`).
     pub fn leer(&self) -> Option<Guardada> {
-        let texto = std::fs::read_to_string(&self.ruta).ok()?;
+        use std::io::Read;
+        // Con tope: un fichero mayor no es una cache de `tc2` (se trata como
+        // corrupta, es decir, como si no hubiera).
+        let mut texto = String::new();
+        std::fs::File::open(&self.ruta)
+            .ok()?
+            .take(LIMITE_CACHE + 1)
+            .read_to_string(&mut texto)
+            .ok()?;
+        if texto.len() as u64 > LIMITE_CACHE {
+            return None;
+        }
         let c: GuardadaCruda =
             serde_saphyr::from_str_with_options(&texto, crate::yaml::opciones()).ok()?;
         let proveedor = match c.proveedor.as_str() {
@@ -439,6 +462,12 @@ fn orden_paso(e: Entorno<'_>) -> Paso<Informe> {
             .con("motivo", "plataforma")
             .diagnostico(&t::SIN_ORIGIN));
     };
+    // Con terminal ya hace falta red (la API): se trae antes la rama base,
+    // para que la lista de personas y la configuracion sean las de ahora
+    // (quien acaba de entrar en la lista por un PR fusionado). Sin red,
+    // `sinred` y la cache sin tocar.
+    let rama_base = config::BASE.strip_prefix("origin/").unwrap_or(config::BASE);
+    git::remoto::traer_rama(e.git, e.dir, NOMBRE, rama_base)?;
     let clave = clave_plataforma(e.git, e.dir)?;
     let destino =
         detectar(&url, clave.as_ref().map(|(p, a)| (*p, a.as_str()))).map_err(|mut i| {
@@ -653,6 +682,76 @@ mod tests {
         assert!(linea(AHORA).ends_with("cache=falta"));
         let _ = std::fs::remove_dir_all(&d);
         Ok(())
+    }
+
+    /// Un tipo que no es `User` ni `Bot` (`Organization`, `Mannequin`) no se
+    /// presenta como bot: `cuenta=no-persona`.
+    #[test]
+    fn otro_tipo_de_cuenta_es_no_persona_y_no_bot() {
+        let personas = Personas::nuevas([7]);
+        for tipo in ["Organization", "Mannequin"] {
+            let u = Usuario {
+                login: "org".to_owned(),
+                id: 7,
+                tipo: tipo.to_owned(),
+            };
+            let r = asignable(&u, &personas, Proveedor::GitHub);
+            assert_eq!(r, Err(NoAsignable::NoPersona), "{tipo}");
+            let i = NoAsignable::NoPersona.informe(&u);
+            assert_eq!(
+                i.linea(),
+                "identidad rechazada motivo=identidad rol=persona cuenta=no-persona"
+            );
+            for idioma in [crate::i18n::Idioma::Es, crate::i18n::Idioma::En] {
+                let d = i.diagnostico_en(idioma).unwrap_or_default();
+                assert!(d.contains(tipo) && !d.contains("bot"), "{d}");
+            }
+        }
+    }
+
+    /// La cache se lee con tope (64 KiB): mayor, cuenta como ausente. Un
+    /// login de mas de 255 caracteres no vale ni en la API ni en la cache.
+    #[test]
+    fn cache_con_tope_y_login_con_longitud_maxima() {
+        let d = carpeta("tope");
+        let cache = Cache::en(&d);
+        let cuenta = |login: &str| Cuenta {
+            proveedor: Proveedor::GitHub,
+            id: 7,
+            login: login.to_owned(),
+        };
+        assert_eq!(cache.guardar(&cuenta("ana"), AHORA), Ok(()));
+        assert!(cache.leer().is_some());
+        // La misma cache con relleno de comentario hasta pasar el tope.
+        let texto = std::fs::read_to_string(cache.ruta()).unwrap_or_default();
+        let relleno = format!("{texto}#{}\n", "x".repeat(70 * 1024));
+        assert!(std::fs::write(cache.ruta(), &relleno).is_ok());
+        assert!(cache.leer().is_none(), "mayor que el tope: ausente");
+        let justo = format!(
+            "{texto}#{}\n",
+            "x".repeat(usize::try_from(LIMITE_CACHE).unwrap_or(0) - texto.len() - 2)
+        );
+        assert_eq!(justo.len() as u64, LIMITE_CACHE);
+        assert!(std::fs::write(cache.ruta(), &justo).is_ok());
+        assert!(cache.leer().is_some(), "en el tope exacto: vale");
+        // Login: 255 vale, 256 no.
+        let (max, largo) = ("a".repeat(255), "a".repeat(256));
+        assert!(Asignado::persona(7, &max).is_some());
+        assert!(Asignado::persona(7, &largo).is_none());
+        let u = Usuario {
+            login: largo.clone(),
+            id: 7,
+            tipo: "User".to_owned(),
+        };
+        assert_eq!(
+            asignable(&u, &Personas::nuevas([7]), Proveedor::GitHub),
+            Err(NoAsignable::LoginNoValido)
+        );
+        assert_eq!(cache.guardar(&cuenta(&max), AHORA), Ok(()));
+        assert!(cache.leer().is_some());
+        assert_eq!(cache.guardar(&cuenta(&largo), AHORA), Ok(()));
+        assert!(cache.leer().is_none(), "login de mas en la cache: ausente");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
