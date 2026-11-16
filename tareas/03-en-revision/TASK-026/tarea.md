@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-026-f2-11-instaladores-de-una-linea
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 352073
-tokens_implementacion: null
+tokens_implementacion: 23843522
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-16
@@ -39,12 +39,14 @@ Tarea F2-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 | 2026-11-16T08:55:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T09:18:26Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T09:18:38Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T11:00:28Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T09:00:18Z | diseno | agente:a5d80e07e9effb23b | 16 | 66714 | 268770 | 16573 | 21 | 352073 | - | - |
+| 2026-11-16T11:00:28Z | implementacion | sesion:bb6e0871-29bf-42e4-b8be-661dbe95cd05 | 200 | 193055 | 23542909 | 107358 | 12 | 23843522 | - | - |
 
 ## Autorrevision
 
