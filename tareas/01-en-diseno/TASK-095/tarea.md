@@ -6,10 +6,10 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -34,3 +34,9 @@ Contexto (Carlos, 2026-11-16, RR-20, hito H10): memoria del proyecto propia que 
 - [ ] Índice de las tareas terminadas de TaskCodeTwo reconstruido dos veces con el mismo hash
 - [ ] Un merge hecho en la plataforma se refleja en la siguiente búsqueda sin hooks
 - [ ] Cumple lo que pide la tarea F1-19 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-16T12:55:18Z | plan | automatico | persona | 0.16.1 |

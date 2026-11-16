@@ -41,8 +41,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-095, TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
+- **En marcha:** TASK-095 (en diseño)
+- **Listas para empezar:** TASK-027, TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -69,7 +69,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-074 | F1-16 ADR lotes desatendidos con revision humana al final | — | TASK-006, TASK-011 | ✅ terminada |
 | — | TASK-075 | F1-17 ADR progreso en vivo y estimacion de tiempo | — | TASK-010, TASK-011 | ✅ terminada |
 | — | TASK-094 | F1-18 ADR hito de decisiones (ADR) en init y en actualizar | — | TASK-012, TASK-013 | ✅ terminada |
-| 1 | TASK-095 | F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda | — | TASK-002, TASK-010, TASK-012, TASK-014 | lista para empezar |
+| 1 | TASK-095 | F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda | — | TASK-002, TASK-010, TASK-012, TASK-014 | ▶ en diseño |
 
 ## H2 — Núcleo
 
