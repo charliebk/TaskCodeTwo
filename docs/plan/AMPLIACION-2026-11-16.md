@@ -46,7 +46,7 @@ compartido por el equipo y que sustituya a engram.
 | RF-81 (nuevo) | **I** — `tc2 buscar` como único punto de búsqueda del plugin (texto, etiqueta, fichero, tareas vecinas), con salida JSON |
 | RF-82 (nuevo) | **I** — Etiquetado automático en tres capas (determinista, léxica, IA acotada) con vocabulario cerrado y `tc2 tags doctor` |
 | RF-83 (nuevo) | **E** — Grafo de tareas, etiquetas, ficheros y relaciones (`tc2 grafo --json`) |
-| RF-84 (nuevo) | **E** — Visor 3D opcional (`tc2 visor`): página Vue servida por el propio ejecutable en un puerto local, con paneles de dockview (como ToolsaWeb) y varias vistas del grafo; la búsqueda ilumina etiquetas y relaciones unos milisegundos y los cambios de código destellan un halo verde (líneas añadidas) o rojo (líneas borradas) en el fichero |
+| RF-84 (nuevo) | **E** — Visor 3D opcional (`tc2 visor`): página Vue servida por el propio ejecutable en un puerto local, con paneles de dockview (como ToolsaWeb) y varias vistas del grafo; la búsqueda ilumina etiquetas y relaciones unos milisegundos, los cambios de código destellan un halo verde (líneas añadidas) o rojo (líneas borradas) en el fichero y los ficheros creados aparecen en la red; un panel muestra en tiempo real qué se busca, con qué etiquetas y qué ficheros se tocan, sincronizado con el grafo |
 
 ## 3. Diseño propuesto (lo fija el ADR F1-19)
 
@@ -145,8 +145,9 @@ la maraña.
   sirve la app Vue **ya compilada y embebida en el ejecutable**: sin Node en
   la máquina de uso, como exige RR-16.
 - **Canal de eventos** (SSE o WebSocket) del índice al visor:
-  `busqueda {nodos, aristas}`, `fichero_cambiado {ruta, mas, menos}`,
-  `indice_actualizado {sha}`. Los cambios salen del reindexado (§3.2) y,
+  `busqueda {consulta, etiquetas, ficheros, tareas, aristas}`,
+  `fichero_cambiado {ruta, mas, menos}`, `fichero_creado {ruta}`,
+  `fichero_borrado {ruta}` e `indice_actualizado {sha}`. Los cambios salen del reindexado (§3.2) y,
   para verlos mientras se edita, de un vigilante de ficheros con
   `git diff --numstat` frente a HEAD.
 - **Paneles con dockview** (`dockview-vue`, el de ToolsaWeb) y PrimeVue:
@@ -155,8 +156,11 @@ la maraña.
   tarea. Cada panel es una proyección distinta de los mismos datos.
 - **Panel de actividad en tiempo real** (decisión de Carlos, 2026-11-16):
   junto al panel del grafo, otro panel muestra la **pila de búsquedas y de
-  ficheros cambiados** según llegan (lo último arriba): consulta, etiquetas y
-  tareas devueltas; fichero, `+líneas` y `-líneas`. Los dos paneles se
+  ficheros cambiados** según llegan (lo último arriba): qué se está buscando
+  (la consulta), con qué etiquetas y qué ficheros y tareas salen; qué fichero
+  se modifica (`+líneas` / `-líneas`), se crea o se borra. Así se ve **qué
+  está haciendo el agente y dónde**: el grafo muestra el lugar de la red y la
+  pila el detalle. Los dos paneles se
   alimentan del **mismo canal de eventos y a la vez**: cada evento entra en la
   pila y dispara su efecto en el grafo en el mismo instante. Pasar el ratón o
   pulsar una entrada de la pila resalta y centra sus nodos en el grafo, y
@@ -164,7 +168,9 @@ la maraña.
 - **Efectos:** búsqueda → las etiquetas y aristas del resultado brillan unos
   cientos de milisegundos y emiten partículas a lo largo de las relaciones
   (el «impulso»); líneas añadidas → halo verde en el fichero; líneas
-  borradas → halo rojo; los dos, si hay ambos.
+  borradas → halo rojo; los dos, si hay ambos; fichero creado → el nodo
+  aparece en la red con un destello propio (azul) unido a su carpeta y a la
+  tarea en curso; fichero borrado → el nodo se apaga en rojo y desaparece.
 - **Librería propuesta: `3d-force-graph`** (three.js con d3-force-3d, MIT).
   Trae de serie resaltado de nodos y aristas, partículas emitidas a demanda,
   cambios dinámicos de datos y bloom (halo). Es JavaScript puro: se envuelve
@@ -202,9 +208,9 @@ Fase nueva **Fase 10 — Memoria del proyecto** (sprint 10, 17 tareas) y un ADR 
 | F10-12 | `tc2 grafo --json`: nodos, aristas, pesos y proyecciones (completa, por ficheros, por etiquetas, etiquetas y ficheros), con modo foco, agrupación por carpeta y umbral (RF-83) | El JSON de ToolsaWeb en modo foco tiene menos de 300 nodos; mismo resultado con los mismos SHA | F10-11 |
 | F10-13 | Medición y retirada de engram: preguntas reales en TaskCodeTwo, ToolsaWeb y OpenDockTrading frente a la búsqueda de engram; si gana, engram sale del manifiesto de F1-14 | Informe con aciertos de cada uno; decisión de Carlos registrada | F10-5..F10-12 |
 | F10-14 | Prueba de concepto del motor 3D: `3d-force-graph` frente a Babylon.js con d3-force-3d, con el grafo real de ToolsaWeb (RF-84) | Cifras de FPS, memoria y tamaño del bundle con el grafo completo y en modo foco; halo y pulso funcionando en los dos; decisión registrada | F10-12 |
-| F10-15 | `tc2 visor`: servidor local en `127.0.0.1` con token, app embebida en el ejecutable y canal de eventos (`busqueda`, `fichero_cambiado`, `indice_actualizado`) desde el índice y un vigilante de ficheros (RF-84) | Se abre en el navegador sin Node instalado; un cambio en un fichero llega al visor en menos de 1 s; cerrar el visor no afecta a `tc2` | F10-2, F10-6, F10-14 |
+| F10-15 | `tc2 visor`: servidor local en `127.0.0.1` con token, app embebida en el ejecutable y canal de eventos (`busqueda`, `fichero_cambiado`, `fichero_creado`, `fichero_borrado`, `indice_actualizado`) desde el índice y un vigilante de ficheros (RF-84) | Se abre en el navegador sin Node instalado; un cambio en un fichero llega al visor en menos de 1 s; cerrar el visor no afecta a `tc2` | F10-2, F10-6, F10-14 |
 | F10-16 | App Vue del visor con dockview y PrimeVue: paneles de red completa 3D, por ficheros, por etiquetas, etiquetas y ficheros, búsqueda y detalle de tarea, con su disposición guardada (RF-84) | Las cuatro vistas abiertas a la vez con el grafo de ToolsaWeb; la disposición se conserva al volver a abrir | F10-15 |
-| F10-17 | Efectos del visor y panel de actividad: pulso de la búsqueda (brillo y partículas en etiquetas y relaciones durante unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, y panel de dockview con la pila de búsquedas y ficheros cambiados en tiempo real, sincronizado con el grafo (RF-84) | Una búsqueda ilumina exactamente los nodos y aristas devueltos por `tc2 buscar`; añadir y borrar líneas destella verde y rojo en el fichero correcto; cada evento aparece en la pila y en el grafo a la vez; pulsar una entrada de la pila resalta y centra sus nodos | F10-16 |
+| F10-17 | Efectos del visor y panel de actividad: pulso de la búsqueda (brillo y partículas en etiquetas y relaciones durante unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, aparición de los ficheros creados y apagado de los borrados, y panel de dockview con la pila de búsquedas (consulta, etiquetas, ficheros y tareas) y ficheros cambiados, creados o borrados en tiempo real, sincronizado con el grafo (RF-84) | Una búsqueda ilumina exactamente los nodos y aristas devueltos por `tc2 buscar`; añadir y borrar líneas destella verde y rojo en el fichero correcto; un fichero creado aparece en la red unido a la tarea en curso; cada evento aparece en la pila y en el grafo a la vez; pulsar una entrada de la pila resalta y centra sus nodos | F10-16 |
 
 Además: añadir RR-20 a la tabla de requisitos rectores del plan (§2) y al
 criterio de salida (§9); F3-11 (aviso de solape) puede usar `tarea_archivo`
@@ -311,7 +317,7 @@ regenerar el roadmap.
 - Cumple lo que pide la tarea F10-14 del plan y los requisitos que cita
 
 ### F10-15 tc2 visor: servidor local y canal de eventos
-> Servidor en 127.0.0.1 con token, app embebida en el ejecutable y canal de eventos (busqueda, fichero_cambiado, indice_actualizado) desde el índice y un vigilante de ficheros (RF-84).
+> Servidor en 127.0.0.1 con token, app embebida en el ejecutable y canal de eventos (busqueda, fichero_cambiado, fichero_creado, fichero_borrado, indice_actualizado) desde el índice y un vigilante de ficheros (RF-84).
 - Se abre en el navegador sin Node instalado
 - Un cambio en un fichero llega al visor en menos de 1 s
 - Cerrar el visor no afecta a tc2
@@ -324,9 +330,10 @@ regenerar el roadmap.
 - Cumple lo que pide la tarea F10-16 del plan y los requisitos que cita
 
 ### F10-17 Efectos del visor y panel de actividad en tiempo real
-> Pulso de la búsqueda (brillo y partículas en etiquetas y relaciones unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, y panel de dockview con la pila de búsquedas y ficheros cambiados en tiempo real, sincronizado con el grafo (RF-84).
+> Pulso de la búsqueda (brillo y partículas en etiquetas y relaciones unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, aparición de los ficheros creados y apagado de los borrados, y panel de dockview con la pila de búsquedas (consulta, etiquetas, ficheros y tareas) y ficheros cambiados, creados o borrados en tiempo real, sincronizado con el grafo (RF-84).
 - Una búsqueda ilumina exactamente los nodos y aristas devueltos por tc2 buscar
 - Añadir y borrar líneas destella verde y rojo en el fichero correcto
+- Un fichero creado aparece en la red unido a la tarea en curso
 - Cada evento aparece en la pila y en el grafo a la vez
 - Pulsar una entrada de la pila resalta y centra sus nodos en el grafo
 - Cumple lo que pide la tarea F10-17 del plan y los requisitos que cita

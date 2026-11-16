@@ -216,7 +216,7 @@ sesiones y 228 relaciones en la máquina de Carlos (116 observaciones citan un
 | RF-81 | **I** — `tc2 buscar` como único punto de búsqueda del plugin (texto, etiqueta, fichero, tareas vecinas), con salida JSON |
 | RF-82 | **I** — Etiquetado automático en tres capas (determinista, léxica, IA acotada) con vocabulario cerrado y `tc2 tags doctor` |
 | RF-83 | **E** — Grafo de tareas, etiquetas, ficheros y relaciones (`tc2 grafo --json`) |
-| RF-84 | **E** — Visor 3D opcional (`tc2 visor`): página Vue servida por el propio ejecutable en un puerto local, con paneles de dockview (como ToolsaWeb) y varias vistas del grafo; la búsqueda ilumina etiquetas y relaciones unos milisegundos y los cambios de código destellan un halo verde (líneas añadidas) o rojo (líneas borradas) en el fichero |
+| RF-84 | **E** — Visor 3D opcional (`tc2 visor`): página Vue servida por el propio ejecutable en un puerto local, con paneles de dockview (como ToolsaWeb) y varias vistas del grafo; la búsqueda ilumina etiquetas y relaciones unos milisegundos, los cambios de código destellan un halo verde (líneas añadidas) o rojo (líneas borradas) en el fichero y los ficheros creados aparecen en la red; un panel muestra en tiempo real qué se busca, con qué etiquetas y qué ficheros se tocan, sincronizado con el grafo |
 
 ## 4. Requisitos nuevos que salen del uso real
 
