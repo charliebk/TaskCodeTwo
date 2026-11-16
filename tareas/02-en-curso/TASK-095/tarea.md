@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Contexto (Carlos, 2026-11-16, RR-20, hito H10): memoria del proyecto propia que 
 |---|---|---|---|---|
 | 2026-11-16T12:55:18Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T13:06:31Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T13:06:45Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
