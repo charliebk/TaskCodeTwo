@@ -110,6 +110,10 @@ where
             let (json, resto) = con_json(resto);
             actualizar_cli::orden(&resto).salida_en(json, idioma)
         }
+        [orden, resto @ ..] if orden == identidad::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_identidad(&resto).salida_en(json, idioma)
+        }
         [] => Salida {
             codigo: 2,
             stdout: String::new(),
@@ -199,6 +203,30 @@ fn orden_git(orden: &str, args: &[String]) -> Informe {
             .con("motivo", "argumentos-de-mas")
             .diagnostico(&txt::USO_ACTUALIZAR_RAMA)
     }
+}
+
+/// `identidad [--json]` (F2-13) en la carpeta actual, con el terminal y los
+/// tokens del proceso.
+fn orden_identidad(args: &[String]) -> Informe {
+    use std::io::IsTerminal;
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(identidad::NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+        }
+    };
+    let g = git::Git::nuevo();
+    identidad::orden(
+        args,
+        identidad::Entorno {
+            dir: &dir,
+            git: &g,
+            tty: std::io::stdin().is_terminal(),
+            credenciales: Box::new(plataforma::CredencialesEntorno),
+            ahora: identidad::ahora(),
+        },
+    )
 }
 
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado
