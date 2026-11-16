@@ -73,7 +73,7 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                  (
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                         (sin asignar)
 ```
 
-## En curso (02-en-curso) — 1
+## En revision (03-en-revision) — 1
 
 ```text
 ID        Titulo                                                  Asignado
