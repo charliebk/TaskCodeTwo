@@ -2,7 +2,7 @@
 
 - Commit revisado: 92900522ace4f8328546b838b04358cb15a3d298
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-116 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 ## Hallazgos
 

@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 9610206
-tokens_revision: null
+tokens_revision: 21040358
 creado: 2026-11-16
 actualizado: 2026-11-16
 dependencias: []
@@ -54,3 +54,5 @@ El codigo de tc2 usa nombres que chocan con la 0.16 y contradicen F1-12 D1a (tas
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T23:02:23Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 8 | 9091 | 1905964 | 2056 | 0 | 1917119 | - | - |
 | 2026-11-16T23:02:23Z | implementacion | agente:abed89afa4dbae9c1 | 124 | 178848 | 7473266 | 40849 | 7 | 7693087 | - | - |
+| 2026-11-16T23:35:39Z | revision | agente:a58e9cdab2de6ec2d | 248 | 184819 | 15445532 | 31867 | 27 | 15662466 | 1 | rust-wasm-reviewer |
+| 2026-11-16T23:35:41Z | revision | agente:aba5803665bcc6c05 | 102 | 133313 | 5223543 | 20934 | 8 | 5377892 | 1 | code-quality-reviewer |
