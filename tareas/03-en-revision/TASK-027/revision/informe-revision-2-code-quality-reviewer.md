@@ -2,7 +2,7 @@
 
 - Commit revisado: 39ef7a1862bb2047f844adb168309dc4dd92d19c
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-027 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 Veredicto propuesto por el revisor: **cambios-solicitados** (IMP-2 abierto; IMP-1 y los MENOR de la ronda 1 verificados).
 

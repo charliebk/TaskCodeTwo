@@ -2,7 +2,7 @@
 
 - Commit revisado: 39ef7a1862bb2047f844adb168309dc4dd92d19c
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-027 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 Propuesta del revisor: `aprobada`. No hay CRITICOS ni IMPORTANTES. Quedan MENORES abiertos:
 MEN-1 y MEN-5 (sin corregir a proposito) y MEN-6 (nuevo, introducido por la correccion de MEN-4).
