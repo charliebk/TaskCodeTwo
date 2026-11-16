@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-025 (feature) — F2-10 Build de ejecutables por sistema en la CI, firmados (2026-11-16)
 - TASK-024 (feature) — F2-8 i18n de mensajes (2026-11-16)
 - TASK-023 (feature) — F2-7 Configuracion minima con esquema validado y valores por defecto (2026-11-15)
 - TASK-022 (feature) — F2-9 Adaptador GitLab (2026-11-15)
