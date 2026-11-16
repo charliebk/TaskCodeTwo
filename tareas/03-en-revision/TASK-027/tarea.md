@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-027-f2-12-taskctl-actualizar-cli-y-aviso-de
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 53840927
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-16
@@ -57,3 +57,11 @@ la ruta).
 | 2026-11-16T16:57:49Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T17:04:03Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T17:04:05Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T18:25:07Z | review | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16T18:25:07Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 58 | 20188 | 8428850 | 6762 | 1 | 8455858 | - | - |
+| 2026-11-16T18:25:07Z | implementacion | agente:a03e84fce229ca7a2 | 370 | 359244 | 44866127 | 159328 | 70 | 45385069 | - | - |
