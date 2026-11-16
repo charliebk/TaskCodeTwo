@@ -178,6 +178,31 @@ path_idempotente() {
     [ "$n" = 1 ] || rojo "tras reinstalar en otro directorio, .profile tiene $n bloques de tc2"
     ruta=$(terminal_nueva_unix "$h" | head -n 1)
     [ "$ruta" = "$h/otro/tc2" ] || rojo "tras reinstalar en otro directorio, la terminal nueva encuentra '$ruta'"
+    # Con la marca de fin borrada a mano, no se toca el perfil (antes se
+    # llevaba todo lo que habia detras) y se dice que hacer.
+    h="$tmp/home-sin-fin"
+    mkdir -p "$h"
+    # shellcheck disable=SC2016 # $PATH literal, como lo escribe el instalador
+    printf '# >>> tc2 (TaskCodeTwo) >>>\nexport PATH="/viejo:$PATH"\nalias ll="ls -l"\n' >"$h/.profile"
+    antes=$(cksum <"$h/.profile")
+    set +e
+    salida=$(export TC2_INSTALL_DIR="$h/bin"; linea_unix "$h" 2>&1)
+    set -e
+    case "$salida" in
+      *"incompleto o repetido"*) ;;
+      *) echo "$salida"; rojo "con la marca de fin borrada, el instalador no lo dijo" ;;
+    esac
+    [ "$(cksum <"$h/.profile")" = "$antes" ] || rojo "con la marca de fin borrada, se modifico .profile"
+    # Un perfil con finales CRLF: el bloque se reconoce y se sustituye.
+    h="$tmp/home-crlf"
+    mkdir -p "$h"
+    # shellcheck disable=SC2016 # $PATH literal, como lo escribe el instalador
+    printf '# mio\r\n\r\n# >>> tc2 (TaskCodeTwo) >>>\r\nexport PATH="/viejo:$PATH"\r\n# <<< tc2 (TaskCodeTwo) <<<\r\n# mio tambien\r\n' >"$h/.profile"
+    (export TC2_INSTALL_DIR="$h/bin"; linea_unix "$h")
+    n=$(grep -cF '# >>> tc2 (TaskCodeTwo) >>>' "$h/.profile") || n=0
+    [ "$n" = 1 ] || rojo "con un perfil CRLF quedan $n bloques de tc2"
+    grep -qF '# mio tambien' "$h/.profile" || rojo "con un perfil CRLF se perdio una linea de la persona"
+    ! grep -qF '/viejo' "$h/.profile" || rojo "con un perfil CRLF quedo el bloque viejo"
     h="$tmp/home-sin-path"
     mkdir -p "$h"
     (export TC2_NO_MODIFY_PATH=1; linea_unix "$h")

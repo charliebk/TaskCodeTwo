@@ -130,9 +130,31 @@ escribir_bloque() {
       decir "$1 ya tiene el bloque de tc2"
       return 0
     fi
+    # Solo se reescribe un bloque entero: una marca de inicio y despues una
+    # de fin. Con las marcas tocadas a mano, quitar "hasta la marca de fin"
+    # podria llevarse el resto del perfil; entonces no se toca. Las marcas se
+    # reconocen tambien con finales CRLF.
+    marcas=$(awk -v i="$MARCA_INICIO" -v f="$MARCA_FIN" '
+      { l = $0; sub(/\r$/, "", l) }
+      l == i { ni++; if (!pi) pi = NR }
+      l == f { nf++; if (!pf) pf = NR }
+      END { print ni + 0, nf + 0, (pi && pf && pi < pf) ? "orden" : "desorden" }' "$1")
+    if [ "$marcas" != "1 1 orden" ]; then
+      fallo "tc2 esta instalado en $2, pero el bloque de tc2 de $1 esta incompleto o repetido (marcas: $marcas); no se ha tocado" \
+        "quita a mano de $1 las lineas entre '$MARCA_INICIO' y '$MARCA_FIN' (ambas incluidas) y repite, o repite con TC2_NO_MODIFY_PATH=1"
+    fi
+    # Fuera el bloque y la linea en blanco que se escribio delante de el.
     # cat > en vez de mv: se conservan el propietario, los permisos y un
     # posible enlace simbolico del perfil.
-    if ! { awk -v i="$MARCA_INICIO" -v f="$MARCA_FIN" '$0 == i { s = 1; next } $0 == f { s = 0; next } !s' "$1" >"$1.tc2-tmp" &&
+    if ! { awk -v i="$MARCA_INICIO" -v f="$MARCA_FIN" '
+      { l = $0; sub(/\r$/, "", l) }
+      l == i { s = 1; hay = 0; next }
+      l == f { s = 0; next }
+      s { next }
+      { if (hay) print pendiente; hay = 0 }
+      l == "" { pendiente = $0; hay = 1; next }
+      { print }
+      END { if (hay) print pendiente }' "$1" >"$1.tc2-tmp" &&
       cat "$1.tc2-tmp" >"$1"; }; then
       rm -f "$1.tc2-tmp"
       fallo "no se pudo reescribir $1" "quita a mano el bloque entre las marcas de tc2, o repite con TC2_NO_MODIFY_PATH=1"
