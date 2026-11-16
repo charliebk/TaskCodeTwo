@@ -29,9 +29,13 @@ dependencias: [TASK-025]
 Tarea F2-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-10.
 
 ## Criterios de aceptacion
-- [ ] Actualización sin reinstalar
-- [ ] incompatibilidad avisada con el comando que la arregla
-- [ ] Cumple lo que pide la tarea F2-12 del plan y los requisitos que cita
+- [ ] `tc2 actualizar --cli` sustituye una instalacion vX por vY servida en 127.0.0.1 (`TC2_BASE_URL`) sin reinstalar: despues `tc2 --version` da vY (test `crates/tc2/tests/actualizar_cli.rs`; job de ensayo en `.github/workflows/release.yml`, no verificado hasta el push)
+- [ ] Si el sha256 no casa con `SHA256SUMS`, sale `rechazada` (3) y el sha256 del binario instalado no cambia; no quedan `.descarga` ni `.old` (test)
+- [ ] `tc2 actualizar --cli --comprobar` da `actualizar ok actual=X disponible=Y` o `sin-cambios` sin modificar nada; sin red da `sinred` (4) con la URL (test)
+- [ ] `tc2 version --json` devuelve exactamente `{version, protocolo, target, sha256}` (ADR F1-14 punto 5; test)
+- [ ] `tc2 compatible --protocolo A-B` fuera de rango sale `rechazada` (3) con una linea `motivo=protocolo-incompatible arreglo="tc2 actualizar --cli"` (test, tambien en ingles)
+- [ ] Un `tc2` en la cache del plugin no se sustituye: `rechazada` con `motivo=gestionado-por-plugin` y el arreglo del plugin (test de `detectar_modo` con rutas de los tres sistemas)
+- [ ] `xtask` y `tc2` comparten la tabla de targets y el sha256 en `crates/distribucion`; `cargo xtask verificar` sigue en verde
 
 ## Transiciones
 
