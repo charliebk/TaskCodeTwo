@@ -45,7 +45,7 @@ Detalle en [REQUISITOS-FUNCIONALES.md §0](REQUISITOS-FUNCIONALES.md).
 | RR-17 | Skills, agentes y modelo adecuados a cada tarea | Selección determinista entre lo instalado, anotada en la tarea y medida (F1-15, F3-9, F4-6, F8-6) |
 | RR-18 | Lotes desatendidos con revisión humana al final | `taskctl lote`: rama de lote, sin preguntas, un único PR final (P13; F1-16, F4-7, F4-8, F9-4b) |
 | RR-19 | Progreso en vivo: fases que faltan y tiempo estimado | Estimación por fase, status line y `status --seguir`, métricas finales (F1-17, F3-12, F3-13, F4-9, F8-7) |
-| RR-20 | Memoria del proyecto propia, compartida y nunca desactualizada | Git como verdad e índice SQLite reconstruible con frescura por SHA, etiquetado acotado, búsqueda única `tc2 buscar`, conversores de tareas y de engram, visor 3D opcional (F1-19, Fase 10) |
+| RR-20 | Memoria del proyecto propia, compartida y nunca desactualizada — **descartado el 2026-11-16** | Git como verdad e índice SQLite reconstruible con frescura por SHA, etiquetado acotado, búsqueda única `tc2 buscar`, conversores de tareas y de engram, visor 3D opcional (F1-19, Fase 10) |
 
 ## 3. Qué existe y qué aprendemos
 
@@ -439,6 +439,8 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 
 ### Fase 10 — Memoria del proyecto (RR-20)
 
+> **Descartado el 2026-11-16** (TASK-113): la puerta de valor dio NO-GO y Carlos descartó la Fase 10; ver [informe](../mediciones/fase10-puerta-valor/informe.md). Se borraron sus tareas (TASK-096..TASK-112) y el hito H10; lo que sigue queda como registro.
+
 Índice de contexto propio que sustituye a engram: git es la fuente de verdad y
 una base SQLite local es un índice reconstruible que nunca queda desactualizado;
 etiquetado automático acotado a un vocabulario, búsqueda única para el plugin,
@@ -499,7 +501,7 @@ motivo en [AMPLIACION-2026-11-16](AMPLIACION-2026-11-16.md).
 4. **F4-5: relevo**, TaskCodeTwo pasa a la 2.0 (requiere F9-2).
 5. Fases 6–8, y la Fase 9 al final, con el piloto en OpenDockTrading antes que
    ToolsaWeb.
-6. **Fase 10** (memoria del proyecto): F1-19 → F10-1 → F10-2 y F10-3 → resto;
+6. ~~**Fase 10** (memoria del proyecto)~~ — descartada el 2026-11-16 (TASK-113): F1-19 → F10-1 → F10-2 y F10-3 → resto;
    el conversor de tareas va pronto para medir con datos reales antes de la IA.
 
 ## Fuentes

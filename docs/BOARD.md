@@ -1,8 +1,8 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-16. No editar a mano.
+> Generado automaticamente por taskctl board --escribir el 2026-11-16. No editar a mano.
 
-## Planificadas (00-planificadas) — 81
+## Planificadas (00-planificadas) — 64
 
 ```text
 ID        Titulo                                                               Asignado
@@ -71,23 +71,14 @@ TASK-090  F8-7 Metricas finales de cada tarea y de cada lote                   (
 TASK-091  F9-4b Prueba nocturna de un lote de 10 tareas                        (sin asignar)
 TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                  (sin asignar)
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                         (sin asignar)
-TASK-096  F10-1 Indice SQLite reconstruible                                    (sin asignar)
-TASK-097  F10-2 Frescura del indice por SHA                                    (sin asignar)
-TASK-098  F10-3 Conversor de las tareas existentes al indice                   (sin asignar)
-TASK-099  F10-4 Ficheros tocados en finish                                     (sin asignar)
-TASK-100  F10-5 Conversor de engram por proyecto                               (sin asignar)
-TASK-101  F10-6 tc2 buscar                                                     (sin asignar)
-TASK-102  F10-7 El plugin busca en el indice                                   (sin asignar)
-TASK-103  F10-8 Etiquetado determinista                                        (sin asignar)
-TASK-104  F10-9 Vocabulario cerrado y tags doctor                              (sin asignar)
-TASK-105  F10-10 Etiquetado lexico e IA acotada en finish                      (sin asignar)
-TASK-106  F10-11 Relaciones derivadas entre tareas                             (sin asignar)
-TASK-107  F10-12 Grafo de tareas, etiquetas y ficheros en JSON                 (sin asignar)
-TASK-108  F10-13 Medicion y retirada de engram                                 (sin asignar)
-TASK-109  F10-14 PoC del motor 3D del visor                                    (sin asignar)
-TASK-110  F10-15 tc2 visor: servidor local y canal de eventos                  (sin asignar)
-TASK-111  F10-16 App Vue del visor con dockview                                (sin asignar)
-TASK-112  F10-17 Efectos del visor y panel de actividad en tiempo real         (sin asignar)
+```
+
+## En curso (02-en-curso) — 1
+
+```text
+ID        Titulo                                                  Asignado
+--------  ------------------------------------------------------  --------------------
+TASK-113  Puerta de valor F10: informe, datos y descarte del H10  charlie.bk@gmail.com
 ```
 
 ## Terminadas (04-terminadas) — 31

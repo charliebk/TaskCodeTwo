@@ -3,6 +3,10 @@
 Indice determinista para la recuperacion de contexto por etiquetas
 (seccion 6.1 de la metodologia). Lo actualiza taskctl finish.
 
+## Mediciones
+
+- [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
+
 ## Tareas terminadas
 
 - TASK-095 — F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda · etiquetas: (sin etiquetas) · rama feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de · terminada 2026-11-16 · tareas/04-terminadas/TASK-095/
