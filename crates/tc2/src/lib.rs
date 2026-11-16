@@ -6,7 +6,8 @@
 //! ID, F2-4) [`tarea`] (modelo de tarea y frontmatter YAML, F2-5) y
 //! [`plataforma`] (puerto Plataforma y adaptadores GitHub y GitLab, F2-6 y
 //! F2-9), [`carril`] (tabla de suelo de F1-10) y [`config`] (configuracion
-//! con esquema validado, F2-7). Las capas
+//! con esquema validado, F2-7) e [`i18n`] (mensajes en espanol e ingles,
+//! F2-8). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod alta;
@@ -15,11 +16,14 @@ pub mod config;
 pub mod contrato;
 pub mod estado;
 pub mod git;
+pub mod i18n;
 pub mod plataforma;
 pub mod tarea;
 mod yaml;
 
 use contrato::{Informe, Resultado};
+use i18n::catalogo::cli as txt;
+use i18n::{Idioma, Mensaje};
 
 /// Version del CLI, la de `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -36,12 +40,19 @@ pub struct Salida {
     pub stderr: String,
 }
 
-/// Uso del binario, para los mensajes de error.
-const USO: &str = "Uso: tc2 --version | tc2 guardar [--json] \"<mensaje>\" <rutas...> | tc2 actualizar-rama [--json] | tc2 new [--json] \"<titulo>\"";
-
 /// Interpreta los argumentos (sin el nombre del programa) y ejecuta la orden
-/// en la carpeta actual.
+/// en la carpeta actual, con los mensajes en espanol.
 pub fn ejecutar<I, S>(args: I) -> Salida
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    ejecutar_en(Idioma::Es, args)
+}
+
+/// Como [`ejecutar`], con los mensajes dirigidos a la persona en `idioma`
+/// (F2-8). stdout y el codigo de salida no cambian con el idioma.
+pub fn ejecutar_en<I, S>(idioma: Idioma, args: I) -> Salida
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
@@ -61,29 +72,36 @@ where
                 [j, r @ ..] if j == "--json" => (true, r),
                 r => (false, r),
             };
-            orden_git(orden, resto).salida(json)
+            orden_git(orden, resto).salida_en(json, idioma)
         }
         [orden, resto @ ..] if orden == alta::NOMBRE => {
             let (json, resto) = match resto {
                 [j, r @ ..] if j == "--json" => (true, r),
                 r => (false, r),
             };
-            orden_new(resto).salida(json)
+            orden_new(resto).salida_en(json, idioma)
         }
         [] => Salida {
             codigo: 2,
             stdout: String::new(),
             stderr: format!(
-                "tc2: falta la orden. {USO}
-"
+                "{}
+",
+                Mensaje::nuevo(&txt::FALTA_LA_ORDEN)
+                    .con_mensaje("uso", &txt::USO)
+                    .texto(idioma)
             ),
         },
         [otro, ..] => Salida {
             codigo: 2,
             stdout: String::new(),
             stderr: format!(
-                "tc2: orden desconocida «{otro}». {USO}
-"
+                "{}
+",
+                Mensaje::nuevo(&txt::ORDEN_DESCONOCIDA)
+                    .con("orden", otro.as_str())
+                    .con_mensaje("uso", &txt::USO)
+                    .texto(idioma)
             ),
         },
     }
@@ -95,7 +113,7 @@ fn orden_git(orden: &str, args: &[String]) -> Informe {
         Ok(d) => d,
         Err(e) => {
             return Informe::nuevo(orden, Resultado::Error)
-                .diagnostico(format!("no se puede leer la carpeta actual: {e}"));
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
         }
     };
     let g = git::Git::nuevo();
@@ -103,7 +121,7 @@ fn orden_git(orden: &str, args: &[String]) -> Informe {
         let Some((mensaje, rutas)) = args.split_first() else {
             return Informe::nuevo(orden, Resultado::Uso)
                 .con("motivo", "sin-mensaje")
-                .diagnostico("uso: guardar \"<mensaje>\" <rutas...>");
+                .diagnostico(&txt::USO_GUARDAR);
         };
         let rutas: Vec<&str> = rutas.iter().map(String::as_str).collect();
         git::guardar(&g, &dir, mensaje, &rutas)
@@ -112,7 +130,7 @@ fn orden_git(orden: &str, args: &[String]) -> Informe {
     } else {
         Informe::nuevo(orden, Resultado::Uso)
             .con("motivo", "argumentos-de-mas")
-            .diagnostico("uso: actualizar-rama [--json]")
+            .diagnostico(&txt::USO_ACTUALIZAR_RAMA)
     }
 }
 
@@ -130,26 +148,24 @@ fn orden_new(args: &[String]) -> Informe {
         [_] => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
                 .con("motivo", "titulo-invalido")
-                .diagnostico(
-                    "el titulo no puede estar vacio ni llevar saltos de linea, tabuladores ni otros caracteres de control",
-                );
+                .diagnostico(&txt::TITULO_INVALIDO);
         }
         [] => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
                 .con("motivo", "sin-titulo")
-                .diagnostico("uso: new [--json] \"<titulo>\"");
+                .diagnostico(&txt::USO_NEW);
         }
         _ => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
                 .con("motivo", "argumentos-de-mas")
-                .diagnostico("pon el titulo entre comillas: new [--json] \"<titulo>\"");
+                .diagnostico(&txt::TITULO_ENTRE_COMILLAS);
         }
     };
     let dir = match std::env::current_dir() {
         Ok(d) => d,
         Err(e) => {
             return Informe::nuevo(alta::NOMBRE, Resultado::Error)
-                .diagnostico(format!("no se puede leer la carpeta actual: {e}"));
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
         }
     };
     let g = git::Git::nuevo();
@@ -222,6 +238,32 @@ mod tests {
             s.stdout,
             "actualizar-rama uso motivo=argumentos-de-mas
 "
+        );
+    }
+
+    #[test]
+    fn new_y_actualizar_rama_en_ingles_mismo_stdout_y_codigo() {
+        for args in [
+            vec!["new"],
+            vec!["new", "a\tb"],
+            vec!["new", "--json", "a", "b"],
+            vec!["actualizar-rama", "de-mas"],
+            vec!["guardar"],
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!(es.codigo, en.codigo, "{args:?}");
+            assert!(!en.stderr.is_empty(), "{args:?}");
+            assert_ne!(es.stderr, en.stderr, "{args:?}: stderr sin traducir");
+            if args.contains(&"--json") {
+                assert!(en.stdout.contains("\"diagnostico\":"), "{args:?}");
+            } else {
+                assert_eq!(es.stdout, en.stdout, "{args:?}");
+            }
+        }
+        assert_eq!(
+            ejecutar_en(Idioma::En, ["new"]).stderr,
+            "usage: new [--json] \"<title>\"\n"
         );
     }
 }

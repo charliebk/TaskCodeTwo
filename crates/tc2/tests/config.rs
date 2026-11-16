@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use serde_json::Value;
 use tc2::carril::Carril;
 use tc2::config::{self, Config, ModoFlujo, Motivo, Runner, TipoDerivado};
+use tc2::i18n::Idioma;
 
 use comun::{Fixture, escribir};
 
@@ -227,7 +228,7 @@ fn configs_hostiles_rechazadas_con_la_ruta() {
         assert_eq!(e.motivo, *motivo, "{cuerpo}: {e:?}");
         let x = e.errores.iter().find(|x| x.ruta == *ruta);
         assert!(
-            x.is_some_and(|x| x.mensaje.contains(fragmento)),
+            x.is_some_and(|x| x.mensaje.texto(Idioma::Es).contains(fragmento)),
             "{cuerpo}: se esperaba «{fragmento}» en {ruta}: {:?}",
             e.errores
         );
@@ -248,12 +249,21 @@ fn configs_hostiles_rechazadas_con_la_ruta() {
     }
     let e = config::leer("---\nformato: 3\n").unwrap_err();
     assert_eq!(e.motivo, Motivo::FormatoNuevo);
-    assert!(e.informe().diagnostico.unwrap().contains("actualiza tc2"));
+    assert!(
+        e.informe()
+            .diagnostico_en(Idioma::Es)
+            .unwrap_or_default()
+            .contains("actualiza tc2")
+    );
     // El arreglo de la 0.16 sale por la ruta, no por el texto del valor.
     let i = config::leer(&format!("{CABECERA}modo_flujo: 'tc2 actualizar'\n"))
         .unwrap_err()
         .informe();
-    assert!(!i.diagnostico.unwrap().contains("quedan claves de la 0.16"));
+    assert!(
+        !i.diagnostico_en(Idioma::Es)
+            .unwrap_or_default()
+            .contains("quedan claves de la 0.16")
+    );
     // Dos errores: salen los dos, no solo el primero.
     let e = config::leer(&format!("{CABECERA}estados: 1\ntope_rondas: 0\n")).unwrap_err();
     let rutas: Vec<&str> = e.errores.iter().map(|x| x.ruta.as_str()).collect();

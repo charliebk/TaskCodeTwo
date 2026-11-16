@@ -9,6 +9,8 @@ use super::{
     localizar_principal, misma_ruta, worktree_relativo, worktrees,
 };
 use crate::contrato::{Informe, Resultado};
+use crate::i18n::Texto;
+use crate::i18n::catalogo::git as txt;
 
 /// Quita `.taskcode/worktrees/<id>`. No existe → `sin-cambios`. Con cambios
 /// sin guardar o commits sin publicar o HEAD suelto → `rechazada`, sin tocar nada.
@@ -29,26 +31,20 @@ fn quitar(git: &Git, dir: &Path, id: &str) -> Paso<Informe> {
     else {
         return Ok(Informe::nuevo(OP, Resultado::SinCambios).con("id", id));
     };
-    let rechazo = |motivo: &str, que_hacer: &str| {
+    let rechazo = |motivo: &str, que_hacer: &'static Texto| {
         Informe::nuevo(OP, Resultado::Rechazada)
             .con("id", id)
             .con("motivo", motivo)
-            .diagnostico(que_hacer.to_owned())
+            .diagnostico(que_hacer)
     };
     let status = exigir(git, &w.ruta, OP, Subcomando::Status, &["--porcelain", "-z"])?;
     if !status.is_empty() {
-        return Ok(rechazo(
-            "cambios-sin-guardar",
-            "guarda o descarta los cambios del worktree antes de quitarlo",
-        ));
+        return Ok(rechazo("cambios-sin-guardar", &txt::WORKTREE_CON_CAMBIOS));
     }
     // Con HEAD suelto no hay rama remota con la que comparar: sus commits se
     // perderian al quitar el worktree.
     let Some(rama) = &w.rama else {
-        return Ok(rechazo(
-            "sin-rama",
-            "el worktree tiene HEAD suelto: vuelve a la rama de la tarea",
-        ));
+        return Ok(rechazo("sin-rama", &txt::WORKTREE_HEAD_SUELTO));
     };
     let publicada = match commit_de(
         git,
@@ -60,10 +56,7 @@ fn quitar(git: &Git, dir: &Path, id: &str) -> Paso<Informe> {
         None => false,
     };
     if !publicada {
-        return Ok(rechazo(
-            "sin-publicar",
-            "publica la rama antes de quitar el worktree",
-        ));
+        return Ok(rechazo("sin-publicar", &txt::WORKTREE_SIN_PUBLICAR));
     }
     let rel = worktree_relativo(id);
     exigir(git, &principal, OP, Subcomando::Worktree, &["remove", &rel])?;

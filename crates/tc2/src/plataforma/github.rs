@@ -18,6 +18,7 @@ use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario};
 use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::i18n::catalogo::plataforma as t;
 
 const ABRIR_PR: &str = "abrir-pr";
 const MERGE_PR: &str = "merge-pr";
@@ -220,7 +221,7 @@ impl GitHub {
         if !valido {
             return Err(Informe::nuevo("plataforma", Resultado::Uso)
                 .con("motivo", "repo-invalido")
-                .diagnostico("el repo de GitHub tiene que ser dueno/repo"));
+                .diagnostico(&t::REPO_GITHUB));
         }
         Ok(Self {
             con: Conexion::nueva(base, Proveedor::GitHub, credenciales, personas),
@@ -267,14 +268,10 @@ impl GitHub {
 impl Plataforma for GitHub {
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
         if !rama_valida(rama) || !rama_valida(base) {
-            return uso(ABRIR_PR, "rama-invalida", "nombre de rama no valido");
+            return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
         }
         if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
-            return uso(
-                ABRIR_PR,
-                "titulo-invalido",
-                "el titulo no puede estar vacio ni llevar controles",
-            );
+            return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
         }
         match self.pr_abierto(rama, base) {
             Ok(Some(n)) => {
@@ -329,7 +326,8 @@ impl Plataforma for GitHub {
         {
             return i;
         }
-        let permiso = "pull_requests:read y checks:read";
+        // Dos alcances unidos por una conjuncion: se traduce (IMP-1 de F2-8).
+        let permiso = &t::PERMISO_PR_Y_CHECKS;
         let p: PrApi = match self.con.leer(op, rol, permiso, self.ep(&Endpoint::Pr(pr))) {
             Ok(p) => p,
             Err(i) => return i,
@@ -341,7 +339,7 @@ impl Plataforma for GitHub {
             return puertas::pr_cerrado(pr);
         }
         if !rama_valida(&p.base.nombre) || !sha_valido(&p.head.sha) {
-            return self.con.invalida(op, "rama base o sha del head");
+            return self.con.invalida_por(op, &t::RAMA_BASE_O_SHA);
         }
         let r = match self.con.pedir(
             op,
@@ -444,11 +442,7 @@ impl Plataforma for GitHub {
 
     fn merge_pr(&self, pr: u64, sha: &str) -> Informe {
         if !sha_valido(sha) {
-            return uso(
-                MERGE_PR,
-                "sha-invalido",
-                "el sha esperado tiene que ser completo (40 hex)",
-            );
+            return uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO);
         }
         if let Err(i) = self.exigir_persona(MERGE_PR) {
             return i;
@@ -471,7 +465,7 @@ impl Plataforma for GitHub {
             return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
                 .con("pr", pr.to_string())
                 .con("motivo", "pr-cerrado")
-                .diagnostico("el PR esta cerrado sin mergear");
+                .diagnostico(&t::PR_CERRADO);
         }
         if !p.head.sha.eq_ignore_ascii_case(sha) {
             return head_cambiado(pr);
@@ -509,11 +503,7 @@ impl Plataforma for GitHub {
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
         if !rama_valida(rama) {
-            return Err(uso(
-                LEER_PUERTAS,
-                "rama-invalida",
-                "nombre de rama no valido",
-            ));
+            return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
         }
         if rol == Rol::Revisor {
             return Err(rol_no_valido(LEER_PUERTAS, rol));
@@ -563,7 +553,7 @@ impl Plataforma for GitHub {
             Informe::nuevo(LEER_PERMISOS_CI, Resultado::Rechazada)
                 .con("motivo", "ci-puede-aprobar")
                 .con("permisos", permisos)
-                .diagnostico("el token de Actions puede aprobar PR: desactiva «Allow GitHub Actions to create and approve pull requests» en Settings > Actions > General (G16)")
+                .diagnostico(&t::CI_PUEDE_APROBAR)
         } else {
             Informe::nuevo(LEER_PERMISOS_CI, Resultado::Ok)
                 .con("ci-aprueba", "false")
@@ -573,11 +563,7 @@ impl Plataforma for GitHub {
 
     fn firma_commit(&self, sha: &str) -> Paso<Firma> {
         if !sha_valido(sha) {
-            return Err(uso(
-                FIRMA_COMMIT,
-                "sha-invalido",
-                "el sha tiene que ser completo (40 hex)",
-            ));
+            return Err(uso(FIRMA_COMMIT, "sha-invalido", &t::SHA_COMPLETO));
         }
         let c: CommitApi = self.con.leer(
             FIRMA_COMMIT,
@@ -596,7 +582,12 @@ impl Plataforma for GitHub {
     fn identidad(&self, rol: Rol) -> Paso<Usuario> {
         self.con.identidad(rol, || {
             self.con
-                .leer::<UsuarioApi>(IDENTIDAD, rol, "(ninguno)", self.ep(&Endpoint::Usuario))
+                .leer::<UsuarioApi>(
+                    IDENTIDAD,
+                    rol,
+                    &t::PERMISO_NINGUNO,
+                    self.ep(&Endpoint::Usuario),
+                )
                 .map(Usuario::from)
         })
     }

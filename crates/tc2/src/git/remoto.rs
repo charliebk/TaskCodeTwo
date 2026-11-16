@@ -7,9 +7,11 @@ use std::time::Duration;
 use super::rama::renombrar;
 use super::{
     Git, Paso, REMOTO, Subcomando, base_de_rama, commit_de, correr, entradas_status, es_ancestro,
-    es_protegida, exigir, localizar_principal, rama_actual,
+    es_protegida, exigir, git_fallo, localizar_principal, rama_actual,
 };
 use crate::contrato::{Informe, Resultado, corto};
+use crate::i18n::catalogo::git as txt;
+use crate::i18n::{Mensaje, Texto};
 
 /// Esperas entre intentos de `push`: tres intentos, a 1 s y 2 s.
 pub const ESPERAS_PUSH: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(2)];
@@ -31,7 +33,14 @@ fn refs_remotas(git: &Git, dir: &Path, op: &str) -> Paso<String> {
 fn sinred(op: &str) -> Informe {
     Informe::nuevo(op, Resultado::Sinred)
         .con("remoto", REMOTO)
-        .diagnostico(format!("{op}: no se pudo leer {REMOTO}; reintenta con red"))
+        .diagnostico(sin_red_remoto(op))
+}
+
+/// «`op`: no se pudo leer origin; reintenta con red».
+pub(crate) fn sin_red_remoto(op: &str) -> Mensaje {
+    Mensaje::nuevo(&txt::SIN_RED_REMOTO)
+        .con("op", op)
+        .con("remoto", REMOTO)
 }
 
 /// Por que fallo una llamada que habla con el remoto (F2-3: responde las
@@ -118,35 +127,42 @@ pub fn clasificar_fallo_remoto(stderr: &str) -> FalloRemoto {
 
 /// Informe de un fallo del remoto que no es de red: `denegada` (8).
 pub(crate) fn denegada(op: &str, fallo: FalloRemoto, detalle: &str) -> Informe {
-    let que_hacer = match fallo {
-        FalloRemoto::Credenciales => "revisa tus credenciales o permisos en el remoto",
-        FalloRemoto::RemotoNoExiste => "revisa la URL de origin",
-        _ => "revisa las reglas del remoto o avisa a la persona",
+    let texto = match fallo {
+        FalloRemoto::Credenciales => &txt::DENEGADA_CREDENCIALES,
+        FalloRemoto::RemotoNoExiste => &txt::DENEGADA_URL,
+        _ => &txt::DENEGADA_REGLAS,
     };
     Informe::nuevo(op, Resultado::Denegada)
         .con("remoto", REMOTO)
         .con("motivo", fallo.motivo())
-        .diagnostico(format!("{op}: {detalle}; {que_hacer}"))
+        .diagnostico(Mensaje::nuevo(texto).con("op", op).con("detalle", detalle))
 }
 
 /// Fallo del propio clon al hablar con el remoto: `error` (1).
 pub(crate) fn error_local(op: &str, detalle: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
         .con("motivo", FalloRemoto::Local.motivo())
-        .diagnostico(format!(
-            "{op}: {detalle}; fallo local de git: revisa los permisos de la carpeta del repo"
-        ))
+        .diagnostico(
+            Mensaje::nuevo(&txt::ERROR_LOCAL)
+                .con("op", op)
+                .con("detalle", detalle),
+        )
 }
 
 /// Que hacer tras un push que no salio, segun el resultado.
-pub(crate) fn que_hacer_al_publicar(r: Resultado) -> &'static str {
+pub(crate) fn que_hacer_al_publicar(r: Resultado) -> &'static Texto {
     match r {
-        Resultado::Denegada => {
-            "el remoto deniega el push: revisa sus reglas, tus permisos o avisa a la persona"
-        }
-        Resultado::Error => "fallo local de git: revisa los permisos de la carpeta del repo",
-        _ => "reintenta con red",
+        Resultado::Denegada => &txt::QUE_HACER_DENEGADA,
+        Resultado::Error => &txt::QUE_HACER_ERROR_LOCAL,
+        _ => &txt::QUE_HACER_SIN_RED,
     }
+}
+
+/// «push: `ultimo`; que hacer».
+fn push_fallo(ultimo: String, r: Resultado) -> Mensaje {
+    Mensaje::nuevo(&txt::PUSH_FALLO)
+        .con("ultimo", ultimo)
+        .con_mensaje("que_hacer", que_hacer_al_publicar(r))
 }
 
 /// Trae el remoto. Nada nuevo → `sin-cambios`; sin red → `sinred`; remoto
@@ -326,14 +342,14 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
         Resultado::SinCambios => i.con("commit", corto(&head)),
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
-            .diagnostico("lanza actualizar-rama"),
+            .diagnostico(&txt::LANZA_ACTUALIZAR_RAMA),
         Resultado::Denegada | Resultado::Error => i
             .con("motivo", p.motivo)
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
+            .diagnostico(push_fallo(ultimo, r)),
         _ => i
             .con("intentos", intentos.to_string())
-            .diagnostico(format!("push: {ultimo}; {}", que_hacer_al_publicar(r))),
+            .diagnostico(push_fallo(ultimo, r)),
     })
 }
 
@@ -342,11 +358,11 @@ fn rama_de_tarea(git: &Git, dir: &Path, op: &str) -> Paso<String> {
     match rama_actual(git, dir, op)? {
         None => Err(Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "sin-rama")
-            .diagnostico("lanzalo en el worktree de la tarea")),
+            .diagnostico(&txt::LANZALO_EN_EL_WORKTREE)),
         Some(r) if es_protegida(&r) => Err(Informe::nuevo(op, Resultado::Rechazada)
             .con("rama", r.as_str())
             .con("motivo", "rama-protegida")
-            .diagnostico("lanzalo en el worktree de la tarea, no en develop ni en main")),
+            .diagnostico(&txt::LANZALO_FUERA_DE_PROTEGIDA)),
         Some(r) => Ok(r),
     }
 }
@@ -385,9 +401,9 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
     let base = base_de_rama(&rama);
     let conflicto = |ficheros: Vec<String>| {
         let diag = if ficheros.is_empty() {
-            "lanza guardar con los ficheros resueltos".to_owned()
+            Mensaje::nuevo(&txt::LANZA_GUARDAR_CON_RESUELTOS)
         } else {
-            format!("resuelve {} y lanza guardar", ficheros.join(" "))
+            Mensaje::nuevo(&txt::RESUELVE_Y_LANZA_GUARDAR).con("ficheros", ficheros.join(" "))
         };
         Informe::nuevo(OP, Resultado::Conflicto)
             .con("base", base)
@@ -407,14 +423,14 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
     if !entradas_status(&pendientes).is_empty() {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("motivo", "cambios-sin-guardar")
-            .diagnostico("guarda los cambios con guardar antes de actualizar la rama"));
+            .diagnostico(&txt::GUARDA_ANTES_DE_ACTUALIZAR));
     }
     traer(git, dir, OP)?;
     if commit_de(git, dir, OP, base)?.is_none() {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("base", base)
             .con("motivo", "base-no-existe")
-            .diagnostico(format!("{base} no existe en el remoto")));
+            .diagnostico(Mensaje::nuevo(&txt::BASE_NO_EXISTE_EN_REMOTO).con("base", base)));
     }
     let remota = format!("{REMOTO}/{rama}");
     let hay_remota = commit_de(git, dir, OP, &remota)?.is_some();
@@ -445,7 +461,7 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
             }
             return Ok(Informe::nuevo(OP, Resultado::Error)
                 .con("base", base)
-                .diagnostico(format!("git merge fallo: {}", s.primera_linea_error())));
+                .diagnostico(git_fallo(Subcomando::Merge, &s)));
         }
         mergeado = true;
     }
@@ -462,9 +478,7 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                 return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                     .con("rama", rama.as_str())
                     .con("motivo", "no-fast-forward")
-                    .diagnostico(
-                        "alguien publico en la rama entre medias: vuelve a lanzar actualizar-rama",
-                    ));
+                    .diagnostico(&txt::PUBLICARON_ENTRE_MEDIAS));
             }
             otro => {
                 let que_hacer = que_hacer_al_publicar(otro);
@@ -472,9 +486,11 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                 if matches!(otro, Resultado::Denegada | Resultado::Error) {
                     i = i.con("motivo", p.motivo);
                 }
-                return Ok(i.con("intentos", intentos.to_string()).diagnostico(format!(
-                    "push: {ultimo}; la rama esta actualizada en local; {que_hacer}"
-                )));
+                return Ok(i.con("intentos", intentos.to_string()).diagnostico(
+                    Mensaje::nuevo(&txt::PUSH_FALLO_ACTUALIZADA_EN_LOCAL)
+                        .con("ultimo", ultimo)
+                        .con_mensaje("que_hacer", que_hacer),
+                ));
             }
         }
     }
@@ -505,7 +521,7 @@ fn actualizar_principal_paso(git: &Git, dir: &Path, rama: &str) -> Paso<Informe>
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("rama", rama)
             .con("motivo", "principal-en-otra-rama")
-            .diagnostico(format!("el worktree principal no esta en {rama}")));
+            .diagnostico(Mensaje::nuevo(&txt::PRINCIPAL_EN_OTRA_RAMA).con("rama", rama)));
     }
     traer(git, &principal, OP)?;
     let remota = format!("{REMOTO}/{rama}");
@@ -521,9 +537,11 @@ fn actualizar_principal_paso(git: &Git, dir: &Path, rama: &str) -> Paso<Informe>
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("rama", rama)
             .con("motivo", "divergente")
-            .diagnostico(format!(
-                "{rama} local tiene commits que no estan en {remota}"
-            )));
+            .diagnostico(
+                Mensaje::nuevo(&txt::PRINCIPAL_DIVERGENTE)
+                    .con("rama", rama)
+                    .con("remota", remota.as_str()),
+            ));
     }
     exigir(
         git,

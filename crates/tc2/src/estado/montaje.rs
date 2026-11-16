@@ -18,6 +18,8 @@ use crate::git::{
     Cambio, FalloRemoto, Git, REMOTO, Subcomando, clasificar_fallo_remoto, commit_de, correr,
     es_ancestro, exigir, localizar_principal, misma_ruta, worktrees,
 };
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::estado as txt;
 
 const OP: &str = "montar-estado";
 
@@ -83,10 +85,11 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         Err(ErrorCerrojo::Ocupado) => {
             return Ok(Informe::nuevo(OP, Resultado::Agotada)
                 .con("motivo", "cerrojo")
-                .diagnostico("otro proceso de este clon esta montando o escribiendo la rama de estado: reintenta"));
+                .diagnostico(&txt::CERROJO_OCUPADO_AL_MONTAR));
         }
         Err(ErrorCerrojo::Io(e)) => {
-            return Err(Informe::nuevo(OP, Resultado::Error).diagnostico(format!("cerrojo: {e}")));
+            return Err(Informe::nuevo(OP, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CERROJO_ERROR).con("error", e.to_string())));
         }
     };
     let carpeta = principal.join(CARPETA);
@@ -111,10 +114,11 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("rama", RAMA)
                 .con("motivo", "montada-en-otra-ruta")
-                .diagnostico(format!(
-                    "{RAMA} ya esta montada en {}: quita ese worktree",
-                    w.ruta.display()
-                )));
+                .diagnostico(
+                    Mensaje::nuevo(&txt::MONTADA_EN_OTRA_RUTA)
+                        .con("rama", RAMA)
+                        .con("ruta", w.ruta.display().to_string()),
+                ));
         }
     }
     let ocupada = std::fs::read_dir(&carpeta)
@@ -124,9 +128,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("ruta", CARPETA)
             .con("motivo", "tareas-ocupada")
-            .diagnostico(format!(
-                "{CARPETA}/ ya existe y no es la rama de estado (¿un repo de la 0.16? migralo con actualizar)"
-            )));
+            .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("carpeta", CARPETA)));
     }
 
     let remoto = hay_remoto(git, &principal, OP)?;
@@ -152,10 +154,10 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
                     FalloRemoto::SinRed => {
                         return Ok(Informe::nuevo(OP, Resultado::Sinred)
                             .con("pendiente", "no")
-                            .diagnostico(format!(
-                                "{}; montar la rama de estado exige red la primera vez",
-                                s.primera_linea_error()
-                            )));
+                            .diagnostico(
+                                Mensaje::nuevo(&txt::MONTAR_EXIGE_RED)
+                                    .con("error", s.primera_linea_error()),
+                            ));
                     }
                     FalloRemoto::Local => {
                         return Err(crate::git::remoto::error_local(
@@ -166,10 +168,10 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
                     otro => {
                         return Ok(Informe::nuevo(OP, Resultado::Denegada)
                             .con("motivo", otro.motivo())
-                            .diagnostico(format!(
-                                "{}; revisa credenciales, permisos o la URL de origin",
-                                s.primera_linea_error()
-                            )));
+                            .diagnostico(
+                                Mensaje::nuevo(&txt::MONTAR_DENEGADA)
+                                    .con("error", s.primera_linea_error()),
+                            ));
                     }
                 }
             }
@@ -179,7 +181,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         } else {
             if !puede_crear {
                 return Err(Informe::nuevo(OP, Resultado::Error)
-                    .diagnostico(format!("{RAMA} sigue sin existir tras crearla")));
+                    .diagnostico(Mensaje::nuevo(&txt::RAMA_SIGUE_SIN_EXISTIR).con("rama", RAMA)));
             }
             // La transaccion toma el cerrojo ella misma: se suelta antes y,
             // creada la rama, se vuelve a empezar para montarla.
@@ -196,7 +198,7 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
     }
 
     let ruta = carpeta.to_str().ok_or_else(|| {
-        Informe::nuevo(OP, Resultado::Error).diagnostico("la ruta de tareas/ no es UTF-8")
+        Informe::nuevo(OP, Resultado::Error).diagnostico(&txt::RUTA_TAREAS_NO_UTF8)
     })?;
     exigir(
         git,

@@ -5,6 +5,8 @@
 use serde_json::{Map, Value, json};
 
 use crate::carril::Carril;
+use crate::i18n::catalogo::config as t;
+use crate::i18n::{Idioma, Texto};
 
 /// Tope de claves de primer nivel (plan, F2-7; F1-11, decision 1).
 pub const TOPE_CLAVES: usize = 12;
@@ -88,27 +90,18 @@ pub(crate) enum Regla {
 }
 
 impl Regla {
-    /// Lo que exige, para el esquema y los mensajes.
-    pub(crate) fn texto(self) -> Option<&'static str> {
+    /// Lo que exige, del catalogo. El esquema JSON publicado usa el texto en
+    /// espanol (decision de F2-8: el esquema no se traduce).
+    pub(crate) fn texto(self) -> Option<&'static Texto> {
         match self {
             Self::Valor => None,
-            Self::Nombre => {
-                Some("texto no vacio, sin caracteres de control ni espacios en los extremos")
-            }
-            Self::Orden => Some(
-                "orden no vacia y sin caracteres de control (rutas de Windows entre comillas simples o con /)",
-            ),
-            Self::Glob => Some("glob relativo: sin negacion (!), rutas absolutas ni .."),
-            Self::GlobAcotado => Some(
-                "glob relativo: sin negacion (!), rutas absolutas ni .., y nunca todo el arbol (ningun segmento solo de * y .)",
-            ),
-            Self::RutaTareas => Some(
-                "ruta normalizada bajo tareas/, sin \\, :, comodines, caracteres de control, nombres reservados de Windows, .git, ~ ni punto o espacio al final de un segmento; nunca tareas/ entera, tareas/ROADMAP.md ni tareas/TASK-NNN/ (sin distinguir mayusculas)",
-            ),
-            Self::Cron => Some(
-                "expresion cron de 5 campos con sus rangos (minuto, hora, dia, mes, dia de la semana)",
-            ),
-            Self::Url => Some("URL https de la API (o http://127.0.0.1:<puerto> en pruebas)"),
+            Self::Nombre => Some(&t::REGLA_NOMBRE),
+            Self::Orden => Some(&t::REGLA_ORDEN),
+            Self::Glob => Some(&t::REGLA_GLOB),
+            Self::GlobAcotado => Some(&t::REGLA_GLOB_ACOTADO),
+            Self::RutaTareas => Some(&t::REGLA_RUTA_TAREAS),
+            Self::Cron => Some(&t::REGLA_CRON),
+            Self::Url => Some(&t::REGLA_URL),
         }
     }
 }
@@ -573,8 +566,8 @@ fn a_esquema(n: &Nodo) -> Value {
             } else {
                 m.insert("enum".into(), json!(valores));
             }
-            if let Some(t) = regla.texto() {
-                m.insert("description".into(), json!(t));
+            if let Some(r) = regla.texto() {
+                m.insert("description".into(), json!(r.en_idioma(Idioma::Es)));
             }
             Value::Object(m)
         }

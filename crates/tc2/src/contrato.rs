@@ -10,6 +10,7 @@
 //! 5 agotada, 6 conflicto, 7 esperando, 8 denegada).
 
 use crate::Salida;
+use crate::i18n::{Idioma, Mensaje};
 
 /// Resultado de una operacion. Cada uno lleva su codigo de salida.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +95,8 @@ pub struct Informe {
     /// Claves en el orden en que se escriben.
     pub claves: Vec<(String, Valor)>,
     /// Una linea que dice que hacer; solo se muestra si no fue un exito.
-    pub diagnostico: Option<String>,
+    /// Es un [`Mensaje`] neutro: se traduce al escribir la salida (F2-8).
+    pub diagnostico: Option<Mensaje>,
 }
 
 impl Informe {
@@ -123,10 +125,10 @@ impl Informe {
         self
     }
 
-    /// Fija el diagnostico (una linea).
+    /// Fija el diagnostico (una linea), como mensaje del catalogo.
     #[must_use]
-    pub fn diagnostico(mut self, texto: impl Into<String>) -> Self {
-        self.diagnostico = Some(texto.into());
+    pub fn diagnostico(mut self, mensaje: impl Into<Mensaje>) -> Self {
+        self.diagnostico = Some(mensaje.into());
         self
     }
 
@@ -156,8 +158,15 @@ impl Informe {
         s
     }
 
-    /// La misma informacion en JSON, en una linea.
+    /// La misma informacion en JSON, en una linea, con el diagnostico en
+    /// espanol.
     pub fn json(&self) -> String {
+        self.json_en(Idioma::Es)
+    }
+
+    /// La misma informacion en JSON, en una linea, con el diagnostico en el
+    /// idioma pedido. Las claves y sus valores no cambian con el idioma.
+    pub fn json_en(&self, idioma: Idioma) -> String {
         let mut s = format!(
             "{{\"comando\":{},\"resultado\":{},\"codigo\":{},\"claves\":{{",
             cadena_json(&self.comando),
@@ -183,25 +192,40 @@ impl Informe {
         s.push('}');
         if let Some(d) = self.diagnostico_visible() {
             s.push_str(",\"diagnostico\":");
-            s.push_str(&cadena_json(d));
+            s.push_str(&cadena_json(&d.texto(idioma)));
         }
         s.push('}');
         s
     }
 
-    fn diagnostico_visible(&self) -> Option<&str> {
+    fn diagnostico_visible(&self) -> Option<&Mensaje> {
         if self.resultado.es_exito() {
             None
         } else {
-            self.diagnostico.as_deref()
+            self.diagnostico.as_ref()
         }
     }
 
-    /// Lo convierte en la salida del proceso.
+    /// El diagnostico en un idioma, si lo hay (aunque fuera un exito).
+    pub fn diagnostico_en(&self, idioma: Idioma) -> Option<String> {
+        self.diagnostico.as_ref().map(|d| d.texto(idioma))
+    }
+
+    /// Lo convierte en la salida del proceso, con el diagnostico en espanol.
     pub fn salida(&self, json: bool) -> Salida {
-        let stdout = if json { self.json() } else { self.linea() };
+        self.salida_en(json, Idioma::Es)
+    }
+
+    /// Lo convierte en la salida del proceso, con el diagnostico en el idioma
+    /// pedido. stdout y el codigo no cambian con el idioma.
+    pub fn salida_en(&self, json: bool, idioma: Idioma) -> Salida {
+        let stdout = if json {
+            self.json_en(idioma)
+        } else {
+            self.linea()
+        };
         let stderr = match self.diagnostico_visible() {
-            Some(d) => format!("{}\n", una_linea(d)),
+            Some(d) => format!("{}\n", una_linea(&d.texto(idioma))),
             None => String::new(),
         };
         Salida {
@@ -291,7 +315,7 @@ mod tests {
             .con("commit", corto("48d72d1e513bffffffffffffffffffffffffffff"))
             .con("nota", "con espacio y 100%")
             .con_lista("ficheros", vec!["a,b.txt".into(), "c.txt".into()])
-            .diagnostico("no se ve en un exito");
+            .diagnostico(Mensaje::externo("no se ve en un exito"));
         let s = i.salida(false);
         assert_eq!(s.codigo, 0);
         assert_eq!(
@@ -312,17 +336,48 @@ mod tests {
     fn el_diagnostico_va_a_stderr_solo_si_falla() {
         let s = Informe::nuevo("push", Resultado::Rechazada)
             .con("motivo", "no-fast-forward")
-            .diagnostico("lanza\nactualizar-rama")
+            .diagnostico(Mensaje::externo("lanza\nactualizar-rama"))
             .salida(false);
         assert_eq!(s.codigo, 3);
         assert_eq!(s.stdout, "push rechazada motivo=no-fast-forward\n");
         assert_eq!(s.stderr, "lanza actualizar-rama\n");
         let j = Informe::nuevo("x", Resultado::Uso)
-            .diagnostico("di \"algo\"")
+            .diagnostico(Mensaje::externo("di \"algo\""))
             .salida(true);
         assert!(
             j.stdout
                 .ends_with(",\"diagnostico\":\"di \\\"algo\\\"\"}\n")
         );
+    }
+
+    #[test]
+    fn mismo_informe_dos_idiomas() {
+        let i = Informe::nuevo("guardar", Resultado::Uso)
+            .con("motivo", "sin-mensaje")
+            .diagnostico(&crate::i18n::catalogo::cli::USO_GUARDAR);
+        for json in [false, true] {
+            let es = i.salida_en(json, Idioma::Es);
+            let en = i.salida_en(json, Idioma::En);
+            assert_eq!(es.codigo, en.codigo);
+            assert_eq!(es.codigo, 2);
+            // stderr cambia con el idioma y no con --json.
+            assert_eq!(es.stderr, "uso: guardar \"<mensaje>\" <rutas...>\n");
+            assert_eq!(en.stderr, "usage: guardar \"<message>\" <paths...>\n");
+            if json {
+                assert!(es.stdout.contains("\"diagnostico\":\"uso: guardar"));
+                assert!(en.stdout.contains("\"diagnostico\":\"usage: guardar"));
+                // Lo demas del JSON es igual en los dos idiomas.
+                let sin_diag = |t: &str| {
+                    t.split(",\"diagnostico\"")
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned()
+                };
+                assert_eq!(sin_diag(&es.stdout), sin_diag(&en.stdout));
+            } else {
+                assert_eq!(es.stdout, en.stdout);
+                assert_eq!(es.stdout, "guardar uso motivo=sin-mensaje\n");
+            }
+        }
     }
 }
