@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 53840927
-tokens_revision: null
+tokens_revision: 6330220
 creado: 2026-11-14
 actualizado: 2026-11-16
 dependencias: [TASK-025]
@@ -65,3 +65,5 @@ la ruta).
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T18:25:07Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 58 | 20188 | 8428850 | 6762 | 1 | 8455858 | - | - |
 | 2026-11-16T18:25:07Z | implementacion | agente:a03e84fce229ca7a2 | 370 | 359244 | 44866127 | 159328 | 70 | 45385069 | - | - |
+| 2026-11-16T18:38:00Z | revision | agente:acb5bf97db8f1ac96 | 42 | 133326 | 2259498 | 18875 | 4 | 2411741 | 1 | rust-wasm-reviewer |
+| 2026-11-16T18:38:03Z | revision | agente:a3aeef36d07d9c34e | 62 | 158524 | 3735645 | 24248 | 5 | 3918479 | 1 | code-quality-reviewer |

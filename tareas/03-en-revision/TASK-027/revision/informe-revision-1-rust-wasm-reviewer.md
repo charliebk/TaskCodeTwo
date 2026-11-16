@@ -2,7 +2,7 @@
 
 - Commit revisado: 991b24cb3fbdf8c89c7441744cea1e1d03cc4f96
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-027 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 ## Hallazgos
 
