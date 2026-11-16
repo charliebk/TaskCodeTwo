@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-076-f2-4b-nombres-unicos-de-tarea-y-rama
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -44,3 +44,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-16T19:49:05Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-16T19:54:15Z | approve | automatico | persona | 0.16.1 |
