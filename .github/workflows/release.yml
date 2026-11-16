@@ -3,7 +3,11 @@
 # - Con tag `v*` (anotado sobre el merge en main): compila los 6 targets de
 #   P12 en runners nativos, prueba que arrancan sin Node, publica la release
 #   con los 6 binarios, `SHA256SUMS` y attestation de procedencia (Sigstore),
-#   y la vuelve a descargar desde la URL publica para comprobarla.
+#   y la vuelve a descargar desde la URL publica para comprobarla. Publica
+#   tambien los instaladores de una linea (`instalar/`, TASK-026, F2-11) y
+#   ejecuta la linea real en cada sistema, midiendo que tarda menos de 60 s.
+# - Antes de publicar nada, `instaladores-ensayo` prueba los instaladores
+#   contra los binarios del build servidos en 127.0.0.1.
 # - Con `workflow_dispatch`, o con un push a una rama que toque lo que entra
 #   en la release (este workflow, el humo, xtask, Cargo): ensayo. Compila y
 #   prueba, pero no publica. (Los filtros de rutas no se aplican a los tags.)
@@ -20,6 +24,8 @@ on:
     paths:
       - .github/workflows/release.yml
       - .github/scripts/humo.sh
+      - .github/scripts/probar-instalador.sh
+      - instalar/**
       - xtask/**
       - Cargo.toml
       - Cargo.lock
@@ -157,9 +163,74 @@ jobs:
           VERSION: ${{ needs.preparar.outputs.version }}
         run: bash .github/scripts/humo.sh "dist/$FICHERO" "$VERSION"
 
+  # Los instaladores contra los binarios del build, servidos en 127.0.0.1:
+  # instalacion medida, hash alterado y PATH idempotente
+  # (.github/scripts/probar-instalador.sh). Windows en PowerShell 5.1; Linux
+  # tambien en alpine (sin curl, sin bash), con la imagen de humo.sh.
+  instaladores-ensayo:
+    name: instaladores-ensayo (${{ matrix.alias }}${{ matrix.alpine && ', alpine' || '' }})
+    needs: [preparar, build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { alias: win-x64, runner: windows-latest, alpine: false }
+          - { alias: win-arm64, runner: windows-11-arm, alpine: false }
+          - { alias: darwin-x64, runner: macos-15-intel, alpine: false }
+          - { alias: darwin-arm64, runner: macos-latest, alpine: false }
+          - { alias: linux-x64, runner: ubuntu-latest, alpine: false }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, alpine: false }
+          - { alias: linux-x64, runner: ubuntu-latest, alpine: true }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, alpine: true }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            instalar
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bin-${{ matrix.alias }}
+          path: srv
+      - name: Release de ensayo (y otra con el hash alterado)
+        working-directory: srv
+        run: |
+          cat ./*.sha256 > SHA256SUMS
+          rm ./*.sha256
+          cp ../instalar/install.sh ../instalar/install.ps1 .
+          mkdir malo
+          cp tc2-* malo/
+          awk '{ c = substr($1, 1, 1); print (c == "0" ? "1" : "0") substr($1, 2) "  " $2 }' SHA256SUMS > malo/SHA256SUMS
+          ! cmp -s SHA256SUMS malo/SHA256SUMS
+      - name: Instalador servido en 127.0.0.1
+        env:
+          VERSION: ${{ needs.preparar.outputs.version }}
+          ALPINE: ${{ matrix.alpine }}
+        run: |
+          py=python
+          command -v python >/dev/null 2>&1 || py=python3
+          "$py" -m http.server 8765 --bind 127.0.0.1 --directory srv >/dev/null 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:8765/SHA256SUMS && break
+            sleep 1
+          done
+          if [ "$ALPINE" = "true" ]; then
+            imagen="$(sed -n 's/^imagen="\(.*\)"$/\1/p' .github/scripts/humo.sh)"
+            test -n "$imagen"
+            docker run --rm --network host -v "$PWD:/w:ro" -w /w "$imagen" \
+              sh .github/scripts/probar-instalador.sh local http://127.0.0.1:8765 "$VERSION" "$VERSION"
+          else
+            sh .github/scripts/probar-instalador.sh local http://127.0.0.1:8765 "$VERSION" "$VERSION"
+          fi
+
   publicar:
     name: publicar
-    needs: [preparar, build, humo]
+    needs: [preparar, build, humo, instaladores-ensayo]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -186,9 +257,15 @@ jobs:
           diff <(cat dist/*.sha256 | LC_ALL=C sort -k 2) dist/SHA256SUMS
           rm dist/*.sha256
           test "$(ls dist/tc2-* | wc -l)" -eq 6
+          # Los instaladores van en la release y en la attestation, pero no en
+          # SHA256SUMS: es el contrato de los 6 binarios (cli.lock, F2-12).
+          cp instalar/install.sh instalar/install.ps1 dist/
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: dist/tc2-*
+          subject-path: |
+            dist/tc2-*
+            dist/install.sh
+            dist/install.ps1
       - name: Crear la release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -200,10 +277,10 @@ jobs:
         run: |
           extra=()
           if [ "$CLASE" = "prerelease" ]; then extra+=(--prerelease); fi
-          gh release create "$TAG" dist/tc2-* dist/SHA256SUMS --draft \
+          gh release create "$TAG" dist/tc2-* dist/SHA256SUMS dist/install.sh dist/install.ps1 --draft \
             --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" "${extra[@]}" \
-            --notes "Binarios de tc2 para los 6 sistemas de P12, con SHA256SUMS y attestation de procedencia. Verificacion: docs/distribucion/releases.md"
-          test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" -eq 7
+            --notes "Binarios de tc2 para los 6 sistemas de P12, con SHA256SUMS, attestation de procedencia e instaladores de una linea. Instalacion: docs/distribucion/instalar.md. Verificacion: docs/distribucion/releases.md"
+          test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" -eq 9
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   verificar-release:
@@ -252,3 +329,49 @@ jobs:
           FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
           VERSION: ${{ needs.preparar.outputs.version }}
         run: bash .github/scripts/humo.sh "pub/$FICHERO" "$VERSION"
+
+  # La linea real contra la release publicada, en cada sistema: mide que la
+  # instalacion tarda menos de 60 s hasta que una terminal nueva encuentra tc2
+  # (criterio 1 de TASK-026). Con gh y token, comprueba tambien la
+  # attestation; en alpine no hay gh y se comprueba el aviso.
+  verificar-instaladores:
+    name: verificar-instaladores (${{ matrix.alias }}${{ matrix.alpine && ', alpine' || '' }})
+    needs: [preparar, publicar]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { alias: win-x64, runner: windows-latest, alpine: false }
+          - { alias: win-arm64, runner: windows-11-arm, alpine: false }
+          - { alias: darwin-x64, runner: macos-15-intel, alpine: false }
+          - { alias: darwin-arm64, runner: macos-latest, alpine: false }
+          - { alias: linux-x64, runner: ubuntu-latest, alpine: false }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, alpine: false }
+          - { alias: linux-x64, runner: ubuntu-latest, alpine: true }
+          - { alias: linux-arm64, runner: ubuntu-24.04-arm, alpine: true }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: La linea de instalacion real
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.preparar.outputs.version }}
+          ALPINE: ${{ matrix.alpine }}
+        run: |
+          if [ "$ALPINE" = "true" ]; then
+            imagen="$(sed -n 's/^imagen="\(.*\)"$/\1/p' .github/scripts/humo.sh)"
+            test -n "$imagen"
+            docker run --rm -v "$PWD:/w:ro" -w /w "$imagen" \
+              sh .github/scripts/probar-instalador.sh publico "$URL" "${TAG#v}" "$VERSION"
+          else
+            sh .github/scripts/probar-instalador.sh publico "$URL" "${TAG#v}" "$VERSION"
+          fi

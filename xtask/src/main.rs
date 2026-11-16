@@ -20,6 +20,8 @@
 //! El resultado va en el codigo de salida: 0 verde, 1 rojo, 2 mal invocado.
 
 mod dist;
+#[cfg(test)]
+mod instaladores;
 mod sha256;
 
 use std::path::{Path, PathBuf};
