@@ -1,4 +1,5 @@
-//! Rama de estado `taskcode/tareas` (F2-3; ADR F1-1 y F1-2).
+//! Rama de estado `taskcodetwo/tareas` (F2-3; ADR F1-1 y F1-2; nombres en
+//! [`crate::huella`]).
 //!
 //! - [`montar`] crea la rama huerfana si no existe y la monta como worktree
 //!   en `tareas/` del worktree principal (idempotente; la vuelve a montar si

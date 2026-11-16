@@ -24,7 +24,7 @@ fn con_tarea(f: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
         "origin/develop",
     );
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-    let wt = clon.join(".taskcode/worktrees/TASK-007");
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-007");
     (bare, clon, wt)
 }
 

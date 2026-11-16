@@ -17,7 +17,14 @@ use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::tarea::texto::Parecido;
 
-const RAMA: &str = "taskcode/tareas";
+/// La rama de estado sale de `huella.rs` (C1 de TASK-116).
+const RAMA: &str = estado::RAMA;
+
+#[test]
+fn la_rama_de_estado_es_la_de_la_2_0() {
+    assert_eq!(RAMA, "taskcodetwo/tareas");
+    assert_eq!(RAMA, tc2::huella::RAMA_ESTADO);
+}
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_tc2"))
@@ -116,7 +123,7 @@ fn dos_clones_crean_a_la_vez_con_ids_distintos() {
     let merges = f.crudo(&bare, &["rev-list", "--merges", RAMA]);
     assert!(merges.trim().is_empty(), "merges en {RAMA}: {merges}");
     for dir in [f.raiz.join("clon"), f.raiz.join("clon-b")] {
-        let refs = f.crudo(&dir, &["for-each-ref", "refs/taskcode/"]);
+        let refs = f.crudo(&dir, &["for-each-ref", "refs/taskcodetwo/"]);
         assert!(refs.trim().is_empty(), "refs propias: {refs}");
     }
 }

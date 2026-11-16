@@ -535,7 +535,7 @@ fn sin_red(
     ))
 }
 
-/// Lleva la rama local `taskcode/tareas` (y `tareas/` si esta montada) a
+/// Lleva la rama local `taskcodetwo/tareas` (y `tareas/` si esta montada) a
 /// `sha`, solo por fast-forward.
 fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> {
     let local = commit_de(git, principal, OP, &rama_local())?;

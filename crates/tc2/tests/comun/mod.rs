@@ -265,7 +265,8 @@ pub fn registro_permitido(registro: &[String]) {
                 "add" => ["-A", "--all", "."].contains(a),
                 "read-tree" => ["-u", "-m", "--reset"].contains(a),
                 "update-ref" => {
-                    *a == "--stdin" || (a.starts_with("refs/") && !a.starts_with("refs/taskcode/"))
+                    *a == "--stdin"
+                        || (a.starts_with("refs/") && !a.starts_with("refs/taskcodetwo/"))
                 }
                 _ => false,
             };

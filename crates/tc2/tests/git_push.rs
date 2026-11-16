@@ -43,7 +43,7 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
     let f = Fixture::nueva("push");
     let (bare, clon) = f.remoto_y_clon();
     let g = f.git();
-    let wt = clon.join(".taskcode/worktrees/TASK-007");
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-007");
     let rama = "feature/task-007-login";
 
     git::crear_rama_y_worktree(&g, &clon, "TASK-007", "feature", "login", "origin/develop");

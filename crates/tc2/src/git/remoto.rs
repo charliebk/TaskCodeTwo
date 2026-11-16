@@ -596,7 +596,7 @@ mod tests {
     fn clasifica_los_fallos_del_remoto() {
         let casos = [
             (
-                "fatal: couldn't find remote ref refs/heads/taskcode/tareas",
+                "fatal: couldn't find remote ref refs/heads/taskcodetwo/tareas",
                 FalloRemoto::RamaInexistente,
             ),
             (
@@ -675,7 +675,7 @@ mod tests {
     #[test]
     fn contencion_frente_a_denegacion() {
         assert!(es_contencion(
-            "[remote rejected] (cannot lock ref 'refs/heads/taskcode/tareas': is at 1a but expected 2b)"
+            "[remote rejected] (cannot lock ref 'refs/heads/taskcodetwo/tareas': is at 1a but expected 2b)"
         ));
         assert!(es_contencion("[remote rejected] (failed to update ref)"));
         assert!(es_contencion(

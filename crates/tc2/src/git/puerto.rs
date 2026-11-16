@@ -64,7 +64,7 @@ pub enum Subcomando {
     Tag,
     /// `git update-index` (solo con indice temporal)
     UpdateIndex,
-    /// `git update-ref` (solo bajo `refs/taskcode/`)
+    /// `git update-ref` (solo bajo `refs/taskcodetwo/`)
     UpdateRef,
     /// `git worktree`
     Worktree,
@@ -506,16 +506,24 @@ mod tests {
             (Subcomando::UpdateRef, &["refs/remotes/origin/x", "abc"]),
             (Subcomando::UpdateRef, &["-d", "refs/heads/develop", "abc"]),
             (Subcomando::UpdateRef, &["--stdin"]),
-            (Subcomando::UpdateRef, &["-d", "refs/taskcode/p/1"]),
-            (Subcomando::UpdateRef, &["refs/taskcode/", "abc"]),
-            (Subcomando::UpdateRef, &["refs/taskcode/../heads/x", "abc"]),
+            (Subcomando::UpdateRef, &["-d", "refs/taskcodetwo/p/1"]),
+            (Subcomando::UpdateRef, &["refs/taskcodetwo/", "abc"]),
+            // El prefijo viejo ya no es propio (TASK-116).
             (
                 Subcomando::UpdateRef,
-                &["--no-deref", "refs/taskcode/p/1", "abc"],
+                &["refs/taskcode/pendientes/000001", "abc"],
             ),
             (
                 Subcomando::UpdateRef,
-                &["refs/taskcode/p/1", "abc", "def", "x"],
+                &["refs/taskcodetwo/../heads/x", "abc"],
+            ),
+            (
+                Subcomando::UpdateRef,
+                &["--no-deref", "refs/taskcodetwo/p/1", "abc"],
+            ),
+            (
+                Subcomando::UpdateRef,
+                &["refs/taskcodetwo/p/1", "abc", "def", "x"],
             ),
             (Subcomando::ReadTree, &["abc"]),
             (Subcomando::UpdateIndex, &["--add", "a"]),
@@ -583,9 +591,9 @@ mod tests {
         let r = git.ejecutar_con_indice(Path::new("."), Subcomando::ReadTree, &["abc"], &indice);
         assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
         for ok in [
-            &["refs/taskcode/pendientes/000001", "abc"][..],
-            &["refs/taskcode/pendientes/000001", "abc", "0000"][..],
-            &["-d", "refs/taskcode/pendientes/000001", "abc"][..],
+            &["refs/taskcodetwo/pendientes/000001", "abc"][..],
+            &["refs/taskcodetwo/pendientes/000001", "abc", "0000"][..],
+            &["-d", "refs/taskcodetwo/pendientes/000001", "abc"][..],
         ] {
             let r = git.ejecutar(Path::new("."), Subcomando::UpdateRef, ok);
             assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{ok:?}: {r:?}");

@@ -205,7 +205,7 @@ fn ruta_texto(op: &str, p: &Path) -> Paso<String> {
 }
 
 /// Que `git status` del principal no muestre los worktrees de tarea:
-/// `/.taskcode/worktrees/` en `info/exclude` del repo comun (no versionado).
+/// `/.taskcodetwo/worktrees/` en `info/exclude` del repo comun (no versionado).
 fn excluir_worktrees(git: &Git, principal: &Path, op: &str) -> Paso<()> {
     excluir(git, principal, op, &format!("/{CARPETA_WORKTREES}/"))
 }

@@ -12,7 +12,7 @@ use crate::contrato::{Informe, Resultado};
 use crate::i18n::Texto;
 use crate::i18n::catalogo::git as txt;
 
-/// Quita `.taskcode/worktrees/<id>`. No existe → `sin-cambios`. Con cambios
+/// Quita `.taskcodetwo/worktrees/<id>`. No existe → `sin-cambios`. Con cambios
 /// sin guardar o commits sin publicar o HEAD suelto → `rechazada`, sin tocar nada.
 pub fn quitar_worktree(git: &Git, dir: &Path, id: &str) -> Informe {
     quitar(git, dir, id).unwrap_or_else(|i| i)
