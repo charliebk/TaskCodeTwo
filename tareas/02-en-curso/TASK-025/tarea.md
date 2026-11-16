@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-025-f2-10-build-de-ejecutables-por-sistema-e
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F2-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 |---|---|---|---|---|
 | 2026-11-16T00:44:28Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T01:04:04Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T01:04:14Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
