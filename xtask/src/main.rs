@@ -139,8 +139,10 @@ fn empaquetar(target: Target, salida: &Path) -> Result<(), String> {
         ],
         None,
     )?;
+    // cargo corre en `raiz`: un CARGO_TARGET_DIR relativo es relativo a ella.
+    // (`join` con una ruta absoluta la devuelve tal cual.)
     let dir_target = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
+        .map(|d| raiz.join(d))
         .unwrap_or_else(|| raiz.join("target"));
     let origen = dir_target
         .join(target.triple)
