@@ -40,7 +40,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
 - **En marcha:** TASK-027 (en diseño)
-- **Listas para empezar:** TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063
+- **Listas para empezar:** TASK-076, TASK-077, TASK-028, TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -200,3 +200,11 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 62 | TASK-092 | F9-8b Piloto final: TaskCodeTwo con la 2.0 completa | — | TASK-040, TASK-070 | espera a TASK-040, TASK-070 |
 | 63 | TASK-093 | F9-10 Desinstalacion limpia de TaskCode 0.16 | — | TASK-013, TASK-064 | espera a TASK-064 |
 | 64 | TASK-072 | F9-9 Publicar 2.0.0 | — | TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 | espera a TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 |
+
+## H0 — H0
+
+0 de 1 terminadas.
+
+| Paso | Tarea | Título | Complejidad | Depende de | Estado |
+|---|---|---|---|---|---|
+| 65 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
