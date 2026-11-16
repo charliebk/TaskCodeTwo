@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-076-f2-4b-nombres-unicos-de-tarea-y-rama
 asignado_a: charlie.bk@gmail.com
@@ -56,6 +56,7 @@ Aceptados sin corregir (decision D2, umbral fijo hasta que F9-4 mida el ruido): 
 | 2026-11-16T19:54:15Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:16Z | start | automatico | persona | 0.16.1 |
 | 2026-11-16T20:26:32Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T20:50:22Z | finish | automatico | persona | 0.16.1 |
 
 ## Autorrevision
 
@@ -80,3 +81,9 @@ lo delata el parseo de la salida, que exige un objeto por ruta.
 ## Verificacion ligera
 
 - 2026-11-16T20:48:10Z: ronda 1; commit revisado ebc7fa5647f8386bf0266e16eab63a8a34d7e8a8; commit verificado e0f6b40b4dcc4f7381428369e5ded040a641384e; ficheros: crates/tc2/src/alta.rs, crates/tc2/src/git/rama.rs, crates/tc2/src/i18n/catalogo/estado.rs, docs/adr/F1-4-operaciones-git-y-contrato-de-salida.md; corregidos: MEN-1, MEN-3, MEN-2, MEN-4; pendientes: MEN-2, MEN-1, MEN-3
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 56 min
+- Cierre (finish): 119 s, de 2026-11-16T20:48:23Z a 2026-11-16T20:50:22Z
