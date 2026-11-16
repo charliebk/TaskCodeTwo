@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: [fase10, medicion, docs]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-113-puerta-de-valor-f10-informe-y-datos-del
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 3604162
 tokens_revision: null
 creado: 2026-11-16
 actualizado: 2026-11-16
@@ -42,3 +42,10 @@ Dejar en el repo la evidencia de la puerta de valor de la Fase 10 (experimento A
 | 2026-11-16T16:43:04Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T16:49:04Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T16:49:06Z | start | automatico | persona | 0.16.1 |
+| 2026-11-16T16:50:53Z | review | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-16T16:50:53Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 18 | 12299 | 3585867 | 5978 | 0 | 3604162 | - | - |
