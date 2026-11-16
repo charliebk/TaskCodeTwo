@@ -2,7 +2,7 @@
 id: TASK-113
 titulo: "Puerta de valor F10: informe, datos y descarte del H10"
 tipo: feature
-sprint: 0
+sprint: 1
 etiquetas: [fase10, medicion, docs]
 complejidad: simple
 modelo_sugerido: sonnet
