@@ -242,6 +242,8 @@ fn comprobar_rama(id: &str, titulo: &str) -> Result<(), Fallo> {
 /// plantilla de F1-9 (punto 6) y la rama derivada del ID (F2-4b).
 pub fn tarea_md(id: &str, titulo: &str, fecha: &str) -> String {
     let mut t = Tarea::nueva(id, titulo, fecha);
+    // El tipo y la rama salen de la misma constante: no pueden divergir.
+    TIPO.clone_into(&mut t.tipo);
     t.rama = Some(rama_de(id, titulo));
     t.escribir(&Cuerpo::plantilla())
 }
