@@ -46,3 +46,14 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | 2026-11-16T19:49:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:15Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T19:54:16Z | start | automatico | persona | 0.16.1 |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 0f11a56
+- code-quality-reviewer — 0f11a56
+
+Corregido en la autorrevision: el tipo `feature` de la rama estaba decidido
+en dos sitios (`Tarea::nueva` y `alta::TIPO`); el alta lo fija ahora desde
+su constante (0f11a56). Sin `unwrap`, `expect` ni `panic` nuevos en
+produccion; el unico error tragado (`let _ = write_all` hacia `cat-file`)
+lo delata el parseo de la salida, que exige un objeto por ruta.
