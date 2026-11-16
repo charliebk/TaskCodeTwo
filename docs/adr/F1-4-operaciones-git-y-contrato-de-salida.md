@@ -423,6 +423,12 @@ para esta PoC: **no verificado** en la plataforma.
      principal.
    - Sin ANSI nunca; nada de progreso ni avisos de Git en stdout.
    - Diagnóstico solo en stderr y solo si falla (una línea que dice qué hacer).
+     **Adenda (F2-4b, TASK-076), única excepción**: `new` que sale `ok`
+     (código 0) con tareas abiertas de título igual o parecido escribe un
+     **aviso** de una línea en stderr (RR-12, D1 de TASK-076: avisa, no
+     bloquea). Es solo para la persona: el canal fiable es la clave
+     `parecidas=` de la línea de stdout y del JSON. Con `--json`, stderr sigue
+     siendo esa línea en texto plano, fuera del JSON.
    - `--json` con la misma información, para CI.
 5. **Códigos de salida** (extienden los de F1-2; propuestos, los fija F2-3):
 

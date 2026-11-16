@@ -114,8 +114,14 @@ fn nombres(remoto: &str, local: &str) -> Vec<String> {
 /// [`id_de_rama`], igual para los dos.
 const PATRON_TAREAS: &str = "*/task-*";
 
+/// Cifras como mucho de un numero de tarea en una rama: mas que eso no es un
+/// ID (una fecha `task-20261116-x`, un `task-4294967295-y`) y no debe
+/// disparar el siguiente ID ni agotarlo.
+const CIFRAS_MAX: usize = 6;
+
 /// Numero de tarea de una rama: el primer componente, salvo el primero (el
-/// tipo), de la forma `task-<cifras>` o `task-<cifras>-<resto>`.
+/// tipo), de la forma `task-<cifras>` o `task-<cifras>-<resto>`, con 1 a
+/// [`CIFRAS_MAX`] cifras.
 fn id_de_rama(rama: &str) -> Option<u32> {
     rama.split('/').skip(1).find_map(|c| {
         let resto = c.strip_prefix("task-")?;
@@ -123,9 +129,11 @@ fn id_de_rama(rama: &str) -> Option<u32> {
             .find(|ch: char| !ch.is_ascii_digit())
             .unwrap_or(resto.len());
         let (cifras, tras) = resto.split_at(fin);
-        (!cifras.is_empty() && (tras.is_empty() || tras.starts_with('-')))
-            .then(|| cifras.parse().ok())
-            .flatten()
+        (!cifras.is_empty()
+            && cifras.len() <= CIFRAS_MAX
+            && (tras.is_empty() || tras.starts_with('-')))
+        .then(|| cifras.parse().ok())
+        .flatten()
     })
 }
 
@@ -426,6 +434,15 @@ mod tests {
             ("feature/task--1", None),
             ("fix/TASK-11-m", None),
             ("feature/task-99999999999-x", None),
+            // Mas de 6 cifras no es un ID: ni rompe ni dispara el siguiente.
+            ("feature/task-4294967295-y", None),
+            ("feature/task-20261116-x", None),
+            ("feature/task-1234567", None),
+            ("feature/task-0000001-x", None),
+            ("feature/task-999999-x", Some(999_999)),
+            ("feature/task-000042", Some(42)),
+            // Un componente largo no tapa uno valido mas adelante.
+            ("a/task-20261116/task-7-x", Some(7)),
         ] {
             assert_eq!(id_de_rama(rama), id, "{rama}");
         }

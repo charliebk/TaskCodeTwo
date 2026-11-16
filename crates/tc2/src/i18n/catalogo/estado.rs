@@ -68,8 +68,8 @@ crate::i18n::textos! {
         en: "no message",
     }
     ESCRITURA_DENEGADA {
-        es: "{detalle}; el remoto deniega la escritura: revisa credenciales, permisos o reglas, no se reintenta",
-        en: "{detalle}; the remote denies the write: check credentials, permissions or rules, it is not retried",
+        es: "{detalle}; el remoto deniega el acceso (lectura o escritura): revisa la URL, las credenciales, los permisos o las reglas, no se reintenta",
+        en: "{detalle}; the remote denies access (read or write): check the URL, credentials, permissions or rules, it is not retried",
     }
     EXIGE_RED {
         es: "{detalle}; esta operacion exige red: no se ha escrito nada, reintenta con red",

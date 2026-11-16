@@ -437,6 +437,21 @@ mod tests {
         }
     }
 
+    /// `ABIERTOS` es `tarea::ESTADOS` menos los dos de cierre: si el modelo
+    /// gana o renombra un estado, este test obliga a decidir si esta abierto.
+    #[test]
+    fn abiertos_son_los_estados_del_modelo_menos_los_de_cierre() {
+        for e in ABIERTOS {
+            assert!(crate::tarea::ESTADOS.contains(&e), "{e} no es un estado");
+        }
+        let cerrados: Vec<&str> = crate::tarea::ESTADOS
+            .iter()
+            .copied()
+            .filter(|e| !ABIERTOS.contains(e))
+            .collect();
+        assert_eq!(cerrados, ["terminada", "descartada"]);
+    }
+
     #[test]
     fn fechas_civiles() {
         assert_eq!(fecha_de_dias(0), "1970-01-01");
