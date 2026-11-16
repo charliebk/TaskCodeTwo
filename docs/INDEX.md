@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-116 — Nombres de la 2.0 alineados con F1-12 D1a · etiquetas: convivencia, git · rama fix/task-116-nombres-de-la-2-0-alineados-con-f1-12-d1 · terminada 2026-11-16 · tareas/04-terminadas/TASK-116/
 - TASK-077 — F2-13 Identidad de la persona desde la plataforma · etiquetas: (sin etiquetas) · rama feature/task-077-f2-13-identidad-de-la-persona-desde-la-p · terminada 2026-11-16 · tareas/04-terminadas/TASK-077/
 - TASK-076 — F2-4b Nombres unicos de tarea y rama · etiquetas: (sin etiquetas) · rama feature/task-076-f2-4b-nombres-unicos-de-tarea-y-rama · terminada 2026-11-16 · tareas/04-terminadas/TASK-076/
 - TASK-027 — F2-12 taskctl actualizar --cli y aviso de version nueva · etiquetas: (sin etiquetas) · rama feature/task-027-f2-12-taskctl-actualizar-cli-y-aviso-de · terminada 2026-11-16 · tareas/04-terminadas/TASK-027/

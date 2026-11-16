@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-16. No editar a mano.
 
-## Planificadas (00-planificadas) — 63
+## Planificadas (00-planificadas) — 62
 
 ```text
 ID        Titulo                                                                 Asignado
@@ -52,7 +52,6 @@ TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0       
 TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                      (sin asignar)
 TASK-071  F9-9a Prueba de instalacion en maquinas limpias                        (sin asignar)
 TASK-072  F9-9 Publicar 2.0.0                                                    (sin asignar)
-TASK-078  F2-14 taskctl desinstalar: quitar TaskCodeTwo de forma limpia          (sin asignar)
 TASK-079  F3-5b status y roadmap siempre frescos                                 (sin asignar)
 TASK-080  F3-9 Inventario de skills y agentes instalados                         (sin asignar)
 TASK-081  F3-10 Liberar y reasignar tareas abandonadas                           (sin asignar)
@@ -72,7 +71,15 @@ TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                
 TASK-115  Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable  (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 35
+## En diseno (01-en-diseno) — 1
+
+```text
+ID        Titulo                                                     Asignado
+--------  ---------------------------------------------------------  --------------------
+TASK-078  F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia  charlie.bk@gmail.com
+```
+
+## Terminadas (04-terminadas) — 36
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -112,4 +119,5 @@ TASK-077  F2-13 Identidad de la persona desde la plataforma                     
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda  charlie.bk@gmail.com
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                    charlie.bk@gmail.com
+TASK-116  Nombres de la 2.0 alineados con F1-12 D1a                                 charlie.bk@gmail.com
 ```

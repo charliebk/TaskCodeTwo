@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [convivencia, git]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-116-nombres-de-la-2-0-alineados-con-f1-12-d1
 asignado_a: charlie.bk@gmail.com
@@ -53,6 +53,7 @@ Revision: ronda 1 aprobada con correcciones por los dos revisores (solo MENORES 
 | 2026-11-16T22:40:58Z | start | automatico | persona | 0.16.1 |
 | 2026-11-16T23:02:23Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T23:43:39Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T23:54:24Z | finish | automatico | persona | 0.16.1 |
 
 ## Autorrevision
 
@@ -70,3 +71,10 @@ Revision: ronda 1 aprobada con correcciones por los dos revisores (solo MENORES 
 | 2026-11-16T23:43:39Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1046 | 641154 | 243 | 0 | 642445 | - | - |
 | 2026-11-16T23:51:29Z | revision | agente:a783ede0f7ecce884 | 44 | 125362 | 2128246 | 18025 | 13 | 2271677 | 2 | rust-wasm-reviewer |
 | 2026-11-16T23:51:30Z | revision | agente:a9cf41581be8e536f | 46 | 110275 | 1929779 | 15546 | 3 | 2055646 | 2 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 73 min
+- Paso de la hora: 73 min reales frente a 120 estimados
+- Cierre (finish): 172 s, de 2026-11-16T23:51:32Z a 2026-11-16T23:54:24Z
