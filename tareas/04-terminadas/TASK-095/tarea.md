@@ -6,7 +6,7 @@ sprint: 1
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-095-f1-19-adr-memoria-del-proyecto-indice-de
 asignado_a: charlie.bk@gmail.com
@@ -59,6 +59,7 @@ Nota de proceso: en la ronda 1 el revisor rodeo en su clon temporal un hook que 
 | 2026-11-16T13:30:43Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T13:52:50Z | review | automatico | persona | 0.16.1 |
 | 2026-11-16T14:49:35Z | review | automatico | persona | 0.16.1 |
+| 2026-11-16T14:52:57Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -83,3 +84,10 @@ Nota de proceso: en la ronda 1 el revisor rodeo en su clon temporal un hook que 
 ## Verificacion de documentacion
 
 - 2026-11-16T14:52:48Z: la tarea solo cambia documentacion (22 fichero(s) dentro de rutas_documentacion de "develop"); no se ejecuta `cargo xtask verificar --perfil rapida`, sin comprobacion de documentacion declarada
+
+## Duracion
+
+- Estimada: 140 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 106 min
+- Paso de la hora: 106 min reales frente a 140 estimados
+- Cierre (finish): 9 s, de 2026-11-16T14:52:48Z a 2026-11-16T14:52:57Z
