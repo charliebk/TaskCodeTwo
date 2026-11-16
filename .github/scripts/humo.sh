@@ -23,7 +23,8 @@ version="$2"
 dir="$(cd "$(dirname "$bin")" && pwd)"
 nombre="$(basename "$bin")"
 chmod +x "$dir/$nombre"
-imagen="alpine:3.22"
+# Fijada por digest (indice multiarquitectura, x64 y arm64), como las actions.
+imagen="alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f"
 
 case "$(uname -s)" in
   Linux)

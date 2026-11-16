@@ -139,12 +139,7 @@ fn empaquetar(target: Target, salida: &Path) -> Result<(), String> {
         ],
         None,
     )?;
-    // cargo corre en `raiz`: un CARGO_TARGET_DIR relativo es relativo a ella.
-    // (`join` con una ruta absoluta la devuelve tal cual.)
-    let dir_target = std::env::var_os("CARGO_TARGET_DIR")
-        .map(|d| raiz.join(d))
-        .unwrap_or_else(|| raiz.join("target"));
-    let origen = dir_target
+    let origen = dir_target(&raiz, std::env::var_os("CARGO_TARGET_DIR"))
         .join(target.triple)
         .join("release")
         .join(target.binario_cargo());
@@ -178,6 +173,14 @@ fn empaquetar(target: Target, salida: &Path) -> Result<(), String> {
         bytes.len()
     );
     Ok(())
+}
+
+/// Directorio de salida de cargo. cargo corre en `raiz`, asi que un
+/// `CARGO_TARGET_DIR` relativo es relativo a ella (`join` con una ruta
+/// absoluta la devuelve tal cual). No mira `build.target-dir` de
+/// `.cargo/config.toml`: el repo no lo usa.
+fn dir_target(raiz: &Path, var: Option<std::ffi::OsString>) -> PathBuf {
+    var.map_or_else(|| raiz.join("target"), |d| raiz.join(d))
 }
 
 /// Lanza `programa args... fichero` y exige codigo 0.
@@ -429,6 +432,20 @@ mod tests {
         );
         assert_eq!(leer_orden(&v(&["version"])), Ok(Orden::Version));
         assert!(leer_orden(&v(&["version", "x"])).is_err());
+        assert!(leer_orden(&v(&["sumas", "a", "b"])).is_err());
+        assert!(leer_orden(&v(&["sumas"])).is_err());
+    }
+
+    #[test]
+    fn dir_target_relativo_a_la_raiz() {
+        let raiz = std::env::temp_dir().join("raiz-ws");
+        assert_eq!(dir_target(&raiz, None), raiz.join("target"));
+        assert_eq!(dir_target(&raiz, Some("relt".into())), raiz.join("relt"));
+        let absoluta = std::env::temp_dir().join("otro-target");
+        assert_eq!(
+            dir_target(&raiz, Some(absoluta.clone().into_os_string())),
+            absoluta
+        );
     }
 
     #[test]

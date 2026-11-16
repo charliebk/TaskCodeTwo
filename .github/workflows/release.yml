@@ -51,6 +51,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Toolchain de rust-toolchain.toml
         run: rustup toolchain install
       - name: Version y tag
@@ -62,6 +63,14 @@ jobs:
           version="$(cargo xtask version)"
           if [ "$ES_TAG" = "true" ]; then
             clase="$(cargo xtask comprobar-tag "$TAG")"
+            # Una release estable sale solo de un commit de main (F1-3 D3a).
+            if [ "$clase" = "estable" ]; then
+              git fetch --no-tags origin main
+              if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+                echo "::error::el tag estable $TAG no esta sobre main; pon el tag en el merge en main, o usa un sufijo (v<version>-<sufijo>) para una prerelease"
+                exit 1
+              fi
+            fi
           else
             clase="ensayo"
           fi
@@ -173,7 +182,8 @@ jobs:
         run: |
           cargo xtask sumas dist
           # Las sumas de la release tienen que ser las mismas que dejo cada build.
-          diff <(cat dist/*.sha256 | sort -k 2) dist/SHA256SUMS
+          # Orden por bytes, el mismo que usa xtask.
+          diff <(cat dist/*.sha256 | LC_ALL=C sort -k 2) dist/SHA256SUMS
           rm dist/*.sha256
           test "$(ls dist/tc2-* | wc -l)" -eq 6
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -184,12 +194,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           CLASE: ${{ needs.preparar.outputs.clase }}
+        # Primero como borrador y despues se publica: si el job se corta a
+        # medias no queda una release publica incompleta, solo un borrador
+        # (docs/distribucion/releases.md dice como recuperarse).
         run: |
           extra=()
           if [ "$CLASE" = "prerelease" ]; then extra+=(--prerelease); fi
-          gh release create "$TAG" dist/tc2-* dist/SHA256SUMS \
+          gh release create "$TAG" dist/tc2-* dist/SHA256SUMS --draft \
             --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" "${extra[@]}" \
             --notes "Binarios de tc2 para los 6 sistemas de P12, con SHA256SUMS y attestation de procedencia. Verificacion: docs/distribucion/releases.md"
+          test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" -eq 7
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   verificar-release:
     name: verificar-release (${{ matrix.alias }})
@@ -229,7 +244,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}
-        run: gh attestation verify "pub/$FICHERO" --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh attestation verify "pub/$FICHERO" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
       - name: Arranca sin Node
         env:
           FICHERO: tc2-${{ needs.preparar.outputs.version }}-${{ matrix.alias }}${{ matrix.ext }}

@@ -33,8 +33,8 @@ El workflow `.github/workflows/release.yml` se lanza de dos formas:
 
 - **Tag `v<version>`** (o `v<version>-<sufijo>`, que se publica como
   prerelease), anotado sobre el merge en `main`. `<version>` tiene que ser la
-  de `Cargo.toml`: si no coinciden, el job `preparar` falla y no se publica
-  nada.
+  de `Cargo.toml`, y un tag estable tiene que estar sobre un commit de `main`:
+  si no se cumple, el job `preparar` falla y no se publica nada.
 - **`workflow_dispatch`, o un push a una rama que toque lo que entra en la
   release** (el workflow, el humo, `xtask`, Cargo): ensayo. Compila y prueba
   los 6 binarios, pero no publica.
@@ -45,11 +45,18 @@ Jobs, en orden:
    `cargo xtask empaquetar`.
 2. `humo`: comprueba que cada binario arranca sin Node, con
    `.github/scripts/humo.sh`.
-3. `publicar`: genera `SHA256SUMS`, crea la attestation y la release.
+3. `publicar`: genera `SHA256SUMS`, crea la attestation y la release, primero
+   como borrador y después la publica.
 4. `verificar-release`: vuelve a descargar los binarios desde la URL pública,
    sin credenciales, y comprueba todo otra vez.
 
 Si un solo target falla, no se publica la release.
+
+Si `publicar` se corta a medias, queda como mucho un borrador, que no ven los
+demás. Para reintentar, borra el borrador (`gh release delete <tag>`, sin
+`--cleanup-tag`, para conservar el tag) y relanza el run. Si la release ya
+está publicada, relanzar `publicar` falla con «already exists» y no cambia
+nada.
 
 Los mismos pasos se pueden ejecutar en local:
 
@@ -68,10 +75,29 @@ build local.
 
 ## Cómo se verifica un binario descargado
 
+El hash solo prueba que el fichero llegó entero. Que lo construyó este
+repositorio con `release.yml` lo prueba la attestation.
+
+Hash, en Linux:
+
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
+En macOS:
+
 ```bash
-gh attestation verify tc2-<version>-<alias> --repo charliebk/TaskCodeTwo
+grep " tc2-<version>-<alias>$" SHA256SUMS | shasum -a 256 -c
+```
+
+En Windows (PowerShell), compara el resultado con la línea de `SHA256SUMS`:
+
+```powershell
+(Get-FileHash tc2-<version>-<alias>.exe -Algorithm SHA256).Hash.ToLower()
+```
+
+Procedencia, en cualquier sistema:
+
+```bash
+gh attestation verify tc2-<version>-<alias> --repo charliebk/TaskCodeTwo --signer-workflow charliebk/TaskCodeTwo/.github/workflows/release.yml
 ```

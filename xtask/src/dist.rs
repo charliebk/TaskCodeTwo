@@ -164,10 +164,27 @@ mod tests {
             assert_eq!(f.ends_with(".exe"), t.es_windows(), "{f}");
             assert_eq!(t.binario_cargo().ends_with(".exe"), t.es_windows());
         }
+        // Los triples, literales: son los que pide rustup en la CI.
+        let triples: Vec<&str> = TARGETS.iter().map(|t| t.triple).collect();
+        assert_eq!(
+            triples,
+            [
+                "x86_64-pc-windows-msvc",
+                "aarch64-pc-windows-msvc",
+                "x86_64-apple-darwin",
+                "aarch64-apple-darwin",
+                "x86_64-unknown-linux-musl",
+                "aarch64-unknown-linux-musl"
+            ]
+        );
+        let macos: Vec<&str> = TARGETS
+            .iter()
+            .filter(|t| t.es_macos())
+            .map(|t| t.alias)
+            .collect();
+        assert_eq!(macos, ["darwin-x64", "darwin-arm64"]);
         assert_eq!(TARGETS[0].fichero("2.0.0"), "tc2-2.0.0-win-x64.exe");
         assert_eq!(TARGETS[4].fichero("2.0.0"), "tc2-2.0.0-linux-x64");
-        assert!(TARGETS[4].triple.ends_with("-musl"));
-        assert!(TARGETS[5].triple.ends_with("-musl"));
         assert_eq!(Target::de_triple("x86_64-unknown-linux-gnu"), None);
     }
 
@@ -184,8 +201,15 @@ mod tests {
         assert!(sumas(&[]).is_err());
         assert!(sumas(&[(String::from("x"), abc.to_uppercase())]).is_err());
         assert!(sumas(&[(String::from("x"), String::from("ab"))]).is_err());
-        assert!(sumas(&[(String::from("dir/x"), abc.to_owned())]).is_err());
-        assert!(sumas(&[(String::from("x\ny"), abc.to_owned())]).is_err());
+        // 64 caracteres, pero con una «g» que no es hex.
+        let no_hex = format!("{}g", &abc[..63]);
+        assert!(sumas(&[(String::from("x"), no_hex)]).is_err());
+        for malo in ["", "dir/x", "dir\\x", "x\ny", "x\ry"] {
+            assert!(
+                sumas(&[(malo.to_owned(), abc.to_owned())]).is_err(),
+                "{malo:?}"
+            );
+        }
     }
 
     #[test]
