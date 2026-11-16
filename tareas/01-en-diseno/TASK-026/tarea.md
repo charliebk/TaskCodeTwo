@@ -6,10 +6,10 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-026-f2-11-instaladores-de-una-linea
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-16
 dependencias: [TASK-025]
 ---
 ## Objetivo
@@ -31,3 +31,9 @@ Tarea F2-11 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 ## Criterios de aceptacion
 - [ ] Instalación en una máquina limpia de cada sistema en menos de un minuto
 - [ ] Cumple lo que pide la tarea F2-11 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-16T08:55:05Z | plan | automatico | persona | 0.16.1 |
