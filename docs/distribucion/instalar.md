@@ -58,8 +58,16 @@ curl -fsSL https://github.com/charliebk/TaskCodeTwo/releases/download/v0.0.0-pru
      # <<< tc2 (TaskCodeTwo) <<<
      ```
 
-     Instalar otra vez no repite el bloque. `tc2 desinstalar` (F2-14) lo quita
-     por sus marcas. Con fish, el instalador dice qué ejecutar.
+     Instalar otra vez no repite el bloque, y reinstalar en otro directorio lo
+     sustituye por uno con el directorio nuevo. `tc2 desinstalar` (F2-14) lo
+     quita por sus marcas. Con fish, el instalador dice qué ejecutar. Como el
+     directorio se escribe en el perfil, se rechaza si lleva comillas, `$`,
+     `` ` ``, `\`, `:` o un salto de línea.
+
+   En Windows, reinstalar en otro directorio añade el nuevo al final del PATH
+   del usuario, pero no quita el anterior: si el `tc2.exe` viejo sigue ahí,
+   gana él. Hasta `tc2 desinstalar` (F2-14), quita a mano la entrada antigua.
+   Un directorio con `;` (el separador del PATH) se rechaza.
 
 Volver a ejecutar la línea reinstala (o cambia de versión con `TC2_VERSION`).
 Actualizar con `tc2 actualizar --cli` es de F2-12. No toca `taskctl` ni nada

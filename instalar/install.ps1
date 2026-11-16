@@ -143,7 +143,8 @@ function Install-Tc2 {
 
     $comprobarAttestation = $true
     if ($env:TC2_BASE_URL) {
-        if ($env:TC2_BASE_URL -notmatch '^(https://|http://(127\.0\.0\.1|localhost)(:|/))') {
+        # Sin @: "http://127.0.0.1:80@otro" iria a "otro".
+        if ($env:TC2_BASE_URL -match '@' -or $env:TC2_BASE_URL -notmatch '^(https://|http://(127\.0\.0\.1|localhost)(:|/))') {
             Fallo "TC2_BASE_URL tiene que ser https, o http a 127.0.0.1 o localhost: $env:TC2_BASE_URL" 'corrige TC2_BASE_URL o quitala'
         }
         if (-not $env:TC2_VERSION) {
@@ -177,6 +178,13 @@ function Install-Tc2 {
     # Absoluto (respecto al directorio actual de PowerShell): el directorio
     # acaba en el PATH del usuario.
     $destino = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($destino)
+    # El ; es el separador del PATH: partiria la entrada en dos.
+    if ($destino.Contains(';')) {
+        Fallo "el directorio de instalacion no puede llevar ';': $destino" 'usa otro TC2_INSTALL_DIR'
+    }
+    if (Test-Path -LiteralPath (Join-Path $destino 'tc2.exe') -PathType Container) {
+        Fallo "$destino\tc2.exe es un directorio" 'quitalo o usa otro TC2_INSTALL_DIR'
+    }
 
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('tc2-instalar-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null

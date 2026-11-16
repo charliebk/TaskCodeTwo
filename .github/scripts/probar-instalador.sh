@@ -129,14 +129,26 @@ medir() {
 
 hash_alterado() {
   export TC2_BASE_URL="$url/malo"
+  # Tiene que fallar por el hash, no por cualquier otra cosa (un 404, la red).
+  set +e
   if [ "$so" = windows ]; then
-    if linea_windows "$(dir_windows "$tmp/dest-malo")"; then rojo "con un hash alterado el instalador salio con 0"; fi
-    [ ! -e "$tmp/dest-malo/tc2.exe" ] || rojo "con un hash alterado quedo tc2.exe instalado"
+    salida=$(linea_windows "$(dir_windows "$tmp/dest-malo")" 2>&1)
+    codigo=$?
+    instalado="$tmp/dest-malo/tc2.exe"
   else
     mkdir -p "$tmp/home-malo"
-    if linea_unix "$tmp/home-malo"; then rojo "con un hash alterado el instalador salio con 0"; fi
-    [ ! -e "$tmp/home-malo/.local/bin/tc2" ] || rojo "con un hash alterado quedo tc2 instalado"
+    salida=$(linea_unix "$tmp/home-malo" 2>&1)
+    codigo=$?
+    instalado="$tmp/home-malo/.local/bin/tc2"
   fi
+  set -e
+  echo "$salida"
+  [ "$codigo" -ne 0 ] || rojo "con un hash alterado el instalador salio con 0"
+  case "$salida" in
+    *"no casa con SHA256SUMS"*) ;;
+    *) rojo "con un hash alterado el instalador fallo, pero no por el hash" ;;
+  esac
+  [ ! -e "$instalado" ] || rojo "con un hash alterado quedo $instalado"
   export TC2_BASE_URL="$url"
   echo "probar: VERDE: un hash que no casa no instala nada"
 }
@@ -160,6 +172,12 @@ path_idempotente() {
     linea_unix "$h"
     n=$(grep -cF '# >>> tc2 (TaskCodeTwo) >>>' "$h/.profile") || n=0
     [ "$n" = 1 ] || rojo "tras instalar dos veces, .profile tiene $n bloques de tc2"
+    # Reinstalar en otro directorio: un solo bloque, con el directorio nuevo.
+    (export TC2_INSTALL_DIR="$h/otro"; linea_unix "$h")
+    n=$(grep -cF '# >>> tc2 (TaskCodeTwo) >>>' "$h/.profile") || n=0
+    [ "$n" = 1 ] || rojo "tras reinstalar en otro directorio, .profile tiene $n bloques de tc2"
+    ruta=$(terminal_nueva_unix "$h" | head -n 1)
+    [ "$ruta" = "$h/otro/tc2" ] || rojo "tras reinstalar en otro directorio, la terminal nueva encuentra '$ruta'"
     h="$tmp/home-sin-path"
     mkdir -p "$h"
     (export TC2_NO_MODIFY_PATH=1; linea_unix "$h")

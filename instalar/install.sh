@@ -119,11 +119,26 @@ sha256_de() {
   fi
 }
 
-# escribir_bloque <perfil> <dir>: idempotente, entre marcas.
+# escribir_bloque <perfil> <dir>: idempotente, entre marcas. Si el perfil ya
+# tiene un bloque de tc2 con otro directorio (se reinstalo en otro sitio), se
+# sustituye: un solo bloque, siempre con el directorio de la ultima
+# instalacion. <dir> ya viene validado (sin comillas, $, ` ni \).
 escribir_bloque() {
   if [ -f "$1" ] && grep -qF "$MARCA_INICIO" "$1"; then
-    decir "$1 ya tiene el bloque de tc2"
-    return 0
+    # shellcheck disable=SC2016
+    if grep -qF "export PATH=\"$2:\$PATH\"" "$1"; then
+      decir "$1 ya tiene el bloque de tc2"
+      return 0
+    fi
+    # cat > en vez de mv: se conservan el propietario, los permisos y un
+    # posible enlace simbolico del perfil.
+    if ! { awk -v i="$MARCA_INICIO" -v f="$MARCA_FIN" '$0 == i { s = 1; next } $0 == f { s = 0; next } !s' "$1" >"$1.tc2-tmp" &&
+      cat "$1.tc2-tmp" >"$1"; }; then
+      rm -f "$1.tc2-tmp"
+      fallo "no se pudo reescribir $1" "quita a mano el bloque entre las marcas de tc2, o repite con TC2_NO_MODIFY_PATH=1"
+    fi
+    rm -f "$1.tc2-tmp"
+    decir "quitado de $1 el bloque de tc2 con otro directorio"
   fi
   # El $PATH del bloque se expande al leer el perfil, no ahora.
   # shellcheck disable=SC2016
@@ -141,6 +156,10 @@ anadir_al_path() {
   esac
   if [ "${TC2_NO_MODIFY_PATH:-}" = 1 ]; then
     decir "$1 no esta en el PATH y TC2_NO_MODIFY_PATH=1: anadelo tu (export PATH=\"$1:\$PATH\")"
+    return 0
+  fi
+  if [ -z "${HOME:-}" ]; then
+    decir "sin HOME no se puede tocar el perfil del shell: anade tu $1 al PATH (export PATH=\"$1:\$PATH\")"
     return 0
   fi
   # .profile lo leen los shells de login POSIX (sh, dash, ash, bash sin
@@ -163,7 +182,9 @@ anadir_al_path() {
 main() {
   comprobar_attestation=1
   if [ -n "${TC2_BASE_URL:-}" ]; then
+    # Sin @: "http://127.0.0.1:80@otro" iria a "otro".
     case "$TC2_BASE_URL" in
+      *@*) fallo "TC2_BASE_URL no puede llevar @: $TC2_BASE_URL" "corrige TC2_BASE_URL o quitala" ;;
       https://* | http://127.0.0.1:* | http://127.0.0.1/* | http://localhost:* | http://localhost/*) ;;
       *) fallo "TC2_BASE_URL tiene que ser https, o http a 127.0.0.1 o localhost: $TC2_BASE_URL" "corrige TC2_BASE_URL o quitala" ;;
     esac
@@ -200,6 +221,21 @@ main() {
     /*) ;;
     *) destino="$(pwd)/$destino" ;;
   esac
+  # El directorio se escribe en el perfil del shell: nada que el shell
+  # interprete dentro de comillas dobles, ni el separador del PATH.
+  case "$destino" in
+    *[\"\$\`\\:]*)
+      fallo "el directorio de instalacion no puede llevar comillas, \$, \`, \\ ni dos puntos: $destino" \
+        "usa otro TC2_INSTALL_DIR" ;;
+  esac
+  salto='
+'
+  case "$destino" in
+    *"$salto"*) fallo "el directorio de instalacion no puede llevar saltos de linea" "usa otro TC2_INSTALL_DIR" ;;
+  esac
+  if [ -d "$destino/tc2" ]; then
+    fallo "$destino/tc2 es un directorio" "quitalo o usa otro TC2_INSTALL_DIR"
+  fi
 
   tmp=$(mktemp -d 2>/dev/null || mktemp -d -t tc2-instalar)
   trap 'rm -rf "$tmp"' EXIT
