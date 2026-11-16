@@ -121,6 +121,138 @@ fn fecha_valida(f: &str) -> bool {
         })
 }
 
+/// Texto libre de un `asignado_a` de la 0.16 que no se ha convertido a una
+/// persona de la plataforma. Solo lo construye el lector: la 2.0 nunca
+/// asigna un texto, y al reescribir una tarea lo conserva tal cual hasta que
+/// `reasignar` (F3-10) lo resuelva.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Heredado(String);
+
+impl Heredado {
+    /// El texto tal como se leyo.
+    pub fn texto(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Quien lleva la tarea (F2-13): la cuenta de la plataforma por su `id`
+/// numerico, con el `login` al lado para ensenarlo, o el texto heredado de la
+/// 0.16.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Asignado {
+    /// Cuenta de la plataforma. Se compara por `id`; `login` es una copia
+    /// para mostrar que refresca la lista de personas.
+    Persona {
+        /// Id numerico de la cuenta.
+        id: u64,
+        /// Login de la cuenta.
+        login: String,
+    },
+    /// Texto libre de la 0.16 (solo lo crea el lector).
+    Heredado(Heredado),
+}
+
+impl Asignado {
+    /// Cuenta `id` con `login`; `None` si el id es 0 o el login esta vacio o
+    /// lleva espacios o caracteres de control.
+    pub fn persona(id: u64, login: &str) -> Option<Self> {
+        (id > 0 && login_valido(login)).then(|| Self::Persona {
+            id,
+            login: login.to_owned(),
+        })
+    }
+
+    /// Id de la cuenta, si es una persona.
+    pub fn id(&self) -> Option<u64> {
+        match self {
+            Self::Persona { id, .. } => Some(*id),
+            Self::Heredado(_) => None,
+        }
+    }
+
+    /// Login de la cuenta, si es una persona.
+    pub fn login(&self) -> Option<&str> {
+        match self {
+            Self::Persona { login, .. } => Some(login),
+            Self::Heredado(_) => None,
+        }
+    }
+
+    /// Texto heredado de la 0.16, si lo es.
+    pub fn heredado(&self) -> Option<&str> {
+        match self {
+            Self::Persona { .. } => None,
+            Self::Heredado(h) => Some(h.texto()),
+        }
+    }
+
+    /// «Ya la lleva»: la cuenta `id` es la asignada. Compara solo el `id`: el
+    /// mismo login con otro id es otra persona y un login renombrado con el
+    /// mismo id es la misma. Un texto heredado no lo lleva nadie.
+    pub fn la_lleva(&self, id: u64) -> bool {
+        self.id() == Some(id)
+    }
+
+    /// Si `otro` es la misma persona (mismo `id`).
+    pub fn misma_persona(&self, otro: &Self) -> bool {
+        otro.id().is_some_and(|id| self.la_lleva(id))
+    }
+
+    /// Lo que se escribe en el frontmatter.
+    fn yaml(&self) -> String {
+        match self {
+            Self::Persona { id, login } => {
+                format!("{{id: {id}, login: {}}}", yaml::cadena(login))
+            }
+            Self::Heredado(h) => yaml::cadena(h.texto()),
+        }
+    }
+}
+
+/// Login de una cuenta: no vacio, sin espacios ni caracteres de control.
+fn login_valido(login: &str) -> bool {
+    !login.is_empty() && texto_valido(login) && !login.chars().any(char::is_whitespace)
+}
+
+/// `asignado_a` del formato 2: `null`, `{id, login}` o un texto heredado.
+fn asignado(v: Option<serde_json::Value>) -> Result<Option<Asignado>, ErrorTarea> {
+    use serde_json::Value;
+    const CLAVE: &str = "asignado_a";
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) if !s.trim().is_empty() => {
+            Ok(Some(Asignado::Heredado(Heredado(texto(CLAVE, s)?))))
+        }
+        Some(Value::Object(m)) => {
+            if let Some(k) = m.keys().find(|k| *k != "id" && *k != "login") {
+                return Err(ErrorTarea::en(
+                    CLAVE,
+                    format!("clave «{k}» desconocida (se espera {{id, login}})"),
+                ));
+            }
+            let id = m.get("id").and_then(Value::as_u64);
+            let login = m.get("login").and_then(Value::as_str);
+            match (id, login) {
+                (Some(id), Some(login)) => Asignado::persona(id, login).ok_or_else(|| {
+                    ErrorTarea::en(
+                        CLAVE,
+                        "`id` tiene que ser mayor que 0 y `login` sin espacios ni caracteres de control",
+                    )
+                }),
+                _ => Err(ErrorTarea::en(
+                    CLAVE,
+                    "se espera {id: <entero sin comillas>, login: \"<login>\"}",
+                )),
+            }
+            .map(Some)
+        }
+        Some(_) => Err(ErrorTarea::en(
+            CLAVE,
+            "se espera null, {id, login} o el texto de la 0.16",
+        )),
+    }
+}
+
 /// Un rol de `roles` (diseno, implementacion).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -174,7 +306,7 @@ pub struct Tarea {
     pub motivo: Option<String>,
     pub plan_aprobado: bool,
     pub rama: Option<String>,
-    pub asignado_a: Option<String>,
+    pub asignado_a: Option<Asignado>,
     pub roles: Roles,
     /// Entrada `estimacion:` cruda (su forma la fija F1-17); `None` es `null`.
     /// Privada: solo llega de una lectura, que la ha validado como YAML.
@@ -205,7 +337,7 @@ struct CrudoV2 {
     motivo: Option<String>,
     plan_aprobado: Option<bool>,
     rama: Option<String>,
-    asignado_a: Option<String>,
+    asignado_a: Option<serde_json::Value>,
     roles: Option<Roles>,
     estimacion: Option<IgnoredAny>,
     tokens_diseno: Option<u64>,
@@ -412,7 +544,7 @@ impl Tarea {
             motivo,
             plan_aprobado: exigir("plan_aprobado", c.plan_aprobado)?,
             rama: texto_opcional("rama", c.rama)?,
-            asignado_a: texto_opcional("asignado_a", c.asignado_a)?,
+            asignado_a: asignado(c.asignado_a)?,
             roles: Roles {
                 diseno: rol("roles.diseno", roles.diseno)?,
                 implementacion: rol("roles.implementacion", roles.implementacion)?,
@@ -471,7 +603,12 @@ impl Tarea {
         linea("motivo", yaml::opcional(self.motivo.as_deref()));
         linea("plan_aprobado", self.plan_aprobado.to_string());
         linea("rama", yaml::opcional(self.rama.as_deref()));
-        linea("asignado_a", yaml::opcional(self.asignado_a.as_deref()));
+        linea(
+            "asignado_a",
+            self.asignado_a
+                .as_ref()
+                .map_or_else(|| "null".to_owned(), Asignado::yaml),
+        );
         let rv = &r.revision;
         let revision = format!(
             "{{agente: {}, modelo: {}, skills: {}, regla: {}}}",
@@ -530,7 +667,8 @@ pub struct TareaV1 {
     pub estado: String,
     pub plan_aprobado: bool,
     pub rama: String,
-    pub asignado_a: Option<String>,
+    /// El texto libre de la 0.16, siempre [`Asignado::Heredado`].
+    pub asignado_a: Option<Asignado>,
     pub agente_revisor: String,
     pub skills_recomendados: Vec<String>,
     pub regla_seleccion_skill: Option<String>,
@@ -684,7 +822,9 @@ impl TareaV1 {
             estado: uno_de("estado", exigir("estado", c.estado)?, &ESTADOS_V1)?,
             plan_aprobado: exigir("plan_aprobado", c.plan_aprobado)?,
             rama: texto("rama", exigir("rama", c.rama)?)?,
-            asignado_a: texto_opcional("asignado_a", c.asignado_a)?,
+            asignado_a: texto_opcional("asignado_a", c.asignado_a)?
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| Asignado::Heredado(Heredado(s))),
             agente_revisor: texto(
                 "agente_revisor",
                 exigir("agente_revisor", c.agente_revisor)?,

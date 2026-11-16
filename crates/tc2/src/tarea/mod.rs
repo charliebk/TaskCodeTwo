@@ -19,8 +19,8 @@ use std::fmt;
 
 pub use cuerpo::{Cuerpo, Seccion};
 pub use modelo::{
-    COMPLEJIDADES, ESTADOS, REGLAS, Rol, RolRevision, Roles, TIPOS, Tarea, TareaV1, id_valido,
-    titulo_valido,
+    Asignado, COMPLEJIDADES, ESTADOS, Heredado, REGLAS, Rol, RolRevision, Roles, TIPOS, Tarea,
+    TareaV1, id_valido, titulo_valido,
 };
 
 /// Un `tarea.md` leido.
