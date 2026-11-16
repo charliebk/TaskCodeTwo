@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-077-f2-13-identidad-de-la-persona-desde-la-p
 asignado_a: charlie.bk@gmail.com
@@ -47,3 +47,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 |---|---|---|---|---|
 | 2026-11-16T20:50:31Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T20:55:31Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-16T20:55:32Z | start | automatico | persona | 0.16.1 |
