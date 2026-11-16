@@ -31,13 +31,22 @@ Tarea F2-4b del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2
 Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas debe estar garantizado: todos saben qué tarea tiene cada uno y no se pueden pisar ni los nombres ni las tareas. Además de lo ya previsto (IDs por push atómico, toma atómica en start, roadmap con quién lleva cada tarea, status), se cierran los huecos: nombres de rama y títulos únicos, identidad real de la plataforma (no texto libre), liberar y reasignar tareas abandonadas, aviso de solape de ficheros entre tareas en curso y estado siempre fresco con hora de sincronización. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 ter.
 
 ## Criterios de aceptacion
-- [ ] C1: dos `tc2 new "X"` a la vez desde dos clones dan IDs distintos, `rama` distintas en los `tarea.md` publicados y la segunda en publicar sale con `parecidas=<ID de la otra>` (E2E en `crates/tc2/tests/alta.rs`)
-- [ ] C2: con `feature/task-005-x` solo en el remoto (sin carpeta), el siguiente `tc2 new` da un ID mayor que 5 (test)
-- [ ] C3: lo mismo con una rama `*/task-NNN-*` que solo existe en local (test)
-- [ ] C4: un titulo que plegado es igual al de una tarea abierta da `parecidas=TASK-x (duplicado)` con codigo 0; contra una terminada no avisa (test)
-- [ ] C5: «casi igual» es Dice sobre bigramas del titulo plegado >= 0,80, fijado con una tabla unitaria («Exportar informes»/«Exprotar informes» avisa; «Login con Google»/«Login con GitHub» no)
-- [ ] C6: sin red, el `ls-remote` previo sale `sinred` (4) y no deja refs nuevas (test)
-- [ ] C7: `tarea.md` lleva `rama: feature/task-nnn-<slug>` que pasa `rama_valida`; un titulo sin letras latinas da el slug `tarea` (unitarios)
+- [x] C1: dos `tc2 new "X"` a la vez desde dos clones dan IDs distintos, `rama` distintas en los `tarea.md` publicados y la segunda en publicar sale con `parecidas=<ID de la otra>` (E2E en `crates/tc2/tests/alta.rs`)
+- [x] C2: con `feature/task-005-x` solo en el remoto (sin carpeta), el siguiente `tc2 new` da un ID mayor que 5 (test)
+- [x] C3: lo mismo con una rama `*/task-NNN-*` que solo existe en local (test)
+- [x] C4: un titulo que plegado es igual al de una tarea abierta da `parecidas=TASK-x (duplicado)` con codigo 0; contra una terminada no avisa (test)
+- [x] C5: «casi igual» es Dice sobre bigramas del titulo plegado >= 0,80, fijado con una tabla unitaria («Exportar informes»/«Exprotar informes» avisa; «Login con Google»/«Login con GitHub» no)
+- [x] C6: sin red, el `ls-remote` previo sale `sinred` (4) y no deja refs nuevas (test)
+- [x] C7: `tarea.md` lleva `rama: feature/task-nnn-<slug>` que pasa `rama_valida`; un titulo sin letras latinas da el slug `tarea` (unitarios)
+
+## Resultado
+
+Hecho: `tc2 new` escribe `rama: feature/task-nnn-<slug>` (plegado y slug en `tarea::texto`), el ID salta las ramas `*/task-NNN-*` locales y remotas (`ids_con_rama`, `ls-remote` previo; adenda ADR F1-2 punto 3), las tareas se leen en lote con un solo `git cat-file --batch` (`Git::ejecutar_con_entrada`) y un titulo duplicado o parecido (Dice >= 0,80 sobre el plegado) a una tarea abierta da `parecidas=` en stdout/JSON y un aviso de una linea en stderr con codigo 0 (adenda ADR F1-4). Cada criterio C1..C7 con su test (`tests/alta.rs`, `tarea::texto`, `alta`, `git::rama`); `cargo xtask verificar --perfil rapida` en verde.
+
+No verificado: `sinred` por DNS que no resuelve; el error de `comprobar_rama` (el slug es valido por construccion); una rama creada entre el `ls-remote` y el push (riesgo aceptado, lo parara `comprobar-id` en `start`, F3-6).
+
+Revision ronda 1 (rust-wasm-reviewer y code-quality-reviewer): aprobada con correcciones, sin CRITICOS ni IMPORTANTES. Corregidos en e0f6b40: MEN-1 de los dos (adenda F1-4), MEN-2 rust (IDs de mas de 6 cifras se ignoran), MEN-4 rust (unitario que cruza `ABIERTOS` con `tarea::ESTADOS`), MEN-3 calidad (diagnostico de remoto denegado vale para lectura).
+Aceptados sin corregir (decision D2, umbral fijo hasta que F9-4 mida el ruido): MEN-3 rust y MEN-2 calidad, falsos positivos en series numeradas («Fase 1/Fase 2», «Sprint 3/Sprint 4») y lista de parecidas sin tope.
 
 ## Transiciones
 
