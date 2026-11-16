@@ -50,3 +50,7 @@ Dejar en el repo la evidencia de la puerta de valor de la Fase 10 (experimento A
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-16T16:50:53Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 18 | 12299 | 3585867 | 5978 | 0 | 3604162 | - | - |
 | 2026-11-16T16:53:54Z | revision | agente:ae378f1d4e79c4b0d | 18 | 101798 | 689153 | 8230 | 3 | 799199 | 1 | - |
+
+## Verificacion ligera
+
+- 2026-11-16T16:53:59Z: ronda 1; commit revisado faaaba2f9fcda500f56fc13d74d758f762ffd4be; commit verificado 8a4ac9084e6ddb6114100bd6a33fcd5be6a17740; ficheros: docs/BOARD.md; corregidos: MEN-2; pendientes: MEN-1, MEN-3
