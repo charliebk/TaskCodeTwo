@@ -1,6 +1,6 @@
 ---
 id: TASK-028
-titulo: "F3-1 taskctl init / setup"
+titulo: "F3-1 tc2 init"
 tipo: feature
 sprint: 3
 etiquetas: []
@@ -29,10 +29,13 @@ dependencias: [TASK-018, TASK-021]
 Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-3, F2-6.
 
 ## Criterios de aceptacion
-- [ ] Repo vacío listo
-- [ ] idempotente
-- [ ] `--dry-run`
-- [ ] Cumple lo que pide la tarea F3-1 del plan y los requisitos que cita
+- [ ] C1: repo vacio (`git init`, sin remoto) → `tc2 init` sale `init ok`: rama `taskcodetwo/tareas` montada en `tareas/` (en `git worktree list`), `main` y `develop` con commit raiz que contiene `.taskcode/config.yml` (pasa `config::leer` = `Config::suelo()`) y `.gitignore` con `/tareas/` y `/.taskcodetwo/`, y `.git/info/exclude` con las dos lineas (`crates/tc2/tests/init.rs::repo_vacio_sin_remoto`)
+- [ ] C2: la segunda ejecucion sale `init sin-cambios` con todas las acciones `decision=existe` y refs, worktrees, `exclude` y arbol (hashes) iguales (`init_dos_veces_sin_cambios`)
+- [ ] C3: `tc2 init --simular [--json]` imprime el plan y `init <res> simular=si` sin cambiar ni un byte (arbol, `.git`, refs; no crea `.git/taskcodetwo/`) y el plan simulado es igual a las acciones de la ejecucion real posterior (`simular_no_toca_nada_y_coincide`)
+- [ ] C4: con `config.yml` sin `formato: 2` o `tareas/` como carpeta normal → `init rechazada motivo=proyecto-016 arreglo="tc2 actualizar --simular"` (3) sin escribir nada; con `formato-nuevo` o config invalida tampoco la pisa (`init_en_repo_016_rechaza`, `init_con_config_invalida_no_la_pisa`)
+- [ ] C5: sin remoto `init ok` con `personas.yml` y puertas `decision=pendiente motivo=sin-remoto`, y tras `git remote add origin` un segundo `init` las completa; con remoto sin red → `init sinred pendiente=no` sin escribir nada (`sin_remoto_completa_al_anadirlo`, `sin_red_no_escribe`)
+- [ ] C6: una linea por ruleset `taskcodetwo-*` con `decision=persona` y la orden que lo aplica, sin ninguna escritura en la plataforma (0 POST/PUT/PATCH en el doble HTTP)
+- [ ] C7: tras `init`, `tc2 desinstalar --proyecto --simular` lista todo lo que creo `init` con `dueno=taskcodetwo` (`init_y_desinstalar_se_reconocen`)
 
 ## Transiciones
 
