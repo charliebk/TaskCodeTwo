@@ -31,9 +31,17 @@ Tarea F3-9 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol (diseño, implementación, revisión) hay que elegir las skills y los agentes adecuados y el modelo según complejidad y carril, solo entre lo que está instalado en la máquina y el proyecto, anotar la elección en la tarea y medir si acierta (hallazgos por revisora y coste por modelo). En la 0.16 existe con `catalogo-skills.yml`, `skills_recomendados` y `modelo_sugerido`, pero se usó en 21 / 0 / 2 tareas de ToolsaWeb / OpenDockTrading / TaskCode porque el catálogo apenas se configuró: hoy la elección la hace el agente sin criterio registrado. Nada debe decidirlo el modelo «a ojo»: reglas deterministas. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §1–4.
 
 ## Criterios de aceptacion
-- [ ] Lista lo instalado
-- [ ] una recomendación a algo inexistente es error con el arreglo
-- [ ] Cumple lo que pide la tarea F3-9 del plan y los requisitos que cita
+- [ ] C1: con `CLAUDE_CONFIG_DIR` y proyecto falsos en temporales (skills y agents de usuario, un plugin habilitado con `installPath`, otro deshabilitado en `settings.json`, y `.claude/skills|agents` del proyecto), `tc2 doctor --recursos --json` da en `inventario` exactamente lo instalado y habilitado, con su origen, ordenado y sin lo deshabilitado
+- [ ] C2: con `recursos: [{id: fantasma, tipo: skill}]` en la configuracion sale codigo 3 y `recursos fantasma falla motivo=no-instalado tipo=skill arreglo=...` con arreglo no vacio, y una linea en stderr
+- [ ] C3: una tarea abierta con `roles.revision.skills` que nombra algo no instalado da `falla` con `tarea=TASK-NNN` y su arreglo; si existe, nada
+- [ ] C4: texto de 5 lineas como mucho con primera linea `doctor <ok|rechazada> fallos=N avisos=N no-comprobado=N skills=N agentes=N inventario=<12hex>` y `y N mas: tc2 doctor --recursos --json`
+- [ ] C5: `--json` en una linea con `hallazgos` (tambien los ok) e `inventario`, sin ANSI y legible por serde_json
+- [ ] C6: no escribe nada: huellas de las carpetas temporales, `git status --porcelain` y `git for-each-ref` iguales antes y despues
+- [ ] C7: con C2 montado, `tc2 doctor` lleva el hallazgo agregado `recursos no-instalados falla` con arreglo `tc2 doctor --recursos`
+- [ ] C8: `installed_plugins.json` corrupto o `installPath` inexistente da `no-comprobado` con motivo, nunca ok
+- [ ] C9: suelo del manifiesto (F1-14 punto 8): sin el plugin `taskcodetwo` una sola `falla` con el arreglo de instalarlo; con la 0.16 instalada `aviso` de nivel estorba; sin engram, context7 o rtk `aviso` de nivel conveniente con codigo 0
+- [ ] C10: determinista: dos ejecuciones, y otra creando las carpetas en otro orden, dan el mismo stdout y la misma huella
+- [ ] C11: `doctor --recursos x` da `doctor uso motivo=argumentos`
 
 ## Transiciones
 
