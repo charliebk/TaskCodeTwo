@@ -10,17 +10,21 @@
 //!
 //! Hoja pura.
 
-/// Marca de inicio (la linea empieza asi, tras espacios).
+/// Marca de inicio: la linea (sin espacios alrededor) es
+/// `<!-- manual:inicio -->` o `<!-- manual:inicio <texto> -->`.
 pub const INICIO: &str = "<!-- manual:inicio";
-/// Marca de fin.
-pub const FIN: &str = "<!-- manual:fin";
+/// Marca de fin: la linea (sin espacios alrededor) es exactamente esta.
+pub const FIN: &str = "<!-- manual:fin -->";
 
 /// Zona de un ROADMAP recien creado: la de la 0.16, con `tc2` en lugar de
-/// `taskctl`.
+/// `taskctl` y un `### H0` para que las tareas nuevas (hito 0) no avisen de
+/// un hito sin titulo.
 pub const POR_DEFECTO: &str = "<!-- manual:inicio (se edita a mano; tc2 la conserva) -->\n\
 ## Hitos\n\
 \n\
 Un `### Hn — título` por hito (n es el campo `sprint` de sus tareas), en el orden en que se hacen y con su motivo debajo. tc2 conserva esta zona tal cual y toma de aquí los títulos y el orden de los hitos.\n\
+\n\
+### H0 — Primer hito\n\
 <!-- manual:fin -->\n";
 
 /// Por que la zona manual esta rota.
@@ -45,8 +49,18 @@ impl Rota {
     }
 }
 
-fn es_marca(linea: &str, marca: &str) -> bool {
-    linea.trim_start().starts_with(marca)
+/// Si `linea` es una marca de inicio: la marca completa, no un prefijo
+/// (`<!-- manual:inicio2 -->` no lo es).
+fn es_inicio(linea: &str) -> bool {
+    linea
+        .trim()
+        .strip_prefix(INICIO)
+        .is_some_and(|resto| resto == " -->" || resto.starts_with(' ') && resto.ends_with(" -->"))
+}
+
+/// Si `linea` es la marca de fin, exacta salvo espacios alrededor.
+fn es_fin(linea: &str) -> bool {
+    linea.trim() == FIN
 }
 
 /// La zona manual de `texto`, desde el principio de la linea de inicio hasta
@@ -57,12 +71,12 @@ pub fn extraer(texto: &str) -> Result<Option<&str>, Rota> {
     let mut fin: Option<usize> = None;
     let mut pos = 0;
     for linea in texto.split_inclusive('\n') {
-        if es_marca(linea, INICIO) {
+        if es_inicio(linea) {
             if inicio.is_some() {
                 return Err(Rota::Repetida);
             }
             inicio = Some(pos);
-        } else if es_marca(linea, FIN) {
+        } else if es_fin(linea) {
             match (inicio, fin) {
                 (None, _) => return Err(Rota::FinSuelto),
                 (Some(_), Some(_)) => return Err(Rota::Repetida),
@@ -85,9 +99,9 @@ pub fn interior_tolerante(texto: &str) -> String {
     let mut dentro = false;
     let mut zona = String::new();
     for l in texto.lines() {
-        if es_marca(l, INICIO) {
+        if es_inicio(l) {
             dentro = true;
-        } else if es_marca(l, FIN) {
+        } else if es_fin(l) {
             break;
         } else if dentro {
             zona.push_str(l);
@@ -142,6 +156,20 @@ mod tests {
             Err(Rota::Repetida)
         );
         assert_eq!(Rota::SinFin.motivo(), "sin-fin");
+    }
+
+    /// MEN-2 de la revision 1: la marca es la completa, no un prefijo.
+    #[test]
+    fn marcas_completas_no_prefijos() {
+        let t = "<!-- manual:inicio -->\n<!-- manual:inicio2 -->\n<!-- manual:finalizado -->\n  <!-- manual:fin -->  \r\n";
+        assert_eq!(extraer(t), Ok(Some(t)));
+        assert_eq!(extraer("<!-- manual:iniciox -->\nx\n"), Ok(None));
+        assert_eq!(
+            extraer("<!-- manual:inicio (a mano) -->\n<!-- manual:fin -->\n"),
+            Ok(Some(
+                "<!-- manual:inicio (a mano) -->\n<!-- manual:fin -->\n"
+            ))
+        );
     }
 
     #[test]
