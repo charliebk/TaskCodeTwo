@@ -393,6 +393,11 @@ fn intento(
     let p = publicar(git, principal, OP, &format!("{sha}:refs/heads/{RAMA}"), &[])?;
     match p.resultado {
         Resultado::Ok | Resultado::SinCambios => {
+            // Publicado: lo de `origin` es lo que se acaba de escribir, asi que
+            // el clon esta sincronizado ahora (C5 de TASK-079: tambien el
+            // primer `new` de un remoto sin rama de estado, cuyo `fetch` no
+            // salio). Un fallo al escribir la marca no cambia el resultado.
+            let _ = marca.registrar(crate::identidad::ahora());
             let (publicadas, rechazadas) = pendientes::resolver(git, principal, &destinos)?;
             let t = adelantar(git, principal, &sha)?;
             Ok(Intento::Hecho(ok(op, &sha, n, t, publicadas, rechazadas)))
