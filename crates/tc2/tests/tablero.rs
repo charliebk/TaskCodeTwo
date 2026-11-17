@@ -520,11 +520,24 @@ fn board_con_la_plataforma_de_produccion() {
         con_ssh[0],
         con_ssh[1],
     ];
+    // H5 de la revision 1 de TASK-079: una vez (1 de 4, con la maquina
+    // cargada) salio `plataforma` distinto de `ok` aqui sin que se viera cual.
+    // No se reprodujo (18 pasadas del binario, 6 a la vez). Si vuelve, el
+    // mensaje dice el valor, el paso, lo que tardo (una parada del antivirus
+    // de TASK-115 da `sin-red` pasados los 10 s de conexion), el aviso de
+    // stderr y lo que recibio el mock.
+    let t0 = std::time::Instant::now();
     let (c, out, err) = tc2(&f, &clon, "es", &["board", "--json"], &token);
+    let tardo = t0.elapsed();
     assert_eq!(c, 0, "{out} {err}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     let k = &v["claves"];
-    assert_eq!(k["plataforma"], "ok");
+    assert_eq!(
+        k["plataforma"],
+        "ok",
+        "paso 1 (board --json con token) tardo {tardo:?}; stderr: {err}; recibidas: {}; stdout: {out}",
+        m.recibidas().len()
+    );
     assert_eq!(k["prs"], serde_json::json!(["TASK-003#12", "TASK-004#15"]));
     assert_eq!(k["borradores"], serde_json::json!(["TASK-004"]));
     assert_eq!(k["revision-sin-pr"], serde_json::json!(["TASK-004"]));

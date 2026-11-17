@@ -187,11 +187,16 @@ fn c1_b_ve_lo_que_publica_a_sin_fetch_previo() {
 fn c2_sin_red_la_ultima_foto_con_su_hora() {
     let f = Fixture::nueva("frescura-c2");
     let (bare, a) = con_tarea(&f);
+    // La marca la dejo el `new`; se borra para que la que se lee despues sea
+    // la que escribe este `status` (H3 de la revision 1).
+    let marca = estado::Marca::en(&a.join(".git"));
+    std::fs::remove_file(marca.ruta()).unwrap();
     let (c, out, err) = tc2(&f, &a, &["status", "--json"]);
     assert_eq!((c, err.as_str()), (0, ""), "{out}");
     let k = claves(&out);
     let hora = k["sincronizado"].as_str().unwrap().to_owned();
-    assert!(es_hora(&hora), "{out}");
+    assert!(es_hora(&hora), "la lectura no recreo la marca: {out}");
+    assert_eq!(estado::sincronizado_texto(marca.leer()), hora);
     let commit = k["commit"].as_str().unwrap().to_owned();
     // Lo que se publique despues no se ve sin red.
     let b = clon_ssh(&f, &bare, "b");
@@ -251,10 +256,14 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
 fn c3_la_hora_en_texto_y_en_json() {
     let f = Fixture::nueva("frescura-c3");
     let (_bare, a) = con_tarea(&f);
+    let marca = estado::Marca::en(&a.join(".git"));
+    std::fs::remove_file(marca.ruta()).unwrap();
     let (_, out, _) = tc2(&f, &a, &["status", "--json"]);
     let hora = claves(&out)["sincronizado"].as_str().unwrap().to_owned();
-    assert!(es_hora(&hora), "{out}");
+    assert!(es_hora(&hora), "la lectura no recreo la marca: {out}");
     for orden in ["status", "next", "board", "roadmap"] {
+        // Cada orden de lectura recrea la marca por su cuenta (H3).
+        std::fs::remove_file(marca.ruta()).unwrap();
         let mut args = vec![orden, "--json"];
         if orden == "board" {
             args.push("--sin-plataforma");
@@ -267,6 +276,7 @@ fn c3_la_hora_en_texto_y_en_json() {
             k["sincronizado"].as_str().is_some_and(es_hora),
             "{orden}: {out}"
         );
+        assert!(marca.leer().is_some(), "{orden} no recreo la marca");
     }
     let (c, out, err) = tc2(&f, &a, &["status"]);
     assert_eq!((c, err.as_str()), (0, ""));
@@ -353,8 +363,11 @@ fn c4_las_cuatro_solo_escriben_la_ref_remota_y_la_marca() {
     // A publica algo que B aun no tiene.
     let linea = nueva(&f, &a, "Segunda");
     let nuevo = valor(&linea, "commit").unwrap().to_owned();
+    // `montar` trajo la rama con el mismo `fetch` y dejo la marca (M3 de la
+    // revision 1); se borra para que la escriban las lecturas.
     let marca = estado::Marca::en(&b.join(".git"));
-    assert_eq!(marca.leer(), None);
+    assert!(marca.leer().is_some(), "montar no dejo la marca");
+    std::fs::remove_file(marca.ruta()).unwrap();
     let local = f.crudo(&b, &["rev-parse", &format!("refs/heads/{RAMA}")]);
     let antes = foto(&f, &bare, &b);
     let g = f.git();
@@ -521,6 +534,21 @@ fn c7_pendientes_y_avisos_de_tareas() {
     assert_eq!(claves(&out)["pendientes"], "1", "{out}");
     let refs = f.crudo(&a, &["for-each-ref", "refs/taskcodetwo/pendientes/"]);
     assert_eq!(refs.lines().count(), 1, "{refs}");
+    // En texto tambien, al final, solo con alguna (M2 de la revision 1; con
+    // cero no sale, lo comprueba C2). `status` solo lee: no la publica.
+    let (c, out, _) = lanzar(&a, entorno_sin_red(&f), "es", &["status"]);
+    assert_eq!(c, 0, "{out}");
+    let linea = out.trim_end();
+    assert!(
+        linea.ends_with(" · pendientes 1") && linea.contains(" · sincronizado "),
+        "{out}"
+    );
+    let (c, out, _) = tc2(&f, &a, &["status"]);
+    assert_eq!(c, 0, "{out}");
+    assert!(
+        out.trim_end().ends_with(" · pendientes 1"),
+        "con red: {out}"
+    );
 
     // con-cambios: `tareas/` montada, atrasada y con cambios sin publicar.
     let b = clon_ssh(&f, &bare, "b");
@@ -613,6 +641,13 @@ fn c9_el_stdout_de_roadmap_es_lo_que_publicaria_escribir() {
     assert!(!impreso.contains("sincronizado"), "{impreso}");
     let (c, out, _) = tc2(&f, &a, &["roadmap", "--comparar"]);
     assert_eq!((c, valor(&out, "motivo")), (3, Some("desfasado")), "{out}");
+    // `--comparar` tambien dice la frescura (M1 de la revision 1).
+    assert_eq!(valor(&out, "remoto"), Some("consultado"), "{out}");
+    assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
+    let (c, out, err) = lanzar(&a, entorno_sin_red(&f), "es", &["roadmap", "--comparar"]);
+    assert_eq!(c, 3, "{out} {err}");
+    assert_eq!(valor(&out, "remoto"), Some("sin-red"), "{out}");
+    assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
     // El JSON lleva el mismo texto.
     let (_, json, _) = tc2(&f, &a, &["roadmap", "--json"]);
     assert_eq!(claves(&json)["texto"], impreso.as_str());
@@ -622,4 +657,111 @@ fn c9_el_stdout_de_roadmap_es_lo_que_publicaria_escribir() {
     assert_eq!(publicado, impreso);
     let (c, out, _) = tc2(&f, &a, &["roadmap", "--comparar"]);
     assert_eq!(c, 0, "{out}");
+}
+
+/// Refs de pendientes del clon.
+fn pendientes(f: &Fixture, clon: &Path) -> String {
+    f.crudo(clon, &["for-each-ref", "refs/taskcodetwo/pendientes/"])
+}
+
+/// H1 de la revision 1: la rama de estado reescrita en `origin` (el `fetch`
+/// sin `+` la rechaza non-fast-forward) no es `sin-red`. La lectura sale 0
+/// con `remoto=rechazado` y su aviso; `new` sale `error` (1) con
+/// `motivo=rama-reescrita`, sin dejar pendiente ni tocar el remoto.
+#[test]
+fn c10_rama_reescrita_en_origin_no_es_sin_red() {
+    let f = Fixture::nueva("frescura-c10");
+    let (bare, a) = con_tarea(&f);
+    let commit = claves(&tc2(&f, &a, &["status", "--json"]).1)["commit"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // Un commit huerfano (arbol vacio) en lugar de la rama de estado.
+    let huerfano = f
+        .crudo(
+            &bare,
+            &[
+                "commit-tree",
+                "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+                "-m",
+                "reescrita",
+            ],
+        )
+        .trim()
+        .to_owned();
+    f.crudo(
+        &bare,
+        &["update-ref", &format!("refs/heads/{RAMA}"), &huerfano],
+    );
+    let (c, out, err) = tc2(&f, &a, &["status", "--json"]);
+    assert_eq!(c, 0, "{out} {err}");
+    let k = claves(&out);
+    assert_eq!(k["remoto"], "rechazado", "{out}");
+    assert_eq!(k["commit"], commit.as_str(), "lo ultimo traido: {out}");
+    assert!(
+        err.starts_with("aviso: origin tiene la rama de estado reescrita"),
+        "{err}"
+    );
+    let (_, _, en) = lanzar(&a, entorno_ssh(&f), "en", &["status"]);
+    assert!(
+        en.starts_with("warning: origin has the state branch rewritten"),
+        "{en}"
+    );
+    let (c, out, err) = tc2(&f, &a, &["new", "Tras reescribir"]);
+    assert_eq!(c, 1, "{out} {err}");
+    assert!(
+        format!("{out}{err}").contains("motivo=rama-reescrita"),
+        "{out} {err}"
+    );
+    assert!(err.contains("[rejected]"), "con la linea de git: {err}");
+    assert_eq!(pendientes(&f, &a), "", "no queda pendiente");
+    let en_bare = f.crudo(&bare, &["rev-parse", &format!("refs/heads/{RAMA}")]);
+    assert_eq!(en_bare.trim(), huerfano, "el remoto no cambia");
+}
+
+/// H1 y H4 de la revision 1: un `.lock` huerfano en la ref remota de la
+/// rama de estado no es `sin-red`. La lectura reintenta, sigue bloqueada y
+/// sale 0 con `remoto=error-local` y un aviso que dice el `.lock`; `new`
+/// sale `error` (1) con `motivo=error-local` sin dejar pendiente. Quitado
+/// el `.lock`, todo vuelve a `consultado`.
+#[test]
+fn c11_ref_remota_bloqueada_no_es_sin_red() {
+    let f = Fixture::nueva("frescura-c11");
+    let (bare, a) = con_tarea(&f);
+    let (c, _, _) = tc2(&f, &a, &["status"]);
+    assert_eq!(c, 0);
+    // Algo nuevo en `origin`, para que el `fetch` tenga que mover la ref.
+    let b = clon_ssh(&f, &bare, "b");
+    nueva(&f, &b, "Segunda");
+    let lock = a
+        .join(".git")
+        .join("refs")
+        .join("remotes")
+        .join("origin")
+        .join(format!("{RAMA}.lock"));
+    std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    std::fs::write(&lock, "").unwrap();
+    let (c, out, err) = tc2(&f, &a, &["status", "--json"]);
+    assert_eq!(c, 0, "{out} {err}");
+    let k = claves(&out);
+    assert_eq!(k["remoto"], "error-local", "{out}");
+    assert!(!out.contains("TASK-002"), "no se trajo: {out}");
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert!(
+        err.starts_with("aviso: la ref de la rama de estado de este clon esta bloqueada")
+            && err.contains("cannot lock ref"),
+        "{err}"
+    );
+    let (c, out, err) = tc2(&f, &a, &["new", "Con el lock"]);
+    assert_eq!(c, 1, "{out} {err}");
+    assert!(
+        format!("{out}{err}").contains("motivo=error-local"),
+        "{out} {err}"
+    );
+    assert_eq!(pendientes(&f, &a), "", "no queda pendiente");
+    std::fs::remove_file(&lock).unwrap();
+    let (c, out, err) = tc2(&f, &a, &["status", "--json"]);
+    assert_eq!((c, err.as_str()), (0, ""), "{out}");
+    assert_eq!(claves(&out)["remoto"], "consultado", "{out}");
+    assert!(out.contains("TASK-002"), "{out}");
 }

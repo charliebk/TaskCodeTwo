@@ -10,7 +10,8 @@
 //!
 //! - `status [--json]`: una linea de equipo; no consulta la plataforma. Con
 //!   `--json`, `status ok en-diseno=... en-curso=... en-revision=... listas=...
-//!   commit=... remoto=... sincronizado=... pendientes=N [tareas=...]`.
+//!   commit=... remoto=... sincronizado=... pendientes=N [tareas=...]`. En
+//!   texto, `· pendientes N` al final solo si N > 0.
 //! - `board [--sin-plataforma] [--json]`: la vista completa por grupos (en
 //!   diseno, en curso, en revision y listas para empezar), con ID, titulo,
 //!   quien y PR; terminadas y descartadas solo como recuento.
@@ -441,8 +442,13 @@ pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe, Vec<Mensaje>), Inf
     }
     i = l.frescura.anotar(i);
     let mut avisos: Vec<Mensaje> = l.frescura.aviso(l.ahora).into_iter().collect();
+    let mut linea = linea_status(t);
     if let Some(local) = l.local {
         i = i.con("pendientes", local.pendientes.to_string());
+        // En texto solo si hay alguna: es lo que falta por publicar.
+        if local.pendientes > 0 {
+            let _ = write!(linea, " · pendientes {}", local.pendientes);
+        }
         if let Some(tareas) = local.tareas {
             i = i.con("tareas", tareas);
             let m = if tareas == "diverge" {
@@ -453,7 +459,7 @@ pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe, Vec<Mensaje>), Inf
             avisos.push(m.con("carpeta", estado::CARPETA));
         }
     }
-    Ok((linea_status(t), i, avisos))
+    Ok((linea, i, avisos))
 }
 
 /// Que hace `board` con la plataforma.

@@ -12,6 +12,7 @@
 use std::path::{Path, PathBuf};
 
 use super::cerrojo::{Cerrojo, ErrorCerrojo};
+use super::frescura::{Marca, Traida, rama_reescrita, traer_estado};
 use super::lectura::Estado;
 use super::transaccion::{Contexto, Fallo, Operacion, Politica, transaccion};
 use super::{CARPETA, RAMA};
@@ -228,29 +229,26 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
 
     let mut crear = previsto == Previsto::Crear;
     if previsto == Previsto::DelRemoto {
-        let refspec = format!("refs/heads/{RAMA}:{remota}");
-        let s = correr(
-            git,
-            &principal,
-            OP,
-            Subcomando::Fetch,
-            &["-q", REMOTO, &refspec],
-        )?;
-        if s.exito() {
-            exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
-        } else {
-            match clasificar_fallo_remoto(&s.stderr) {
-                // Desaparecio del remoto entre la lectura y el fetch.
-                FalloRemoto::RamaInexistente => crear = true,
-                FalloRemoto::SinRed => return Ok(sin_red(&s.primera_linea_error())),
-                FalloRemoto::Local => {
-                    return Err(crate::git::remoto::error_local(
-                        OP,
-                        &s.primera_linea_error(),
-                    ));
-                }
-                otro => return Ok(denegada(otro, &s.primera_linea_error())),
+        // El mismo `fetch` que la transaccion y la lectura fresca: con
+        // exito renueva la marca de la ultima sincronizacion.
+        let marca = Marca::en(&comun);
+        match traer_estado(git, &principal, &marca, crate::identidad::ahora())? {
+            Traida::Hecha => {
+                exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
             }
+            // Desaparecio del remoto entre la lectura y el fetch.
+            Traida::SinRama => crear = true,
+            Traida::Reescrita { detalle } => return Err(rama_reescrita(OP, &detalle)),
+            Traida::Bloqueada { detalle } => {
+                return Err(crate::git::remoto::error_local(OP, &detalle));
+            }
+            Traida::Fallo { fallo, primera, .. } => match fallo {
+                FalloRemoto::SinRed => return Ok(sin_red(&primera)),
+                FalloRemoto::Local => {
+                    return Err(crate::git::remoto::error_local(OP, &primera));
+                }
+                otro => return Ok(denegada(otro, &primera)),
+            },
         }
     }
     if crear {
