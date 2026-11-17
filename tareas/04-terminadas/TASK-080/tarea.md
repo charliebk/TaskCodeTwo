@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-080-f3-9-inventario-de-skills-y-agentes-inst
 asignado_a: charlie.bk@gmail.com
@@ -91,6 +91,7 @@ Revision ronda 1: aprobada por los dos, sin CRITICOS ni IMPORTANTES (el IMPORTAN
 | 2026-11-17T19:35:53Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T19:35:54Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T21:16:42Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T21:53:01Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -106,3 +107,10 @@ Revision ronda 1: aprobada por los dos, sin CRITICOS ni IMPORTANTES (el IMPORTAN
 ## Verificacion ligera
 
 - 2026-11-17T21:44:36Z: ronda 1; commit revisado 79c0ce94aa17c4a16e87c010e64ab5ef88e25586; commit verificado c8bb768d4b67a5e972dd86646b7afa49b5b76c08; ficheros: crates/tc2/src/doctor/recursos.rs, crates/tc2/src/inventario.rs, crates/tc2/src/recursos.rs, crates/tc2/tests/recursos.rs, docs/adr/F1-14-distribucion-e-instalacion.md, docs/distribucion/instalar.md; corregidos: MEN-1, MEN-2, MEN-3, MEN-4, MEN-5, MEN-6, H1, H2, H3, H4, H5; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 137 min
+- Paso de la hora: 137 min reales frente a 300 estimados
+- Cierre (finish): 488 s, de 2026-11-17T21:44:53Z a 2026-11-17T21:53:01Z
