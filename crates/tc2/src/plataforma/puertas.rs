@@ -127,9 +127,200 @@ pub fn rechazada_por_config(pr: u64, garantia: &str, arreglo: &'static Texto) ->
         )
 }
 
+/// A que se aplica una puerta del modelo neutral (F1-5, decision 1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Objetivo {
+    /// Ramas, como refs completas o patrones (`refs/heads/feature/**`).
+    Ramas(Vec<String>),
+    /// Tags, como patrones (`refs/tags/v*`).
+    Tags(Vec<String>),
+}
+
+/// Solo por PR (F1-5, decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SoloPr {
+    /// Aprobaciones de personas.
+    pub aprobaciones: u8,
+}
+
+/// Una puerta del modelo neutral, sin nombres de GitHub ni de GitLab.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Puerta {
+    /// Nombre sin el prefijo (`develop`, `tags-version`...).
+    pub nombre: &'static str,
+    /// Ramas o tags.
+    pub objetivo: Objetivo,
+    /// Solo por PR, con sus aprobaciones; `None` si se empuja directo.
+    pub solo_pr: Option<SoloPr>,
+    /// Rama al dia con la base antes del merge (`strict`).
+    pub al_dia: bool,
+    /// Checks obligatorios. Su origen (`integration_id`) llega con F6-1.
+    pub checks: Vec<&'static str>,
+}
+
+impl Puerta {
+    /// Nombre completo, con el prefijo de la huella (`taskcodetwo-develop`).
+    pub fn nombre_completo(&self) -> String {
+        format!("{}{}", crate::huella::PREFIJO_RULESETS, self.nombre)
+    }
+}
+
+/// El modelo de puertas de F1-5 (decision 1), con los nombres de la huella
+/// (F1-12 D1a): `develop`, `main`, ramas de tarea, rama de estado y tags.
+pub fn modelo() -> Vec<Puerta> {
+    let rama = |r: &str| format!("refs/heads/{r}");
+    vec![
+        Puerta {
+            nombre: "develop",
+            objetivo: Objetivo::Ramas(vec![rama("develop")]),
+            solo_pr: Some(SoloPr { aprobaciones: 1 }),
+            al_dia: true,
+            checks: vec!["verificacion", "revision-ia", "carril"],
+        },
+        Puerta {
+            nombre: "main",
+            objetivo: Objetivo::Ramas(vec![rama("main")]),
+            solo_pr: Some(SoloPr { aprobaciones: 1 }),
+            // F1-5 decision 2: `main` sin `strict` (PoC E).
+            al_dia: false,
+            checks: vec!["verificacion", "carril"],
+        },
+        Puerta {
+            nombre: "ramas-de-tarea",
+            objetivo: Objetivo::Ramas(vec![rama("feature/**"), rama("fix/**"), rama("hotfix/**")]),
+            solo_pr: None,
+            al_dia: false,
+            checks: Vec::new(),
+        },
+        Puerta {
+            nombre: "tareas",
+            objetivo: Objetivo::Ramas(vec![rama(crate::huella::RAMA_ESTADO)]),
+            solo_pr: None,
+            al_dia: false,
+            checks: Vec::new(),
+        },
+        Puerta {
+            nombre: "tags-version",
+            objetivo: Objetivo::Tags(vec!["refs/tags/v*".to_owned()]),
+            solo_pr: None,
+            al_dia: false,
+            checks: Vec::new(),
+        },
+    ]
+}
+
+/// La puerta traducida a un ruleset de GitHub (la forma de los JSON de la
+/// PoC C de F1-5). Solo genera la propuesta: aplicarla es de TASK-118, y
+/// los checks van sin `integration_id` hasta que F6-1 de el real.
+pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
+    use serde_json::json;
+    let (target, include) = match &p.objetivo {
+        Objetivo::Ramas(r) => ("branch", r),
+        Objetivo::Tags(t) => ("tag", t),
+    };
+    let mut reglas = vec![json!({"type": "deletion"})];
+    match p.objetivo {
+        Objetivo::Ramas(_) => reglas.push(json!({"type": "non_fast_forward"})),
+        Objetivo::Tags(_) => reglas.push(json!({
+            "type": "update",
+            "parameters": {"update_allows_fetch_and_merge": false}
+        })),
+    }
+    if let Some(pr) = p.solo_pr {
+        reglas.push(json!({
+            "type": "pull_request",
+            "parameters": {
+                "allowed_merge_methods": ["merge"],
+                "dismiss_stale_reviews_on_push": true,
+                "require_code_owner_review": true,
+                "require_last_push_approval": true,
+                "required_approving_review_count": pr.aprobaciones,
+                "required_review_thread_resolution": false
+            }
+        }));
+    }
+    if !p.checks.is_empty() {
+        let checks: Vec<serde_json::Value> =
+            p.checks.iter().map(|c| json!({"context": c})).collect();
+        reglas.push(json!({
+            "type": "required_status_checks",
+            "parameters": {
+                "strict_required_status_checks_policy": p.al_dia,
+                "required_status_checks": checks
+            }
+        }));
+    }
+    json!({
+        "name": p.nombre_completo(),
+        "target": target,
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {"ref_name": {"include": include, "exclude": []}},
+        "rules": reglas
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Los rulesets propuestos llevan el prefijo de la huella y la forma de
+    /// la PoC C de F1-5 (`main` sin `strict`, tags sin mover).
+    #[test]
+    fn modelo_y_rulesets_de_github() {
+        let m = modelo();
+        let nombres: Vec<String> = m.iter().map(Puerta::nombre_completo).collect();
+        assert_eq!(
+            nombres,
+            [
+                "taskcodetwo-develop",
+                "taskcodetwo-main",
+                "taskcodetwo-ramas-de-tarea",
+                "taskcodetwo-tareas",
+                "taskcodetwo-tags-version"
+            ]
+        );
+        let tipos = |v: &serde_json::Value| -> Vec<String> {
+            v["rules"]
+                .as_array()
+                .map(|r| {
+                    r.iter()
+                        .filter_map(|x| x["type"].as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let develop = ruleset_github(&m[0]);
+        assert_eq!(develop["name"], "taskcodetwo-develop");
+        assert_eq!(develop["target"], "branch");
+        assert_eq!(
+            tipos(&develop),
+            [
+                "deletion",
+                "non_fast_forward",
+                "pull_request",
+                "required_status_checks"
+            ]
+        );
+        assert_eq!(
+            develop["rules"][3]["parameters"]["strict_required_status_checks_policy"],
+            true
+        );
+        let main = ruleset_github(&m[1]);
+        assert_eq!(
+            main["rules"][3]["parameters"]["strict_required_status_checks_policy"],
+            false
+        );
+        let tareas = ruleset_github(&m[3]);
+        assert_eq!(
+            tareas["conditions"]["ref_name"]["include"][0],
+            "refs/heads/taskcodetwo/tareas"
+        );
+        assert_eq!(tipos(&tareas), ["deletion", "non_fast_forward"]);
+        let tags = ruleset_github(&m[4]);
+        assert_eq!(tags["target"], "tag");
+        assert_eq!(tipos(&tags), ["deletion", "update"]);
+    }
 
     fn l(checks: &[(&str, EstadoCheck)], aprob: usize, al_dia: bool) -> Lecturas {
         Lecturas {
