@@ -109,6 +109,16 @@ fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
         .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
+/// Las claves de una linea de contrato, en orden (sin comando ni
+/// resultado).
+fn claves(linea: &str) -> Vec<&str> {
+    linea
+        .split(' ')
+        .skip(2)
+        .filter_map(|kv| kv.split_once('=').map(|(k, _)| k))
+        .collect()
+}
+
 fn identificar(dir: &Path, id: u64, login: &str) {
     let cuenta = Cuenta {
         proveedor: Proveedor::GitHub,
@@ -648,7 +658,15 @@ fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
     let antes = tarea(&f, &bare, "TASK-001");
     let (c, out) = tc2(&f, &a, &["pausa", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
+    // La linea completa, como la fija la adenda de TASK-034 en F1-4.
     assert!(out.starts_with("pausa ok id=TASK-001 commit="), "{out}");
+    assert_eq!(
+        claves(&out),
+        ["id", "commit", "intentos", "tareas"],
+        "{out}"
+    );
+    assert_eq!(valor(&out, "intentos"), Some("1"), "{out}");
+    assert_eq!(valor(&out, "tareas"), Some("sin-montar"), "{out}");
     let despues = tarea(&f, &bare, "TASK-001");
     assert_eq!(despues, con_fila(&antes, &despues, "pausa"));
     let (_, out) = tc2(&f, &a, &["next"]);
@@ -705,6 +723,11 @@ fn c10_reanudar_la_devuelve_a_next() {
     let (c, out) = tc2(&f, &a, &["reanudar", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("reanudar ok id=TASK-001 commit="), "{out}");
+    assert_eq!(
+        claves(&out),
+        ["id", "commit", "intentos", "tareas"],
+        "{out}"
+    );
     let despues = tarea(&f, &bare, "TASK-001");
     assert_eq!(despues, con_fila(&antes, &despues, "reanudar"));
     let (_, out) = tc2(&f, &a, &["next"]);
