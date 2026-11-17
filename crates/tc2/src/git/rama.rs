@@ -509,6 +509,17 @@ mod tests {
         );
         assert_eq!(ramas_ajenas(ramas.clone(), None), ramas);
         assert!(ramas_ajenas(vec![ramas[0].clone()], Some(&ramas[0])).is_empty());
+        // Comparacion exacta del nombre: el mismo slug con otro tipo o el
+        // mismo tipo con otro slug siguen siendo ajenas (H1 de la ronda 1).
+        let parecidas = vec![
+            "feature/task-001-otro".to_owned(),
+            "feature/task-001-uno".to_owned(),
+            "fix/task-001-uno".to_owned(),
+        ];
+        assert_eq!(
+            ramas_ajenas(parecidas, Some("feature/task-001-uno")),
+            ["feature/task-001-otro", "fix/task-001-uno"]
+        );
     }
 
     /// F3-6: ida y vuelta con `nombre_de_rama`; lo que no es la rama de esa
