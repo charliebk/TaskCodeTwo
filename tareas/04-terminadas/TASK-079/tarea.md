@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-079-f3-5b-status-y-roadmap-siempre-frescos
 asignado_a: charlie.bk@gmail.com
@@ -87,6 +87,7 @@ Riesgos aceptados: sin tiempo limite en el puerto para un host mudo; `GCM_INTERA
 | 2026-11-17T16:10:35Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T17:01:27Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T18:03:21Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T19:27:24Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -105,3 +106,14 @@ Riesgos aceptados: sin tiempo limite en el puerto para un host mudo; `GCM_INTERA
 ## Verificacion ligera
 
 - 2026-11-17T18:38:21Z: ronda 2; commit revisado ef977f1ce8994e9da5faa4b817fb815f24af56ef; commit verificado e0d4b2180dd2f66bce5248e68cd55e547074d7d6; ficheros: crates/tc2/src/estado/montaje.rs; corregidos: M5; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 197 min
+- Paso de la hora: 197 min reales frente a 300 estimados
+- Cierre (finish): 660 s, de 2026-11-17T19:16:24Z a 2026-11-17T19:27:24Z
+
+## Codigo integrado sin revisar
+
+- 2026-11-17T19:16:24Z: taskctl finish --aceptar-sin-revisar; integrado sin revisar ni verificacion ligera el codigo de ef977f1..feature/task-079-f3-5b-status-y-roadmap-siempre-frescos (ronda 2): .taskcode/config.yml, crates/tc2/src/estado/montaje.rs

@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-079 (feature) — F3-5b status y roadmap siempre frescos (2026-11-17)
 - TASK-035 (feature) — F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks (2026-11-17)
 - TASK-034 (feature) — F3-7 descartar y pausa (2026-11-17)
 - TASK-033 (feature) — F3-6 start: toma atomica de la tarea, rama y worktree desde develop (2026-11-17)
