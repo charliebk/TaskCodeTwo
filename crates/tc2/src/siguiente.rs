@@ -1,14 +1,16 @@
 //! `tc2 next [--json]` (F3-3): lo listo para empezar por dependencias y
 //! prioridad.
 //!
-//! Lee el estado tal como lo conoce este clon ([`estado::leer`]: sin
-//! `fetch` y sin escribir; la lectura fresca es de F3-5b) y calcula con
-//! [`crate::situacion`], lo mismo que `roadmap` (TASK-031 C4). El orden de
-//! los hitos sale de los titulos `### Hn — titulo` de la zona manual del
-//! `ROADMAP.md` de la rama de estado (D2 de TASK-030).
+//! Trae antes la rama de estado ([`estado::leer_fresco`], F3-5b: solo
+//! escribe `origin/taskcodetwo/tareas` y la marca de sincronizacion) y
+//! calcula con [`crate::situacion`], lo mismo que `roadmap` (TASK-031 C4).
+//! El orden de los hitos sale de los titulos `### Hn — titulo` de la zona
+//! manual del `ROADMAP.md` de la rama de estado (D2 de TASK-030).
 //!
-//! Salida: `next ok listas=... en-marcha=... commit=<sha> [avisos]`, con
-//! `commit=` la foto del estado usada. Avisos, solo si los hay:
+//! Salida: `next ok listas=... en-marcha=... commit=<sha> [avisos]
+//! remoto=... sincronizado=...`, con `commit=` la foto del estado usada; sin
+//! red, lo ultimo traido con un aviso en stderr y codigo 0. Avisos, solo si
+//! los hay:
 //! `ilegibles=` (`tarea.md` que no se entienden: no se saltan en silencio),
 //! `ciclos=` (las atascadas), `dependencias-inexistentes=`,
 //! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=`, `duplicadas=`
@@ -17,43 +19,62 @@
 
 use std::path::Path;
 
+use crate::Salida;
 use crate::contrato::{Informe, Resultado, corto};
 use crate::estado::{self, Estado, Fallo};
 use crate::git::Git;
-use crate::i18n::Mensaje;
 use crate::i18n::catalogo::cli as txt_cli;
 use crate::i18n::catalogo::siguiente as txt;
+use crate::i18n::{Idioma, Mensaje};
 use crate::situacion::{self, Situacion};
 
 /// Nombre de la orden.
 pub const NOMBRE: &str = "next";
 
 /// `next [--json]` en la carpeta actual (sin `--json`, que quita `lib.rs`).
-pub fn orden(args: &[String]) -> Informe {
+/// Si no se pudo traer la rama de estado, el aviso va a stderr con codigo 0.
+pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
     if !args.is_empty() {
         return Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", "argumentos-de-mas")
-            .diagnostico(&txt::USO_NEXT);
+            .diagnostico(&txt::USO_NEXT)
+            .salida_en(json, idioma);
     }
     match std::env::current_dir() {
-        Ok(dir) => siguiente_en(&Git::nuevo(), &dir),
+        Ok(dir) => {
+            let (i, aviso) = siguiente(&Git::nuevo(), &dir, crate::identidad::ahora());
+            let mut s = i.salida_en(json, idioma);
+            if let (0, Some(a)) = (s.codigo, aviso) {
+                s.stderr.push_str(&a.texto(idioma));
+                s.stderr.push('\n');
+            }
+            s
+        }
         Err(e) => Informe::nuevo(NOMBRE, Resultado::Error)
-            .diagnostico(Mensaje::nuevo(&txt_cli::CARPETA_ACTUAL).con("error", e.to_string())),
+            .diagnostico(Mensaje::nuevo(&txt_cli::CARPETA_ACTUAL).con("error", e.to_string()))
+            .salida_en(json, idioma),
     }
 }
 
-/// `next` sobre el estado que conoce el clon de `dir`.
+/// `next` sobre el estado recien traido al clon de `dir` (F3-5b).
 pub fn siguiente_en(g: &Git, dir: &Path) -> Informe {
-    let vista = match estado::leer(g, dir) {
+    siguiente(g, dir, crate::identidad::ahora()).0
+}
+
+/// `next` tras traer la rama de estado: el informe (con `remoto=` y
+/// `sincronizado=`) y el aviso de frescura, si no se pudo traer.
+fn siguiente(g: &Git, dir: &Path, ahora: u64) -> (Informe, Option<Mensaje>) {
+    let (vista, frescura) = match estado::leer_fresco(g, dir, ahora) {
         Ok(v) => v,
         Err(mut i) => {
             NOMBRE.clone_into(&mut i.comando);
-            return i;
+            return (i, None);
         }
     };
+    let aviso = frescura.aviso(ahora);
     let commit = vista.commit().map(corto).unwrap_or_default();
-    match calcular(&vista) {
-        Ok(c) => c.informe(&commit),
+    let i = match calcular(&vista) {
+        Ok(c) => frescura.anotar(c.informe(&commit)),
         Err(Fallo::Rechazada {
             motivo,
             diagnostico,
@@ -61,7 +82,8 @@ pub fn siguiente_en(g: &Git, dir: &Path) -> Informe {
             .con("motivo", motivo)
             .diagnostico(diagnostico),
         Err(Fallo::Error(d)) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
-    }
+    };
+    (i, aviso)
 }
 
 /// Lo que se calcula sobre el estado: la [`Situacion`] comun con `roadmap`.
@@ -197,7 +219,10 @@ mod tests {
 
     #[test]
     fn argumentos_de_mas_es_uso() {
-        let i = orden(&["x".to_owned()]);
-        assert_eq!(i.linea(), "next uso motivo=argumentos-de-mas");
+        let s = orden(&["x".to_owned()], false, Idioma::Es);
+        assert_eq!(
+            (s.codigo, s.stdout.as_str()),
+            (2, "next uso motivo=argumentos-de-mas\n")
+        );
     }
 }

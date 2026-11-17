@@ -120,7 +120,7 @@ where
         }
         [orden, resto @ ..] if orden == siguiente::NOMBRE => {
             let (json, resto) = con_json(resto);
-            siguiente::orden(&resto).salida_en(json, idioma)
+            siguiente::orden(&resto, json, idioma)
         }
         [orden, resto @ ..] if orden == roadmap::NOMBRE => {
             let (json, resto) = con_json(resto);

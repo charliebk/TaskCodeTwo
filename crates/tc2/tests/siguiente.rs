@@ -101,15 +101,33 @@ fn con_estado(f: &Fixture) -> (PathBuf, PathBuf, String) {
     (bare, clon, commit)
 }
 
+/// La linea de `next` sin las claves de frescura de F3-5b.
 fn esperada(commit: &str) -> String {
     format!(
-        "next ok listas=TASK-006,TASK-002 en-marcha=TASK-003 commit={} ilegibles=TASK-005 depende-de-descartada=TASK-008>TASK-007\n",
+        "next ok listas=TASK-006,TASK-002 en-marcha=TASK-003 commit={} ilegibles=TASK-005 depende-de-descartada=TASK-008>TASK-007",
         &commit[..12]
     )
 }
 
-/// C3 y C4: la linea en es y en (mismo stdout, codigo 0, sin stderr), con
-/// el ilegible en `ilegibles=`; no escribe nada.
+/// Comprueba que `out` es `esperada(commit)` con `remoto=<remoto>
+/// sincronizado=<hora o nunca>` detras (F3-5b).
+fn con_frescura(out: &str, commit: &str, remoto: &str) {
+    let resto = out
+        .strip_prefix(&esperada(commit))
+        .unwrap_or_else(|| panic!("{out}"));
+    let hora = resto
+        .strip_prefix(&format!(" remoto={remoto} sincronizado="))
+        .and_then(|h| h.strip_suffix('\n'))
+        .unwrap_or_else(|| panic!("{out}"));
+    assert!(
+        hora == "nunca" || (hora.len() == 20 && hora.ends_with('Z')),
+        "{out}"
+    );
+}
+
+/// C3 y C4: la linea en es y en (mismo stdout salvo la hora, codigo 0, sin
+/// stderr), con el ilegible en `ilegibles=`; no escribe nada (el `fetch` de
+/// F3-5b no mueve ninguna ref: no hay nada nuevo).
 #[test]
 fn next_en_es_y_en() {
     let f = Fixture::nueva("next-es-en");
@@ -117,16 +135,14 @@ fn next_en_es_y_en() {
     let antes = f.huella(&bare, &clon);
     for idioma in ["es", "en"] {
         let (c, out, err) = next(&f, &clon, idioma, &[]);
-        assert_eq!(
-            (c, out.as_str(), err.as_str()),
-            (0, esperada(&commit).as_str(), "")
-        );
+        assert_eq!((c, err.as_str()), (0, ""), "{out}");
+        con_frescura(&out, &commit, "consultado");
     }
     assert_eq!(antes, f.huella(&bare, &clon), "next escribio algo");
     // Contrato de F1-4 (claves en minusculas con guiones, commit de 12).
     let i = tc2::siguiente::siguiente_en(&f.git(), &clon);
     comun::contrato(&i);
-    assert_eq!(format!("{}\n", i.linea()), esperada(&commit));
+    con_frescura(&format!("{}\n", i.linea()), &commit, "consultado");
 }
 
 /// C3: `--json` valido con las mismas claves y las listas en array.
@@ -147,8 +163,10 @@ fn next_json_valido() {
     assert_eq!(k["ilegibles"], serde_json::json!(["TASK-005"]));
 }
 
-/// C3: sin red funciona sobre la copia del clon (sin fetch), y `commit=`
-/// dice que foto uso; lo publicado despues no se ve.
+/// C3: sin red funciona sobre la copia del clon, y `commit=` dice que foto
+/// uso; lo publicado despues no se ve. Sin red de verdad (F3-5b): `origin`
+/// por ssh con un «ssh» que no llega al host (una ruta inexistente seria
+/// `denegado`, no sin red); sale `remoto=sin-red` con el aviso en stderr.
 #[test]
 fn next_sin_red_usa_la_copia_del_clon() {
     let f = Fixture::nueva("next-sinred");
@@ -163,16 +181,37 @@ fn next_sin_red_usa_la_copia_del_clon() {
     f.crudo(&dir, &["add", "-A"]);
     f.crudo(&dir, &["commit", "-q", "-m", "otra"]);
     f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
-    let lejos = f.raiz.join("no-existe.git");
     f.crudo(
         &clon,
-        &["remote", "set-url", "origin", lejos.to_str().unwrap()],
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "ssh://git@github.com/o/r.git",
+        ],
     );
-    let (c, out, err) = next(&f, &clon, "es", &[]);
-    assert_eq!(
-        (c, out.as_str(), err.as_str()),
-        (0, esperada(&commit).as_str(), "")
-    );
+    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .current_dir(&clon)
+        .arg("next")
+        .envs(f.entorno())
+        .env("LC_ALL", "C")
+        .env("TC2_IDIOMA", "es")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env(
+            "GIT_SSH_COMMAND",
+            "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'",
+        )
+        .env("GIT_SSH_VARIANT", "simple")
+        .output()
+        .expect("lanzar tc2");
+    let out = String::from_utf8_lossy(&o.stdout);
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(0), "{out} {err}");
+    // El clon trajo la rama con un `git fetch` a mano: la marca no se
+    // renovo, asi que es `nunca` (la hora nunca sale mas fresca de lo real).
+    con_frescura(&out, &commit, "sin-red");
+    assert!(out.ends_with(" sincronizado=nunca\n"), "{out}");
+    assert!(err.starts_with("aviso: sin red"), "{err}");
 }
 
 /// C3: sin rama de estado, `rechazada` (3) con el diagnostico en es y en.

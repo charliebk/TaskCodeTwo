@@ -29,6 +29,14 @@ crate::i18n::textos! {
         es: "aviso: en revision sin PR abierto listo: {ids}",
         en: "warning: in review without an open ready pull request: {ids}",
     }
+    AVISO_TAREAS_CON_CAMBIOS {
+        es: "aviso: {carpeta}/ tiene cambios sin publicar y no esta en lo publicado; la siguiente escritura no podra adelantarla: publicalos o deshazlos",
+        en: "warning: {carpeta}/ has unpublished changes and is behind what was published; the next write will not be able to fast-forward it: publish or undo them",
+    }
+    AVISO_TAREAS_DIVERGE {
+        es: "aviso: la rama local {rama} tiene commits que no estan en lo publicado; {carpeta}/ no se adelanta: revisalos",
+        en: "warning: the local branch {rama} has commits that are not in what was published; {carpeta}/ is not fast-forwarded: review them",
+    }
     AVISO_PR_SIN_REVISION {
         es: "aviso: con PR abierto listo y sin pasar a revision: {ids}",
         en: "warning: with an open ready pull request but not in review: {ids}",

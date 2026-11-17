@@ -2,7 +2,7 @@
 //! instalacion y a la plataforma para que TaskCodeTwo funcione, con el
 //! arreglo de cada fallo (RF-64).
 //!
-//! Solo lee, como `board`: ni `fetch` ni escrituras en el repo, en
+//! Solo lee: ni `fetch` (`board`, desde F3-5b, si trae) ni escrituras en el repo, en
 //! `<git-common-dir>/taskcodetwo/` ni en la plataforma (solo `GET`). Cada
 //! comprobacion deja un [`Hallazgo`] (`ok`, `aviso`, `falla` o
 //! `no-comprobado`); el agregador ([`informe`]) es puro.
@@ -10,7 +10,8 @@
 //! Salida (F1-4 decision 4, F1-13 seccion C): como mucho 5 lineas en
 //! stdout. La primera, `doctor <ok|rechazada> fallos=N avisos=N
 //! no-comprobado=N plataforma=... [plan=... impuestas=N sustituidas=N
-//! no-disponibles=N [no-comprobadas=N]] [commit=...]`; detras, los
+//! no-disponibles=N [no-comprobadas=N]] [commit=...] [sincronizado=...]`
+//! (la hora de la marca de F3-5b, sin `fetch`); detras, los
 //! hallazgos que no son `ok`,
 //! los peores primero, y si no caben, `y N mas: tc2 doctor --json`. Con
 //! `--json`, una linea con todos los hallazgos (tambien los `ok`). Codigo 3
@@ -180,6 +181,9 @@ pub struct Resumen {
     pub capacidades: Option<capacidades::Cuentas>,
     /// Commit de la rama de estado (12), si se leyo.
     pub commit: Option<String>,
+    /// Hora del ultimo `fetch` con exito de la rama de estado o `nunca`
+    /// (F3-5b, D4a): de la marca, sin `fetch`.
+    pub sincronizado: Option<String>,
 }
 
 /// Cuantos hallazgos hay en `e`.
@@ -218,6 +222,9 @@ pub fn informe(hs: &[Hallazgo], r: &Resumen) -> Informe {
     }
     if let Some(c) = &r.commit {
         i = i.con("commit", c.clone());
+    }
+    if let Some(s) = &r.sincronizado {
+        i = i.con("sincronizado", s.clone());
     }
     if let Some(primero) = ordenados(hs)
         .into_iter()
@@ -318,12 +325,16 @@ pub fn comprobar(e: &Entorno<'_>) -> Result<(Vec<Hallazgo>, Resumen), Informe> {
     hs.extend(estado::instalacion(e.git, e.dir));
     let (h, plataforma, capacidades) = plataforma::comprobar(e);
     hs.extend(h);
+    // La hora de la marca, sin `fetch` (D4a de F3-5b: doctor solo lee).
+    let sincronizado =
+        crate::estado::sincronizado_texto(crate::estado::sincronizado_en(e.git, e.dir));
     Ok((
         hs,
         Resumen {
             plataforma,
             capacidades,
             commit,
+            sincronizado: Some(sincronizado),
         },
     ))
 }
@@ -363,7 +374,22 @@ mod tests {
             plataforma: "ok".to_owned(),
             capacidades: None,
             commit: Some("0123456789ab".to_owned()),
+            sincronizado: None,
         }
+    }
+
+    /// C8 (parte pura): `sincronizado=` va detras de `commit=` cuando se
+    /// sabe.
+    #[test]
+    fn sincronizado_tras_el_commit() {
+        let r = Resumen {
+            sincronizado: Some("2026-11-17T16:04:12Z".to_owned()),
+            ..resumen()
+        };
+        assert_eq!(
+            informe(&[], &r).linea(),
+            "doctor ok fallos=0 avisos=0 no-comprobado=0 plataforma=ok commit=0123456789ab sincronizado=2026-11-17T16:04:12Z"
+        );
     }
 
     /// C7: la primera linea fija; detras, los peores primero; con mas de 4,

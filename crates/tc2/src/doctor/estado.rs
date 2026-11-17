@@ -1,6 +1,7 @@
 //! Rama de estado e instalacion.
 //!
-//! - La rama de estado se lee como `board` (lo ultimo traido, sin `fetch`):
+//! - La rama de estado se lee sobre la misma ref que `board`, pero sin
+//!   `fetch` (lo ultimo traido; D4a de F3-5b: `doctor` solo lee):
 //!   ausente, `falla motivo=sin-rama-de-estado`; una ref que existe y no es
 //!   un commit, `falla motivo=ref-ilegible ref=...`; un `tarea.md` que no se
 //!   entiende, `falla motivo=tarea-ilegible ids=...`.

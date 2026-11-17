@@ -162,11 +162,41 @@ fn prs() -> Vec<PrAbierto> {
     ]
 }
 
+/// `s` con cada hora UTC `AAAA-MM-DDTHH:MM:SSZ` cambiada por `HORA`: la de
+/// la ultima sincronizacion (F3-5b) es de cada clon.
+fn sin_hora(s: &str) -> String {
+    let b = s.as_bytes();
+    let es_hora = |v: &[u8]| {
+        v.len() == 20
+            && v.iter().enumerate().all(|(i, c)| match i {
+                4 | 7 => *c == b'-',
+                10 => *c == b'T',
+                13 | 16 => *c == b':',
+                19 => *c == b'Z',
+                _ => c.is_ascii_digit(),
+            })
+    };
+    let mut o = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        if i + 20 <= b.len() && es_hora(&b[i..i + 20]) {
+            o.push_str("HORA");
+            i += 20;
+        } else {
+            let c = s[i..].chars().next().unwrap();
+            o.push(c);
+            i += c.len_utf8();
+        }
+    }
+    o
+}
+
 /// C1: dos clones con el mismo `commit=` y la misma respuesta (falsa) de la
-/// plataforma dan `board --json` y `status --json` iguales byte a byte,
-/// aunque uno tenga cache de identidad, `tareas/` montada con cambios sin
-/// publicar y otro idioma. El `commit=` es el de `origin/taskcodetwo/tareas`
-/// y el mismo que dan `next` y `roadmap`.
+/// plataforma dan `board --json` y `status --json` iguales byte a byte salvo
+/// la hora de su ultima sincronizacion (F3-5b), aunque uno tenga cache de
+/// identidad, `tareas/` montada con cambios sin publicar y otro idioma. El
+/// `commit=` es el de `origin/taskcodetwo/tareas` y el mismo que dan `next`
+/// y `roadmap`.
 #[test]
 fn dos_clones_dan_lo_mismo() {
     let f = Fixture::nueva("tablero-c1");
@@ -207,11 +237,11 @@ fn dos_clones_dan_lo_mismo() {
     let board_a = tablero::orden_board(&[], true, Idioma::Es, &ea);
     let board_b = tablero::orden_board(&[], true, Idioma::En, &eb);
     assert_eq!(board_a.codigo, 0);
-    assert_eq!(board_a.stdout, board_b.stdout);
+    assert_eq!(sin_hora(&board_a.stdout), sin_hora(&board_b.stdout));
     let status_a = tablero::orden_status(&[], true, Idioma::Es, &ea);
     let status_b = tablero::orden_status(&[], true, Idioma::En, &eb);
     assert_eq!(status_a.codigo, 0);
-    assert_eq!(status_a.stdout, status_b.stdout);
+    assert_eq!(sin_hora(&status_a.stdout), sin_hora(&status_b.stdout));
     // El idioma solo cambia stderr (los avisos).
     assert!(
         board_a.stderr.starts_with("aviso: en revision sin PR"),
@@ -250,7 +280,7 @@ fn dos_clones_dan_lo_mismo() {
         let (ca, oa, _) = tc2(&f, &a, "es", &args, &[]);
         let (cb, ob, _) = tc2(&f, &b, "en", &args, &[]);
         assert_eq!((ca, cb), (0, 0), "{args:?}: {oa}");
-        assert_eq!(oa, ob, "{args:?}");
+        assert_eq!(sin_hora(&oa), sin_hora(&ob), "{args:?}");
         assert!(
             oa.contains(&format!("\"commit\":\"{}\"", &commit[..12])),
             "{oa}"
@@ -267,7 +297,9 @@ fn dos_clones_dan_lo_mismo() {
 }
 
 /// Lo que no puede cambiar: status (con ignorados) del clon y de `tareas/`,
-/// refs, arbol de `develop` y `.git/taskcodetwo/` (rutas y contenido).
+/// refs, arbol de `develop` y `.git/taskcodetwo/` (rutas y contenido) salvo
+/// la marca de sincronizacion, que F3-5b renueva en cada lectura con red (y
+/// la comprueba `tests/frescura.rs`).
 fn foto(f: &Fixture, clon: &Path) -> String {
     let mut s = f.crudo(clon, &["status", "--porcelain", "--ignored"]);
     s += &f.crudo(
@@ -283,7 +315,9 @@ fn foto(f: &Fixture, clon: &Path) -> String {
             let p = e.path();
             if p.is_dir() {
                 pila.push(p);
-            } else {
+            } else if p.file_name().and_then(|n| n.to_str())
+                != Some(tc2::huella::FICHERO_SINCRONIZACION)
+            {
                 ficheros.push(p);
             }
         }
@@ -429,7 +463,7 @@ fn status_no_construye_adaptador_y_board_aguanta_los_fallos() {
 fn board_con_la_plataforma_de_produccion() {
     let _serie = serie();
     let f = Fixture::nueva("tablero-e2e");
-    let (_bare, clon, _) = con_estado(&f);
+    let (bare, clon, _) = con_estado(&f);
     let m = Mock::nuevo();
     let pr = |n: u64, rama: &str, draft: bool| {
         format!(
@@ -470,7 +504,22 @@ fn board_con_la_plataforma_de_produccion() {
             "ssh://git@git.ejemplo.test/o/r.git",
         ],
     );
-    let token = [("TC2_TOKEN_AGENTE", "token-de-prueba")];
+    // `origin` va por ssh a un host inventado (para detectar la plataforma):
+    // el «ssh» sirve el remoto bare, como en `tests/toma.rs`, para que el
+    // `fetch` de F3-5b no salga sin red.
+    let ssh = format!(
+        "sh -c 'exec git upload-pack \"$0\"' '{}'",
+        bare.to_string_lossy().replace('\\', "/")
+    );
+    let con_ssh = [
+        ("GIT_SSH_COMMAND", ssh.as_str()),
+        ("GIT_SSH_VARIANT", "simple"),
+    ];
+    let token = [
+        ("TC2_TOKEN_AGENTE", "token-de-prueba"),
+        con_ssh[0],
+        con_ssh[1],
+    ];
     let (c, out, err) = tc2(&f, &clon, "es", &["board", "--json"], &token);
     assert_eq!(c, 0, "{out} {err}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
@@ -500,7 +549,7 @@ fn board_con_la_plataforma_de_produccion() {
     // `status` no llama; sin token, `sin-credenciales` sin llamar.
     let (c, _, _) = tc2(&f, &clon, "es", &["status"], &token);
     assert_eq!(c, 0);
-    let (c, out, err) = tc2(&f, &clon, "en", &["board", "--json"], &[]);
+    let (c, out, err) = tc2(&f, &clon, "en", &["board", "--json"], &con_ssh);
     assert_eq!(c, 0);
     assert!(out.contains("\"plataforma\":\"sin-credenciales\""), "{out}");
     assert!(
