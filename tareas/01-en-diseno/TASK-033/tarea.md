@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-033-f3-6-start-toma-atomica-de-la-tarea-rama
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -44,3 +44,4 @@ Tarea F3-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-17T09:10:06Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-17T09:17:34Z | approve | automatico | persona | 0.16.1 |
