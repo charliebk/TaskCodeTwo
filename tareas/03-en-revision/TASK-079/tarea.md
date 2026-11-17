@@ -74,6 +74,8 @@ Revision ronda 1: los dos sin CRITICOS ni IMPORTANTES; rust-wasm-reviewer aproba
 
 Nota de higiene: el commit 68f054e lleva un mensaje de tests pero incluye tambien el refactor de `montaje.rs` y `tablero.rs` (M3 y M2), porque el commit que iba aparte fallo; no se reescribio la historia.
 
+Cierre: `taskctl finish` se cortaba porque la verificacion rapida ya pasa de 600 s en esta maquina (ejecutada aparte: verde, 36 grupos sin fallos); por decision de Carlos se sube `timeout_verificacion` a 1500 s en `.taskcode/config.yml` (4fe19b5, ad04288).
+
 Riesgos aceptados: sin tiempo limite en el puerto para un host mudo; `GCM_INTERACTIVE` sin fijar; una lectura y una escritura a la vez en el mismo clon pueden hacer que la escritura salga `error` y haya que repetirla.
 
 ## Transiciones
