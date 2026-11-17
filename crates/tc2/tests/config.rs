@@ -357,6 +357,12 @@ fn de_base_lee_origin_develop_y_no_el_worktree() {
     escribir(&clon, ".taskcode/config.yml", "modo_flujo: manual\n");
     let c = config::de_base(&fx.git(), &clon).unwrap();
     assert_eq!(c.tope_rondas, 3);
+    // Desde una subcarpeta del clon, la misma (TASK-034, ronda 1): la ruta
+    // es desde la raiz del repo, no desde donde se lanza.
+    let sub = clon.join("docs").join("dentro");
+    std::fs::create_dir_all(&sub).unwrap();
+    let c = config::de_base(&fx.git(), &sub).unwrap();
+    assert_eq!(c.tope_rondas, 3);
 }
 
 #[test]

@@ -505,6 +505,33 @@ fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
     }
 }
 
+/// Ronda 1, hallazgo 1 de rust (heredado): lanzadas desde una subcarpeta del
+/// clon o de un worktree, las ordenes leen la lista de personas de la base
+/// igual que desde la raiz.
+#[test]
+fn desde_una_subcarpeta_del_clon_o_del_worktree() {
+    let f = Fixture::nueva("ciclo-subcarpeta");
+    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let sub = a.join("docs").join("dentro");
+    std::fs::create_dir_all(&sub).unwrap();
+    let (c, out) = tc2(&f, &sub, &["pausa", "TASK-001"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert!(out.starts_with("pausa ok id=TASK-001 "), "{out}");
+    let (c, out) = tc2(&f, &sub, &["start", "TASK-002"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert!(out.starts_with("start ok id=TASK-002 "), "{out}");
+    assert!(worktree(&a, "TASK-002").join("README.md").is_file());
+    let sub_wt = worktree(&a, "TASK-002").join("dentro");
+    std::fs::create_dir_all(&sub_wt).unwrap();
+    let (c, out) = tc2(&f, &sub_wt, &["pausa", "TASK-002"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert!(out.starts_with("pausa ok id=TASK-002 "), "{out}");
+    let (c, out) = tc2(&f, &sub, &["descartar", "TASK-001", "no"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert!(out.starts_with("descartar ok id=TASK-001 "), "{out}");
+    assert!(tarea(&f, &bare, "TASK-001").contains("estado: \"descartada\""));
+}
+
 /// C6: la tarea de otra persona da 3 `motivo=de-otra-persona asignado=` sin
 /// publicar nada (en las tres ordenes); sin asignado o propia, `ok`.
 #[test]
