@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use super::texto::hooks_con_tc2;
-use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, no_se_lee};
+use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, leer, t};
 use crate::contrato::{Informe, Resultado};
 use crate::estado::{CARPETA, Cerrojo};
 use crate::git::estado::dir_comun;
@@ -23,18 +23,6 @@ use crate::i18n::catalogo::desinstalar as txt;
 /// Lineas que la 2.0 escribe en `info/exclude` (`git::rama::excluir`).
 fn lineas_exclude() -> [String; 2] {
     [format!("/{CARPETA_WORKTREES}/"), format!("/{CARPETA}/")]
-}
-
-fn t(p: &Path) -> String {
-    p.display().to_string()
-}
-
-fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
-    match std::fs::read(p) {
-        Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(no_se_lee(p, &e)),
-    }
 }
 
 /// Por que un worktree no se puede quitar sin perder nada, o `None`.

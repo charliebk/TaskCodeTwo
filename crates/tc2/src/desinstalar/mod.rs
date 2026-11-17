@@ -364,6 +364,20 @@ pub(crate) fn orden_borrar(sistema: Sistema, ruta: &Path) -> String {
     }
 }
 
+/// Ruta como texto para la linea.
+pub(crate) fn t(p: &Path) -> String {
+    p.display().to_string()
+}
+
+/// Lee un fichero; `None` si no existe.
+pub(crate) fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
+    match std::fs::read(p) {
+        Ok(b) => Ok(Some(b)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(no_se_lee(p, &e)),
+    }
+}
+
 /// Informe de error al leer `ruta`.
 pub(crate) fn no_se_lee(ruta: &Path, e: &std::io::Error) -> Informe {
     Informe::nuevo(NOMBRE, Resultado::Error)

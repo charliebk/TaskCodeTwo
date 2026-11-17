@@ -9,27 +9,13 @@ use std::path::{Path, PathBuf};
 use distribucion::{MARCA_INICIO_PERFIL, STATUS_LINE};
 
 use super::texto::{hooks_con_tc2, quitar_bloque, quitar_del_path, quitar_miembro};
-use super::{Accion, Contexto, Decision, Efecto, no_se_lee, orden_borrar};
+use super::{Accion, Contexto, Decision, Efecto, leer, no_se_lee, orden_borrar, t};
 use crate::contrato::Informe;
 use crate::git::misma_ruta;
 use crate::instalacion::{Modo, Sistema, orden_del_gestor, ruta_old};
 
 /// Perfiles del shell donde `install.sh` puede dejar el bloque.
 const PERFILES: [&str; 4] = [".profile", ".bashrc", ".zshrc", ".bash_profile"];
-
-/// Ruta como texto para la linea.
-fn t(p: &Path) -> String {
-    p.display().to_string()
-}
-
-/// Lee un fichero; `None` si no existe.
-fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
-    match std::fs::read(p) {
-        Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(no_se_lee(p, &e)),
-    }
-}
 
 /// Hijos de una carpeta (vacio si no existe).
 fn hijos(dir: &Path) -> Vec<PathBuf> {
