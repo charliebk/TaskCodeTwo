@@ -287,6 +287,45 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
                 .motivo("sin-config")
         });
     }
+    // Lo versionado que deja `tc2 init` (F3-1): las lineas de `.gitignore` y
+    // el workflow estan en la historia; los quita la persona con un PR.
+    let gitignore = principal.join(".gitignore");
+    if let Some(bytes) = leer(&gitignore)? {
+        let texto = String::from_utf8_lossy(&bytes);
+        if huella::LINEAS_GITIGNORE
+            .iter()
+            .any(|l| texto.lines().any(|x| x.trim() == *l))
+        {
+            v.push(
+                Accion::nueva(t(&gitignore), "gitignore", "taskcodetwo", Decision::Persona)
+                    .motivo("versionado"),
+            );
+        }
+    }
+    let workflow = principal.join(huella::RUTA_WORKFLOW);
+    if workflow.is_file() {
+        let mut a = Accion::nueva(t(&workflow), "workflow", "taskcodetwo", Decision::Conserva)
+            .motivo("versionado")
+            .orden(format!("git rm {}", huella::RUTA_WORKFLOW));
+        a.decision = Decision::Persona;
+        v.push(a);
+    }
+    // Los rulesets que propone `init` estan en la plataforma: desinstalar no
+    // usa la red ni la toca; si existen, los quita la persona.
+    let config_de_la_2 = config.is_file() && !de_la_016;
+    if config_de_la_2 && crate::git::estado::hay_remoto(g, &principal, NOMBRE)? {
+        for p in crate::plataforma::puertas::modelo() {
+            v.push(
+                Accion::nueva(
+                    p.nombre_completo(),
+                    "ruleset",
+                    "taskcodetwo",
+                    Decision::Persona,
+                )
+                .motivo("si-existe"),
+            );
+        }
+    }
     // Hooks del proyecto que nombran tc2: aviso, nunca se editan (C4).
     for nombre in ["settings.json", "settings.local.json"] {
         let p = principal.join(".claude").join(nombre);
