@@ -10,7 +10,8 @@
 //! Salida (F1-4 decision 4, F1-13 seccion C): como mucho 5 lineas en
 //! stdout. La primera, `doctor <ok|rechazada> fallos=N avisos=N
 //! no-comprobado=N plataforma=... [plan=... impuestas=N sustituidas=N
-//! no-disponibles=N] [commit=...]`; detras, los hallazgos que no son `ok`,
+//! no-disponibles=N [no-comprobadas=N]] [commit=...]`; detras, los
+//! hallazgos que no son `ok`,
 //! los peores primero, y si no caben, `y N mas: tc2 doctor --json`. Con
 //! `--json`, una linea con todos los hallazgos (tambien los `ok`). Codigo 3
 //! con alguna `falla` (D5a); 0 con avisos o no-comprobados.
@@ -210,6 +211,9 @@ pub fn informe(hs: &[Hallazgo], r: &Resumen) -> Informe {
                 .con("impuestas", imp.to_string())
                 .con("sustituidas", sus.to_string())
                 .con("no-disponibles", nod.to_string());
+            if c.no_comprobadas > 0 {
+                i = i.con("no-comprobadas", c.no_comprobadas.to_string());
+            }
         }
     }
     if let Some(c) = &r.commit {

@@ -150,8 +150,71 @@ pub struct ReglasLeidas {
     pub todos_los_checks: bool,
     /// Nombres de los checks publicados en la cabeza de la rama (GitHub,
     /// check-runs; GitLab, estados del commit). `None` si no se pudieron
-    /// leer (rama inexistente, permisos...).
+    /// leer (rama inexistente, permisos...: el motivo, en
+    /// [`ReglasLeidas::fallo_checks`]) o no se pidieron
+    /// ([`Plataforma::leer_puertas_de`]).
     pub checks_publicados: Option<Vec<String>>,
+    /// Por que no se leyeron los checks publicados, si se pidieron y fallo
+    /// la lectura (F3-8, H3 de TASK-035): un 403 da su permiso.
+    pub fallo_checks: Option<FalloLectura>,
+    /// GitHub: alguna regla `pull_request` de la rama tiene
+    /// `dismiss_stale_reviews_on_push` (G04). En GitLab no se lee.
+    pub descartar_viejas: bool,
+    /// GitHub: alguna regla `pull_request` de la rama tiene
+    /// `require_last_push_approval` (G05). En GitLab no se lee.
+    pub ultimo_push: bool,
+}
+
+/// Por que fallo una lectura secundaria que no tumba la operacion (los
+/// checks publicados de `leer-puertas`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalloLectura {
+    /// `permiso-insuficiente` en un 403; si no, el `motivo` del informe (o
+    /// su resultado).
+    pub motivo: String,
+    /// El permiso que falta, en un 403.
+    pub permiso: Option<&'static str>,
+}
+
+impl FalloLectura {
+    /// El fallo de `i`, con `permiso` si es un 403 de permisos.
+    pub fn de(i: &Informe, permiso: &'static str) -> Self {
+        let denegada = i.resultado == crate::contrato::Resultado::Denegada
+            && i.valor("motivo") == Some("permisos");
+        if denegada {
+            Self {
+                motivo: "permiso-insuficiente".to_owned(),
+                permiso: Some(permiso),
+            }
+        } else {
+            Self {
+                motivo: i
+                    .valor("motivo")
+                    .unwrap_or_else(|| i.resultado.texto())
+                    .to_owned(),
+                permiso: None,
+            }
+        }
+    }
+
+    /// Un fallo sin informe (respuesta que no se entiende).
+    pub fn motivo(m: &str) -> Self {
+        Self {
+            motivo: m.to_owned(),
+            permiso: None,
+        }
+    }
+}
+
+/// `null` como el valor por defecto (H5 de TASK-035): `#[serde(default)]`
+/// solo cubre el campo ausente.
+pub(crate) fn nulo_por_defecto<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + serde::Deserialize<'de>,
+{
+    use serde::Deserialize;
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
 }
 
 /// Tier de GitLab (F1-13, decision 2).
@@ -241,6 +304,20 @@ pub trait Plataforma {
 
     /// `leer-puertas` (agente o persona).
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas>;
+
+    /// `leer-puertas` de varias `ramas` a la vez (F3-8, R1-06 de
+    /// TASK-035): lo comun al repo se lee una vez y los checks publicados
+    /// solo en `checks_de` (en las demas, `checks_publicados: None`). Un
+    /// resultado por rama, en el mismo orden. Por defecto, una a una.
+    fn leer_puertas_de(
+        &self,
+        rol: Rol,
+        ramas: &[&str],
+        checks_de: &str,
+    ) -> Vec<Paso<ReglasLeidas>> {
+        let _ = checks_de;
+        ramas.iter().map(|r| self.leer_puertas(rol, r)).collect()
+    }
 
     /// `leer-permisos-ci` (persona): que el token de la CI no pueda aprobar.
     fn leer_permisos_ci(&self) -> Informe;

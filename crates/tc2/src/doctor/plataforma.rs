@@ -90,8 +90,11 @@ pub fn checks_del_modelo() -> Vec<&'static str> {
 /// del modelo que la rama no exige, `falla motivo=check-no-obligatorio`;
 /// uno exigido que no esta entre los publicados en su cabeza, `falla
 /// motivo=check-sin-publicar`, o `aviso` si no hay ninguno publicado (repo
-/// recien creado, sin el workflow de F5-1). Solo se mira el nombre: el
-/// origen (`integration_id`) espera a F6-1.
+/// recien creado, sin el workflow de F5-1). Un check exigido que no es del
+/// modelo y no esta publicado es `aviso` (D4a habla de los del modelo). Si
+/// los publicados no se leyeron, `no-comprobado` con el motivo (y
+/// `permiso=` en un 403). Solo se mira el nombre: el origen
+/// (`integration_id`) espera a F6-1.
 pub fn checks(p: Option<Proveedor>, leidas: &Paso<ReglasLeidas>) -> Vec<Hallazgo> {
     let modelo = checks_del_modelo();
     let h = |c: &str, e: Estado| Hallazgo::nuevo("check", c, e).con("rama", RAMA_CHECKS);
@@ -141,11 +144,23 @@ pub fn checks(p: Option<Proveedor>, leidas: &Paso<ReglasLeidas>) -> Vec<Hallazgo
                     .motivo("check-no-obligatorio")
                     .arreglo(ARREGLO_INIT);
             }
-            match &r.checks_publicados {
-                None => h(c, Estado::NoComprobado).motivo("checks-no-leidos"),
-                Some(v) if v.iter().any(|x| x == c) => h(c, Estado::Ok),
-                Some(v) if v.is_empty() => h(c, Estado::Aviso).motivo("check-sin-publicar"),
-                Some(_) => h(c, Estado::Falla).motivo("check-sin-publicar"),
+            match (&r.checks_publicados, &r.fallo_checks) {
+                (None, Some(f)) => {
+                    let x = h(c, Estado::NoComprobado).motivo(f.motivo.clone());
+                    match f.permiso {
+                        Some(p) => x.con("permiso", p),
+                        None => x,
+                    }
+                }
+                (None, None) => h(c, Estado::NoComprobado).motivo("checks-no-leidos"),
+                (Some(v), _) if v.iter().any(|x| x == c) => h(c, Estado::Ok),
+                (Some(v), _) if v.is_empty() => h(c, Estado::Aviso).motivo("check-sin-publicar"),
+                // D4a habla de los checks del modelo: uno exigido que el
+                // modelo no conoce y no esta publicado es `aviso` (R1-04).
+                (Some(_), _) if !modelo.contains(&c) => {
+                    h(c, Estado::Aviso).motivo("check-sin-publicar")
+                }
+                (Some(_), _) => h(c, Estado::Falla).motivo("check-sin-publicar"),
             }
         })
         .collect()
@@ -239,22 +254,20 @@ pub(super) fn comprobar(
     let p: &dyn Plataforma = c.plataforma.as_ref();
     let prov = p.proveedor();
     let ramas = ramas_solo_pr();
-    let mut leidas: Vec<Paso<ReglasLeidas>> = Vec::new();
-    for (_, rama) in &ramas {
-        let r = p.leer_puertas(c.rol, rama);
-        // Sin red o sin credenciales en la primera lectura no se sigue: lo
-        // de la plataforma queda `no-comprobado`.
-        if let Err(i) = &r
-            && leidas.is_empty()
-            && matches!(
-                Consulta::de_fallo(i),
-                Consulta::SinRed | Consulta::SinCredenciales
-            )
-        {
-            let n = Consulta::de_fallo(i).nombre();
-            return (sin_plataforma(n), n.to_owned(), None);
-        }
-        leidas.push(r);
+    // Lo comun al repo se lee una vez y los checks publicados solo en la
+    // rama de los checks (R1-06 de TASK-035).
+    let nombres: Vec<&str> = ramas.iter().map(|(_, r)| r.as_str()).collect();
+    let leidas: Vec<Paso<ReglasLeidas>> = p.leer_puertas_de(c.rol, &nombres, RAMA_CHECKS);
+    // Sin red o sin credenciales en la primera lectura no se sigue: lo de
+    // la plataforma queda `no-comprobado`.
+    if let Some(Err(i)) = leidas.first()
+        && matches!(
+            Consulta::de_fallo(i),
+            Consulta::SinRed | Consulta::SinCredenciales
+        )
+    {
+        let n = Consulta::de_fallo(i).nombre();
+        return (sin_plataforma(n), n.to_owned(), None);
     }
     let mut hs = Vec::new();
     let mut plataforma = "ok";
@@ -293,4 +306,75 @@ pub(super) fn comprobar(
     let (h, cuentas) = super::capacidades::de_lo_leido(prov, observado.as_ref(), develop);
     hs.extend(h);
     (hs, plataforma.to_owned(), Some(cuentas))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plataforma::FalloLectura;
+
+    fn leidas(requeridos: &[&str], publicados: Option<&[&str]>) -> ReglasLeidas {
+        let v = |x: &[&str]| x.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        ReglasLeidas {
+            plan_da_reglas: true,
+            checks_requeridos: Some(v(requeridos)),
+            checks_publicados: publicados.map(v),
+            ..ReglasLeidas::default()
+        }
+    }
+
+    fn lineas(r: ReglasLeidas) -> Vec<String> {
+        checks(Some(Proveedor::GitHub), &Ok(r))
+            .iter()
+            .map(Hallazgo::linea)
+            .collect()
+    }
+
+    /// R1-04 de TASK-035: un check exigido que el modelo no conoce y no
+    /// esta publicado es `aviso` (D4a habla de los del modelo); uno del
+    /// modelo en el mismo caso sigue siendo `falla`.
+    #[test]
+    fn check_ajeno_al_modelo_sin_publicar_es_aviso() {
+        let modelo = checks_del_modelo();
+        let mut req = modelo.clone();
+        req.push("ajeno");
+        let l = lineas(leidas(&req, Some(&modelo[..2])));
+        assert_eq!(
+            l,
+            [
+                "check verificacion ok rama=develop",
+                "check revision-ia ok rama=develop",
+                "check carril falla motivo=check-sin-publicar rama=develop",
+                "check ajeno aviso motivo=check-sin-publicar rama=develop",
+            ]
+        );
+    }
+
+    /// H3 de TASK-035: si los checks publicados no se leyeron, se dice por
+    /// que: un 403 con su permiso; otro fallo, su motivo.
+    #[test]
+    fn checks_no_leidos_dicen_por_que() {
+        let modelo = checks_del_modelo();
+        let mut r = leidas(&modelo, None);
+        r.fallo_checks = Some(FalloLectura {
+            motivo: "permiso-insuficiente".to_owned(),
+            permiso: Some("checks:read"),
+        });
+        assert_eq!(
+            lineas(r.clone())[0],
+            "check verificacion no-comprobado motivo=permiso-insuficiente rama=develop permiso=checks:read"
+        );
+        r.fallo_checks = Some(FalloLectura::motivo("respuesta-invalida"));
+        assert_eq!(
+            lineas(r)[0],
+            "check verificacion no-comprobado motivo=respuesta-invalida rama=develop"
+        );
+        let i = Informe::nuevo("leer-puertas", Resultado::Error).con("motivo", "http");
+        assert_eq!(
+            FalloLectura::de(&i, "checks:read"),
+            FalloLectura::motivo("http")
+        );
+        let i = Informe::nuevo("leer-puertas", Resultado::Denegada).con("motivo", "permisos");
+        assert_eq!(FalloLectura::de(&i, "read_api").permiso, Some("read_api"));
+    }
 }

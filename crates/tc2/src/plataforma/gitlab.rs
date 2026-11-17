@@ -18,8 +18,8 @@ use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{
-    Clave, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma, PrAbierto, Proveedor,
-    ReglasLeidas, TierGitLab, Usuario,
+    Clave, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma,
+    PrAbierto, Proveedor, ReglasLeidas, TierGitLab, Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -206,10 +206,10 @@ struct NivelApi {
 struct RamaProtegidaApi {
     name: String,
     merge_access_levels: Vec<NivelApi>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::nulo_por_defecto")]
     push_access_levels: Vec<NivelApi>,
     allow_force_push: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::nulo_por_defecto")]
     code_owner_approval_required: bool,
 }
 
@@ -239,7 +239,9 @@ struct AprobadorApi {
 #[derive(Deserialize)]
 struct ReglaAprobacionApi {
     name: String,
-    #[serde(default)]
+    /// `null` cuenta como 0 (no pide ninguna): lo conservador, `doctor` la
+    /// da por no configurada (H5 de TASK-035).
+    #[serde(default, deserialize_with = "super::nulo_por_defecto")]
     approvals_required: u64,
 }
 
@@ -377,8 +379,10 @@ impl GitLab {
     }
 
     /// Nombres de los estados de la cabeza de `rama` (la API de estados
-    /// pide el sha: se lee antes la rama). `None` si algo no se lee.
-    fn checks_publicados(&self, rol: Rol, rama: &str) -> Option<Vec<String>> {
+    /// pide el sha: se lee antes la rama). Si algo no se lee, el motivo
+    /// (un 403, con su permiso: H3 de TASK-035).
+    fn checks_publicados(&self, rol: Rol, rama: &str) -> Result<Vec<String>, FalloLectura> {
+        let fallo = |i: Informe| FalloLectura::de(&i, PERMISO_LECTURA_CORTO);
         let r: RamaApi = self
             .con
             .leer(
@@ -387,9 +391,9 @@ impl GitLab {
                 PERMISO_LECTURA,
                 self.ep(&Endpoint::Rama(rama)),
             )
-            .ok()?;
+            .map_err(fallo)?;
         if !sha_valido(&r.commit.id) {
-            return None;
+            return Err(FalloLectura::motivo("respuesta-invalida"));
         }
         let (_, ruta) = self.ep(&Endpoint::Estados(&r.commit.id));
         let estados: Vec<EstadoApi> = self
@@ -397,8 +401,8 @@ impl GitLab {
             .leer_paginas(LEER_PUERTAS, rol, PERMISO_LECTURA, ruta, |c| {
                 self.con.parsear(LEER_PUERTAS, c)
             })
-            .ok()?;
-        Some(estados.into_iter().map(|e| e.name).collect())
+            .map_err(fallo)?;
+        Ok(estados.into_iter().map(|e| e.name).collect())
     }
 
     /// Si `rama` tiene commits que no estan en `base`.
@@ -777,65 +781,37 @@ impl Plataforma for GitLab {
     }
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
-        if !rama_valida(rama) {
-            return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
-        }
-        if rol == Rol::Revisor {
-            return Err(rol_no_valido(LEER_PUERTAS, rol));
-        }
-        let (_, ruta) = self.ep(&Endpoint::RamasProtegidas);
-        let ramas: Vec<RamaProtegidaApi> =
-            self.con
-                .leer_paginas(LEER_PUERTAS, rol, PERMISO_LECTURA, ruta, |c| {
-                    self.con.parsear(LEER_PUERTAS, c)
-                })?;
-        let mut reglas_rama = Vec::new();
-        if let Some(p) = ramas.iter().find(|p| p.name == rama) {
-            reglas_rama.extend(
-                p.push_access_levels
-                    .iter()
-                    .map(|n| format!("push={}", n.access_level)),
-            );
-            reglas_rama.extend(
-                p.merge_access_levels
-                    .iter()
-                    .map(|n| format!("merge={}", n.access_level)),
-            );
-            if p.allow_force_push {
-                reglas_rama.push("force-push".to_owned());
-            }
-            if p.code_owner_approval_required {
-                reglas_rama.push("code-owner".to_owned());
-            }
-        }
-        let r = self.con.pedir(
-            LEER_PUERTAS,
-            rol,
-            self.ep(&Endpoint::ReglasAprobacion),
-            None,
-        )?;
-        let (plan_da_reglas, reglas) = if r.estado == 403 {
-            (false, Vec::new())
-        } else if r.exito() {
-            let v: Vec<ReglaAprobacionApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
-            (true, v)
+        validar_puertas(rol, rama)?;
+        let comun = self.puertas_comunes(rol)?;
+        Ok(self.puertas_de_rama(rol, rama, &comun, true))
+    }
+
+    fn leer_puertas_de(
+        &self,
+        rol: Rol,
+        ramas: &[&str],
+        checks_de: &str,
+    ) -> Vec<Paso<ReglasLeidas>> {
+        // Ramas protegidas, reglas de aprobacion y proyecto son del
+        // proyecto: se leen una vez (R1-06 de TASK-035).
+        let validas: Vec<Paso<()>> = ramas.iter().map(|r| validar_puertas(rol, r)).collect();
+        let comun = if validas.iter().any(Result::is_ok) {
+            Some(self.puertas_comunes(rol))
         } else {
-            return Err(self.con.traducir(LEER_PUERTAS, rol, PERMISO_LECTURA, &r));
+            None
         };
-        let (requeridos, todos) = self.checks_requeridos(rol);
-        Ok(ReglasLeidas {
-            plan_da_reglas,
-            aprobaciones: reglas
-                .iter()
-                .map(|r| r.approvals_required)
-                .max()
-                .unwrap_or(0),
-            rulesets: reglas.into_iter().map(|r| r.name).collect(),
-            reglas_rama,
-            checks_requeridos: requeridos,
-            todos_los_checks: todos,
-            checks_publicados: self.checks_publicados(rol, rama),
-        })
+        ramas
+            .iter()
+            .zip(validas)
+            .map(|(rama, v)| {
+                v?;
+                match comun.as_ref() {
+                    Some(Ok(c)) => Ok(self.puertas_de_rama(rol, rama, c, *rama == checks_de)),
+                    Some(Err(i)) => Err(i.clone()),
+                    None => Err(rol_no_valido(LEER_PUERTAS, rol)),
+                }
+            })
+            .collect()
     }
 
     fn leer_permisos_ci(&self) -> Informe {
@@ -931,6 +907,116 @@ impl Plataforma for GitLab {
         Ok(PlanObservado::GitLab(
             n.plan.as_deref().and_then(TierGitLab::de_plan),
         ))
+    }
+}
+
+/// Rama y rol de `leer-puertas`.
+fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
+    if !rama_valida(rama) {
+        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
+    }
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(LEER_PUERTAS, rol));
+    }
+    Ok(())
+}
+
+/// Lo que `leer-puertas` lee del proyecto, comun a todas las ramas.
+struct PuertasComunes {
+    ramas: Vec<RamaProtegidaApi>,
+    plan_da_reglas: bool,
+    reglas: Vec<ReglaAprobacionApi>,
+    requeridos: Option<Vec<String>>,
+    todos: bool,
+}
+
+impl GitLab {
+    /// Ramas protegidas, reglas de aprobacion (un 403: `plan_da_reglas`
+    /// falso) y checks requeridos del proyecto.
+    fn puertas_comunes(&self, rol: Rol) -> Paso<PuertasComunes> {
+        let (_, ruta) = self.ep(&Endpoint::RamasProtegidas);
+        let ramas: Vec<RamaProtegidaApi> =
+            self.con
+                .leer_paginas(LEER_PUERTAS, rol, PERMISO_LECTURA, ruta, |c| {
+                    self.con.parsear(LEER_PUERTAS, c)
+                })?;
+        let r = self.con.pedir(
+            LEER_PUERTAS,
+            rol,
+            self.ep(&Endpoint::ReglasAprobacion),
+            None,
+        )?;
+        let (plan_da_reglas, reglas) = if r.estado == 403 {
+            (false, Vec::new())
+        } else if r.exito() {
+            let v: Vec<ReglaAprobacionApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
+            (true, v)
+        } else {
+            return Err(self.con.traducir(LEER_PUERTAS, rol, PERMISO_LECTURA, &r));
+        };
+        let (requeridos, todos) = self.checks_requeridos(rol);
+        Ok(PuertasComunes {
+            ramas,
+            plan_da_reglas,
+            reglas,
+            requeridos,
+            todos,
+        })
+    }
+
+    /// Las puertas de `rama` con lo comun ya leido; los estados de su
+    /// cabeza solo `con_checks`.
+    fn puertas_de_rama(
+        &self,
+        rol: Rol,
+        rama: &str,
+        c: &PuertasComunes,
+        con_checks: bool,
+    ) -> ReglasLeidas {
+        let mut reglas_rama = Vec::new();
+        if let Some(p) = c.ramas.iter().find(|p| p.name == rama) {
+            reglas_rama.extend(
+                p.push_access_levels
+                    .iter()
+                    .map(|n| format!("push={}", n.access_level)),
+            );
+            reglas_rama.extend(
+                p.merge_access_levels
+                    .iter()
+                    .map(|n| format!("merge={}", n.access_level)),
+            );
+            if p.allow_force_push {
+                reglas_rama.push("force-push".to_owned());
+            }
+            if p.code_owner_approval_required {
+                reglas_rama.push("code-owner".to_owned());
+            }
+        }
+        let (checks_publicados, fallo_checks) = if con_checks {
+            match self.checks_publicados(rol, rama) {
+                Ok(v) => (Some(v), None),
+                Err(f) => (None, Some(f)),
+            }
+        } else {
+            (None, None)
+        };
+        ReglasLeidas {
+            plan_da_reglas: c.plan_da_reglas,
+            aprobaciones: c
+                .reglas
+                .iter()
+                .map(|r| r.approvals_required)
+                .max()
+                .unwrap_or(0),
+            rulesets: c.reglas.iter().map(|r| r.name.clone()).collect(),
+            reglas_rama,
+            checks_requeridos: c.requeridos.clone(),
+            todos_los_checks: c.todos,
+            checks_publicados,
+            fallo_checks,
+            descartar_viejas: false,
+            ultimo_push: false,
+        }
     }
 }
 
