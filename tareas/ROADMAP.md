@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-032, TASK-033, TASK-034, TASK-035, TASK-080, TASK-083, TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123
+- **En marcha:** TASK-032 (en diseño)
+- **Listas para empezar:** TASK-033, TASK-034, TASK-035, TASK-080, TASK-083, TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -102,7 +102,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-029 | F3-2 tc2 new e import en bloque con dependencias e hito | — | TASK-019, TASK-020 | ✅ terminada |
 | — | TASK-030 | F3-3 tc2 next: lo listo para empezar por dependencias y prioridad | — | TASK-029 | ✅ terminada |
 | — | TASK-031 | F3-4 tc2 roadmap: la vista para todos | — | TASK-018 | ✅ terminada |
-| 1 | TASK-032 | F3-5 board y status | — | TASK-018, TASK-021 | lista para empezar |
+| 1 | TASK-032 | F3-5 board y status | — | TASK-018, TASK-021 | ▶ en diseño |
 | 2 | TASK-033 | F3-6 start: toma atomica de la tarea, rama y worktree desde develop | — | TASK-017, TASK-018 | lista para empezar |
 | 3 | TASK-034 | F3-7 descartar y pausa | — | TASK-018 | lista para empezar |
 | 4 | TASK-035 | F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks | — | TASK-028 | lista para empezar |
