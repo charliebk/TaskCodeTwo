@@ -126,6 +126,20 @@ fn dos_clones_crean_a_la_vez_con_ids_distintos() {
         let refs = f.crudo(&dir, &["for-each-ref", "refs/taskcodetwo/"]);
         assert!(refs.trim().is_empty(), "refs propias: {refs}");
     }
+    // C1 de TASK-031: el ROADMAP.md, regenerado en cada intento, tiene todas
+    // las tareas y esta al dia para los dos clones.
+    let roadmap = f.crudo(&bare, &["show", &format!("{RAMA}:ROADMAP.md")]);
+    for (id, titulo) in &en_remoto {
+        assert!(
+            roadmap.contains(&format!("| {id} | {titulo} |")),
+            "{id} no esta en el ROADMAP:\n{roadmap}"
+        );
+    }
+    for dir in [f.raiz.join("clon"), f.raiz.join("clon-b")] {
+        f.crudo(&dir, &["fetch", "-q", "origin"]);
+        let o = tc2(&f, &dir, &["roadmap", "--comparar"]);
+        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
+    }
 }
 
 /// C2a: el ID se calcula sobre el estado fresco del remoto, no sobre lo que

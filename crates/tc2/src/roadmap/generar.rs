@@ -316,9 +316,11 @@ fn grafo_del_hito(d: &Datos<'_>, abiertas: &[&Ficha]) -> String {
         for dep in deps(f) {
             if !dentro.contains(dep) && !borde.contains_key(dep) {
                 let nodo = match d.fichas.get(dep) {
+                    // Sin titulo: sale en su hito o en las plegadas, y asi
+                    // el fichero cabe (C6).
                     Some(g) => mermaid::Nodo {
                         id: dep.to_owned(),
-                        titulo: g.titulo.clone(),
+                        titulo: String::new(),
                         clase: match &g.nodo.fase {
                             Fase::Descartada => "descartada",
                             Fase::Viva(e) if e == TERMINADA => "terminada",

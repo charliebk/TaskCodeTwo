@@ -14,25 +14,29 @@ pub const MAX_ARISTAS: usize = 500;
 /// Mermaid es 50 000).
 pub const MAX_CARACTERES: usize = 50_000;
 
-/// Clases de los nodos, por estado.
-const CLASES: &str = concat!(
-    "  classDef lista fill:#d4f7d4,stroke:#2e7d32\n",
-    "  classDef marcha fill:#d6e9ff,stroke:#1565c0\n",
-    "  classDef espera fill:#f3f3f3,stroke:#888888\n",
-    "  classDef atascada fill:#ffd6d6,stroke:#c62828\n",
-    "  classDef terminada fill:#e8e8e8,stroke:#9e9e9e,color:#555555\n",
-    "  classDef descartada fill:#ffffff,stroke:#bbbbbb,stroke-dasharray:4 3,color:#888888\n",
-    "  classDef borde fill:#ffffff,stroke:#999999,stroke-dasharray:2 2\n",
-);
+/// Clases de los nodos, por estado; en cada bloque, solo las que usa.
+const CLASES: [(&str, &str); 7] = [
+    ("lista", "fill:#d4f7d4,stroke:#2e7d32"),
+    ("marcha", "fill:#d6e9ff,stroke:#1565c0"),
+    ("espera", "fill:#f3f3f3,stroke:#888888"),
+    ("atascada", "fill:#ffd6d6,stroke:#c62828"),
+    ("terminada", "fill:#e8e8e8,stroke:#9e9e9e,color:#555555"),
+    (
+        "descartada",
+        "fill:#ffffff,stroke:#bbbbbb,stroke-dasharray:4 3,color:#888888",
+    ),
+    ("borde", "fill:#ffffff,stroke:#999999,stroke-dasharray:2 2"),
+];
 
 /// Un nodo del grafo.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Nodo {
     /// `TASK-NNN`.
     pub id: String,
-    /// Titulo (se escapa aqui).
+    /// Titulo (se escapa aqui); vacio, la etiqueta es solo el ID.
     pub titulo: String,
-    /// Clase de [`CLASES`].
+    /// Clase: `lista`, `marcha`, `espera`, `atascada`, `terminada`,
+    /// `descartada` o `borde`.
     pub clase: &'static str,
 }
 
@@ -73,19 +77,27 @@ pub fn escapar(texto: &str) -> String {
 pub fn bloque(nodos: &[Nodo], aristas: &[(String, String)]) -> String {
     let mut s = String::from("```mermaid\nflowchart TD\n");
     for n in nodos {
-        let _ = writeln!(
-            s,
-            "  {}[\"{} · {}\"]:::{}",
-            id_de(&n.id),
-            n.id,
-            escapar(&n.titulo),
-            n.clase
-        );
+        let _ = if n.titulo.is_empty() {
+            writeln!(s, "  {}[\"{}\"]:::{}", id_de(&n.id), n.id, n.clase)
+        } else {
+            writeln!(
+                s,
+                "  {}[\"{} · {}\"]:::{}",
+                id_de(&n.id),
+                n.id,
+                escapar(&n.titulo),
+                n.clase
+            )
+        };
     }
     for (de, a) in aristas {
         let _ = writeln!(s, "  {} --> {}", id_de(de), id_de(a));
     }
-    s.push_str(CLASES);
+    for (clase, estilo) in CLASES {
+        if nodos.iter().any(|n| n.clase == clase) {
+            let _ = writeln!(s, "  classDef {clase} {estilo}");
+        }
+    }
     s.push_str("```\n");
     if aristas.len() >= MAX_ARISTAS || s.chars().count() >= MAX_CARACTERES {
         return format!(
@@ -125,7 +137,14 @@ mod tests {
         );
         assert!(b.starts_with("```mermaid\nflowchart TD\n  T001[\"TASK-001 · t\"]:::borde\n"));
         assert!(b.contains("  T002[\"TASK-002 · t\"]:::lista\n  T001 --> T002\n"));
-        assert!(b.ends_with("```\n"));
+        assert!(b.ends_with(
+            "  classDef lista fill:#d4f7d4,stroke:#2e7d32\n  classDef borde fill:#ffffff,stroke:#999999,stroke-dasharray:2 2\n```\n"
+        ));
+        let sin_titulo = Nodo {
+            titulo: String::new(),
+            ..n("TASK-003", "borde")
+        };
+        assert!(bloque(&[sin_titulo], &[]).contains("  T003[\"TASK-003\"]:::borde\n"));
     }
 
     /// C6: si no cabe, una nota en vez de un grafo que no se pinta.

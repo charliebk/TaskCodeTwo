@@ -56,9 +56,9 @@ flowchart TD
   T004["TASK-004 · Usa el motor"]:::espera
   T011["TASK-011 · Ciclo a"]:::atascada
   T012["TASK-012 · Ciclo b"]:::atascada
-  T001["TASK-001 · Base"]:::terminada
-  T002["TASK-002 · Motor"]:::borde
-  T006["TASK-006 · Ya no"]:::descartada
+  T001["TASK-001"]:::terminada
+  T002["TASK-002"]:::borde
+  T006["TASK-006"]:::descartada
   T010["TASK-010 · (ilegible)"]:::borde
   T006 --> T007
   T001 --> T005
@@ -88,15 +88,10 @@ flowchart TD
 flowchart TD
   T002["TASK-002 · Motor"]:::marcha
   T003["TASK-003 · Revisar"]:::marcha
-  T001["TASK-001 · Base"]:::terminada
+  T001["TASK-001"]:::terminada
   T001 --> T002
-  classDef lista fill:#d4f7d4,stroke:#2e7d32
   classDef marcha fill:#d6e9ff,stroke:#1565c0
-  classDef espera fill:#f3f3f3,stroke:#888888
-  classDef atascada fill:#ffd6d6,stroke:#c62828
   classDef terminada fill:#e8e8e8,stroke:#9e9e9e,color:#555555
-  classDef descartada fill:#ffffff,stroke:#bbbbbb,stroke-dasharray:4 3,color:#888888
-  classDef borde fill:#ffffff,stroke:#999999,stroke-dasharray:2 2
 ```
 
 ## Terminadas
