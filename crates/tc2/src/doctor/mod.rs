@@ -17,6 +17,7 @@
 
 pub mod capacidades;
 mod entorno;
+mod estado;
 
 use std::path::Path;
 
@@ -307,12 +308,15 @@ pub fn comprobar(e: &Entorno<'_>) -> Result<(Vec<Hallazgo>, Resumen), Informe> {
     }
     entorno::repo(e.git, e.dir)?;
     hs.push(entorno::config(e.git, e.dir));
+    let (h, commit) = estado::rama(e.git, e.dir);
+    hs.extend(h);
+    hs.extend(estado::instalacion(e.git, e.dir));
     Ok((
         hs,
         Resumen {
             plataforma: "no-configurada".to_owned(),
             capacidades: None,
-            commit: None,
+            commit,
         },
     ))
 }
