@@ -33,6 +33,10 @@ crate::i18n::textos! {
         es: "la tarea {id} esta {estado}: start solo empieza tareas planificadas o en diseno",
         en: "task {id} is {estado}: start only starts planned or in-design tasks",
     }
+    PAUSADA {
+        es: "la tarea {id} esta en pausa: reanudala con tc2 reanudar {id} antes de empezarla",
+        en: "task {id} is paused: resume it with tc2 reanudar {id} before starting it",
+    }
     DEPENDENCIAS_PENDIENTES {
         es: "la tarea {id} depende de tareas sin terminar ({ids}): terminalas antes o elige otra con tc2 next",
         en: "task {id} depends on unfinished tasks ({ids}): finish them first or pick another one with tc2 next",

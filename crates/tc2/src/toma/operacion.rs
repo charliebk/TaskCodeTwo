@@ -166,6 +166,10 @@ impl Operacion for Tomar {
                 ));
             }
         }
+        // En pausa (TASK-034): no se empieza hasta reanudarla.
+        if cuerpo.en_pausa() {
+            return Err(self.rechazo("pausada", Mensaje::nuevo(&txt::PAUSADA)));
+        }
         let rutas: Vec<String> = t
             .dependencias
             .iter()
@@ -464,6 +468,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// TASK-034 C9 (unitario): una planificada en pausa no se empieza
+    /// (`pausada`); reanudada, si.
+    #[test]
+    fn en_pausa_no_se_empieza() {
+        let fila =
+            |fase: &str| format!("| 2026-11-17T09:00:00Z | {fase} | manual | agente | 0.1 |\n");
+        let pausada = md("TASK-001", "planificada", &[], None) + &fila("pausa");
+        let s = estado(&[("TASK-001", pausada.clone())]);
+        let r = Tomar::nueva("TASK-001", &ana(), AHORA).aplicar(&s);
+        assert_eq!(motivo(&r), Some("pausada"));
+        let s = estado(&[("TASK-001", pausada + &fila("reanudar"))]);
+        let r = Tomar::nueva("TASK-001", &ana(), AHORA).aplicar(&s);
+        assert_eq!(r.map(|c| c.len()), Ok(1));
     }
 
     #[test]
