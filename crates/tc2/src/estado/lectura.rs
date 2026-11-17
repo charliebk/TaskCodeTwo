@@ -62,6 +62,18 @@ impl<'a> Vista<'a> {
         })
     }
 
+    /// Vista del estado vacio (la rama de estado aun no existe), para
+    /// calcular un plan sin escribir (`import --simular`).
+    pub fn vacia(git: &'a Git, dir: &Path) -> Self {
+        Self {
+            git,
+            dir: dir.to_path_buf(),
+            commit: None,
+            rutas: BTreeSet::new(),
+            encima: BTreeMap::new(),
+        }
+    }
+
     /// Commit sobre el que se lee (`None`: la rama no existe).
     pub fn commit(&self) -> Option<&str> {
         self.commit.as_deref()

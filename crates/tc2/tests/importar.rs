@@ -378,6 +378,77 @@ fn c7_limites_y_sin_red() {
     assert_eq!(refs_antes, refs_despues, "import sin red dejo refs");
 }
 
+/// Todos los ficheros bajo `dir` (`.git` incluido) con su contenido.
+fn instantanea(dir: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut m = std::collections::BTreeMap::new();
+    let mut pila = vec![dir.to_path_buf()];
+    while let Some(d) = pila.pop() {
+        for e in std::fs::read_dir(&d).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                pila.push(p);
+            } else {
+                m.insert(p.clone(), std::fs::read(&p).unwrap());
+            }
+        }
+    }
+    m
+}
+
+/// C6: `--simular` imprime los IDs previstos y no cambia ni un byte en
+/// local ni en el remoto; el import real da esos mismos IDs.
+#[test]
+fn c6_simular_no_cambia_ni_un_byte() {
+    let f = Fixture::nueva("import-simular");
+    let (bare, a) = f.remoto_y_clon();
+    // Sin rama de estado todavia: preve desde el 1.
+    let ruta = fichero(&f, "sim.md", &lote("sim", 5, 3, |_| None));
+    let (antes_a, antes_r) = (instantanea(&a), instantanea(&bare));
+    let (codigo, out, err) = importar(&f, &a, &ruta, &["--simular"]);
+    assert_eq!(codigo, 0, "{out} {err}");
+    assert_eq!(
+        out,
+        "import ok simular=si creadas=3 existentes=0 ids=TASK-001,TASK-002,TASK-003\n"
+    );
+    assert!(antes_a == instantanea(&a), "--simular cambio el clon");
+    assert!(antes_r == instantanea(&bare), "--simular cambio el remoto");
+
+    let (codigo, out, _) = importar(&f, &a, &ruta, &[]);
+    assert_eq!(
+        valor(&out, "ids"),
+        Some("TASK-001,TASK-002,TASK-003"),
+        "{codigo} {out}"
+    );
+    // Con estado: dos entradas mas, previstas sobre el commit conocido.
+    let ampliado = format!(
+        "{}### H4 Cuarta\n- c\nDependencias: H1\n### H5 Quinta\n- c\n",
+        lote("sim", 5, 3, |_| None)
+    );
+    let ruta = fichero(&f, "sim.md", &ampliado);
+    let (antes_a, antes_r) = (instantanea(&a), instantanea(&bare));
+    let (codigo, out, err) = importar(&f, &a, &ruta, &["--simular", "--json"]);
+    assert_eq!(codigo, 0, "{out} {err}");
+    assert!(
+        out.contains("\"claves\":{\"simular\":\"si\",\"creadas\":\"2\",\"existentes\":\"3\",\"ids\":[\"TASK-004\",\"TASK-005\"],\"base\":\""),
+        "{out}"
+    );
+    assert!(antes_a == instantanea(&a), "--simular cambio el clon");
+    assert!(antes_r == instantanea(&bare), "--simular cambio el remoto");
+    let (codigo, out, _) = importar(&f, &a, &ruta, &[]);
+    assert_eq!(
+        valor(&out, "ids"),
+        Some("TASK-004,TASK-005"),
+        "{codigo} {out}"
+    );
+    // Todo importado: la simulacion dice sin-cambios.
+    let (codigo, out, _) = importar(&f, &a, &ruta, &["--simular"]);
+    assert_eq!(codigo, 0, "{out}");
+    assert!(
+        out.starts_with("import sin-cambios simular=si creadas=0 existentes=5 base="),
+        "{out}"
+    );
+}
+
 /// El bloque `markdown` de §5 de `AMPLIACION-2026-11-16.md`, tal cual.
 fn fichero_de_la_ampliacion() -> String {
     let doc = std::fs::read_to_string(

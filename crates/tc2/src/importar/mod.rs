@@ -15,6 +15,12 @@
 //! nueva o la ya importada); un `TASK-NNN` tiene que existir en el estado
 //! fresco del intento. Una referencia que no existe da `uso` (2): el fallo
 //! es del fichero, y no se escribe nada.
+//!
+//! `--simular` («plan como dato», como `init` y `desinstalar`) calcula el
+//! mismo plan con la misma [`Operacion`] sobre el estado que el clon ya
+//! conoce: sin `fetch` ni transaccion, asi que no cambia ni un byte en local
+//! ni en el remoto. `base=` dice sobre que commit se calculo; si otro clon
+//! publico despues, los IDs reales pueden ser otros.
 
 pub mod fichero;
 
@@ -23,7 +29,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::alta::{self, Parecida};
-use crate::contrato::{Informe, Resultado, Valor};
+use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::estado::{self, Cambio, Catalogo, Estado, Fallo, Operacion};
 use crate::git;
 use crate::i18n::Mensaje;
@@ -167,6 +173,7 @@ impl Operacion for Importar {
 /// Opciones de la orden (sin `--json`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Opciones {
+    simular: bool,
     sprint: Option<u32>,
     fichero: String,
 }
@@ -178,11 +185,13 @@ fn uso(motivo: &str) -> Informe {
 }
 
 fn opciones(args: &[String]) -> Result<Opciones, Informe> {
+    let mut simular = false;
     let mut sprint = None;
     let mut fichero = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
+            "--simular" if !simular => simular = true,
             "--sprint" if sprint.is_none() => {
                 let v = it.next().ok_or_else(|| uso("sprint-invalido"))?;
                 let n = v
@@ -198,7 +207,11 @@ fn opciones(args: &[String]) -> Result<Opciones, Informe> {
         }
     }
     let fichero = fichero.ok_or_else(|| uso("sin-fichero"))?;
-    Ok(Opciones { sprint, fichero })
+    Ok(Opciones {
+        simular,
+        sprint,
+        fichero,
+    })
 }
 
 fn de_error(e: ErrorLote) -> Informe {
@@ -299,6 +312,9 @@ fn importar_en(
         }
     };
     let op = Importar::nuevo(&nombre, sprint, lote.entradas).con_ocupados(ocupados);
+    if o.simular {
+        return simular(g, dir, &op, parecidas);
+    }
     let c = estado::Contexto::nuevo(g, dir, catalogo);
     let mut i = estado::transaccion(&c, &op);
     NOMBRE.clone_into(&mut i.comando);
@@ -339,6 +355,56 @@ fn con_plan(mut i: Informe, p: &Plan, parecidas: &mut Vec<Parecida>) -> Informe 
     i
 }
 
+/// `--simular`: el plan sobre el estado conocido, sin `fetch` ni escribir.
+fn simular(g: &git::Git, dir: &Path, op: &Importar, parecidas: &mut Vec<Parecida>) -> Informe {
+    let vista = match estado::leer(g, dir) {
+        Ok(v) => v,
+        // Sin rama de estado todavia: el estado vacio (el primer ID es el
+        // siguiente a las ramas de tarea).
+        Err(i) if i.valor("motivo") == Some("sin-rama-de-estado") => estado::Vista::vacia(g, dir),
+        Err(mut i) => {
+            NOMBRE.clone_into(&mut i.comando);
+            return i;
+        }
+    };
+    match op.aplicar(&vista) {
+        Ok(cambios) => {
+            let r = if cambios.is_empty() {
+                Resultado::SinCambios
+            } else {
+                Resultado::Ok
+            };
+            let mut i = Informe::nuevo(NOMBRE, r);
+            if let Some(b) = vista.commit() {
+                i = i.con("base", corto(b));
+            }
+            let p = op.plan().unwrap_or_default();
+            let mut i = con_plan(i, &p, parecidas);
+            // `simular=si` primero: se ve de un vistazo que no se escribio.
+            i.claves
+                .insert(0, ("simular".to_owned(), Valor::Texto("si".to_owned())));
+            i
+        }
+        Err(Fallo::Rechazada {
+            motivo,
+            diagnostico,
+        }) => {
+            let r = if motivo == "referencia-inexistente" {
+                Resultado::Uso
+            } else {
+                Resultado::Rechazada
+            };
+            Informe::nuevo(NOMBRE, r)
+                .con("simular", "si")
+                .con("motivo", motivo)
+                .diagnostico(diagnostico)
+        }
+        Err(Fallo::Error(d)) => Informe::nuevo(NOMBRE, Resultado::Error)
+            .con("simular", "si")
+            .diagnostico(d),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,14 +416,17 @@ mod tests {
     #[test]
     fn opciones_de_la_orden() {
         assert_eq!(
-            opciones(&args(&["f.md", "--sprint", "3"])),
+            opciones(&args(&["--simular", "f.md", "--sprint", "3"])),
             Ok(Opciones {
+                simular: true,
                 sprint: Some(3),
                 fichero: "f.md".to_owned()
             })
         );
         for (a, m) in [
             (vec![], "sin-fichero"),
+            (vec!["--simular"], "sin-fichero"),
+            (vec!["a.md", "--simular", "--simular"], "argumentos"),
             (vec!["a.md", "b.md"], "argumentos"),
             (vec!["a.md", "--sprint", "1", "--sprint", "1"], "argumentos"),
             (vec!["a.md", "--otra"], "argumentos"),
