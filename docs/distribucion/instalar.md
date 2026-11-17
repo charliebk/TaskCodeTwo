@@ -234,7 +234,23 @@ tc2 doctor --recursos --json   # una línea con todos los hallazgos y el inventa
   no-comprobado=N skills=N agentes=N inventario=<12 hex>`; la huella es la
   que anotará `roles.<rol>.inventario`. Detrás, los hallazgos que no son `ok`
   (`recursos <id> <estado> motivo=... tipo=... [tarea=...] [nivel=...]
-  arreglo=...`) y, si no caben, `y N mas: tc2 doctor --recursos --json`.
+  [version=...] arreglo=...`) y, si no caben, `y N mas: tc2 doctor
+  --recursos --json`.
+- **Valores codificados en la línea de texto**: cada `clave=valor` va sin
+  espacios, así que los espacios, los saltos y el propio `%` de un valor se
+  escriben como `%XX` (UTF-8 en hexadecimal: un espacio es `%20`, un `%` es
+  `%25`). El arreglo del plugin sale, por ejemplo, así:
+
+  ```text
+  recursos taskcodetwo falla motivo=no-instalado tipo=plugin nivel=obligatorio arreglo=claude%20plugin%20install%20taskcodetwo
+  recursos taskcode-plugin aviso motivo=taskcode-016-habilitado tipo=plugin nivel=estorba version=0.16.1 arreglo=claude%20plugin%20disable%20taskcode-plugin@taskcode
+  ```
+
+  Para ejecutarlo, se cambia `%20` por un espacio (y `%25` por `%`). En
+  `--json` no hay codificación: cada valor va tal cual, como texto JSON
+  (`"arreglo":"claude plugin install taskcodetwo"`); es la forma que
+  conviene leer desde un script. `version=` sale cuando se conoce la
+  versión instalada de un plugin.
 - **Qué se comprueba**:
   - obligatorio: el plugin `taskcodetwo`. Mientras no esté, una sola `falla`
     con `arreglo=claude plugin install taskcodetwo` (código 3 en todas las
@@ -246,9 +262,15 @@ tc2 doctor --recursos --json   # una línea con todos los hallazgos y el inventa
   - conveniente: engram, context7 (por el nombre del servidor MCP o del
     plugin) y `rtk` en el PATH: `aviso` y sigue;
   - estorba: la 0.16 (`taskcode-plugin`) habilitada a la vez: `aviso`.
-- **Lo que no se puede leer** (`installed_plugins.json` corrupto, un
-  `installPath` que no existe) sale `no-comprobado` con el motivo, y lo que
-  dependía de eso también: nunca `ok`.
+- **Lo que no se puede leer** (`installed_plugins.json` corrupto o sin
+  `version: 2`, una entrada de plugin que no es lista, un `installPath`
+  relativo o que no existe, una carpeta `skills` o `agents` que no se puede
+  listar, un nombre que no es UTF-8, un `name` de plugin sincronizado con
+  `/`, `\`, `:` o `..`) sale `no-comprobado` con el motivo, y lo que
+  dependía de eso también: nunca `ok`. Con el inventario incompleto, engram
+  y context7 no encontrados también salen `no-comprobado`; un `tipo` de
+  `recursos:` que este `tc2` no reconoce sale `no-comprobado
+  motivo=tipo-desconocido`.
 - El `tc2 doctor` normal lleva un hallazgo agregado, `recursos no-instalados
   falla ids=N arreglo=tc2 doctor --recursos`, si falta algo.
 - **No se lee**: las rutas propias de `skills` o `agents` en `plugin.json`,
