@@ -284,7 +284,12 @@ fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Sa
         Err(i) => return i.salida_en(json, idioma),
     };
     let g = git::Git::nuevo();
-    let e = tablero::Entorno { dir: &dir, git: &g };
+    let conectar = tablero::conectar_produccion(&g, &dir);
+    let e = tablero::Entorno {
+        dir: &dir,
+        git: &g,
+        conectar: &conectar,
+    };
     if orden == tablero::STATUS {
         tablero::orden_status(args, json, idioma, &e)
     } else {
