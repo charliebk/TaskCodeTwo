@@ -5,6 +5,7 @@
 - Requisitos: RR-01, RR-16, RF-23, RF-24, RF-25 y RN-05 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md); H9, H21 y H22 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md)
 - Depende de: [ADR F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) (punto único de escritura, re-ejecución en vez de rebase, códigos 0/3/4/5) y [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (ramas, worktrees, ciclo por comando y tabla de scripts de Git-Flow)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a, D5a del plan de TASK-005)
+- Adenda (2026-11-17, TASK-032, F3-5): entra `prs-abiertos` en la lista cerrada (decisión 2) para `tc2 board` (D2 de TASK-032, aceptada por Carlos el 2026-11-16); detalle de llamadas en la [adenda de F1-13](F1-13-adaptador-de-plataforma.md). `board` y `status`, como `roadmap`, escriben avisos de una línea en stderr con código 0; el canal fiable son las claves de la línea y del JSON
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
@@ -406,6 +407,7 @@ para esta PoC: **no verificado** en la plataforma.
    | `abrir-pr` | `review` | plataforma; devuelve el PR que haya (no verificado) |
    | `estado-puertas` | `review`, `finish` | plataforma; lectura (no verificado) |
    | `merge-pr` | `finish`, `release` | plataforma; merge commit (no verificado) |
+   | `prs-abiertos` | `board` (adenda de TASK-032) | plataforma; lectura de los PR abiertos del propio repo (número, rama, sha, borrador); sin token del rol → `rechazada motivo=identidad`; más de 10 páginas → `error motivo=demasiadas-paginas` (contra el mock, no contra la API real) |
 
 3. **Prohibidas** para la capa y para el agente: `rebase`, `push --force` (y
    `-f`, `--force-with-lease`), `reset --hard`, `stash`, `clean`, `merge` con

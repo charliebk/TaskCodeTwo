@@ -16,7 +16,9 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
-use super::{Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario};
+use super::{
+    Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, Proveedor, ReglasLeidas, Usuario,
+};
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
 
@@ -26,6 +28,7 @@ const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
+const PRS_ABIERTOS: &str = "prs-abiertos";
 
 /// Garantias que en GitHub dan los rulesets (tier «Free publico;
 /// Pro/Team/Enterprise» de la tabla de F1-13): sin ellos, el 403 de plan.
@@ -38,6 +41,7 @@ enum Endpoint<'a> {
     Usuario,
     Pr(u64),
     PrsAbiertos { cabeza: &'a str, base: &'a str },
+    TodosLosPrsAbiertos,
     CrearPr,
     Merge(u64),
     ReglasRama(&'a str),
@@ -62,6 +66,9 @@ impl Endpoint<'_> {
                     codificar(base)
                 ),
             ),
+            Self::TodosLosPrsAbiertos => {
+                (Metodo::Get, format!("{r}/pulls?state=open&per_page=100"))
+            }
             Self::CrearPr => (Metodo::Post, format!("{r}/pulls")),
             Self::Merge(n) => (Metodo::Put, format!("{r}/pulls/{n}/merge")),
             Self::ReglasRama(rama) => (Metodo::Get, format!("{r}/rules/branches/{rama}")),
@@ -114,6 +121,33 @@ struct PrApi {
     mergeable_state: Option<String>,
     head: RefApi,
     base: RefApi,
+}
+
+/// Un PR de la lista de abiertos: la cabeza con su repo, para no contar los
+/// de forks.
+#[derive(Deserialize)]
+struct PrListaApi {
+    number: u64,
+    #[serde(default)]
+    draft: bool,
+    head: CabezaApi,
+    base: CabezaApi,
+}
+
+#[derive(Deserialize)]
+struct CabezaApi {
+    #[serde(rename = "ref")]
+    nombre: String,
+    #[serde(default)]
+    sha: String,
+    /// `null` si el repo de un fork se borro.
+    #[serde(default)]
+    repo: Option<RepoApi>,
+}
+
+#[derive(Deserialize)]
+struct RepoApi {
+    id: u64,
 }
 
 #[derive(Deserialize)]
@@ -266,6 +300,37 @@ impl GitHub {
 }
 
 impl Plataforma for GitHub {
+    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(PRS_ABIERTOS, rol));
+        }
+        let (_, ruta) = self.ep(&Endpoint::TodosLosPrsAbiertos);
+        let prs: Vec<PrListaApi> =
+            self.con
+                .leer_paginas(PRS_ABIERTOS, rol, "pull_requests:read", ruta, |c| {
+                    self.con.parsear(PRS_ABIERTOS, c)
+                })?;
+        let mut v = Vec::new();
+        for p in prs {
+            let propio = matches!((&p.head.repo, &p.base.repo), (Some(h), Some(b)) if h.id == b.id);
+            // Una rama que tc2 no habria creado no casa con ninguna tarea.
+            if !propio || !rama_valida(&p.head.nombre) {
+                continue;
+            }
+            if !sha_valido(&p.head.sha) {
+                return Err(self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_BASE_O_SHA));
+            }
+            v.push(PrAbierto {
+                numero: p.number,
+                rama: p.head.nombre,
+                sha: p.head.sha.to_ascii_lowercase(),
+                borrador: p.draft,
+            });
+        }
+        v.sort_by_key(|p| p.numero);
+        Ok(v)
+    }
+
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
         if !rama_valida(rama) || !rama_valida(base) {
             return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);

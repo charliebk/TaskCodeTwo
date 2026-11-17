@@ -138,9 +138,29 @@ pub struct ReglasLeidas {
     pub reglas_rama: Vec<String>,
 }
 
+/// Un PR (o MR) abierto del propio repo, con lo minimo que necesita `board`
+/// (F3-5, D3 de TASK-032: sin checks ni aprobaciones).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrAbierto {
+    /// Numero del PR (en GitLab, el `iid` del MR).
+    pub numero: u64,
+    /// Rama de origen.
+    pub rama: String,
+    /// Sha de la cabeza (40 hex).
+    pub sha: String,
+    /// Si es borrador.
+    pub borrador: bool,
+}
+
 /// Puerto `Plataforma`: lista cerrada de operaciones (F1-4, F1-5, F1-6,
 /// F1-13). Las escrituras de puertas (`aplicar-puertas`) son de F3-1.
 pub trait Plataforma {
+    /// `prs-abiertos` (agente o persona; adenda de TASK-032 a F1-4 y F1-13):
+    /// los PR abiertos cuya rama de origen es del propio repo (los de forks
+    /// no cuentan), ordenados por numero. Pagina hasta
+    /// [`conexion::MAX_PAGINAS`]; con mas, falla cerrado.
+    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>>;
+
     /// `abrir-pr` (agente): abre el PR de `rama` contra `base`, o devuelve
     /// el que ya haya abierto (`sin-cambios`).
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe;

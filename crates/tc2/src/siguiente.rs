@@ -98,6 +98,12 @@ impl Calculo {
     }
 }
 
+/// El informe de `next` sobre `estado` con la foto `commit` (para comparar
+/// con `board` y `roadmap`, TASK-032 C3a).
+pub fn informe_de(estado: &dyn Estado, commit: &str) -> Result<Informe, Fallo> {
+    calcular(estado).map(|c| c.informe(commit))
+}
+
 /// Listas, en marcha e ilegibles de `estado`.
 fn calcular(estado: &dyn Estado) -> Result<Calculo, Fallo> {
     situacion::calcular(estado).map(Calculo)

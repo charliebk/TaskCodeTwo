@@ -416,7 +416,7 @@ pub fn personas_de_base(g: &Git, dir: &Path) -> Paso<Personas> {
 /// La clave `plataforma` de la configuracion de la base, si la hay. Sin
 /// base o sin configuracion se detecta solo por el host; una configuracion
 /// que no vale falla.
-fn clave_plataforma(g: &Git, dir: &Path) -> Paso<Option<(&'static str, String)>> {
+pub(crate) fn clave_plataforma(g: &Git, dir: &Path) -> Paso<Option<(&'static str, String)>> {
     match config::de_base(g, dir) {
         Ok(c) => Ok(c.plataforma.map(|p| (p.proveedor.nombre(), p.api))),
         Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => Ok(None),
@@ -534,6 +534,9 @@ mod tests {
     }
 
     impl Plataforma for Falsa {
+        fn prs_abiertos(&self, _: Rol) -> Paso<Vec<crate::plataforma::PrAbierto>> {
+            Err(sin_uso("prs-abiertos"))
+        }
         fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
             sin_uso("abrir-pr")
         }

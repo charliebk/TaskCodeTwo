@@ -532,14 +532,14 @@ fn adelantar_editada(g: &Git, carpeta: &Path, commit: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
     use crate::tarea::{Asignado, Cuerpo, Tarea};
 
     /// Estado en memoria.
-    struct EnMemoria(BTreeMap<String, String>);
+    pub(crate) struct EnMemoria(pub(crate) BTreeMap<String, String>);
 
     impl Estado for EnMemoria {
         fn rutas(&self) -> Vec<String> {
@@ -587,7 +587,7 @@ mod tests {
     const ZONA: &str = "<!-- manual:inicio (a mano) -->\r\n## Hitos\r\n\r\n### H2 — Dos\r\nEl motivo.\r\n### H1 — Uno\r\n### H3 — Tres\r\n<!-- manual:fin -->\r\n";
 
     /// Un estado que pasa por cada seccion.
-    fn estado_de_referencia() -> EnMemoria {
+    pub(crate) fn estado_de_referencia() -> EnMemoria {
         let mut m = BTreeMap::new();
         for (id, md) in [
             (
@@ -679,7 +679,7 @@ mod tests {
         EnMemoria(m)
     }
 
-    fn personas() -> Personas {
+    pub(crate) fn personas() -> Personas {
         Personas::leer("personas:\n  - {id: 9, login: \"ana-x\", correos: [\"ana@x.com\"]}\n")
             .unwrap_or_default()
     }

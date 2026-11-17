@@ -8,6 +8,8 @@
 
 use crate::estado::{Estado, Fallo, es_tarea_md};
 use crate::grafo::{self, Hitos, Nodo};
+use crate::identidad::convertir_heredado;
+use crate::plataforma::Personas;
 use crate::roadmap::zona::{self, Rota};
 use crate::tarea::{Asignado, Documento};
 
@@ -22,20 +24,62 @@ pub struct Ficha {
     pub titulo: String,
     /// Quien la lleva (en formato 1, siempre texto heredado).
     pub asignado: Option<Asignado>,
+    /// Rama de la tarea, si la tiene (la que casa con su PR, F3-5).
+    pub rama: Option<String>,
 }
 
 impl Ficha {
     /// Ficha de un `tarea.md` leido.
     pub fn de(doc: &Documento) -> Self {
-        let (titulo, asignado) = match doc {
-            Documento::Formato1(t, _) => (t.titulo.clone(), t.asignado_a.clone()),
-            Documento::Formato2(t, _) => (t.titulo.clone(), t.asignado_a.clone()),
+        let (titulo, asignado, rama) = match doc {
+            Documento::Formato1(t, _) => {
+                (t.titulo.clone(), t.asignado_a.clone(), Some(t.rama.clone()))
+            }
+            Documento::Formato2(t, _) => (t.titulo.clone(), t.asignado_a.clone(), t.rama.clone()),
         };
         Self {
             nodo: Nodo::de(doc),
             titulo,
             asignado,
+            rama: rama.filter(|r| !r.trim().is_empty()),
         }
+    }
+}
+
+/// Quien lleva una tarea, como lo dicen `roadmap`, `board` y `status`
+/// (TASK-032 C3a): un solo calculo para las tres vistas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Quien {
+    /// Nadie.
+    Nadie,
+    /// Una cuenta de la plataforma, por su login.
+    Persona(String),
+    /// Texto heredado de la 0.16 que no casa con ninguna persona de la lista.
+    Heredado(String),
+}
+
+impl Quien {
+    /// El texto de la vista: `@login`, el heredado tal cual o `—`.
+    pub fn texto(&self) -> String {
+        match self {
+            Self::Nadie => "—".to_owned(),
+            Self::Persona(l) => format!("@{l}"),
+            Self::Heredado(h) => h.clone(),
+        }
+    }
+}
+
+/// Quien lleva la tarea de `a`, con los heredados convertidos por la lista
+/// de personas de la base (D6 de TASK-031).
+pub fn quien(a: Option<&Asignado>, personas: &Personas) -> Quien {
+    let Some(a) = a else {
+        return Quien::Nadie;
+    };
+    let a = convertir_heredado(a.clone(), personas);
+    match (a.login(), a.heredado()) {
+        (Some(l), _) => Quien::Persona(l.to_owned()),
+        (None, Some(h)) => Quien::Heredado(h.to_owned()),
+        (None, None) => Quien::Nadie,
     }
 }
 
