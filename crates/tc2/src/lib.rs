@@ -22,6 +22,7 @@
 pub mod actualizar_cli;
 pub mod alta;
 pub mod carril;
+pub mod ciclo;
 pub mod config;
 pub mod contrato;
 pub mod descarga;
@@ -340,6 +341,7 @@ fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
     alta::desde_anotacion(anotacion)
         .or_else(|| roadmap::desde_anotacion(anotacion))
         .or_else(|| toma::desde_anotacion(anotacion))
+        .or_else(|| ciclo::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
@@ -515,6 +517,21 @@ mod tests {
             Some(("start".to_owned(), "start|TASK-001|7|ana".to_owned()))
         );
         assert!(catalogo("start|TASK-001|7").is_none());
+    }
+
+    /// F3-7: el catalogo reconstruye descartar, pausa y reanudar (una pausa
+    /// pendiente sin red se re-ejecuta desde aqui, TASK-034 C8).
+    #[test]
+    fn el_catalogo_reconstruye_descartar_pausa_y_reanudar() {
+        for a in [
+            "descartar|TASK-001|7|ana|ya no | hace falta",
+            "pausa|TASK-001|7|ana|1794910830",
+            "reanudar|TASK-001|7|ana|1794910830",
+        ] {
+            let op = catalogo(a);
+            assert_eq!(op.map(|o| o.anotacion()), Some(a.to_owned()), "{a}");
+        }
+        assert!(catalogo("pausa|TASK-001|7|ana").is_none());
     }
 
     /// TASK-033 C5: un ID mal formado (o sin ID, o de mas) es `uso` (2) sin
