@@ -20,6 +20,7 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
+use crate::roadmap::zona;
 use crate::tarea::Documento;
 
 /// Estado de una tarea `planificada` (la unica que puede estar lista).
@@ -109,42 +110,33 @@ impl Nodo {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Hitos {
     posicion: BTreeMap<u32, usize>,
+    titulos: BTreeMap<u32, String>,
 }
-
-/// Marca de inicio de la zona manual de `ROADMAP.md` (la de la 0.16).
-const MANUAL_INICIO: &str = "<!-- manual:inicio";
-/// Marca de fin de la zona manual.
-const MANUAL_FIN: &str = "<!-- manual:fin";
 
 impl Hitos {
     /// Hitos de las lineas `### Hn — titulo` de `texto`, en su orden; si un
     /// hito sale dos veces vale su primera posicion (como el oraculo).
     pub fn de_titulos(texto: &str) -> Self {
         let mut posicion = BTreeMap::new();
-        for h in texto.lines().filter_map(hito_de_linea) {
+        let mut titulos = BTreeMap::new();
+        for (h, titulo) in texto.lines().filter_map(hito_de_linea) {
             let n = posicion.len();
             posicion.entry(h).or_insert(n);
+            titulos.entry(h).or_insert_with(|| titulo.to_owned());
         }
-        Self { posicion }
+        Self { posicion, titulos }
     }
 
     /// Hitos de la zona manual (`<!-- manual:inicio ... -->` hasta
-    /// `<!-- manual:fin -->`) de un `ROADMAP.md`. Sin zona, ninguno.
+    /// `<!-- manual:fin -->`) de un `ROADMAP.md`, con la lectura tolerante de
+    /// [`zona::interior_tolerante`]. Sin zona, ninguno.
     pub fn del_roadmap(texto: &str) -> Self {
-        let mut dentro = false;
-        let mut zona = String::new();
-        for l in texto.lines() {
-            let t = l.trim_start();
-            if t.starts_with(MANUAL_INICIO) {
-                dentro = true;
-            } else if t.starts_with(MANUAL_FIN) {
-                break;
-            } else if dentro {
-                zona.push_str(l);
-                zona.push('\n');
-            }
-        }
-        Self::de_titulos(&zona)
+        Self::de_titulos(&zona::interior_tolerante(texto))
+    }
+
+    /// Titulo del hito `h`, si lo tiene (el de su primera linea).
+    pub fn titulo(&self, h: u32) -> Option<&str> {
+        self.titulos.get(&h).map(String::as_str)
     }
 
     /// Si no hay ningun titulo.
@@ -168,8 +160,9 @@ impl Hitos {
     }
 }
 
-/// `### H<n> — <titulo>` (raya U+2014 entre espacios, titulo no vacio).
-fn hito_de_linea(l: &str) -> Option<u32> {
+/// `### H<n> — <titulo>` (raya U+2014 entre espacios, titulo no vacio):
+/// el hito y su titulo sin espacios al final.
+fn hito_de_linea(l: &str) -> Option<(u32, &str)> {
     let resto = l.strip_prefix("### H")?;
     let fin = resto
         .find(|c: char| !c.is_ascii_digit())
@@ -179,7 +172,7 @@ fn hito_de_linea(l: &str) -> Option<u32> {
     if cifras.is_empty() || titulo.trim_end_matches('\r').is_empty() {
         return None;
     }
-    cifras.parse().ok()
+    Some((cifras.parse().ok()?, titulo.trim_end()))
 }
 
 /// Avisos del calculo: no frenan, pero se dicen.
@@ -545,6 +538,10 @@ mod tests {
         assert_eq!([h.rango(2), h.rango(1)], [0, 1]);
         assert!(!h.tiene(9) && !h.tiene(8) && !h.tiene(3));
         assert!(Hitos::del_roadmap("### H1 — Sin zona\n").es_vacio());
+        assert_eq!(
+            (h.titulo(2), h.titulo(1), h.titulo(9)),
+            (Some("Dos"), Some("Uno"), None)
+        );
     }
 
     #[test]
