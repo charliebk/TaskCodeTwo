@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1287739
-tokens_implementacion: null
+tokens_implementacion: 40495366
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -43,6 +43,36 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - [ ] C10: determinista: dos ejecuciones, y otra creando las carpetas en otro orden, dan el mismo stdout y la misma huella
 - [ ] C11: `doctor --recursos x` da `doctor uso motivo=argumentos`
 
+## Autorrevision
+
+- rust-wasm-reviewer — b1c1c92
+- code-quality-reviewer — b1c1c92
+
+Hallazgos propios:
+
+- IMPORTANTE corregido antes de la revision (b1c1c92): el inventario no
+  veia los plugins sincronizados desde claude.ai (`plugins/synced/`), y en
+  esta maquina contaba 25 skills en vez de 90. Ahora se leen segun la
+  documentacion «Plugin loading reference» (`<name>@synced`, ceden ante un
+  instalado del mismo nombre, `.trash/` no cuenta, `syncClaudeAiPlugins:
+  false` los apaga).
+- MENOR: siguen sin leerse los `commands/` de los plugins,
+  `CLAUDE_CODE_PLUGIN_CACHE_DIR`, los plugins de `skills/` y los
+  obligatorios de la organizacion; `subagent-catalog:*` y
+  `anthropic-skills:*` no aparecen (otra fuente).
+- MENOR: de varias cuentas sincronizadas se toma la de `lastUpdated` mas
+  reciente (suposicion, no documentada).
+- MENOR: los arreglos `claude plugin install taskcodetwo` y `claude plugin
+  disable <clave>` son provisionales (marketplace desconocido).
+- Consecuencia de D3a: `doctor` y `doctor --recursos` dan codigo 3 en todas
+  las maquinas hasta que se publique el plugin `taskcodetwo`.
+- Mutaciones comprobadas (8, rojo y restauradas): `enabledPlugins: false`,
+  plugin obligatorio ilegible, argumentos de `--recursos`, orden del
+  inventario, filtro de terminadas, agregado del `doctor` normal,
+  sincronizado que no cede, cuenta mas antigua.
+- Verificacion propia: `--test recursos --test desinstalar` 31 de 31 y
+  `--lib inventario` 10 de 10.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -56,3 +86,4 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T19:35:52Z | diseno | agente:aadf9663d0b6fec03 | 36 | 91525 | 1179081 | 17097 | 33 | 1287739 | - | - |
+| 2026-11-17T21:16:41Z | implementacion | agente:af287d4b3fb93c05e | 298 | 394394 | 39961012 | 139662 | 50 | 40495366 | - | - |
