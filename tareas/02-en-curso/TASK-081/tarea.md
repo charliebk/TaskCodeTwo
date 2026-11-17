@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2790273
-tokens_implementacion: null
+tokens_implementacion: 41691011
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -44,6 +44,35 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 - [ ] C11: `liberar` de `terminada`, `descartada` o `en-revision` da su rechazo por estado; repetir `liberar` sobre una ya libre da `sin-cambios`
 - [ ] C12: una tarea con `asignado_a` heredado de la 0.16 se reasigna a una persona de la lista y queda como objeto `{id, login}`
 
+## Autorrevision
+
+- rust-wasm-reviewer — bfc11c6
+- code-quality-reviewer — bfc11c6
+
+Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
+
+- MENOR: `grafo::listas` no mira el asignado: una `planificada` reasignada
+  a otra persona sigue apareciendo como lista para empezar (fuera del
+  alcance).
+- MENOR: con la configuracion ausente o invalida el umbral cae en silencio
+  a 7 dias.
+- MENOR: «sin perder su trabajo» solo vale para lo publicado; carrera entre
+  el `fetch` y el push del estado; `committerdate` falseable (frena, no
+  adelanta). Documentados en la adenda de F1-2.
+- Desviaciones del plan: `comprobar_id_salvo` en vez de cambiar la firma de
+  `comprobar_id`; la anotacion lleva tambien los dias; `liberar` acepta
+  `planificada` (quita el asignado o `sin-cambios`); `sin-publicar` tambien
+  en `reasignar`; actividad desconocida no frena; un heredado exige persona
+  con terminal.
+- Incidencia de proceso: el primer commit salio con un mensaje ajeno (fichero
+  de mensaje reutilizado del scratchpad) y el agente lo corrigio con
+  `git commit --amend` antes de publicar; solo cambio el mensaje.
+- Mutaciones comprobadas (8, rojo y restauradas): `ramas_ajenas` descarta
+  todas, sin `activa`, sin `requiere-persona`, actividad sin commit de la
+  rama, sin `sin-publicar`, `por_login` acepta cualquiera, `ya_no_tuyas`
+  invertido, `inactivas` sin commit de la rama.
+- Verificacion propia: `--test liberar --test tablero` 18 de 18.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -57,3 +86,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T22:01:40Z | diseno | agente:a16270a0169d2167e | 66 | 118729 | 2645939 | 25539 | 49 | 2790273 | - | - |
+| 2026-11-17T23:09:26Z | implementacion | agente:a019c2a1aaf7a8068 | 270 | 823378 | 40736583 | 130780 | 69 | 41691011 | - | - |
