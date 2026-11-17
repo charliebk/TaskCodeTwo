@@ -30,8 +30,8 @@ Cerrar los MENORES aceptados en TASK-027 y estabilizar tests/comun/http_mock.rs,
 - [ ] ejecutar_con_limite devuelve la salida ya leida cuando un nieto retiene stdout y su doc dice lo que hace (test con nieto, MEN-7 r3)
 - [ ] Un fallo de TLS no se reintenta y el timeout global no dobla la espera (tests en crates/tc2/src/descarga.rs, MEN-8 y MEN-9 r3)
 - [ ] Tests de integracion de redireccion no permitida y de limite de tamano en crates/tc2/tests/actualizar_cli.rs (MEN-5 r1)
-- [ ] tests/comun/http_mock.rs no manda FIN tras una respuesta completa y plataforma_gitlab pasa 10 de 10 seguidas
-- [ ] El doc de bajar_con_un_reintento esta sobre su funcion y sin lineas duplicadas
+- [ ] tests/comun/http_mock.rs no manda FIN tras una respuesta completa (test determinista en tests/comun: tras leer el Content-Length la lectura siguiente agota el plazo y no da Ok(0)) y plataforma y plataforma_gitlab pasan 10 de 10 seguidas (evidencia del script en ## Resultado)
+- [ ] El doc de bajar_con_un_reintento esta sobre su funcion y sin lineas duplicadas (test unitario con include_str! en crates/tc2/src/actualizar_cli.rs)
 
 ## Transiciones
 
