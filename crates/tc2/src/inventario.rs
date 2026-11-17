@@ -226,8 +226,9 @@ pub struct Incidencia {
     /// A que se refiere: el id de la entrada o la clave del plugin.
     pub id: String,
     /// Por que (sin espacios): `no-se-lee`, `json-invalido`,
-    /// `formato-desconocido`, `sin-install-path`, `install-path-inexistente`
-    /// o `nombre-distinto`.
+    /// `formato-desconocido`, `sin-install-path`, `install-path-relativo`,
+    /// `install-path-inexistente`, `sin-carpeta`, `nombre-invalido`,
+    /// `nombre-no-utf8` o `nombre-distinto`.
     pub motivo: &'static str,
     /// Fichero o carpeta.
     pub ruta: String,
@@ -315,8 +316,32 @@ fn json_de(p: &Path, a: &mut Acumulado, id: &str) -> Option<Value> {
     }
 }
 
+/// El valor de una linea `clave: valor` de YAML: entre comillas (simples o
+/// dobles), lo de dentro, con lo que siga detras ignorado; sin comillas,
+/// hasta un comentario (`#` al principio o tras un espacio o tabulador).
+fn valor_yaml(v: &str) -> &str {
+    let v = v.trim();
+    for q in ['"', '\''] {
+        if let Some(resto) = v.strip_prefix(q)
+            && let Some((dentro, _)) = resto.split_once(q)
+        {
+            return dentro.trim();
+        }
+    }
+    if v.starts_with('#') {
+        return "";
+    }
+    let corte = v
+        .char_indices()
+        .zip(v.chars().skip(1))
+        .find(|((_, c), sig)| (*c == ' ' || *c == '\t') && *sig == '#')
+        .map_or(v.len(), |((i, _), _)| i);
+    v.get(..corte).unwrap_or(v).trim()
+}
+
 /// El `name:` del frontmatter (`---` ... `---`) de los primeros
-/// [`MAX_CABECERA`] bytes; `None` si no hay. Las comillas se quitan.
+/// [`MAX_CABECERA`] bytes; `None` si no hay. Las comillas y un comentario
+/// final (`name: foo # nota`) se quitan.
 pub fn nombre_del_frontmatter(cabecera: &str) -> Option<String> {
     let texto = cabecera.strip_prefix('\u{feff}').unwrap_or(cabecera);
     let mut lineas = texto.lines();
@@ -329,13 +354,7 @@ pub fn nombre_del_frontmatter(cabecera: &str) -> Option<String> {
             break;
         }
         if let Some(v) = l.strip_prefix("name:") {
-            let v = v.trim();
-            let v = v
-                .strip_prefix('"')
-                .and_then(|x| x.strip_suffix('"'))
-                .or_else(|| v.strip_prefix('\'').and_then(|x| x.strip_suffix('\'')))
-                .unwrap_or(v)
-                .trim();
+            let v = valor_yaml(v);
             return (!v.is_empty()).then(|| v.to_owned());
         }
     }
@@ -351,34 +370,72 @@ fn cabecera(p: &Path) -> std::io::Result<String> {
     Ok(String::from_utf8_lossy(&b).into_owned())
 }
 
-/// Hijos de `dir` ordenados (vacio si no existe).
-fn hijos(dir: &Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|d| d.flatten().map(|e| e.path()).collect())
-        .unwrap_or_default();
+/// Hijos de `dir` ordenados (vacio si no existe). Si la carpeta o una de
+/// sus entradas no se puede leer (p. ej. sin permiso), una incidencia
+/// `no-se-lee` de `id` en `ilegibles`: nunca cuenta como vacia sin decirlo.
+fn hijos(dir: &Path, id: &str, a: &mut Acumulado) -> Vec<PathBuf> {
+    let mut no_se_lee = || {
+        a.ilegibles.push(Incidencia {
+            id: id.to_owned(),
+            motivo: "no-se-lee",
+            ruta: t(dir),
+        });
+    };
+    let mut v = Vec::new();
+    match std::fs::read_dir(dir) {
+        Ok(d) => {
+            for e in d {
+                match e {
+                    Ok(e) => v.push(e.path()),
+                    Err(_) => no_se_lee(),
+                }
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => no_se_lee(),
+    }
     v.sort();
     v
+}
+
+/// El nombre de `n` como texto o, si no es UTF-8, una incidencia
+/// `nombre-no-utf8` (con el nombre aproximado como id) y `None`.
+fn nombre_utf8(
+    n: Option<&std::ffi::OsStr>,
+    prefijo: &str,
+    ruta: &Path,
+    a: &mut Acumulado,
+) -> Option<String> {
+    let n = n?;
+    if let Some(s) = n.to_str() {
+        return Some(s.to_owned());
+    }
+    a.ilegibles.push(Incidencia {
+        id: format!("{prefijo}{}", n.to_string_lossy()),
+        motivo: "nombre-no-utf8",
+        ruta: t(ruta),
+    });
+    None
 }
 
 /// Lee las skills de `dir` (`<n>/SKILL.md`) y los agentes de `agentes`
 /// (`<n>.md`) con el `prefijo` y el `origen` dados.
 fn leer_carpetas(skills: &Path, agentes: &Path, prefijo: &str, origen: &Origen, a: &mut Acumulado) {
     let mut ficheros: Vec<(Tipo, PathBuf, String)> = Vec::new();
-    for d in hijos(skills) {
+    for d in hijos(skills, &format!("{prefijo}skills"), a) {
         let f = d.join("SKILL.md");
         if d.is_dir()
             && f.is_file()
-            && let Some(n) = d.file_name().and_then(|n| n.to_str())
+            && let Some(n) = nombre_utf8(d.file_name(), prefijo, &d, a)
         {
-            ficheros.push((Tipo::Skill, f, n.to_owned()));
+            ficheros.push((Tipo::Skill, f, n));
         }
     }
-    for f in hijos(agentes) {
+    for f in hijos(agentes, &format!("{prefijo}agents"), a) {
         if f.is_file()
             && f.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
-            && let Some(n) = f.file_stem().and_then(|n| n.to_str())
+            && let Some(n) = nombre_utf8(f.file_stem(), prefijo, &f, a)
         {
-            let n = n.to_owned();
             ficheros.push((Tipo::Agente, f, n));
         }
     }
@@ -532,12 +589,100 @@ fn cargar_plugin(
     true
 }
 
-/// Clave de orden de `lastUpdated` (numero o texto ISO).
-fn orden_de_fecha(v: Option<&Value>) -> String {
-    match v {
-        Some(Value::Number(n)) => format!("{:030.3}", n.as_f64().unwrap_or(0.0)),
-        Some(Value::String(s)) => s.clone(),
-        _ => String::new(),
+/// Dias desde 1970-01-01 de una fecha civil (algoritmo de H. Hinnant).
+fn dias_desde_epoca(anio: i64, mes: i64, dia: i64) -> i64 {
+    let y = if mes <= 2 { anio - 1 } else { anio };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (mes + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + dia - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// Milisegundos desde la epoca de un texto ISO 8601 / RFC 3339
+/// (`AAAA-MM-DD`, opcionalmente `THH:MM[:SS[.fff]]` y `Z` o `+HH:MM`);
+/// `None` si no tiene esa forma o algun campo esta fuera de rango.
+fn ms_de_iso(s: &str) -> Option<i64> {
+    let num = |x: &str| -> Option<i64> {
+        (!x.is_empty() && x.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| x.parse().ok())
+            .flatten()
+    };
+    let (fecha, resto) = s.split_at_checked(10)?;
+    let mut f = fecha.split('-');
+    let (anio, mes, dia) = (num(f.next()?)?, num(f.next()?)?, num(f.next()?)?);
+    if f.next().is_some() || !(1..=12).contains(&mes) || !(1..=31).contains(&dia) {
+        return None;
+    }
+    let mut ms = dias_desde_epoca(anio, mes, dia) * 86_400_000;
+    if resto.is_empty() {
+        return Some(ms);
+    }
+    let resto = resto.strip_prefix(['T', 't', ' '])?;
+    // Zona: `Z`, `+HH:MM` o `-HH:MM` al final.
+    let (hora, zona) = match resto.find(['Z', 'z', '+', '-']) {
+        Some(i) => resto.split_at(i),
+        None => (resto, ""),
+    };
+    let desfase = match zona {
+        "" | "Z" | "z" => 0,
+        z => {
+            let signo = if z.starts_with('-') { -1 } else { 1 };
+            let (h, m) = z.get(1..)?.split_once(':')?;
+            let (h, m) = (num(h)?, num(m)?);
+            if h > 23 || m > 59 {
+                return None;
+            }
+            signo * (h * 60 + m) * 60_000
+        }
+    };
+    let (hms, frac) = hora.split_once('.').unwrap_or((hora, ""));
+    let mut p = hms.split(':');
+    let h = num(p.next()?)?;
+    let mi = num(p.next()?)?;
+    let se = p.next().map_or(Some(0), num)?;
+    if p.next().is_some() || h > 23 || mi > 59 || se > 60 {
+        return None;
+    }
+    let fr = if frac.is_empty() {
+        0
+    } else {
+        if !frac.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        // Los tres primeros digitos son milisegundos.
+        let mut d: String = frac.chars().take(3).collect();
+        while d.len() < 3 {
+            d.push('0');
+        }
+        num(&d)?
+    };
+    ms += ((h * 60 + mi) * 60 + se) * 1000 + fr - desfase;
+    Some(ms)
+}
+
+/// Clave de orden de `lastUpdated`: milisegundos desde la epoca, de un
+/// numero (ms) o de un texto ISO 8601. Un valor ausente, negativo, no
+/// finito, fuera de rango o que no es fecha da `None`, que nunca gana a una
+/// fecha valida (H4 de la ronda 1: se compara por valor, no por texto).
+fn orden_de_fecha(v: Option<&Value>) -> Option<i64> {
+    match v? {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                return (i >= 0).then_some(i);
+            }
+            if let Some(u) = n.as_u64() {
+                return i64::try_from(u).ok();
+            }
+            let f = n.as_f64()?;
+            // Rango de `i64` en ms con margen; `as` sobre un finito en rango.
+            #[allow(clippy::cast_possible_truncation)]
+            let ms = (f.is_finite() && (0.0..9.0e15).contains(&f)).then(|| f.trunc() as i64);
+            ms
+        }
+        Value::String(s) => ms_de_iso(s.trim()).filter(|ms| *ms >= 0),
+        _ => None,
     }
 }
 
@@ -552,11 +697,13 @@ fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
         return;
     }
     let raiz = dir_claude.join("plugins").join("synced");
-    let mut cuentas: Vec<(String, PathBuf, Value)> = Vec::new();
-    for c in hijos(&raiz).into_iter().filter(|c| c.is_dir()) {
+    let mut cuentas: Vec<(Option<i64>, PathBuf, Value)> = Vec::new();
+    for c in hijos(&raiz, "synced", a).into_iter().filter(|c| c.is_dir()) {
         let id = format!(
             "synced/{}",
-            c.file_name().and_then(|n| n.to_str()).unwrap_or_default()
+            c.file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default()
         );
         let ruta = c.join("manifest.json");
         if !ruta.is_file() {
@@ -575,7 +722,8 @@ fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
         }
         cuentas.push((orden_de_fecha(m.get("lastUpdated")), c, m));
     }
-    // La mas reciente; a igualdad, la ultima por nombre (determinista).
+    // La mas reciente (sin fecha valida, nunca gana a una con fecha); a
+    // igualdad, la ultima por nombre (determinista).
     let Some((_, cuenta, m)) = cuentas
         .into_iter()
         .max_by(|x, y| (&x.0, &x.1).cmp(&(&y.0, &y.1)))
@@ -587,13 +735,28 @@ fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let manifiesto = cuenta.join("manifest.json");
     for p in lista {
-        let Some(nombre) = p
-            .get("name")
-            .and_then(Value::as_str)
-            .filter(|n| !n.is_empty())
-        else {
-            continue;
+        // El `name` se une a la ruta de la cuenta: vacio, con separadores o
+        // con `..` podria leer fuera de `synced/` (H3 de la ronda 1). No se
+        // une: queda como ilegible.
+        let nombre = match p.get("name").and_then(Value::as_str) {
+            Some(n)
+                if !n.is_empty()
+                    && n != "."
+                    && !n.contains(['/', '\\', ':'])
+                    && !n.contains("..") =>
+            {
+                n
+            }
+            n => {
+                a.ilegibles.push(Incidencia {
+                    id: format!("{}@synced", n.unwrap_or_default()),
+                    motivo: "nombre-invalido",
+                    ruta: t(&manifiesto),
+                });
+                continue;
+            }
         };
         let generacion = p.get("generation").and_then(Value::as_u64).unwrap_or(1);
         let candidatas = [
@@ -657,7 +820,14 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, ajustes: &Ajustes, a: &mut Acumu
             return;
         }
     };
-    let Some(mapa) = v.get("plugins").and_then(Value::as_object) else {
+    // Solo se entiende la version 2 (`plugins.<clave>` es una lista de
+    // instalaciones); otra version, o sin ella, no se interpreta (H1 de la
+    // ronda 1).
+    let Some(mapa) = v
+        .get("plugins")
+        .and_then(Value::as_object)
+        .filter(|_| v.get("version").and_then(Value::as_u64) == Some(2))
+    else {
         a.ilegibles.push(Incidencia {
             id: "plugins".to_owned(),
             motivo: "formato-desconocido",
@@ -666,15 +836,23 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, ajustes: &Ajustes, a: &mut Acumu
         return;
     };
     for (clave, entradas) in mapa {
-        let Some(x) = entradas
-            .as_array()
-            .and_then(|l| l.iter().find(|x| aplica(x, raiz)))
-        else {
-            continue;
-        };
         if ajustes.habilitados.get(clave) == Some(&false) {
             continue;
         }
+        // Una entrada que no es lista (objeto, `null`...) no desaparece en
+        // silencio: queda como ilegible y lo que dependa de ella sale
+        // `no-comprobado` (C8).
+        let Some(lista) = entradas.as_array() else {
+            a.ilegibles.push(Incidencia {
+                id: clave.clone(),
+                motivo: "formato-desconocido",
+                ruta: t(&ruta),
+            });
+            continue;
+        };
+        let Some(x) = lista.iter().find(|x| aplica(x, raiz)) else {
+            continue;
+        };
         let Some(install) = x.get("installPath").and_then(Value::as_str) else {
             a.ilegibles.push(Incidencia {
                 id: clave.clone(),
@@ -684,6 +862,18 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, ajustes: &Ajustes, a: &mut Acumu
             continue;
         };
         let dir = PathBuf::from(install);
+        // Claude Code escribe `installPath` absoluto. Uno relativo no se
+        // resuelve contra el directorio del proceso (dependeria de donde se
+        // lance) ni se adivina contra la carpeta de Claude Code: queda como
+        // ilegible (H3 de la ronda 1).
+        if dir.is_relative() {
+            a.ilegibles.push(Incidencia {
+                id: clave.clone(),
+                motivo: "install-path-relativo",
+                ruta: install.to_owned(),
+            });
+            continue;
+        }
         if !dir.is_dir() {
             a.ilegibles.push(Incidencia {
                 id: clave.clone(),
@@ -826,11 +1016,27 @@ mod tests {
             nombre_del_frontmatter("---\nname: 'g'\n---").as_deref(),
             Some("g")
         );
+        // MEN-2 (ronda 1): un comentario final no entra en el id, salvo
+        // dentro de comillas; un `#` pegado es parte del valor.
+        for (cabecera, nombre) in [
+            ("---\nname: foo # comentario\n---\n", "foo"),
+            ("---\nname: foo\t# comentario\n---\n", "foo"),
+            ("---\nname: \"foo # no\" # si\n---\n", "foo # no"),
+            ("---\nname: 'a # b'\n---\n", "a # b"),
+            ("---\nname: a#b\n---\n", "a#b"),
+        ] {
+            assert_eq!(
+                nombre_del_frontmatter(cabecera).as_deref(),
+                Some(nombre),
+                "{cabecera:?}"
+            );
+        }
         for sin in [
             "",
             "# titulo\nname: x\n",
             "---\ndescription: x\n---\nname: x\n",
             "---\nname:\n---\n",
+            "---\nname: # solo comentario\n---\n",
             "---\n  name: sangrado\n---\n",
         ] {
             assert_eq!(nombre_del_frontmatter(sin), None, "{sin:?}");
@@ -1106,6 +1312,237 @@ mod tests {
             Vec::new(),
         );
         assert_ne!(otro.huella(), huellas[0].0);
+    }
+
+    fn incidencias(v: &[Incidencia]) -> Vec<String> {
+        v.iter().map(|i| format!("{} {}", i.id, i.motivo)).collect()
+    }
+
+    /// H1 (ronda 1): una entrada de plugin que no es lista (objeto, `null`,
+    /// numero) queda como ilegible `formato-desconocido`, no desaparece; la
+    /// de un plugin apagado no cuenta; un fichero sin `version: 2` no se
+    /// interpreta.
+    #[test]
+    fn entrada_de_plugin_que_no_es_lista() {
+        let m = Tmp::nueva("h1");
+        let claude = m.0.join("claude");
+        let bueno = m.0.join("cache").join("bueno");
+        m.escribir("cache/bueno/skills/rev/SKILL.md", &skill("rev"));
+        let plugins = serde_json::json!({
+            "bueno@mk": [{"scope": "user", "installPath": bueno}],
+            "objeto@mk": {"scope": "user", "installPath": bueno},
+            "nulo@mk": null,
+            "numero@mk": 3,
+            "apagado@mk": {"installPath": bueno}
+        });
+        m.escribir(
+            "claude/settings.json",
+            r#"{"enabledPlugins": {"apagado@mk": false}}"#,
+        );
+        let escribir = |version: Option<u64>| {
+            let mut v = serde_json::json!({"plugins": plugins});
+            if let Some(n) = version {
+                v["version"] = n.into();
+            }
+            m.escribir("claude/plugins/installed_plugins.json", &v.to_string());
+        };
+        escribir(Some(2));
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            incidencias(&l.ilegibles),
+            [
+                "nulo@mk formato-desconocido",
+                "numero@mk formato-desconocido",
+                "objeto@mk formato-desconocido",
+            ]
+        );
+        assert!(l.inventario.contiene(Tipo::Skill, "bueno:rev"));
+        for version in [None, Some(1), Some(3)] {
+            escribir(version);
+            let l = leer(Some(&claude), &m.0.join("p"));
+            assert_eq!(
+                incidencias(&l.ilegibles),
+                ["plugins formato-desconocido"],
+                "{version:?}"
+            );
+            assert!(l.inventario.plugins().is_empty());
+        }
+    }
+
+    /// H2 (ronda 1): una carpeta `skills` o `agents` que no se puede listar
+    /// (aqui, un fichero en su lugar: `read_dir` falla sin ser `NotFound`,
+    /// como sin permiso) es una incidencia `no-se-lee`, no una carpeta vacia.
+    #[test]
+    fn carpeta_que_no_se_lista_es_ilegible() {
+        let m = Tmp::nueva("h2");
+        let claude = m.0.join("claude");
+        m.escribir("claude/skills", "no soy una carpeta");
+        m.escribir("claude/agents/ag.md", "x");
+        m.escribir("p/.claude/agents", "tampoco");
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            l.ilegibles
+                .iter()
+                .map(|i| format!("{} {} {}", i.id, i.motivo, i.ruta))
+                .collect::<Vec<_>>(),
+            [
+                format!(
+                    "agents no-se-lee {}",
+                    m.0.join("p").join(".claude").join("agents").display()
+                ),
+                format!("skills no-se-lee {}", claude.join("skills").display()),
+            ]
+        );
+        assert!(l.inventario.contiene(Tipo::Agente, "ag"));
+        // Una carpeta que no existe sigue sin ser incidencia.
+        let l = leer(Some(&m.0.join("no-existe")), &m.0.join("no-existe"));
+        assert_eq!(l.ilegibles, []);
+    }
+
+    /// H2 (ronda 1): un nombre de carpeta o fichero que no es UTF-8 es una
+    /// incidencia `nombre-no-utf8`, no un descarte silencioso.
+    #[test]
+    fn nombre_no_utf8_es_incidencia() {
+        let m = Tmp::nueva("h2-utf8");
+        let claude = m.0.join("claude");
+        #[cfg(windows)]
+        let raro = {
+            use std::os::windows::ffi::OsStringExt;
+            // `a` y un sustituto suelto: valido en NTFS, no en UTF-8.
+            std::ffi::OsString::from_wide(&[0x61, 0xD800])
+        };
+        #[cfg(unix)]
+        let raro = {
+            use std::os::unix::ffi::OsStringExt;
+            std::ffi::OsString::from_vec(vec![b'a', 0xFF])
+        };
+        let skills = claude.join("skills");
+        let d = skills.join(&raro);
+        std::fs::create_dir_all(&d).unwrap_or_default();
+        std::fs::write(d.join("SKILL.md"), skill("raro")).unwrap_or_default();
+        let mut agente = raro.clone();
+        agente.push(".md");
+        std::fs::create_dir_all(claude.join("agents")).unwrap_or_default();
+        std::fs::write(claude.join("agents").join(agente), "x").unwrap_or_default();
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            l.ilegibles.iter().map(|i| i.motivo).collect::<Vec<_>>(),
+            ["nombre-no-utf8", "nombre-no-utf8"],
+            "{:?}",
+            l.ilegibles
+        );
+        assert!(l.ilegibles.iter().all(|i| i.id.starts_with('a')));
+    }
+
+    /// H3 (ronda 1): un `name` del manifiesto sincronizado vacio, con
+    /// separadores, `:` o `..` no se une a la ruta (no se lee fuera de
+    /// `synced/`): queda como `nombre-invalido`; un `installPath` relativo
+    /// queda como `install-path-relativo` y no se resuelve contra el cwd.
+    #[test]
+    fn nombres_y_rutas_que_saldrian_de_su_carpeta() {
+        let m = Tmp::nueva("h3");
+        let claude = m.0.join("claude");
+        // Lo que se leeria si se uniera `../../fuera` a la cuenta.
+        m.escribir("claude/plugins/fuera/skills/malo/SKILL.md", &skill("malo"));
+        m.escribir(
+            "claude/plugins/synced/c/bien/skills/s/SKILL.md",
+            &skill("s"),
+        );
+        m.escribir(
+            "claude/plugins/synced/c/manifest.json",
+            &serde_json::json!({"lastUpdated": 1, "plugins": [
+                {"name": "../../fuera"}, {"name": "a/b"}, {"name": "a\\b"},
+                {"name": ".."}, {"name": ""}, {"name": "C:x"}, {"version": "1"},
+                {"name": "bien"}
+            ]})
+            .to_string(),
+        );
+        m.escribir(
+            "claude/plugins/installed_plugins.json",
+            &serde_json::json!({"version": 2, "plugins": {
+                "rel@mk": [{"scope": "user", "installPath": "relativa/rel"}]
+            }})
+            .to_string(),
+        );
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            lineas(&l),
+            ["skill bien:s plugin", "agente general-purpose integrado"]
+        );
+        assert_eq!(
+            incidencias(&l.ilegibles),
+            [
+                "../../fuera@synced nombre-invalido",
+                "..@synced nombre-invalido",
+                // Vacio y sin `name`: la misma incidencia, una vez.
+                "@synced nombre-invalido",
+                "C:x@synced nombre-invalido",
+                "a/b@synced nombre-invalido",
+                "a\\b@synced nombre-invalido",
+                "rel@mk install-path-relativo",
+            ]
+        );
+    }
+
+    /// H4 (ronda 1): `lastUpdated` se compara por valor (ms desde la
+    /// epoca), venga como numero o como texto ISO; un valor invalido no
+    /// gana a uno valido.
+    #[test]
+    fn la_fecha_se_compara_por_valor() {
+        use serde_json::json;
+        let f = |v: Value| orden_de_fecha(Some(&v));
+        assert_eq!(f(json!("1970-01-01T00:00:00Z")), Some(0));
+        assert_eq!(f(json!("2026-01-01T00:00:00Z")), Some(1_767_225_600_000));
+        assert_eq!(f(json!("2026-01-01")), Some(1_767_225_600_000));
+        assert_eq!(
+            f(json!("2026-01-01T01:00:00.250+01:00")),
+            Some(1_767_225_600_250)
+        );
+        assert_eq!(f(json!(1_767_225_600_000_u64)), Some(1_767_225_600_000));
+        assert_eq!(f(json!(1.5e12)), Some(1_500_000_000_000));
+        for malo in [
+            json!(-5),
+            json!(-1.0),
+            json!(1e300),
+            json!("no es fecha"),
+            json!("2026-13-01T00:00:00Z"),
+            json!("2026-01-01T25:00:00Z"),
+            json!("~~~~"),
+            json!(null),
+            json!(true),
+        ] {
+            assert_eq!(f(malo.clone()), None, "{malo}");
+        }
+        assert_eq!(orden_de_fecha(None), None);
+        // Numero mas reciente contra texto ISO mas antiguo (y contra uno
+        // invalido que, por texto, ordenaria despues): gana el numero.
+        let m = Tmp::nueva("h4");
+        let claude = m.0.join("claude");
+        let s = "claude/plugins/synced";
+        for (cuenta, fecha, plugin) in [
+            ("a-numero", json!(1_790_000_000_000_u64), "nuevo"),
+            ("b-iso", json!("2026-01-01T00:00:00Z"), "viejo"),
+            ("c-invalida", json!("~ no es fecha"), "roto"),
+            ("d-negativa", json!(-1), "negativo"),
+        ] {
+            m.escribir(
+                &format!("{s}/{cuenta}/manifest.json"),
+                &json!({"lastUpdated": fecha, "plugins": [{"name": plugin}]}).to_string(),
+            );
+            m.escribir(
+                &format!("{s}/{cuenta}/{plugin}/skills/x/SKILL.md"),
+                &skill("x"),
+            );
+        }
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            l.inventario
+                .plugins()
+                .iter()
+                .map(|p| p.nombre.as_str())
+                .collect::<Vec<_>>(),
+            ["nuevo"]
+        );
     }
 
     #[test]
