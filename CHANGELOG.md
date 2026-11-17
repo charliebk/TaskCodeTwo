@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-078 (feature) — F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia (2026-11-17)
 - TASK-116 (fix) — Nombres de la 2.0 alineados con F1-12 D1a (2026-11-16)
 - TASK-077 (feature) — F2-13 Identidad de la persona desde la plataforma (2026-11-16)
 - TASK-076 (feature) — F2-4b Nombres unicos de tarea y rama (2026-11-16)

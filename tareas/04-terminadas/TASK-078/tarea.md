@@ -6,7 +6,7 @@ sprint: 2
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-078-f2-14-taskctl-desinstalar-quitar-taskcod
 asignado_a: charlie.bk@gmail.com
@@ -64,6 +64,7 @@ MENORES aceptados sin corregir: MEN-9 calidad r1 (separadores `/` y `\` mezclado
 | 2026-11-16T23:54:31Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T00:41:30Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T01:08:39Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T01:16:51Z | finish | automatico | persona | 0.16.1 |
 
 ## Autorrevision
 
@@ -81,3 +82,10 @@ MENORES aceptados sin corregir: MEN-9 calidad r1 (separadores `/` y `\` mezclado
 | 2026-11-17T01:08:39Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1140 | 679922 | 351 | 0 | 681415 | - | - |
 | 2026-11-17T01:14:30Z | revision | agente:a081f2d09db1664dc | 36 | 114863 | 1711179 | 9598 | 4 | 1835676 | 2 | rust-wasm-reviewer |
 | 2026-11-17T01:14:30Z | revision | agente:a295ef0b672c4ecb3 | 42 | 103458 | 1747321 | 10301 | 1 | 1861122 | 2 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 82 min
+- Paso de la hora: 82 min reales frente a 300 estimados
+- Cierre (finish): 139 s, de 2026-11-17T01:14:32Z a 2026-11-17T01:16:51Z

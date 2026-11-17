@@ -1,6 +1,6 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-16. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
 ## Planificadas (00-planificadas) — 62
 
@@ -71,15 +71,7 @@ TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                
 TASK-115  Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable  (sin asignar)
 ```
 
-## En diseno (01-en-diseno) — 1
-
-```text
-ID        Titulo                                                     Asignado
---------  ---------------------------------------------------------  --------------------
-TASK-078  F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia  charlie.bk@gmail.com
-```
-
-## Terminadas (04-terminadas) — 36
+## Terminadas (04-terminadas) — 37
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -116,6 +108,7 @@ TASK-074  F1-16 ADR lotes desatendidos con revision humana al final             
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com
 TASK-076  F2-4b Nombres unicos de tarea y rama                                      charlie.bk@gmail.com
 TASK-077  F2-13 Identidad de la persona desde la plataforma                         charlie.bk@gmail.com
+TASK-078  F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia                 charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda  charlie.bk@gmail.com
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                    charlie.bk@gmail.com
