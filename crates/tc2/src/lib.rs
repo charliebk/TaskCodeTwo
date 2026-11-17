@@ -16,7 +16,7 @@
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
-//! (`board` y `status`, F3-5). Las capas
+//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -41,6 +41,7 @@ pub mod siguiente;
 pub mod situacion;
 pub mod tablero;
 pub mod tarea;
+pub mod toma;
 pub mod version;
 mod yaml;
 
@@ -145,6 +146,10 @@ where
         [orden, resto @ ..] if orden == init::NOMBRE => {
             let (json, resto) = con_json(resto);
             init::orden(&resto, json, idioma)
+        }
+        [orden, resto @ ..] if orden == toma::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_start(&resto).salida_en(json, idioma)
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -277,6 +282,38 @@ fn orden_identidad(args: &[String]) -> Informe {
     )
 }
 
+/// `start [--json] TASK-NNN` (F3-6) en la carpeta actual: quien la toma sale
+/// de [`identidad::resolver`] con el terminal y los tokens del proceso.
+fn orden_start(args: &[String]) -> Informe {
+    use std::io::IsTerminal;
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(toma::NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+        }
+    };
+    let g = git::Git::nuevo();
+    let ahora = identidad::ahora();
+    let quien = || {
+        identidad::resolver(identidad::Entorno {
+            dir: &dir,
+            git: &g,
+            tty: std::io::stdin().is_terminal(),
+            credenciales: Box::new(plataforma::CredencialesEntorno),
+            ahora,
+        })
+    };
+    let e = toma::Entorno {
+        dir: &dir,
+        git: &g,
+        quien: &quien,
+        catalogo: &catalogo,
+        ahora,
+    };
+    toma::orden(args, &e)
+}
+
 /// `status` o `board` (F3-5) en la carpeta actual.
 fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Salida {
     let dir = match tablero::carpeta_actual(orden) {
@@ -300,7 +337,9 @@ fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Sa
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado
 /// desde su anotacion. Las operaciones nuevas se anaden aqui.
 fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
-    alta::desde_anotacion(anotacion).or_else(|| roadmap::desde_anotacion(anotacion))
+    alta::desde_anotacion(anotacion)
+        .or_else(|| roadmap::desde_anotacion(anotacion))
+        .or_else(|| toma::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
@@ -464,6 +503,45 @@ mod tests {
         ] {
             assert_eq!(ejecutar(&args).codigo, 2, "{args:?}");
         }
+    }
+
+    /// F3-6: el catalogo de produccion reconstruye la toma desde su
+    /// anotacion, igual que el alta y el roadmap.
+    #[test]
+    fn el_catalogo_reconstruye_la_toma() {
+        let op = catalogo("start|TASK-001|7|ana");
+        assert_eq!(
+            op.map(|o| (o.nombre().to_owned(), o.anotacion())),
+            Some(("start".to_owned(), "start|TASK-001|7|ana".to_owned()))
+        );
+        assert!(catalogo("start|TASK-001|7").is_none());
+    }
+
+    /// TASK-033 C5: un ID mal formado (o sin ID, o de mas) es `uso` (2) sin
+    /// tocar nada, con el diagnostico en los dos idiomas.
+    #[test]
+    fn start_con_id_mal_formado_es_uso() {
+        for (args, motivo) in [
+            (vec!["start"], "sin-id"),
+            (vec!["start", "TASK-1"], "id-invalido"),
+            (vec!["start", "task-001"], "id-invalido"),
+            (vec!["start", "TASK-001a"], "id-invalido"),
+            (
+                vec!["start", "--json", "TASK-001", "x"],
+                "argumentos-de-mas",
+            ),
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!((es.codigo, en.codigo), (2, 2), "{args:?}");
+            assert!(es.stdout.contains(motivo), "{args:?}: {}", es.stdout);
+            assert_eq!(es.stderr, "uso: start [--json] TASK-NNN\n");
+            assert_eq!(en.stderr, "usage: start [--json] TASK-NNN\n");
+        }
+        assert_eq!(
+            ejecutar(["start", "TASK-1"]).stdout,
+            "start uso motivo=id-invalido\n"
+        );
     }
 
     #[test]

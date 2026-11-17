@@ -605,7 +605,7 @@ pub(crate) fn hoy() -> String {
 
 /// Fecha civil de un numero de dias desde 1970-01-01 (algoritmo de Howard
 /// Hinnant, `civil_from_days`).
-fn fecha_de_dias(dias: i64) -> String {
+pub(crate) fn fecha_de_dias(dias: i64) -> String {
     let z = dias + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);

@@ -177,6 +177,80 @@ impl Cuerpo {
     pub fn seccion(&self, titulo: &str) -> Option<&Seccion> {
         self.secciones.iter().find(|s| s.titulo == titulo)
     }
+
+    /// Anade una fila a la tabla de `## Transiciones` (F1-9: la escribe el
+    /// CLI en cada transicion), justo detras de su ultima fila; el resto del
+    /// cuerpo queda byte a byte. Sin tabla, la crea con su cabecera al final
+    /// de la seccion; sin seccion, la crea al final del cuerpo.
+    pub fn anadir_transicion(&mut self, t: &Transicion<'_>) {
+        let fila = format!(
+            "| {} | {} | {} | {} | {} |\n",
+            t.fecha, t.fase, t.modo, t.decidido_por, t.version
+        );
+        if let Some(s) = self.secciones.iter_mut().find(|s| s.titulo == TRANSICIONES) {
+            let lineas: Vec<&str> = s.texto.split_inclusive('\n').collect();
+            let texto = match lineas.iter().rposition(|l| l.trim_start().starts_with('|')) {
+                Some(i) => {
+                    let mut antes = lineas[..=i].concat();
+                    if !antes.ends_with('\n') {
+                        antes.push('\n');
+                    }
+                    format!("{antes}{fila}{}", lineas[i + 1..].concat())
+                }
+                None => {
+                    let mut t = s.texto.clone();
+                    separar(&mut t);
+                    format!("{t}{CABECERA_TRANSICIONES}{fila}")
+                }
+            };
+            s.texto = texto;
+            return;
+        }
+        match self.secciones.last_mut() {
+            Some(s) => separar(&mut s.texto),
+            None => separar(&mut self.preambulo),
+        }
+        self.secciones.push(Seccion {
+            titulo: TRANSICIONES.to_owned(),
+            texto: format!("## {TRANSICIONES}\n\n{CABECERA_TRANSICIONES}{fila}"),
+        });
+    }
+}
+
+/// Titulo de la seccion de transiciones.
+const TRANSICIONES: &str = "Transiciones";
+
+/// Cabecera de la tabla de transiciones (plantilla de F1-9, punto 6).
+const CABECERA_TRANSICIONES: &str =
+    "| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n";
+
+/// Deja `texto` terminado en una linea en blanco (si no esta vacio), para
+/// que lo que se anada detras empiece un bloque nuevo.
+fn separar(texto: &mut String) {
+    if texto.is_empty() {
+        return;
+    }
+    if !texto.ends_with('\n') {
+        texto.push('\n');
+    }
+    if !texto.ends_with("\n\n") {
+        texto.push('\n');
+    }
+}
+
+/// Una fila de `## Transiciones` (F1-9, punto 6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Transicion<'a> {
+    /// Instante, `AAAA-MM-DDTHH:MM:SSZ` en UTC.
+    pub fecha: &'a str,
+    /// Fase que se entra (`start`, `review`...).
+    pub fase: &'a str,
+    /// Modo de la tarea (`manual`, `automatico`...).
+    pub modo: &'a str,
+    /// `persona` o `agente` (F2-13).
+    pub decidido_por: &'a str,
+    /// Version del CLI que la escribe.
+    pub version: &'a str,
 }
 
 #[cfg(test)]
@@ -243,6 +317,66 @@ mod tests {
             "{t}"
         );
         assert!(t.contains("\n\n- [ ] real\n\n"), "{t}");
+    }
+
+    const T: Transicion<'static> = Transicion {
+        fecha: "2026-11-17T10:00:00Z",
+        fase: "start",
+        modo: "manual",
+        decidido_por: "agente",
+        version: "0.1.0",
+    };
+    const FILA: &str = "| 2026-11-17T10:00:00Z | start | manual | agente | 0.1.0 |\n";
+
+    /// F3-6: la fila va detras de la ultima de la tabla y el resto del
+    /// cuerpo queda byte a byte (tambien lo que sigue a la tabla).
+    #[test]
+    fn anadir_transicion_conserva_el_resto() {
+        let mut p = Cuerpo::plantilla();
+        p.anadir_transicion(&T);
+        assert_eq!(p.escribir(), format!("{PLANTILLA}{FILA}"));
+        // Con filas previas, texto detras y otra seccion despues.
+        let t = "## Objetivo\n\nx\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| a | plan | manual | persona | 0.1.0 |\n\nnota final\n## Otra\r\ny";
+        let mut c = Cuerpo::leer(t);
+        c.anadir_transicion(&T);
+        let esperado = t.replace(
+            "| a | plan | manual | persona | 0.1.0 |\n",
+            &format!("| a | plan | manual | persona | 0.1.0 |\n{FILA}"),
+        );
+        assert_eq!(c.escribir(), esperado);
+        // Ultima fila sin salto final.
+        let mut c = Cuerpo::leer("## Transiciones\n|---|");
+        c.anadir_transicion(&T);
+        assert_eq!(c.escribir(), format!("## Transiciones\n|---|\n{FILA}"));
+    }
+
+    /// Sin tabla se crea con su cabecera; sin seccion, al final del cuerpo.
+    #[test]
+    fn anadir_transicion_sin_tabla_o_sin_seccion() {
+        let mut c = Cuerpo::leer("## Transiciones\ntexto");
+        c.anadir_transicion(&T);
+        assert_eq!(
+            c.escribir(),
+            format!("## Transiciones\ntexto\n\n{CABECERA_TRANSICIONES}{FILA}")
+        );
+        let mut c = Cuerpo::leer("## Objetivo\nx");
+        c.anadir_transicion(&T);
+        assert_eq!(
+            c.escribir(),
+            format!("## Objetivo\nx\n\n## Transiciones\n\n{CABECERA_TRANSICIONES}{FILA}")
+        );
+        assert_eq!(
+            c.seccion("Transiciones").map(|s| s.titulo.as_str()),
+            Some("Transiciones")
+        );
+        let mut c = Cuerpo::leer("");
+        c.anadir_transicion(&T);
+        assert_eq!(
+            c.escribir(),
+            format!("## Transiciones\n\n{CABECERA_TRANSICIONES}{FILA}")
+        );
+        // Lo escrito se vuelve a leer igual.
+        assert_eq!(Cuerpo::leer(&c.escribir()), c);
     }
 
     #[test]
