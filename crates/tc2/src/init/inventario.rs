@@ -44,10 +44,16 @@ pub(super) fn misma_linea(a: &str, b: &str) -> bool {
     norm(a) == norm(b)
 }
 
-/// Orden entrecomillada para un shell POSIX (y PowerShell, salvo `'`):
-/// una ruta con espacios o `;` no parte la orden ni ejecuta nada.
-pub(super) fn comillas(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
+/// Argumento entrecomillado para el shell de la persona: una ruta con
+/// espacios, `;` o `'` no parte la orden ni ejecuta nada. Comillas simples
+/// en los dos, que no expanden nada; dentro, la `'` se escribe `''` en
+/// PowerShell (`windows`) y `'\''` en `sh`, cuya forma PowerShell trocearia.
+pub(super) fn comillas(s: &str, windows: bool) -> String {
+    if windows {
+        format!("'{}'", s.replace('\'', "''"))
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
 }
 
 fn sinred(detalle: &str) -> Informe {
@@ -193,7 +199,7 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
         .motivo("montada-en-otra-ruta")
         .orden(format!(
             "git worktree move {} {}",
-            comillas(&t(&r)),
+            comillas(&t(&r), cfg!(windows)),
             CARPETA
         )),
         Previsto::SinRed(_) | Previsto::Denegada(..) => {
@@ -242,9 +248,9 @@ fn rechazo_016(ruta: String, clase: &'static str) -> Accion {
     a
 }
 
-/// Todas las ramas que tiene `origin` (para saber si tiene historia, no solo
-/// `main` y `develop`). Sin red, `sinred`.
-fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<String>, Informe> {
+/// Todas las ramas que tiene `origin`, `(nombre, sha)` (para saber si tiene
+/// historia, no solo `main` y `develop`). Sin red, `sinred`.
+fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<(String, String)>, Informe> {
     let s = correr(
         c.git,
         principal,
@@ -261,10 +267,60 @@ fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<String>, Info
     }
     Ok(s.stdout
         .lines()
-        .filter_map(|l| l.split_whitespace().nth(1))
-        .filter_map(|r| r.strip_prefix("refs/heads/"))
-        .map(str::to_owned)
+        .filter_map(|l| l.split_once(char::is_whitespace))
+        .filter_map(|(sha, r)| {
+            r.trim()
+                .strip_prefix("refs/heads/")
+                .map(|n| (n.to_owned(), sha.to_owned()))
+        })
         .collect())
+}
+
+/// Si la historia local (HEAD, o la primera rama local) tiene algun ancestro
+/// comun con alguna rama de `origin`. Solo con lo que ya hay en el clon (sin
+/// `fetch`: `--simular` no escribe): la rama remota que se trajo o el sha de
+/// `ls-remote` si ese commit ya esta. Si no se puede saber, `false`: es el
+/// lado prudente (no se propone publicar).
+fn historia_relacionada(
+    c: &Contexto<'_>,
+    principal: &Path,
+    remotas: &[(&str, &str)],
+) -> Result<bool, Informe> {
+    let g = c.git;
+    let primera_local = exigir(
+        g,
+        principal,
+        NOMBRE,
+        Subcomando::ForEachRef,
+        &["--count=1", "--format=%(objectname)", "refs/heads/"],
+    )?;
+    let Some(local) = commit_de(g, principal, NOMBRE, "HEAD")?
+        .or_else(|| Some(primera_local.trim().to_owned()).filter(|s| !s.is_empty()))
+    else {
+        return Ok(false);
+    };
+    for (nombre, sha) in remotas {
+        let traida = commit_de(
+            g,
+            principal,
+            NOMBRE,
+            &format!("refs/remotes/{REMOTO}/{nombre}"),
+        )?;
+        let conocida = commit_de(g, principal, NOMBRE, sha)?;
+        for candidato in [traida, conocida].into_iter().flatten() {
+            let s = correr(
+                g,
+                principal,
+                NOMBRE,
+                Subcomando::MergeBase,
+                &[&local, &candidato],
+            )?;
+            if s.exito() && !s.stdout.trim().is_empty() {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Lineas de `main` y `develop` (D3). El repo cuenta como vacio solo si no
@@ -272,13 +328,16 @@ fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<String>, Info
 /// es huerfana). Vacio: un commit raiz con la configuracion y `.gitignore` y
 /// las dos ramas en el (publicadas si hay remoto). Con historia, local o en
 /// `origin`, la rama que falta la crea la persona desde la que ya hay: un
-/// commit raiz propio dejaria en el remoto dos historias sin relacion.
+/// commit raiz propio dejaria en el remoto dos historias sin relacion. Si
+/// `origin` tiene historia, se parte siempre de ella (`origin/<rama>`), y
+/// si la historia local no tiene relacion con la remota no se propone
+/// publicar nada (`motivo=historia-sin-relacion`, con aviso).
 /// Devuelve si el repo estaba vacio.
 fn ramas(
     c: &Contexto<'_>,
     principal: &Path,
     remoto: bool,
-    remotas: &[String],
+    remotas: &[(String, String)],
     v: &mut Vec<Accion>,
 ) -> Result<bool, Informe> {
     let g = c.git;
@@ -301,12 +360,17 @@ fn ramas(
         }
     }
     // Ramas de `origin` con historia del proyecto (sin la de estado).
-    let historia_remota: Vec<&str> = remotas
+    let con_sha: Vec<(&str, &str)> = remotas
         .iter()
-        .map(String::as_str)
-        .filter(|r| *r != crate::huella::RAMA_ESTADO)
+        .map(|(n, s)| (n.as_str(), s.as_str()))
+        .filter(|(n, _)| *n != crate::huella::RAMA_ESTADO)
         .collect();
+    let historia_remota: Vec<&str> = con_sha.iter().map(|(n, _)| *n).collect();
     let vacio = !hay_commits && historia_remota.is_empty();
+    // Con historia en los dos lados, que tengan algo en comun.
+    let sin_relacion = hay_commits
+        && !historia_remota.is_empty()
+        && !historia_relacionada(c, principal, &con_sha)?;
     let mut nuevas: Vec<String> = Vec::new();
     let mut lineas = Vec::new();
     for r in RAMAS {
@@ -315,7 +379,12 @@ fn ramas(
         let en_remoto = historia_remota.contains(&r);
         let a = Accion::nueva(ruta, "rama", "proyecto", Decision::Existe);
         lineas.push(if local {
-            if remoto && !en_remoto {
+            if remoto && !en_remoto && sin_relacion {
+                // Publicarla subiria a `origin` una historia ajena a la suya.
+                let mut a = a.motivo("historia-sin-relacion");
+                a.decision = Decision::Persona;
+                a
+            } else if remoto && !en_remoto {
                 persona(a, "sin-publicar", format!("git push {REMOTO} {r}"))
             } else {
                 a
@@ -327,24 +396,25 @@ fn ramas(
                 format!("git fetch {REMOTO} {r} && git branch {r} {REMOTO}/{r}"),
             )
         } else if !vacio {
-            // Desde la otra rama local si existe (HEAD puede estar sin nacer
-            // en esta, tras un `init` cortado a medias); si no, desde la otra
-            // de `origin`, desde HEAD o desde la primera rama de `origin`.
+            // Si `origin` tiene historia, desde ella (la otra rama de codigo,
+            // o la primera que haya); si no, desde la otra rama local (HEAD
+            // puede estar sin nacer en esta, tras un `init` cortado a medias)
+            // o desde HEAD.
             let otra_remota = RAMAS
                 .iter()
                 .find(|x| historia_remota.contains(x))
                 .or_else(|| historia_remota.first());
-            let mut o = match (locales.first(), otra_remota) {
-                (Some(l), _) => format!("git branch {r} {l}"),
-                (None, Some(b)) if !hay_commits => {
-                    format!("git fetch {REMOTO} {b} && git branch {r} {REMOTO}/{b}")
-                }
-                _ => format!("git branch {r} HEAD"),
+            let mut o = match (otra_remota, locales.first()) {
+                (Some(b), _) => format!("git fetch {REMOTO} {b} && git branch {r} {REMOTO}/{b}"),
+                (None, Some(l)) => format!("git branch {r} {l}"),
+                (None, None) => format!("git branch {r} HEAD"),
             };
-            if remoto {
+            if remoto && !sin_relacion {
                 o.push_str(&format!(" && git push {REMOTO} {r}"));
             }
-            let motivo = if hay_commits {
+            let motivo = if sin_relacion {
+                "historia-sin-relacion"
+            } else if hay_commits {
                 "con-historia"
             } else {
                 "remoto-con-historia"
@@ -542,5 +612,40 @@ fn puertas(plataforma: &Conexion, v: &mut Vec<Accion>) {
                 a
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Revision 2, MEN-5: en `sh`, la `'` se cierra, se escapa y se reabre;
+    /// el `;` queda dentro de las comillas.
+    #[test]
+    fn comillas_para_sh() {
+        assert_eq!(comillas("/r/a b", false), "'/r/a b'");
+        assert_eq!(
+            comillas("/r/a'; echo X; 'b", false),
+            "'/r/a'\\''; echo X; '\\''b'"
+        );
+    }
+
+    /// Revision 2, MEN-5: en PowerShell la `'` se dobla (`''`) dentro de
+    /// comillas simples, que no expanden `$` ni `` ` ``; el `;` queda
+    /// dentro.
+    #[test]
+    fn comillas_para_powershell() {
+        assert_eq!(comillas("C:/r/a b", true), "'C:/r/a b'");
+        assert_eq!(
+            comillas("C:/r/a'; calc; 'b $x `y", true),
+            "'C:/r/a''; calc; ''b $x `y'"
+        );
+    }
+
+    #[test]
+    fn misma_regla_con_o_sin_barra_final() {
+        assert!(misma_linea("/tareas", "/tareas/"));
+        assert!(misma_linea("  /tareas/ ", "/tareas/"));
+        assert!(!misma_linea("/tareas-viejas/", "/tareas/"));
     }
 }

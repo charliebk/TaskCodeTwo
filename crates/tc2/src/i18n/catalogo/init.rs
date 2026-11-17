@@ -41,6 +41,10 @@ crate::i18n::textos! {
         es: "{ruta} cambio despues de hacer el plan",
         en: "{ruta} changed after the plan was made",
     }
+    AVISO_SIN_RELACION {
+        es: "aviso: la historia de este clon no tiene nada en comun con la de origin; init no propone publicar ninguna rama: decide tu si este clon es de ese remoto",
+        en: "warning: this clone's history has nothing in common with origin's; init does not suggest pushing any branch: decide yourself whether this clone belongs to that remote",
+    }
     AVISO_PERSONA {
         es: "{n} acciones las haces tu (decision=persona): cada linea trae la orden",
         en: "{n} actions are yours to do (decision=persona): each line has the command",

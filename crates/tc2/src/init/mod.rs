@@ -291,6 +291,14 @@ impl Hecho {
             );
             stderr.push('\n');
         }
+        if self
+            .acciones
+            .iter()
+            .any(|a| a.motivo.as_deref() == Some("historia-sin-relacion"))
+        {
+            stderr.push_str(&Mensaje::nuevo(&txt::AVISO_SIN_RELACION).texto(idioma));
+            stderr.push('\n');
+        }
         stderr.push_str(&fin.stderr);
         Salida {
             codigo: fin.codigo,

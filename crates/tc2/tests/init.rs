@@ -801,6 +801,79 @@ fn remoto_con_historia_no_es_repo_vacio() {
     }
 }
 
+/// Revision 2, IMP-1: clon con commits propios sin relacion con el `main`
+/// de `origin`. La rama que falta sale de `origin/main` y no se propone
+/// publicar nada (`historia-sin-relacion`, con aviso); `init` no publica
+/// historia ajena en las ramas de codigo. Con un clon de verdad (historia
+/// relacionada), la misma rama si se propone publicar.
+#[test]
+fn historia_local_sin_relacion_no_propone_publicar() {
+    let f = Fixture::nueva("init-imp1-r2");
+    let b = bare_con_rama(&f, "main");
+    let antes = ramas_de(&f, &b);
+    f.crudo(&f.raiz, &["init", "-q", "-b", "master", "repo"]);
+    let repo = f.raiz.join("repo");
+    escribir(&repo, "propio.txt", "historia local\n");
+    f.crudo(&repo, &["add", "propio.txt"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "historia local"]);
+    f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
+    let h = correr(&repo, &git_con_ssh(&f, &b), false, &sin_token);
+    let s = h.salida_en(false, Idioma::Es);
+    assert_eq!(s.codigo, 0, "{}", s.stdout);
+    let develop = h
+        .acciones
+        .iter()
+        .find(|a| a.ruta == "refs/heads/develop")
+        .unwrap();
+    assert_eq!(develop.decision, Decision::Persona);
+    assert_eq!(develop.motivo.as_deref(), Some("historia-sin-relacion"));
+    assert_eq!(
+        develop.orden.as_deref(),
+        Some("git fetch origin main && git branch develop origin/main")
+    );
+    assert!(
+        !h.acciones
+            .iter()
+            .filter_map(|a| a.orden.as_deref())
+            .any(|o| o.contains("git push")),
+        "{}",
+        s.stdout
+    );
+    assert!(
+        s.stderr.contains("nada en comun con la de origin"),
+        "{}",
+        s.stderr
+    );
+    assert_eq!(ramas_de(&f, &b), antes);
+
+    // Un clon de verdad: la misma rama, desde `origin/main` y publicada.
+    f.crudo(&f.raiz, &["clone", "-q", b.to_str().unwrap(), "clon"]);
+    let clon = f.raiz.join("clon");
+    // El HEAD del bare apunta a `develop`, que no existe: sin checkout.
+    f.crudo(&clon, &["checkout", "-q", "main"]);
+    let h = correr(&clon, &f.git(), false, &sin_token);
+    let develop = h
+        .acciones
+        .iter()
+        .find(|a| a.ruta == "refs/heads/develop")
+        .unwrap();
+    assert_eq!(
+        develop.motivo.as_deref(),
+        Some("con-historia"),
+        "{}",
+        stdout(&h)
+    );
+    assert_eq!(
+        develop.orden.as_deref(),
+        Some("git fetch origin main && git branch develop origin/main && git push origin develop")
+    );
+    assert!(
+        !h.salida_en(false, Idioma::Es)
+            .stderr
+            .contains("nada en comun")
+    );
+}
+
 /// Revision 1, MEN-1 de calidad: con historia, una linea dice que hay que
 /// versionar la configuracion y `.gitignore`; deja de salir cuando estan
 /// en un commit.
