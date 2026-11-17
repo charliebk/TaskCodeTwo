@@ -7,17 +7,34 @@
 //!   operacion; `next` y `--comparar` lo avisan). Es el generador que recibe
 //!   cada transaccion de estado ([`crate::estado::Contexto::nuevo`]): se
 //!   regenera, nunca se mergea (ADR F1-2, D2.4).
+//! - La orden `roadmap [--comparar | --escribir] [--json]` (D2): sin
+//!   opciones imprime el ROADMAP que toca sobre el estado que conoce el clon
+//!   (solo lee); `--comparar` dice si lo publicado esta al dia (`ok`) o no
+//!   (`rechazada motivo=desfasado|roadmap-roto`), sin escribir; `--escribir`
+//!   lo publica como una transaccion mas ([`Regenerar`]).
+//! - La zona manual se edita en `tareas/ROADMAP.md` y se publica con
+//!   `--escribir` (D4): si el fichero de la carpeta montada tiene cambios, se
+//!   prepara (`git add`) y su zona es la que se publica, byte a byte; tras
+//!   publicar, la carpeta se adelanta a lo publicado.
 
 pub mod generar;
 pub mod mermaid;
 pub mod zona;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::estado::{Estado, Fallo};
-use crate::git::Git;
+use crate::Salida;
+use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::estado::{self, CARPETA, Cambio, Catalogo, Estado, Fallo, Operacion, RAMA};
+use crate::git::{Git, Subcomando, correr, exigir, localizar_principal, worktrees};
+use crate::i18n::catalogo::cli as txt_cli;
+use crate::i18n::catalogo::roadmap as txt;
+use crate::i18n::{Idioma, Mensaje};
 use crate::plataforma::Personas;
-use crate::situacion;
+use crate::situacion::{self, ROADMAP, Situacion};
+
+/// Nombre de la orden.
+pub const NOMBRE: &str = "roadmap";
 
 /// Lista de personas de la base para convertir los `asignado_a` heredados
 /// (D6); sin lista, ninguna: se muestran tal cual.
@@ -34,12 +51,275 @@ pub fn generador(personas: &Personas) -> impl Fn(&dyn Estado) -> Result<String, 
 /// de por defecto), o el que hay tal cual si su zona esta rota (D3).
 pub fn de_estado(estado: &dyn Estado, personas: &Personas) -> Result<String, Fallo> {
     let s = situacion::calcular(estado)?;
+    Ok(de_situacion(&s, personas).unwrap_or_else(|| s.roadmap.clone().unwrap_or_default()))
+}
+
+/// El ROADMAP que toca para `s`, o `None` si su zona manual esta rota.
+fn de_situacion(s: &Situacion, personas: &Personas) -> Option<String> {
     let zona = match s.roadmap.as_deref().map(zona::extraer) {
         None | Some(Ok(None)) => zona::POR_DEFECTO,
         Some(Ok(Some(z))) => z,
-        Some(Err(_)) => return Ok(s.roadmap.clone().unwrap_or_default()),
+        Some(Err(_)) => return None,
     };
-    Ok(generar::generar(&s, zona, personas))
+    Some(generar::generar(s, zona, personas))
+}
+
+fn roto(donde: &str, motivo: &str) -> Fallo {
+    Fallo::rechazada(
+        "roadmap-roto",
+        Mensaje::nuevo(&txt::ZONA_ROTA)
+            .con("donde", donde)
+            .con("motivo", motivo),
+    )
+}
+
+/// `roadmap --escribir` como operacion de la rama de estado: no cambia nada
+/// salvo, si la persona edito la zona manual en `tareas/`, el `ROADMAP.md`
+/// con esa zona; el generador de la transaccion hace el resto. Exige red
+/// (D2b de F1-2): sin red no queda pendiente.
+#[derive(Debug, Clone, Default)]
+pub struct Regenerar {
+    /// `tareas/ROADMAP.md` preparado por la persona, con su zona valida.
+    editado: Option<String>,
+}
+
+impl Regenerar {
+    /// Sin edicion de la persona.
+    pub fn nueva() -> Self {
+        Self::default()
+    }
+
+    /// Con el `ROADMAP.md` editado por la persona (su zona ya validada).
+    pub fn con_editado(texto: String) -> Self {
+        Self {
+            editado: Some(texto),
+        }
+    }
+}
+
+impl Operacion for Regenerar {
+    fn nombre(&self) -> &str {
+        NOMBRE
+    }
+    fn anotacion(&self) -> String {
+        format!("{NOMBRE}|escribir")
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        let actual = e.leer(ROADMAP)?;
+        match &self.editado {
+            Some(t) if actual.as_deref() == Some(t.as_str()) => Ok(Vec::new()),
+            Some(t) => Ok(vec![Cambio::nuevo(ROADMAP, t.clone())]),
+            None => match actual.as_deref().map(zona::extraer) {
+                Some(Err(r)) => Err(roto(ROADMAP, r.motivo())),
+                _ => Ok(Vec::new()),
+            },
+        }
+    }
+}
+
+/// Reconstruye [`Regenerar`] desde su anotacion (nunca queda pendiente:
+/// exige red).
+pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
+    (a == format!("{NOMBRE}|escribir")).then(|| Box::new(Regenerar::nueva()) as Box<dyn Operacion>)
+}
+
+/// Que hace la orden.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Modo {
+    /// Imprimir el ROADMAP que toca (solo lee).
+    Imprimir,
+    /// Decir si lo publicado esta al dia (solo lee).
+    Comparar,
+    /// Publicarlo.
+    Escribir,
+}
+
+/// `roadmap [--comparar | --escribir]` (sin `--json`, que quita `lib.rs`)
+/// en la carpeta actual; `catalogo` re-ejecuta las pendientes.
+pub fn orden(args: &[String], json: bool, idioma: Idioma, catalogo: Catalogo<'_>) -> Salida {
+    let modo = match args {
+        [] => Modo::Imprimir,
+        [a] if a == "--comparar" => Modo::Comparar,
+        [a] if a == "--escribir" => Modo::Escribir,
+        _ => {
+            return Informe::nuevo(NOMBRE, Resultado::Uso)
+                .con("motivo", "argumentos")
+                .diagnostico(&txt::USO_ROADMAP)
+                .salida_en(json, idioma);
+        }
+    };
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt_cli::CARPETA_ACTUAL).con("error", e.to_string()))
+                .salida_en(json, idioma);
+        }
+    };
+    let g = Git::nuevo();
+    match modo {
+        Modo::Imprimir => match imprimir_en(&g, &dir) {
+            Ok((texto, _)) if !json => Salida {
+                codigo: 0,
+                stdout: texto,
+                stderr: String::new(),
+            },
+            Ok((texto, commit)) => Informe::nuevo(NOMBRE, Resultado::Ok)
+                .con("commit", commit)
+                .con("texto", texto)
+                .salida_en(true, idioma),
+            Err(i) => i.salida_en(json, idioma),
+        },
+        Modo::Comparar => comparar_en(&g, &dir).salida_en(json, idioma),
+        Modo::Escribir => escribir_en(&g, &dir, catalogo).salida_en(json, idioma),
+    }
+}
+
+fn renombrado(mut i: Informe) -> Informe {
+    NOMBRE.clone_into(&mut i.comando);
+    i
+}
+
+fn de_fallo(f: Fallo) -> Informe {
+    match f {
+        Fallo::Rechazada {
+            motivo,
+            diagnostico,
+        } => Informe::nuevo(NOMBRE, Resultado::Rechazada)
+            .con("motivo", motivo)
+            .diagnostico(diagnostico),
+        Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
+    }
+}
+
+/// La situacion del estado que conoce el clon (sin `fetch`) y su commit.
+fn situacion_en(g: &Git, dir: &Path) -> Result<(Situacion, String), Informe> {
+    let vista = estado::leer(g, dir).map_err(renombrado)?;
+    let commit = vista.commit().map(corto).unwrap_or_default();
+    let s = situacion::calcular(&vista).map_err(de_fallo)?;
+    Ok((s, commit))
+}
+
+/// El ROADMAP que toca sobre el estado que conoce el clon, y el commit de
+/// ese estado. Con la zona rota, `rechazada motivo=roadmap-roto`.
+pub fn imprimir_en(g: &Git, dir: &Path) -> Result<(String, String), Informe> {
+    let (s, commit) = situacion_en(g, dir)?;
+    match de_situacion(&s, &personas(g, dir)) {
+        Some(t) => Ok((t, commit)),
+        None => Err(zona_rota(&s, &commit)),
+    }
+}
+
+fn zona_rota(s: &Situacion, commit: &str) -> Informe {
+    let motivo = s.roadmap_roto().map_or("", zona::Rota::motivo);
+    de_fallo(roto(ROADMAP, motivo))
+        .con("roto", motivo)
+        .con("commit", commit)
+}
+
+/// `--comparar`: `ok` si el `ROADMAP.md` publicado es el que toca;
+/// `rechazada motivo=desfasado` si no; `rechazada motivo=roadmap-roto` si
+/// su zona esta rota (D3). No escribe nada.
+pub fn comparar_en(g: &Git, dir: &Path) -> Informe {
+    let (s, commit) = match situacion_en(g, dir) {
+        Ok(x) => x,
+        Err(i) => return i,
+    };
+    match de_situacion(&s, &personas(g, dir)) {
+        None => zona_rota(&s, &commit),
+        Some(t) if s.roadmap.as_deref() == Some(t.as_str()) => {
+            Informe::nuevo(NOMBRE, Resultado::Ok).con("commit", commit)
+        }
+        Some(_) => Informe::nuevo(NOMBRE, Resultado::Rechazada)
+            .con("motivo", "desfasado")
+            .con("commit", commit)
+            .diagnostico(&txt::DESFASADO),
+    }
+}
+
+/// `tareas/` montada (la carpeta del worktree de la rama de estado).
+fn carpeta_montada(g: &Git, dir: &Path) -> Result<Option<PathBuf>, Informe> {
+    let principal = localizar_principal(g, dir).map_err(renombrado)?;
+    Ok(worktrees(g, &principal, NOMBRE)?
+        .into_iter()
+        .find(|w| w.rama.as_deref() == Some(RAMA) && w.ruta.exists())
+        .map(|w| w.ruta))
+}
+
+/// Si `tareas/ROADMAP.md` tiene cambios, los prepara y devuelve lo
+/// preparado (normalizado como lo guardaria git), con su zona validada.
+fn editado_en(g: &Git, carpeta: &Path) -> Result<Option<String>, Informe> {
+    let s = exigir(
+        g,
+        carpeta,
+        NOMBRE,
+        Subcomando::Status,
+        &["--porcelain", "--", ROADMAP],
+    )?;
+    if s.trim().is_empty() {
+        return Ok(None);
+    }
+    exigir(g, carpeta, NOMBRE, Subcomando::Add, &["--", ROADMAP])?;
+    let texto = crate::git::estado::leer_blob(g, carpeta, NOMBRE, "", ROADMAP)?;
+    let donde = format!("{CARPETA}/{ROADMAP}");
+    match zona::extraer(&texto) {
+        Ok(Some(_)) => Ok(Some(texto)),
+        Ok(None) => Err(de_fallo(roto(&donde, "sin-zona")).con("roto", "sin-zona")),
+        Err(r) => Err(de_fallo(roto(&donde, r.motivo())).con("roto", r.motivo())),
+    }
+}
+
+/// `--escribir`: publica el ROADMAP que toca como una transaccion (D1).
+pub fn escribir_en(g: &Git, dir: &Path, catalogo: Catalogo<'_>) -> Informe {
+    let carpeta = match carpeta_montada(g, dir) {
+        Ok(c) => c,
+        Err(i) => return renombrado(i),
+    };
+    let editado = match carpeta.as_deref().map(|c| editado_en(g, c)).transpose() {
+        Ok(e) => e.flatten(),
+        Err(i) => return renombrado(i),
+    };
+    let op = match &editado {
+        Some(t) => Regenerar::con_editado(t.clone()),
+        None => Regenerar::nueva(),
+    };
+    let personas = personas(g, dir);
+    let generar = generador(&personas);
+    let c = estado::Contexto::nuevo(g, dir, catalogo, Some(&generar));
+    let mut i = renombrado(estado::transaccion(&c, &op));
+    if editado.is_some()
+        && i.resultado == Resultado::Ok
+        && i.valor("tareas") == Some("con-cambios")
+        && let (Some(carpeta), Some(commit)) = (carpeta, i.valor("commit").map(str::to_owned))
+        && adelantar_editada(g, &carpeta, &commit)
+        && let Some(v) = i.claves.iter_mut().find(|(k, _)| k == "tareas")
+    {
+        v.1 = Valor::Texto("al-dia".to_owned());
+    }
+    i
+}
+
+/// Tras publicar la zona editada, deja `tareas/ROADMAP.md` como lo
+/// publicado (que lleva esa zona byte a byte), lo prepara y adelanta la
+/// carpeta: sin esto, el cambio ya publicado la dejaria atascada. Si algo
+/// falla, la carpeta queda como estaba (con `tareas=con-cambios`).
+fn adelantar_editada(g: &Git, carpeta: &Path, commit: &str) -> bool {
+    let Ok(publicado) = crate::git::estado::leer_blob(g, carpeta, NOMBRE, commit, ROADMAP) else {
+        return false;
+    };
+    std::fs::write(carpeta.join(ROADMAP), publicado.as_bytes()).is_ok()
+        && exigir(g, carpeta, NOMBRE, Subcomando::Add, &["--", ROADMAP]).is_ok()
+        && correr(
+            g,
+            carpeta,
+            NOMBRE,
+            Subcomando::Merge,
+            &["-q", "--ff-only", commit],
+        )
+        .is_ok_and(|s| s.exito())
 }
 
 #[cfg(test)]

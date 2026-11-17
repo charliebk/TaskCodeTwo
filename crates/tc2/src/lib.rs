@@ -14,7 +14,8 @@
 //! [`instalacion`] (donde vive el `tc2` de la
 //! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14) e
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
-//! [`siguiente`] (orden de trabajo y `next`, F3-3). Las capas
+//! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
+//! [`roadmap`] (el calculo comun y `roadmap`, F3-4). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -114,6 +115,10 @@ where
         [orden, resto @ ..] if orden == siguiente::NOMBRE => {
             let (json, resto) = con_json(resto);
             siguiente::orden(&resto).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == roadmap::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            roadmap::orden(&resto, json, idioma, &catalogo)
         }
         [orden, resto @ ..] if orden == version::VERSION => {
             let (json, resto) = con_json(resto);
@@ -269,7 +274,7 @@ fn orden_identidad(args: &[String]) -> Informe {
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado
 /// desde su anotacion. Las operaciones nuevas se anaden aqui.
 fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
-    alta::desde_anotacion(anotacion)
+    alta::desde_anotacion(anotacion).or_else(|| roadmap::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
