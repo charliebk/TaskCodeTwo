@@ -134,7 +134,7 @@ mod tests {
         let mut m = BTreeMap::new();
         m.insert(
             "TASK-001/tarea.md".into(),
-            tarea("TASK-001", 0, "planificada", &[]),
+            tarea("TASK-001", 1, "planificada", &[]),
         );
         m.insert("TASK-002/tarea.md".into(), "---\nid: roto\n".into());
         m.insert("TASK-003/plan.md".into(), "no es un tarea.md".into());
@@ -143,8 +143,9 @@ mod tests {
         let Ok(c) = c else { return };
         assert_eq!(
             c.informe("0123456789ab").linea(),
-            // Sin ROADMAP.md, el hito va por su numero y se avisa.
-            "next ok listas=TASK-001 en-marcha= commit=0123456789ab ilegibles=TASK-002 hitos-sin-titulo=H0"
+            // Sin ROADMAP.md vale la zona por defecto, que solo declara H0:
+            // H1 va por su numero y se avisa.
+            "next ok listas=TASK-001 en-marcha= commit=0123456789ab ilegibles=TASK-002 hitos-sin-titulo=H1"
         );
     }
 

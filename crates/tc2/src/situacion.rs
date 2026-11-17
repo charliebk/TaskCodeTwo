@@ -91,10 +91,12 @@ pub fn calcular(estado: &dyn Estado) -> Result<Situacion, Fallo> {
     // Detras de las legibles: si un ID se repite, vale la legible. Una
     // ilegible bloquea a quien dependa de ella.
     nodos.extend(ilegibles.iter().map(|id| Nodo::ilegible(id)));
-    let hitos = roadmap
-        .as_deref()
-        .map(Hitos::del_roadmap)
-        .unwrap_or_default();
+    // Sin ROADMAP o sin zona, la de por defecto: es la que llevara el que se
+    // genere, y asi el primero ya esta al dia (`--comparar`).
+    let hitos = match roadmap.as_deref() {
+        Some(t) if zona::extraer(t) != Ok(None) => Hitos::del_roadmap(t),
+        _ => Hitos::del_roadmap(zona::POR_DEFECTO),
+    };
     let orden = grafo::orden_de_trabajo(&nodos, &hitos);
     Ok(Situacion {
         listas: grafo::listas(&orden, &nodos),
