@@ -531,6 +531,58 @@ fn c6_rama_del_id_en_el_remoto_sin_dueno_es_ocupada() {
     assert!(!worktree(&a, "TASK-001").exists());
 }
 
+/// MENOR-1 de la ronda 1: con la carpeta del worktree ocupada por otra cosa,
+/// 3 `motivo=carpeta-ocupada` antes de publicar la toma: sin `estado=`, la
+/// tarea sigue sin asignar en el remoto y no hay rama.
+#[test]
+fn carpeta_del_worktree_ocupada_no_publica_la_toma() {
+    let f = Fixture::nueva("toma-carpeta");
+    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    escribir(&worktree(&a, "TASK-001"), "basura.txt", "basura\n");
+    let antes = f.huella(&bare, &a);
+    let punta = punta_estado(&f, &bare);
+    let (c, out) = start(&f, &a, "TASK-001");
+    assert_eq!(c, Some(3), "{out}");
+    assert!(out.starts_with("start rechazada id=TASK-001 "), "{out}");
+    assert_eq!(valor(&out, "motivo"), Some("carpeta-ocupada"), "{out}");
+    assert_eq!(valor(&out, "estado"), None, "{out}");
+    assert_eq!(f.huella(&bare, &a), antes);
+    assert_eq!(punta_estado(&f, &bare), punta);
+    let md = publicado(&f, &bare, "TASK-001");
+    assert!(md.contains("\nasignado_a: null\n"), "{md}");
+    assert!(md.contains("\nestado: \"planificada\"\n"), "{md}");
+    assert_eq!(ramas_del_id(&f, &a, "TASK-001").trim(), "");
+    assert!(worktree(&a, "TASK-001").join("basura.txt").is_file());
+    // Libre la carpeta, la toma sale.
+    std::fs::remove_dir_all(worktree(&a, "TASK-001")).unwrap();
+    let (c, out) = start(&f, &a, "TASK-001");
+    assert_eq!(c, Some(0), "{out}");
+}
+
+/// M2 de la ronda 1: una `rama:` publicada que no es de la tarea da 3
+/// `motivo=rama-invalida` sin escribir nada.
+#[test]
+fn rama_mal_formada_es_rama_invalida() {
+    let f = Fixture::nueva("toma-rama");
+    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    editar(
+        &f,
+        &a,
+        "TASK-001",
+        "rama: \"feature/task-001-primera\"",
+        "rama: \"feature/task-002-de-otra\"",
+    );
+    let antes = f.huella(&bare, &a);
+    let (c, out) = start(&f, &a, "TASK-001");
+    assert_eq!(c, Some(3), "{out}");
+    assert_eq!(valor(&out, "motivo"), Some("rama-invalida"), "{out}");
+    assert_eq!(valor(&out, "estado"), None, "{out}");
+    assert_eq!(f.huella(&bare, &a), antes);
+    assert!(publicado(&f, &bare, "TASK-001").contains("\nasignado_a: null\n"));
+    assert_eq!(ramas_del_id(&f, &a, "TASK-001").trim(), "");
+    assert!(!worktree(&a, "TASK-001").exists());
+}
+
 /// C7: tras `ok`, el `tarea.md` publicado cambia solo en estado, asignado,
 /// actualizado y una fila de transicion; `ROADMAP.md` la pone en marcha; la
 /// rama sale de la punta de `origin/develop` sin upstream; el worktree en
@@ -542,6 +594,9 @@ fn c7_lo_publicado_la_rama_y_el_worktree() {
     let antes = publicado(&f, &bare, "TASK-001");
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
+    // La primera toma crea rama y worktree, pero no lo dice con `creado=`
+    // (eso es de reanudar).
+    assert!(valor(&out, "creado").is_none(), "{out}");
     let rama = "feature/task-001-primera";
     let despues = publicado(&f, &bare, "TASK-001");
     let hoy = tc2::toma::instante(tc2::identidad::ahora());
@@ -709,8 +764,20 @@ fn d4_hotfix_desde_el_ultimo_tag_y_release_rechazada() {
     f.crudo(&prep, &["tag", "-a", "v0.10.0", "-m", "v0.10.0"]);
     f.crudo(&prep, &["commit", "-q", "--allow-empty", "-m", "dos"]);
     f.crudo(&prep, &["push", "-q", "--follow-tags", "origin", "main"]);
+    // Un tag mas nuevo en una rama que no esta fusionada en main no cuenta
+    // (I1 de la ronda 1): gana el ultimo tag contenido en origin/main.
+    f.crudo(&prep, &["checkout", "-q", "-b", "sin-fusionar"]);
+    f.crudo(&prep, &["commit", "-q", "--allow-empty", "-m", "fuera"]);
+    f.crudo(&prep, &["tag", "-a", "v1.0.0", "-m", "v1.0.0"]);
+    f.crudo(&prep, &["push", "-q", "origin", "sin-fusionar", "v1.0.0"]);
+    f.crudo(&prep, &["checkout", "-q", "main"]);
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
+    // El tag de fuera llego al clon: si no, la prueba no distinguiria nada.
+    assert_ne!(
+        f.crudo(&a, &["rev-parse", "v1.0.0^{commit}"]),
+        f.crudo(&a, &["rev-parse", "v0.10.0^{commit}"])
+    );
     assert_eq!(
         f.crudo(&a, &["rev-parse", "hotfix/task-001-parche"]),
         f.crudo(&a, &["rev-parse", "v0.10.0^{commit}"])

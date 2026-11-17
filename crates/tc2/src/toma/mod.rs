@@ -17,7 +17,8 @@
 //! esperar al push); la base valida (`origin/develop`, o para `hotfix` el
 //! ultimo tag de `origin/main` o su punta, D4; `release` se rechaza);
 //! `comprobar-id` (una rama `*/task-nnn-*` que no es de quien la lanza,
-//! `ocupada`); la transaccion; la rama y el worktree.
+//! `ocupada`); la carpeta del worktree libre (`carpeta-ocupada`); la
+//! transaccion; la rama y el worktree.
 //!
 //! Lanzada desde un worktree de tarea escribe el estado en el principal (lo
 //! localiza la transaccion) y crea el worktree junto al principal.
@@ -173,6 +174,9 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     if !c.resultado.es_exito() {
         return Err(c);
     }
+    // 5b. La carpeta del worktree, libre: si no, la toma quedaria publicada
+    // sin poder crear el worktree.
+    carpeta_libre(g, &principal, id, &rama)?;
     // 6. La toma, por el punto unico de escritura.
     let personas = crate::roadmap::personas(g, e.dir);
     let generar = crate::roadmap::generador(&personas);
@@ -226,6 +230,28 @@ fn base_de(g: &Git, principal: &Path, id: &str, rama: &str) -> Result<String, In
         .map(str::trim)
         .find(|t| !t.is_empty())
         .map_or_else(|| MAIN.to_owned(), str::to_owned))
+}
+
+/// La carpeta `.taskcodetwo/worktrees/TASK-NNN` no existe o es el worktree
+/// registrado de `rama`; si la ocupa otra cosa, `rechazada
+/// motivo=carpeta-ocupada` antes de escribir estado.
+fn carpeta_libre(g: &Git, principal: &Path, id: &str, rama: &str) -> Result<(), Informe> {
+    let wt = principal.join(git::CARPETA_WORKTREES).join(id);
+    if !wt.exists() {
+        return Ok(());
+    }
+    let registrado = git::worktrees(g, principal, NOMBRE)?
+        .iter()
+        .any(|w| w.rama.as_deref() == Some(rama) && git::misma_ruta(&w.ruta, &wt));
+    if registrado {
+        return Ok(());
+    }
+    Err(rechazada(
+        "carpeta-ocupada",
+        Mensaje::nuevo(&crate::i18n::catalogo::git::CARPETA_OCUPADA)
+            .con("ruta", git::worktree_relativo(id)),
+    )
+    .con("rama", rama))
 }
 
 /// La rama y el worktree de la tarea.
