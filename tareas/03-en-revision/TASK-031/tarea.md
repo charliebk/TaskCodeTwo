@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: feature/task-031-f3-4-roadmap-la-vista-para-todos
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 30477346
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -84,3 +84,11 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 | 2026-11-17T06:49:37Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T06:54:06Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T06:54:07Z | start | automatico | persona | 0.16.1 |
+| 2026-11-17T07:34:02Z | review | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-17T07:34:02Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 16 | 14813 | 4509759 | 2246 | 0 | 4526834 | - | - |
+| 2026-11-17T07:34:02Z | implementacion | agente:aaa954d4d28d87f09 | 242 | 317775 | 25506272 | 126223 | 21 | 25950512 | - | - |
