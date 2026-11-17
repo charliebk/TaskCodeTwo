@@ -31,18 +31,18 @@ Tarea F3-10 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3
 Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas debe estar garantizado: todos saben qué tarea tiene cada uno y no se pueden pisar ni los nombres ni las tareas. Además de lo ya previsto (IDs por push atómico, toma atómica en start, roadmap con quién lleva cada tarea, status), se cierran los huecos: nombres de rama y títulos únicos, identidad real de la plataforma (no texto libre), liberar y reasignar tareas abandonadas, aviso de solape de ficheros entre tareas en curso y estado siempre fresco con hora de sincronización. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 ter.
 
 ## Criterios de aceptacion
-- [ ] C1: quien lleva una tarea `en-curso` lanza `tc2 liberar TASK-NNN`: se publica `estado: planificada`, `asignado_a: null` y la fila `liberar`, con `rama:` y `plan_aprobado` sin cambios y el resto del `tarea.md` byte a byte; `ROADMAP.md` del mismo commit; codigo 0 con `asignado-anterior=`; la rama local y la remota siguen en el mismo commit
-- [ ] C2: tras C1, otra persona en otro clon hace `tc2 start TASK-NNN` y sale `ok` (no `ocupada`); su rama local apunta a la punta de `origin/<rama>` con los commits del dueno anterior en su historia y el worktree en `.taskcodetwo/worktrees/TASK-NNN`
-- [ ] C3: `tc2 reasignar TASK-NNN beto` con `beto` en `personas.yml` solo cambia `asignado_a` a `{id, login}` de la lista y anade la fila `reasignar`, sin cambiar el estado; `beto` hace `start` y obtiene la rama existente sin perder commits
-- [ ] C4: reasignar a un login que no esta en `personas.yml`, mal escrito o bot da 3 `motivo=fuera-de-lista` sin commit en `taskcodetwo/tareas`
-- [ ] C5: tarea de otra persona con actividad hace menos de N dias: `liberar` y `reasignar` dan 3 `motivo=activa dias=K umbral=N` sin escribir; con N dias o mas (filas y commit de la rama envejecidos) proceden
-- [ ] C6: lanzado sin terminal (agente) sobre una tarea de otra persona da `motivo=requiere-persona` aunque haya pasado N; sobre una tarea propia procede
-- [ ] C7: sin red `liberar` y `reasignar` dan 4 `sinred pendiente=no` sin commit ni ref en `refs/taskcodetwo/pendientes/`
-- [ ] C8: el dueno con commits sin publicar o cambios sin guardar en el worktree recibe `motivo=sin-publicar` antes de la transaccion con el estado intacto; publicado y limpio sale `worktree=quitado` y la rama sigue
-- [ ] C9: `status` muestra `inactivas=1` cuando una tarea en curso supera N dias y `board` marca su fila; un commit reciente en `origin/<rama>` evita la marca aunque la ultima fila sea antigua
-- [ ] C10: en el clon del dueno anterior, `status` avisa `ya-no-tuyas=TASK-NNN` con quien la lleva ahora, codigo 0
-- [ ] C11: `liberar` de `terminada`, `descartada` o `en-revision` da su rechazo por estado; repetir `liberar` sobre una ya libre da `sin-cambios`
-- [ ] C12: una tarea con `asignado_a` heredado de la 0.16 se reasigna a una persona de la lista y queda como objeto `{id, login}`
+- [x] C1: quien lleva una tarea `en-curso` lanza `tc2 liberar TASK-NNN`: se publica `estado: planificada`, `asignado_a: null` y la fila `liberar`, con `rama:` y `plan_aprobado` sin cambios y el resto del `tarea.md` byte a byte; `ROADMAP.md` del mismo commit; codigo 0 con `asignado-anterior=`; la rama local y la remota siguen en el mismo commit
+- [x] C2: tras C1, otra persona en otro clon hace `tc2 start TASK-NNN` y sale `ok` (no `ocupada`); su rama local apunta a la punta de `origin/<rama>` con los commits del dueno anterior en su historia y el worktree en `.taskcodetwo/worktrees/TASK-NNN`
+- [x] C3: `tc2 reasignar TASK-NNN beto` con `beto` en `personas.yml` solo cambia `asignado_a` a `{id, login}` de la lista y anade la fila `reasignar`, sin cambiar el estado; `beto` hace `start` y obtiene la rama existente sin perder commits
+- [x] C4: reasignar a un login que no esta en `personas.yml`, mal escrito o bot da 3 `motivo=fuera-de-lista` sin commit en `taskcodetwo/tareas`
+- [x] C5: tarea de otra persona con actividad hace menos de N dias: `liberar` y `reasignar` dan 3 `motivo=activa dias=K umbral=N` sin escribir; con N dias o mas (filas y commit de la rama envejecidos) proceden
+- [x] C6: lanzado sin terminal (agente) sobre una tarea de otra persona da `motivo=requiere-persona` aunque haya pasado N; sobre una tarea propia procede
+- [x] C7: sin red `liberar` y `reasignar` dan 4 `sinred pendiente=no` sin commit ni ref en `refs/taskcodetwo/pendientes/`
+- [x] C8: el dueno con commits sin publicar o cambios sin guardar en el worktree recibe `motivo=sin-publicar` antes de la transaccion con el estado intacto; publicado y limpio sale `worktree=quitado` y la rama sigue
+- [x] C9: `status` muestra `inactivas=1` cuando una tarea en curso lleva N dias o mas sin actividad y `board` marca su fila; un commit reciente en `origin/<rama>` evita la marca aunque la ultima fila sea antigua
+- [x] C10: en el clon del dueno anterior, `status` avisa `ya-no-tuyas=TASK-NNN` con quien la lleva ahora, codigo 0
+- [x] C11: `liberar` de `terminada`, `descartada` o `en-revision` da su rechazo por estado; repetir `liberar` sobre una ya libre da `sin-cambios`
+- [x] C12: una tarea con `asignado_a` heredado de la 0.16 se reasigna a una persona de la lista y queda como objeto `{id, login}`
 
 ## Autorrevision
 
@@ -72,6 +72,18 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
   rama, sin `sin-publicar`, `por_login` acepta cualquiera, `ya_no_tuyas`
   invertido, `inactivas` sin commit de la rama.
 - Verificacion propia: `--test liberar --test tablero` 18 de 18.
+
+## Resultado
+
+Hecho: `tc2 liberar [--json] TASK-NNN` y `tc2 reasignar [--json] TASK-NNN <login>` (modulo `ciclo/liberar.rs`, forma de `descartar`: `fetch` completo, identidad, comprobaciones previas, transaccion con ROADMAP en el mismo commit, worktree quitado solo si esta publicado; la rama nunca se toca). `liberar` devuelve `en-curso` a `planificada` (y quita el asignado de `planificada`/`en-diseno`), conserva `rama` y `plan_aprobado`; `reasignar` cambia solo el asignado a una persona de `personas.yml` (fuera de la lista: `fuera-de-lista`). El dueno libera o reasigna siempre; otra persona solo con N dias o mas sin actividad (maximo de la ultima fila de Transiciones y del ultimo commit de `origin/<rama>`) y con terminal; el agente nunca quita una tarea; un heredado de la 0.16 lo reasigna cualquier persona verificada. `start` acepta la rama propia de la tarea (`comprobar_id_salvo`) y la retoma sin perder commits; una rama ajena sigue dando `ocupada`. `status`/`board` avisan `inactivas=N` y `ya-no-tuyas=TASK-NNN` al dueno anterior. Clave `dias_sin_actividad` (1-365, defecto 7; configuracion invalida se rechaza en `liberar`/`reasignar` y no marca inactivas en `status`/`board`), `TOPE_CLAVES` 13. Adendas en F1-2, F1-3, F1-9 y F1-11 y nota en el plan (F2-7). D1a-D6a. `cargo xtask verificar --perfil rapida` en verde.
+
+No verificado: plataforma real (sin aviso por PR, D5a); carrera real entre dos clones (sin test concurrente; la transaccion reejecuta sobre el estado fresco). «Sin perder su trabajo» solo vale para lo publicado.
+
+Revision ronda 1: aprobada por los dos, sin CRITICOS ni IMPORTANTES. Siete MENORES corregidos en 2c41d54, 8605feb y 5663e3c y verificados con `verificar-menores`: H1 test de rama propia frente a ajenas del mismo slug o tipo; H2 actividad con fecha mas de un dia en el futuro se trata como desconocida; M-1 borde `d == umbral`; M-2 reasignarse a si misma no toca su worktree; M-3 regla D2a en una sola funcion (`actividad_conocida`) usada por `liberar` y `tablero`; M-4 configuracion invalida ya no cae en silencio a 7 (lector renombrado `umbral_de_inactividad`); M-5 nota del tope 13 en el plan. Redaccion de C9 alineada («N dias o mas»).
+
+Pendiente fuera de esta tarea: `situacion::actividad` quedo sin usos fuera de sus tests y su comentario dice que una fecha futura cuenta como de hoy; quitarla exige tocar `situacion.rs`, que ningun MENOR citaba, y pasa a una tarea de seguimiento.
+
+Incidencias de proceso: el primer commit de la implementacion salio con un mensaje ajeno y se corrigio con `--amend` antes de publicar; durante el cierre el orquestador cambio por error a `develop` con el arbol limpio y volvio a la rama sin perdida.
 
 ## Transiciones
 
