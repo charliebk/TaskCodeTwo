@@ -13,7 +13,8 @@
 //! deja en un repo, F1-12 D1a) e [`init`] (deja un repo listo, F3-1) e
 //! [`instalacion`] (donde vive el `tc2` de la
 //! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14) e
-//! [`importar`] (alta en bloque con dependencias e hito, F3-2). Las capas
+//! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
+//! [`siguiente`] (orden de trabajo y `next`, F3-3). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -25,6 +26,7 @@ pub mod descarga;
 pub mod desinstalar;
 pub mod estado;
 pub mod git;
+pub mod grafo;
 pub mod huella;
 pub mod i18n;
 pub mod identidad;
@@ -32,6 +34,7 @@ pub mod importar;
 pub mod init;
 pub mod instalacion;
 pub mod plataforma;
+pub mod siguiente;
 pub mod tarea;
 pub mod version;
 mod yaml;
@@ -105,6 +108,10 @@ where
             let mut parecidas = Vec::new();
             let s = importar::orden(&resto, &catalogo, &mut parecidas).salida_en(json, idioma);
             con_aviso(s, &parecidas, idioma)
+        }
+        [orden, resto @ ..] if orden == siguiente::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            siguiente::orden(&resto).salida_en(json, idioma)
         }
         [orden, resto @ ..] if orden == version::VERSION => {
             let (json, resto) = con_json(resto);

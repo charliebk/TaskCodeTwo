@@ -12,6 +12,7 @@ pub mod identidad;
 pub mod importar;
 pub mod init;
 pub mod plataforma;
+pub mod siguiente;
 
 use super::Texto;
 
@@ -29,6 +30,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         importar::TODOS,
         init::TODOS,
         plataforma::TODOS,
+        siguiente::TODOS,
     ]
     .into_iter()
     .flatten()

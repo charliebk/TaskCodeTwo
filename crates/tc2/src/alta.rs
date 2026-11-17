@@ -450,15 +450,14 @@ fn es_tarea_md(ruta: &str) -> bool {
 }
 
 /// Las tareas de formato 2 del estado, en orden de ruta, leidas en un solo
-/// proceso (F2-4b). Los `tarea.md` que no se leen o son de formato 1 se
-/// saltan sin fallar.
+/// proceso (F2-4b) con [`crate::estado::tareas`]. Los `tarea.md` que no se
+/// leen o son de formato 1 se saltan sin fallar, y las carpetas con sufijo
+/// no cuentan aqui (filtro de siempre del alta).
 pub(crate) fn tareas(estado: &dyn Estado, rutas: &[String]) -> Result<Vec<Tarea>, Fallo> {
     let mds: Vec<String> = rutas.iter().filter(|r| es_tarea_md(r)).cloned().collect();
-    Ok(estado
-        .leer_varios(&mds)?
+    Ok(crate::estado::tareas(estado, &mds)?
         .into_iter()
-        .flatten()
-        .filter_map(|md| match crate::tarea::leer(&md) {
+        .filter_map(|(_, d)| match d {
             Ok(Documento::Formato2(t, _)) => Some(t),
             _ => None,
         })

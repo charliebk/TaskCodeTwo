@@ -1,0 +1,406 @@
+# ToolsaWeb 1fc94425964a5d33b5e2c3c4c39691dbd580c641: generado de scripts/grafo-tareas.py (cargar, titulos_de_hitos, ROADMAP.md)
+# id	sprint	estado	descartada	dependencias
+TASK-001	0	terminada	no	
+TASK-002	0	terminada	no	
+TASK-003	0	terminada	no	
+TASK-004	0	terminada	no	
+TASK-005	6	terminada	no	
+TASK-006	1	planificada	si	
+TASK-007	1	terminada	no	TASK-068
+TASK-008	0	terminada	no	
+TASK-009	12	planificada	no	TASK-041,TASK-080,TASK-224
+TASK-010	9	planificada	si	TASK-081,TASK-225
+TASK-011	9	planificada	no	TASK-081,TASK-225
+TASK-012	0	terminada	no	TASK-008
+TASK-013	6	terminada	no	TASK-081
+TASK-014	0	terminada	no	
+TASK-015	0	terminada	no	TASK-014,TASK-002
+TASK-016	0	terminada	no	
+TASK-017	1	terminada	no	TASK-007
+TASK-018	6	terminada	no	TASK-013
+TASK-019	6	terminada	no	TASK-013
+TASK-020	6	terminada	no	TASK-013,TASK-068
+TASK-021	6	terminada	no	TASK-013,TASK-070
+TASK-022	6	terminada	no	TASK-018,TASK-019,TASK-072,TASK-007
+TASK-023	6	terminada	no	TASK-013,TASK-068
+TASK-024	7	planificada	no	TASK-021
+TASK-025	7	planificada	no	TASK-024
+TASK-026	7	planificada	no	TASK-025
+TASK-027	7	planificada	no	TASK-024,TASK-007
+TASK-028	7	planificada	no	TASK-025,TASK-026,TASK-027
+TASK-029	7	planificada	no	TASK-028
+TASK-030	3	planificada	si	
+TASK-031	3	planificada	si	
+TASK-032	5	terminada	no	TASK-033,TASK-017,TASK-064
+TASK-033	5	terminada	no	TASK-068
+TASK-034	5	terminada	no	TASK-033,TASK-017
+TASK-035	5	terminada	no	TASK-033
+TASK-036	7	planificada	no	TASK-033,TASK-025,TASK-222
+TASK-037	7	planificada	no	TASK-024,TASK-072,TASK-076,TASK-080
+TASK-038	5	terminada	no	TASK-033,TASK-072
+TASK-039	8	planificada	no	TASK-101,TASK-064
+TASK-040	8	planificada	no	TASK-101
+TASK-041	8	planificada	no	TASK-101,TASK-064
+TASK-042	8	terminada	no	TASK-101,TASK-078,TASK-080
+TASK-043	11	planificada	no	TASK-076,TASK-033
+TASK-044	11	planificada	no	TASK-058,TASK-076
+TASK-045	12	planificada	no	TASK-009,TASK-224
+TASK-046	8	planificada	no	TASK-080,TASK-072,TASK-189,TASK-223
+TASK-047	9	planificada	no	TASK-273,TASK-225,TASK-223,TASK-258
+TASK-048	10	planificada	no	TASK-081,TASK-076
+TASK-049	9	planificada	no	TASK-011,TASK-080,TASK-224
+TASK-050	11	planificada	no	TASK-048,TASK-191
+TASK-051	11	planificada	no	TASK-043,TASK-007
+TASK-052	11	planificada	no	TASK-017
+TASK-053	11	planificada	no	TASK-044,TASK-081,TASK-215
+TASK-054	6	planificada	si	
+TASK-055	6	planificada	si	
+TASK-056	9	planificada	si	TASK-038,TASK-081,TASK-224
+TASK-057	0	terminada	no	TASK-015
+TASK-058	2	terminada	no	TASK-070
+TASK-059	10	planificada	no	TASK-048,TASK-058,TASK-076
+TASK-060	0	terminada	no	
+TASK-061	0	terminada	no	TASK-063,TASK-085
+TASK-062	0	terminada	no	
+TASK-063	0	terminada	no	TASK-060
+TASK-064	0	terminada	no	
+TASK-065	0	terminada	no	TASK-061,TASK-063
+TASK-066	0	terminada	no	TASK-065
+TASK-067	1	terminada	no	TASK-065,TASK-066
+TASK-068	1	terminada	no	TASK-067
+TASK-069	1	terminada	no	TASK-068
+TASK-070	2	terminada	no	TASK-069
+TASK-071	2	terminada	no	TASK-058,TASK-090
+TASK-072	2	terminada	no	TASK-070
+TASK-073	2	terminada	no	TASK-058,TASK-069,TASK-090
+TASK-074	2	terminada	no	TASK-058,TASK-072,TASK-091
+TASK-075	3	terminada	no	TASK-083,TASK-069
+TASK-076	3	terminada	no	TASK-083
+TASK-077	4	terminada	no	TASK-076,TASK-072
+TASK-078	4	terminada	no	TASK-077,TASK-058,TASK-064
+TASK-079	4	terminada	no	TASK-077
+TASK-080	4	terminada	no	TASK-077,TASK-078,TASK-076
+TASK-081	5	terminada	no	TASK-080,TASK-038
+TASK-082	10	planificada	no	TASK-048
+TASK-083	3	terminada	no	TASK-072
+TASK-084	6	terminada	no	TASK-021,TASK-076,TASK-080
+TASK-085	0	terminada	no	TASK-063
+TASK-086	1	terminada	no	TASK-068
+TASK-087	5	terminada	no	TASK-017
+TASK-088	1	terminada	no	TASK-017,TASK-069
+TASK-089	2	terminada	no	
+TASK-090	2	terminada	no	
+TASK-091	2	terminada	no	TASK-058,TASK-072
+TASK-092	2	terminada	no	TASK-090
+TASK-093	2	terminada	no	TASK-072
+TASK-094	4	terminada	no	TASK-077
+TASK-095	4	terminada	no	TASK-072,TASK-077
+TASK-096	2	terminada	no	TASK-074
+TASK-097	5	en-diseno	si	TASK-034,TASK-072
+TASK-098	6	terminada	no	TASK-077
+TASK-099	5	terminada	no	TASK-087
+TASK-100	11	planificada	no	
+TASK-101	4	terminada	no	TASK-077,TASK-078,TASK-068,TASK-064
+TASK-102	4	terminada	no	
+TASK-103	4	terminada	no	TASK-079
+TASK-104	4	terminada	no	TASK-079
+TASK-105	4	terminada	no	TASK-094
+TASK-106	4	terminada	no	TASK-095
+TASK-107	6	terminada	no	TASK-087
+TASK-108	3	terminada	no	TASK-083
+TASK-109	5	terminada	no	TASK-081
+TASK-110	5	terminada	no	TASK-081,TASK-109
+TASK-111	9	planificada	no	TASK-074,TASK-034
+TASK-112	14	terminada	no	TASK-101,TASK-224
+TASK-113	14	terminada	no	TASK-112,TASK-224
+TASK-114	14	terminada	no	TASK-112,TASK-113,TASK-224
+TASK-115	14	terminada	no	TASK-114
+TASK-116	14	terminada	no	TASK-114,TASK-074,TASK-083,TASK-033
+TASK-117	14	terminada	no	TASK-115,TASK-116
+TASK-118	12	planificada	no	TASK-116,TASK-117
+TASK-119	12	planificada	no	TASK-115,TASK-116,TASK-081,TASK-137
+TASK-120	12	planificada	no	TASK-115,TASK-119
+TASK-121	12	planificada	no	TASK-117,TASK-118,TASK-119,TASK-081,TASK-224,TASK-038
+TASK-122	12	planificada	no	TASK-117,TASK-013
+TASK-123	12	planificada	no	TASK-118
+TASK-124	5	terminada	no	TASK-081,TASK-033,TASK-110
+TASK-125	5	terminada	no	TASK-124,TASK-109,TASK-110,TASK-139
+TASK-126	5	terminada	no	TASK-124,TASK-125,TASK-137
+TASK-127	5	terminada	no	TASK-124,TASK-125,TASK-139
+TASK-128	5	terminada	no	TASK-125
+TASK-129	5	terminada	no	TASK-125,TASK-140
+TASK-130	9	planificada	no	TASK-111,TASK-083,TASK-076
+TASK-131	9	planificada	no	TASK-111,TASK-130,TASK-041
+TASK-132	12	planificada	no	TASK-101,TASK-041,TASK-009,TASK-224
+TASK-133	12	planificada	no	TASK-132,TASK-076,TASK-080,TASK-224
+TASK-134	12	planificada	no	TASK-133,TASK-042,TASK-041,TASK-224
+TASK-135	8	terminada	no	TASK-101,TASK-042
+TASK-136	8	terminada	no	
+TASK-137	5	terminada	no	TASK-124
+TASK-138	6	terminada	no	TASK-013,TASK-020,TASK-140
+TASK-139	5	terminada	no	TASK-137
+TASK-140	5	terminada	no	TASK-139
+TASK-141	11	planificada	no	TASK-053,TASK-140,TASK-224
+TASK-142	5	terminada	no	TASK-129,TASK-140
+TASK-143	5	terminada	no	TASK-129
+TASK-144	5	terminada	no	TASK-033
+TASK-145	5	terminada	no	TASK-129
+TASK-146	6	terminada	no	TASK-013
+TASK-147	6	terminada	no	TASK-098
+TASK-148	6	terminada	no	TASK-007,TASK-023
+TASK-149	6	terminada	no	TASK-107,TASK-099
+TASK-150	6	terminada	no	TASK-021,TASK-074,TASK-168
+TASK-151	6	planificada	no	TASK-083,TASK-084,TASK-042
+TASK-152	6	planificada	no	TASK-020,TASK-223,TASK-261,TASK-268
+TASK-153	6	planificada	no	TASK-084,TASK-094,TASK-152,TASK-223,TASK-262,TASK-263
+TASK-154	6	terminada	no	TASK-148,TASK-150,TASK-034,TASK-032
+TASK-155	6	terminada	no	TASK-013,TASK-018,TASK-020,TASK-084
+TASK-156	6	terminada	no	TASK-007,TASK-020,TASK-061
+TASK-157	6	terminada	no	TASK-018,TASK-020,TASK-137,TASK-138
+TASK-158	6	planificada	no	TASK-148,TASK-087,TASK-107
+TASK-159	6	planificada	no	TASK-088,TASK-149
+TASK-160	6	planificada	no	TASK-017,TASK-149
+TASK-161	6	planificada	no	TASK-018,TASK-149
+TASK-162	6	planificada	no	TASK-148,TASK-160
+TASK-163	6	planificada	no	TASK-138,TASK-140,TASK-142,TASK-224
+TASK-164	6	planificada	no	TASK-137,TASK-140,TASK-138,TASK-224
+TASK-165	6	planificada	no	TASK-138,TASK-126,TASK-224
+TASK-166	6	planificada	no	TASK-155
+TASK-167	6	terminada	no	TASK-150,TASK-168
+TASK-168	6	terminada	no	TASK-074,TASK-073
+TASK-169	6	planificada	no	TASK-167
+TASK-170	8	planificada	no	TASK-079,TASK-137,TASK-168,TASK-189,TASK-217,TASK-224,TASK-239,TASK-243,TASK-223,TASK-260
+TASK-171	4	planificada	si	TASK-077,TASK-079,TASK-094,TASK-095,TASK-182,TASK-188,TASK-189,TASK-223
+TASK-172	13	planificada	no	TASK-005,TASK-276,TASK-285,TASK-292
+TASK-173	0	terminada	no	
+TASK-174	0	terminada	no	
+TASK-175	0	terminada	no	TASK-173,TASK-174
+TASK-176	0	terminada	no	TASK-173,TASK-174
+TASK-177	0	terminada	no	TASK-173,TASK-174
+TASK-178	0	terminada	no	TASK-173,TASK-174
+TASK-179	0	terminada	no	TASK-173,TASK-174
+TASK-180	0	terminada	no	TASK-173,TASK-174
+TASK-181	0	terminada	no	TASK-173,TASK-174
+TASK-182	0	terminada	no	TASK-175,TASK-176,TASK-177,TASK-178,TASK-179,TASK-180,TASK-181
+TASK-183	6	planificada	no	TASK-146
+TASK-184	6	planificada	no	TASK-154,TASK-035
+TASK-185	6	planificada	no	TASK-154,TASK-098,TASK-147,TASK-023,TASK-191
+TASK-186	6	planificada	no	TASK-154,TASK-084,TASK-038,TASK-185
+TASK-187	0	terminada	no	TASK-174
+TASK-188	0	terminada	no	TASK-182
+TASK-189	0	terminada	no	TASK-182
+TASK-190	0	terminada	no	TASK-182
+TASK-191	0	terminada	no	TASK-182
+TASK-192	0	terminada	no	TASK-182
+TASK-193	2	terminada	no	TASK-074,TASK-093,TASK-168
+TASK-194	3	terminada	no	TASK-083,TASK-108,TASK-075
+TASK-195	5	planificada	no	TASK-094,TASK-078,TASK-223,TASK-262
+TASK-196	5	planificada	no	TASK-126,TASK-109,TASK-231
+TASK-197	5	planificada	no	TASK-126,TASK-129,TASK-231,TASK-233
+TASK-198	5	planificada	no	TASK-129,TASK-127,TASK-222
+TASK-199	6	planificada	no	TASK-022,TASK-033
+TASK-200	6	planificada	no	TASK-185,TASK-191,TASK-221
+TASK-201	6	planificada	no	TASK-032
+TASK-202	6	planificada	no	TASK-084,TASK-186
+TASK-203	6	planificada	no	TASK-191,TASK-185,TASK-219,TASK-220
+TASK-204	8	planificada	no	TASK-039,TASK-042
+TASK-205	0	terminada	no	TASK-187
+TASK-206	3	terminada	no	TASK-188,TASK-189,TASK-211,TASK-083,TASK-072,TASK-222
+TASK-207	5	planificada	no	TASK-228,TASK-206,TASK-189,TASK-137,TASK-140,TASK-033
+TASK-208	5	planificada	no	TASK-206,TASK-139,TASK-196,TASK-224,TASK-240,TASK-241
+TASK-209	5	planificada	no	TASK-207
+TASK-210	0	terminada	no	
+TASK-211	2	terminada	no	TASK-189,TASK-074,TASK-072
+TASK-212	2	terminada	no	TASK-211,TASK-074,TASK-096
+TASK-213	3	terminada	no	TASK-211,TASK-212,TASK-083,TASK-108,TASK-076
+TASK-214	4	terminada	no	TASK-211,TASK-212,TASK-213,TASK-080,TASK-095
+TASK-215	4	terminada	no	TASK-211,TASK-076,TASK-078,TASK-080,TASK-214
+TASK-216	5	planificada	no	TASK-228,TASK-190,TASK-034,TASK-142
+TASK-217	5	planificada	no	TASK-190,TASK-125,TASK-139,TASK-140
+TASK-218	5	planificada	no	TASK-217,TASK-211
+TASK-219	6	planificada	no	TASK-191,TASK-023
+TASK-220	6	planificada	no	TASK-219,TASK-101
+TASK-221	6	planificada	no	TASK-219,TASK-185
+TASK-222	0	terminada	no	TASK-182
+TASK-223	0	terminada	no	TASK-222,TASK-224
+TASK-224	0	terminada	no	TASK-222
+TASK-225	0	terminada	no	TASK-222
+TASK-226	12	planificada	no	TASK-050,TASK-117,TASK-224
+TASK-227	0	terminada	no	TASK-182
+TASK-228	5	planificada	no	TASK-222,TASK-224,TASK-034,TASK-142
+TASK-229	5	planificada	no	TASK-216
+TASK-230	5	planificada	no	TASK-228,TASK-207,TASK-143
+TASK-231	5	planificada	no	TASK-228,TASK-224,TASK-126,TASK-139
+TASK-232	9	planificada	no	TASK-228,TASK-225,TASK-271
+TASK-233	5	planificada	no	TASK-207,TASK-206
+TASK-234	3	terminada	no	TASK-222,TASK-223
+TASK-235	8	planificada	no	TASK-222,TASK-147
+TASK-236	6	planificada	no	TASK-222,TASK-149
+TASK-237	9	planificada	no	TASK-231,TASK-049,TASK-224,TASK-238
+TASK-238	14	terminada	no	TASK-113,TASK-114
+TASK-239	14	terminada	no	TASK-238
+TASK-240	5	planificada	no	TASK-238,TASK-112,TASK-228,TASK-231,TASK-223,TASK-280
+TASK-241	5	planificada	no	TASK-238,TASK-231
+TASK-242	3	terminada	no	TASK-212,TASK-213
+TASK-243	5	planificada	no	TASK-208,TASK-242
+TASK-244	10	planificada	no	TASK-048,TASK-240
+TASK-245	12	planificada	no	TASK-115,TASK-116,TASK-119,TASK-238
+TASK-246	12	planificada	no	TASK-115,TASK-118,TASK-245
+TASK-247	12	planificada	no	TASK-239,TASK-245,TASK-246
+TASK-248	12	planificada	no	TASK-115,TASK-116,TASK-239
+TASK-249	12	planificada	no	TASK-115,TASK-116,TASK-238
+TASK-250	12	planificada	no	TASK-115,TASK-116,TASK-239
+TASK-251	12	planificada	no	TASK-250
+TASK-252	12	planificada	no	TASK-115,TASK-116,TASK-238
+TASK-253	12	planificada	no	TASK-115,TASK-116,TASK-238
+TASK-254	12	planificada	no	TASK-115,TASK-116,TASK-239
+TASK-255	12	planificada	no	TASK-115,TASK-116,TASK-238
+TASK-256	12	planificada	no	TASK-115,TASK-116,TASK-238
+TASK-257	4	en-curso	no	TASK-114,TASK-223,TASK-280
+TASK-258	4	planificada	no	TASK-257
+TASK-259	4	planificada	no	TASK-257
+TASK-260	4	planificada	no	TASK-257,TASK-258,TASK-259
+TASK-261	5	planificada	no	TASK-240,TASK-260,TASK-280
+TASK-262	5	planificada	no	TASK-261
+TASK-263	5	planificada	no	TASK-261,TASK-215
+TASK-264	9	planificada	no	TASK-259,TASK-261,TASK-232
+TASK-265	4	planificada	no	TASK-257,TASK-260
+TASK-266	4	planificada	no	TASK-257,TASK-260
+TASK-267	4	planificada	no	TASK-260,TASK-265,TASK-266
+TASK-268	4	planificada	no	TASK-260,TASK-265,TASK-266
+TASK-269	8	planificada	no	TASK-268
+TASK-270	6	planificada	no	TASK-260,TASK-261
+TASK-271	9	planificada	no	TASK-225,TASK-228
+TASK-272	9	planificada	no	TASK-271,TASK-230,TASK-129,TASK-142
+TASK-273	9	planificada	no	TASK-271,TASK-272,TASK-215
+TASK-274	10	planificada	no	TASK-272,TASK-273,TASK-048
+TASK-275	11	planificada	no	TASK-274,TASK-141
+TASK-276	15	planificada	no	TASK-339
+TASK-277	15	terminada	no	
+TASK-278	15	terminada	no	TASK-300
+TASK-279	15	terminada	no	
+TASK-280	0	terminada	no	
+TASK-281	5	planificada	no	TASK-239,TASK-240
+TASK-282	0	terminada	no	TASK-280
+TASK-283	16	terminada	no	
+TASK-284	16	terminada	no	TASK-283
+TASK-285	13	planificada	no	TASK-291
+TASK-286	13	planificada	no	
+TASK-287	13	planificada	no	TASK-285,TASK-286
+TASK-288	17	planificada	no	TASK-286,TASK-291,TASK-292
+TASK-289	17	planificada	no	TASK-285,TASK-286,TASK-291
+TASK-290	17	planificada	no	TASK-288,TASK-289
+TASK-291	13	planificada	no	
+TASK-292	13	planificada	no	
+TASK-293	18	terminada	no	TASK-238,TASK-124,TASK-129
+TASK-294	18	terminada	no	TASK-293
+TASK-295	15	terminada	no	TASK-277
+TASK-296	15	terminada	no	TASK-277,TASK-295
+TASK-297	0	terminada	no	
+TASK-298	0	terminada	no	
+TASK-299	15	terminada	no	TASK-296
+TASK-300	15	terminada	no	TASK-299
+TASK-301	0	terminada	no	
+TASK-302	15	terminada	no	TASK-278
+TASK-303	15	terminada	no	TASK-302,TASK-304,TASK-305,TASK-306
+TASK-304	15	terminada	no	TASK-302
+TASK-305	15	terminada	no	TASK-304
+TASK-306	15	terminada	no	TASK-305
+TASK-307	15	planificada	no	TASK-282
+TASK-308	15	planificada	no	TASK-307
+TASK-309	15	planificada	no	TASK-308
+TASK-310	15	planificada	no	TASK-307
+TASK-311	15	planificada	no	TASK-310
+TASK-312	15	planificada	no	TASK-310
+TASK-313	15	planificada	no	TASK-310
+TASK-314	15	planificada	no	TASK-313
+TASK-315	15	planificada	no	TASK-308,TASK-310
+TASK-316	15	planificada	no	TASK-315
+TASK-317	15	planificada	no	TASK-308
+TASK-318	15	planificada	no	TASK-307
+TASK-319	15	planificada	no	TASK-318
+TASK-320	15	planificada	no	TASK-316,TASK-317,TASK-318
+TASK-321	15	planificada	no	TASK-320
+TASK-322	15	planificada	no	TASK-321,TASK-309
+TASK-323	15	planificada	no	TASK-307
+TASK-324	15	planificada	no	TASK-323
+TASK-325	15	planificada	no	TASK-322,TASK-323
+TASK-326	15	planificada	no	TASK-325
+TASK-327	15	planificada	no	TASK-318
+TASK-328	15	planificada	no	TASK-327,TASK-321,TASK-325,TASK-338
+TASK-329	15	planificada	no	TASK-322
+TASK-330	15	planificada	no	TASK-322
+TASK-331	15	planificada	no	TASK-330,TASK-329,TASK-316
+TASK-332	15	planificada	no	TASK-330,TASK-325,TASK-324,TASK-319
+TASK-333	15	planificada	no	TASK-330,TASK-328
+TASK-334	15	planificada	no	TASK-330
+TASK-335	15	planificada	no	TASK-322
+TASK-336	15	planificada	no	TASK-310,TASK-317
+TASK-337	15	planificada	no	TASK-309,TASK-322
+TASK-338	15	planificada	no	
+TASK-339	15	planificada	no	TASK-310,TASK-318,TASK-323
+TASK-340	15	planificada	no	TASK-318,TASK-323,TASK-327,TASK-329
+TASK-341	15	planificada	no	TASK-338,TASK-339,TASK-279
+TASK-342	15	planificada	no	TASK-341
+TASK-343	15	planificada	no	TASK-341,TASK-342,TASK-332,TASK-334,TASK-276,TASK-279
+TASK-344	0	terminada	no	
+TASK-345	18	planificada	no	TASK-282,TASK-222,TASK-224
+TASK-346	18	planificada	no	TASK-101
+TASK-347	18	planificada	no	TASK-345,TASK-240
+TASK-348	18	planificada	no	TASK-034
+TASK-349	18	planificada	no	TASK-346
+TASK-350	18	planificada	no	TASK-349
+TASK-351	18	planificada	no	TASK-349
+TASK-352	18	planificada	no	TASK-349
+TASK-353	18	planificada	no	TASK-348,TASK-350,TASK-351,TASK-352
+TASK-354	18	planificada	no	TASK-345,TASK-346,TASK-347,TASK-348,TASK-239
+TASK-355	18	planificada	no	TASK-347,TASK-353,TASK-354,TASK-241
+TASK-356	18	planificada	no	TASK-355,TASK-272
+TASK-357	18	planificada	no	TASK-355
+TASK-358	18	planificada	no	TASK-354,TASK-356,TASK-048
+TASK-359	18	planificada	no	TASK-355,TASK-051
+TASK-360	18	planificada	no	TASK-355,TASK-098,TASK-048
+TASK-361	18	planificada	no	TASK-355,TASK-084
+TASK-362	18	planificada	no	TASK-349,TASK-346,TASK-115,TASK-116,TASK-053
+TASK-363	18	planificada	no	TASK-355,TASK-360,TASK-050
+TASK-364	16	planificada	no	TASK-282,TASK-307
+TASK-365	16	planificada	no	TASK-364
+TASK-366	16	planificada	no	
+TASK-367	16	planificada	no	TASK-366
+TASK-368	16	planificada	no	TASK-367
+TASK-369	16	planificada	no	TASK-368
+TASK-370	16	planificada	no	TASK-368
+TASK-371	16	planificada	no	TASK-368
+TASK-372	16	planificada	no	TASK-368
+TASK-373	16	planificada	no	TASK-368
+TASK-374	16	planificada	no	TASK-368
+TASK-375	16	planificada	no	TASK-368
+TASK-376	16	planificada	no	TASK-365
+TASK-377	16	planificada	no	TASK-365
+TASK-378	16	planificada	no	TASK-365,TASK-367
+TASK-379	16	planificada	no	TASK-376,TASK-378
+TASK-380	16	planificada	no	TASK-378
+TASK-381	16	planificada	no	TASK-368,TASK-375,TASK-376
+TASK-382	16	planificada	no	TASK-381
+TASK-383	16	planificada	no	TASK-379,TASK-382
+TASK-384	16	planificada	no	TASK-382
+TASK-385	16	planificada	no	TASK-327,TASK-382
+TASK-386	16	planificada	no	TASK-385
+TASK-387	16	planificada	no	TASK-323
+TASK-388	16	planificada	no	TASK-323
+TASK-389	16	planificada	no	TASK-365,TASK-308,TASK-317
+TASK-390	16	planificada	no	TASK-389,TASK-337
+TASK-391	16	planificada	no	TASK-375,TASK-382,TASK-389
+TASK-392	16	planificada	no	TASK-386,TASK-388,TASK-048
+TASK-393	16	planificada	no	TASK-386,TASK-388
+TASK-394	16	planificada	no	TASK-339,TASK-381
+TASK-395	13	planificada	no	TASK-394,TASK-276,TASK-172
+TASK-396	13	planificada	no	TASK-395,TASK-279
+TASK-397	16	planificada	no	TASK-382
+TASK-398	16	planificada	no	TASK-377,TASK-380,TASK-383,TASK-384,TASK-392,TASK-393,TASK-401
+TASK-399	0	terminada	no	
+TASK-400	15	planificada	no	
+TASK-401	16	planificada	no	TASK-400
+TASK-402	13	terminada	no	TASK-279
+TASK-403	0	terminada	no	
+TASK-404	2	terminada	no	TASK-212
