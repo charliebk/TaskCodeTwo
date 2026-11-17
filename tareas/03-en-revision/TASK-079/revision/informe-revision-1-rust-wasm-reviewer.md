@@ -12,7 +12,7 @@
 | H2 | MENOR | corregido | crates/tc2/src/estado/frescura.rs:341-357 (`leer`), :434 (`hace`), :467-476 (`aviso`) | implementacion |
 | H3 | MENOR | corregido | crates/tc2/tests/frescura.rs (C1, C2, C3) | implementacion |
 | H4 | MENOR | corregido | crates/tc2/src/estado/lectura.rs:758-775 (`leer_fresco`); transaccion.rs:270-299 | implementacion |
-| H5 | MENOR | corregido | crates/tc2/tests/tablero.rs:527 (`board_con_la_plataforma_de_produccion`) | implementacion |
+| H5 | MENOR | aceptado | crates/tc2/tests/tablero.rs:527 (`board_con_la_plataforma_de_produccion`) | implementacion |
 
 ### H1: fallos de `fetch` que no son de red salen `remoto=sin-red`
 
@@ -41,3 +41,5 @@ Clon en `%LOCALAPPDATA%\pruebas-claude\TaskCodeTwo\task-079-r1-rust` (borrado). 
 ## Revisado sin hallazgos
 
 Escritura atomica de la marca (temporal con PID y `rename`, limpieza si falla; en Windows el `rename` sobre una marca abierta no falla); marca corrupta, vacia, negativa o enorme = «nunca»; `traer_estado` equivalente al anterior (stderr, clasificacion, `RamaInexistente`, reintentos); renovacion tras publicar; `sin-rama`; la lectura no toma el cerrojo ni escribe mas que la ref remota y la marca; sin unsafe/unwrap/panic fuera de tests; instante UTC y «hace N» correctos en los limites. Limite JS-WASM: no aplica.
+
+Nota de quien orquesta (ronda 1): H5 queda `aceptado`, no corregido: no se reprodujo en 18 ejecuciones (6 en paralelo); el test ahora dice en su fallo el valor de `plataforma`, el paso, lo que tardo, el stderr y las peticiones del mock. Causa probable la del antivirus de TASK-115, sin demostrar.
