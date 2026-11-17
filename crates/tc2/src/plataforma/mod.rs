@@ -136,6 +136,135 @@ pub struct ReglasLeidas {
     /// proteccion de la rama (GitLab: `push=N`, `merge=N`, `force-push`,
     /// `code-owner`).
     pub reglas_rama: Vec<String>,
+    /// Aprobaciones que pide la plataforma (F3-8): GitHub, el
+    /// `required_approving_review_count` de la regla `pull_request` de la
+    /// rama; GitLab, el mayor `approvals_required` de las reglas de
+    /// aprobacion. 0 si no pide ninguna.
+    pub aprobaciones: u64,
+    /// Checks que la rama exige por nombre (F3-8; GitHub: los `context` de
+    /// `required_status_checks`). `None` si no se pudo leer.
+    pub checks_requeridos: Option<Vec<String>>,
+    /// GitLab con «Pipelines must succeed»: cuenta todo el pipeline, asi
+    /// que cualquier check publicado en el es obligatorio (sin origen: G09
+    /// sustituido por `autor-del-estado`).
+    pub todos_los_checks: bool,
+    /// Nombres de los checks publicados en la cabeza de la rama (GitHub,
+    /// check-runs; GitLab, estados del commit). `None` si no se pudieron
+    /// leer (rama inexistente, permisos...: el motivo, en
+    /// [`ReglasLeidas::fallo_checks`]) o no se pidieron
+    /// ([`Plataforma::leer_puertas_de`]).
+    pub checks_publicados: Option<Vec<String>>,
+    /// Por que no se leyeron los checks publicados, si se pidieron y fallo
+    /// la lectura (F3-8, H3 de TASK-035): un 403 da su permiso.
+    pub fallo_checks: Option<FalloLectura>,
+    /// GitHub: alguna regla `pull_request` de la rama tiene
+    /// `dismiss_stale_reviews_on_push` (G04). En GitLab no se lee.
+    pub descartar_viejas: bool,
+    /// GitHub: alguna regla `pull_request` de la rama tiene
+    /// `require_last_push_approval` (G05). En GitLab no se lee.
+    pub ultimo_push: bool,
+}
+
+/// Por que fallo una lectura secundaria que no tumba la operacion (los
+/// checks publicados de `leer-puertas`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalloLectura {
+    /// `permiso-insuficiente` en un 403; si no, el `motivo` del informe (o
+    /// su resultado).
+    pub motivo: String,
+    /// El permiso que falta, en un 403.
+    pub permiso: Option<&'static str>,
+}
+
+impl FalloLectura {
+    /// El fallo de `i`, con `permiso` si es un 403 de permisos.
+    pub fn de(i: &Informe, permiso: &'static str) -> Self {
+        let denegada = i.resultado == crate::contrato::Resultado::Denegada
+            && i.valor("motivo") == Some("permisos");
+        if denegada {
+            Self {
+                motivo: "permiso-insuficiente".to_owned(),
+                permiso: Some(permiso),
+            }
+        } else {
+            Self {
+                motivo: i
+                    .valor("motivo")
+                    .unwrap_or_else(|| i.resultado.texto())
+                    .to_owned(),
+                permiso: None,
+            }
+        }
+    }
+
+    /// Un fallo sin informe (respuesta que no se entiende).
+    pub fn motivo(m: &str) -> Self {
+        Self {
+            motivo: m.to_owned(),
+            permiso: None,
+        }
+    }
+}
+
+/// `null` como el valor por defecto (H5 de TASK-035): `#[serde(default)]`
+/// solo cubre el campo ausente.
+pub(crate) fn nulo_por_defecto<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + serde::Deserialize<'de>,
+{
+    use serde::Deserialize;
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
+
+/// Tier de GitLab (F1-13, decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TierGitLab {
+    /// Free.
+    Free,
+    /// Premium.
+    Premium,
+    /// Ultimate.
+    Ultimate,
+}
+
+impl TierGitLab {
+    /// El tier del `plan` de un namespace (`free`, `premium`, `ultimate`);
+    /// cualquier otro valor (`default`, nombres antiguos) no se reconoce.
+    pub fn de_plan(plan: &str) -> Option<Self> {
+        match plan {
+            "free" => Some(Self::Free),
+            "premium" => Some(Self::Premium),
+            "ultimate" => Some(Self::Ultimate),
+            _ => None,
+        }
+    }
+
+    /// Nombre en la linea.
+    pub fn nombre(self) -> &'static str {
+        match self {
+            Self::Free => "free",
+            Self::Premium => "premium",
+            Self::Ultimate => "ultimate",
+        }
+    }
+}
+
+/// Lo que se observa del plan (F1-13 decision 3: «el plan se observa, no se
+/// declara»). En GitHub, la visibilidad y el tipo de cuenta del repo (el
+/// 403 de plan de los rulesets lo aporta `leer-puertas`); en GitLab, el
+/// `plan` del namespace, si se lee y se reconoce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanObservado {
+    /// Repo de GitHub.
+    GitHub {
+        /// Publico (ni privado ni interno).
+        publico: bool,
+        /// De una organizacion.
+        organizacion: bool,
+    },
+    /// Proyecto de GitLab, con el tier si se reconoce.
+    GitLab(Option<TierGitLab>),
 }
 
 /// Un PR (o MR) abierto del propio repo, con lo minimo que necesita `board`
@@ -176,6 +305,20 @@ pub trait Plataforma {
     /// `leer-puertas` (agente o persona).
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas>;
 
+    /// `leer-puertas` de varias `ramas` a la vez (F3-8, R1-06 de
+    /// TASK-035): lo comun al repo se lee una vez y los checks publicados
+    /// solo en `checks_de` (en las demas, `checks_publicados: None`). Un
+    /// resultado por rama, en el mismo orden. Por defecto, una a una.
+    fn leer_puertas_de(
+        &self,
+        rol: Rol,
+        ramas: &[&str],
+        checks_de: &str,
+    ) -> Vec<Paso<ReglasLeidas>> {
+        let _ = checks_de;
+        ramas.iter().map(|r| self.leer_puertas(rol, r)).collect()
+    }
+
     /// `leer-permisos-ci` (persona): que el token de la CI no pueda aprobar.
     fn leer_permisos_ci(&self) -> Informe;
 
@@ -184,4 +327,19 @@ pub trait Plataforma {
 
     /// Usuario autenticado con el token de ese rol.
     fn identidad(&self, rol: Rol) -> Paso<Usuario>;
+
+    /// La plataforma del adaptador (F3-8: `doctor` traduce lo leido con la
+    /// tabla de su plataforma). `None` en los adaptadores de prueba.
+    fn proveedor(&self) -> Option<Proveedor> {
+        None
+    }
+
+    /// `leer-plan` (agente o persona; F3-8): lo que se observa del plan
+    /// para `capacidades`. Por defecto no se sabe (adaptadores de prueba).
+    fn leer_plan(&self, _rol: Rol) -> Paso<PlanObservado> {
+        Err(
+            Informe::nuevo("leer-plan", crate::contrato::Resultado::Error)
+                .con("motivo", "no-soportada"),
+        )
+    }
 }

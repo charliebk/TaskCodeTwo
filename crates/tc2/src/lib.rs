@@ -17,7 +17,7 @@
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
 //! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`ciclo`]
-//! (`descartar`, `pausa` y `reanudar`, F3-7). Las capas
+//! (`descartar`, `pausa` y `reanudar`, F3-7) y [`doctor`] (F3-8). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -28,6 +28,7 @@ pub mod config;
 pub mod contrato;
 pub mod descarga;
 pub mod desinstalar;
+pub mod doctor;
 pub mod estado;
 pub mod git;
 pub mod grafo;
@@ -148,6 +149,10 @@ where
         [orden, resto @ ..] if orden == init::NOMBRE => {
             let (json, resto) = con_json(resto);
             init::orden(&resto, json, idioma)
+        }
+        [orden, resto @ ..] if orden == doctor::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_doctor(&resto, json, idioma)
         }
         [orden, resto @ ..] if orden == toma::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -345,6 +350,23 @@ fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Sa
     } else {
         tablero::orden_board(args, json, idioma, &e)
     }
+}
+
+/// `doctor [--json]` (F3-8) en la carpeta actual, con la plataforma de
+/// produccion (la misma deteccion y los mismos tokens que `board`).
+fn orden_doctor(args: &[String], json: bool, idioma: Idioma) -> Salida {
+    let dir = match tablero::carpeta_actual(doctor::NOMBRE) {
+        Ok(d) => d,
+        Err(i) => return i.salida_en(json, idioma),
+    };
+    let g = git::Git::nuevo();
+    let conectar = tablero::conectar_produccion(&g, &dir);
+    let e = doctor::Entorno {
+        dir: &dir,
+        git: &g,
+        conectar: &conectar,
+    };
+    doctor::orden(args, json, idioma, &e)
 }
 
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado

@@ -29,6 +29,7 @@ mod transaccion;
 
 pub use crate::git::Cambio;
 pub use cerrojo::Cerrojo;
+pub(crate) use lectura::referencia_de_lectura;
 pub use lectura::{Estado, Vista, leer};
 pub use montaje::{Previsto, montar, montar_con, previsto};
 pub use tareas::{Leida, de_otra_persona, es_tarea_md, por_estado, tarea_de, tareas};

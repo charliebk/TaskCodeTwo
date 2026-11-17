@@ -66,6 +66,8 @@ pub enum Subcomando {
     UpdateIndex,
     /// `git update-ref` (solo bajo `refs/taskcodetwo/`)
     UpdateRef,
+    /// `git version` (lectura; `tc2 doctor`, F3-8)
+    Version,
     /// `git worktree`
     Worktree,
     /// `git write-tree` (solo con indice temporal)
@@ -99,6 +101,7 @@ impl Subcomando {
             Self::Tag => "tag",
             Self::UpdateIndex => "update-index",
             Self::UpdateRef => "update-ref",
+            Self::Version => "version",
             Self::Worktree => "worktree",
             Self::WriteTree => "write-tree",
         }

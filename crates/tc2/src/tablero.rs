@@ -28,7 +28,7 @@ use crate::i18n::catalogo::cli as txt_cli;
 use crate::i18n::catalogo::roadmap as txt_roadmap;
 use crate::i18n::catalogo::tablero as txt;
 use crate::i18n::{Idioma, Mensaje};
-use crate::plataforma::{Credenciales, CredencialesEntorno, Personas, Plataforma, PrAbierto, Rol};
+use crate::plataforma::{Personas, PrAbierto};
 use crate::situacion::{self, Ficha, Quien, Situacion};
 
 /// Nombre de `board`.
@@ -292,59 +292,9 @@ fn tablero_en(
     Ok((tablero(&s, &personas, &commit), avisos, personas))
 }
 
-/// Lo que se supo de la plataforma: la clave `plataforma=` de `board`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Consulta {
-    /// `--sin-plataforma`.
-    NoConsultada,
-    /// Sin `origin` o con una plataforma que no se reconoce.
-    NoConfigurada,
-    /// Sin token del rol, o con uno que la plataforma no acepta.
-    SinCredenciales,
-    /// No se pudo hablar con la plataforma.
-    SinRed,
-    /// Cualquier otro fallo (permisos, respuesta invalida, mas paginas de
-    /// las que se leen...): falla cerrado.
-    Error,
-    /// Los PR abiertos del repo.
-    Hecha(Vec<PrAbierto>),
-}
-
-impl Consulta {
-    /// Valor de `plataforma=`.
-    pub fn nombre(&self) -> &'static str {
-        match self {
-            Self::NoConsultada => "no-consultada",
-            Self::NoConfigurada => "no-configurada",
-            Self::SinCredenciales => "sin-credenciales",
-            Self::SinRed => "sin-red",
-            Self::Error => "error",
-            Self::Hecha(_) => "ok",
-        }
-    }
-
-    /// La de un fallo de `prs-abiertos`.
-    pub fn de_fallo(i: &Informe) -> Self {
-        match (i.resultado, i.valor("motivo")) {
-            (Resultado::Sinred, _) => Self::SinRed,
-            (Resultado::Rechazada, Some("identidad"))
-            | (Resultado::Denegada, Some("credenciales")) => Self::SinCredenciales,
-            _ => Self::Error,
-        }
-    }
-}
-
-/// Un adaptador listo y el rol con el que se le pregunta.
-pub struct Conectada {
-    /// El adaptador.
-    pub plataforma: Box<dyn Plataforma>,
-    /// Rol de la consulta.
-    pub rol: Rol,
-}
-
-/// Construye el adaptador con la lista de personas de la base, o dice por
-/// que no ([`Consulta::NoConfigurada`] o [`Consulta::SinCredenciales`]).
-pub type Conectar<'a> = dyn Fn(&Personas) -> Result<Conectada, Consulta> + 'a;
+// La conexion con la plataforma vive en `identidad` desde F3-8 (la usan
+// `board` y `doctor`); se reexporta para no cambiar la API de `board`.
+pub use crate::identidad::{Conectada, Conectar, Consulta, conectar_produccion};
 
 /// Lo que necesitan las dos ordenes del entorno.
 pub struct Entorno<'a> {
@@ -354,33 +304,6 @@ pub struct Entorno<'a> {
     pub git: &'a Git,
     /// Construye el adaptador; solo lo llama `board` (C3c: `status` no).
     pub conectar: &'a Conectar<'a>,
-}
-
-/// El adaptador de produccion: plataforma por el host de `origin` y la
-/// clave `plataforma` de la configuracion de la base (F1-13, decision 7),
-/// tokens de las variables `TC2_TOKEN_*`. Pregunta con el token de persona
-/// si lo hay (solo con terminal, F1-6 decision 5) y si no con el de agente;
-/// es una eleccion previa, no un reintento con otro rol.
-pub fn conectar_produccion<'a>(
-    g: &'a Git,
-    dir: &'a Path,
-) -> impl Fn(&Personas) -> Result<Conectada, Consulta> + 'a {
-    move |personas: &Personas| {
-        // La misma deteccion que `identidad` y `start` (D6 de TASK-033).
-        let destino = crate::identidad::destino_de(g, dir).map_err(|_| Consulta::NoConfigurada)?;
-        let credenciales = CredencialesEntorno;
-        let rol = if credenciales.token(Rol::Persona).is_some() {
-            Rol::Persona
-        } else if credenciales.token(Rol::Agente).is_some() {
-            Rol::Agente
-        } else {
-            return Err(Consulta::SinCredenciales);
-        };
-        let plataforma =
-            crate::identidad::adaptador(destino, Box::new(credenciales), personas.clone())
-                .map_err(|_| Consulta::NoConfigurada)?;
-        Ok(Conectada { plataforma, rol })
-    }
 }
 
 /// El PR de cada tarea y los avisos (C3b).
@@ -643,7 +566,7 @@ pub fn carpeta_actual(op: &str) -> Result<std::path::PathBuf, Informe> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plataforma::{Firma, ModeloPuertas, Paso, ReglasLeidas, Usuario};
+    use crate::plataforma::{Firma, ModeloPuertas, Paso, Plataforma, ReglasLeidas, Rol, Usuario};
     use crate::roadmap::tests::{estado_de_referencia, personas};
 
     const COMMIT: &str = "0123456789ab";

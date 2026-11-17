@@ -17,7 +17,8 @@ use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{
-    Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, Proveedor, ReglasLeidas, Usuario,
+    FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma, PrAbierto,
+    Proveedor, ReglasLeidas, Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -29,6 +30,19 @@ const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 const PRS_ABIERTOS: &str = "prs-abiertos";
+const LEER_PLAN: &str = "leer-plan";
+
+/// Permiso de `leer-puertas` (lo nombra `doctor` en `permiso=`).
+pub const PERMISO_LEER_PUERTAS: &str = "metadata:read";
+
+/// Permiso de los check-runs que lee `leer-puertas` (GitHub App:
+/// «Repository permissions for "Checks"» read,
+/// <https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps>,
+/// 2026-11-17).
+pub const PERMISO_CHECKS: &str = "checks:read";
+
+/// Permiso de `leer-permisos-ci`.
+pub const PERMISO_PERMISOS_CI: &str = "administration:read";
 
 /// Garantias que en GitHub dan los rulesets (tier «Free publico;
 /// Pro/Team/Enterprise» de la tabla de F1-13): sin ellos, el 403 de plan.
@@ -39,6 +53,7 @@ const GARANTIAS_DE_RULESETS: [&str; 10] = [
 /// Endpoints de la API que usa el adaptador (lista cerrada).
 enum Endpoint<'a> {
     Usuario,
+    Repo,
     Pr(u64),
     PrsAbiertos { cabeza: &'a str, base: &'a str },
     TodosLosPrsAbiertos,
@@ -47,6 +62,7 @@ enum Endpoint<'a> {
     ReglasRama(&'a str),
     Rulesets,
     CheckRuns(&'a str),
+    CheckRunsDeRama(&'a str),
     Reviews(u64),
     PermisosWorkflow,
     Commit(&'a str),
@@ -57,6 +73,7 @@ impl Endpoint<'_> {
         let r = format!("/repos/{repo}");
         match self {
             Self::Usuario => (Metodo::Get, "/user".into()),
+            Self::Repo => (Metodo::Get, r),
             Self::Pr(n) => (Metodo::Get, format!("{r}/pulls/{n}")),
             Self::PrsAbiertos { cabeza, base } => (
                 Metodo::Get,
@@ -76,6 +93,10 @@ impl Endpoint<'_> {
             Self::CheckRuns(sha) => (
                 Metodo::Get,
                 format!("{r}/commits/{sha}/check-runs?per_page=100"),
+            ),
+            Self::CheckRunsDeRama(rama) => (
+                Metodo::Get,
+                format!("{r}/commits/heads/{rama}/check-runs?per_page=100"),
             ),
             Self::Reviews(n) => (Metodo::Get, format!("{r}/pulls/{n}/reviews?per_page=100")),
             Self::PermisosWorkflow => (Metodo::Get, format!("{r}/actions/permissions/workflow")),
@@ -209,6 +230,21 @@ struct VerificacionApi {
     reason: String,
 }
 
+/// Lo que se lee del repo para el plan (GH-01 de F1-13).
+#[derive(Deserialize)]
+struct RepoPlanApi {
+    private: bool,
+    #[serde(default)]
+    visibility: Option<String>,
+    owner: DuenoApi,
+}
+
+#[derive(Deserialize)]
+struct DuenoApi {
+    #[serde(rename = "type")]
+    tipo: String,
+}
+
 #[derive(Deserialize)]
 struct RulesetApi {
     name: String,
@@ -218,6 +254,32 @@ struct RulesetApi {
 struct ReglaApi {
     #[serde(rename = "type")]
     tipo: String,
+    /// Los de `pull_request` y `required_status_checks`; los demas tipos
+    /// traen otros campos (o ninguno) y se ignoran.
+    #[serde(default)]
+    parameters: Option<ParametrosApi>,
+}
+
+/// Los `parameters` de las reglas `pull_request` y
+/// `required_status_checks` (esquema de rulesets,
+/// <https://docs.github.com/en/rest/repos/rules>, 2026-11-17: los cinco
+/// booleanos y el contador de `pull_request` son obligatorios, pero un
+/// `null` no tumba la lectura: H5 de TASK-035).
+#[derive(Deserialize, Default)]
+struct ParametrosApi {
+    #[serde(default)]
+    required_approving_review_count: Option<u64>,
+    #[serde(default, deserialize_with = "super::nulo_por_defecto")]
+    required_status_checks: Vec<CheckRequeridoApi>,
+    #[serde(default)]
+    dismiss_stale_reviews_on_push: Option<bool>,
+    #[serde(default)]
+    require_last_push_approval: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct CheckRequeridoApi {
+    context: String,
 }
 
 /// Adaptador de GitHub para un repo.
@@ -567,37 +629,40 @@ impl Plataforma for GitHub {
     }
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
-        if !rama_valida(rama) {
-            return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
+        validar_puertas(rol, rama)?;
+        match self.rulesets(rol)? {
+            Some(rulesets) => self.puertas_de_rama(rol, rama, &rulesets, true),
+            None => Ok(sin_reglas_por_plan()),
         }
-        if rol == Rol::Revisor {
-            return Err(rol_no_valido(LEER_PUERTAS, rol));
-        }
-        let permiso = "metadata:read";
-        let r = self
-            .con
-            .pedir(LEER_PUERTAS, rol, self.ep(&Endpoint::Rulesets), None)?;
-        if es_aviso_de_plan(&r) {
-            return Ok(ReglasLeidas {
-                plan_da_reglas: false,
-                ..ReglasLeidas::default()
-            });
-        }
-        if !r.exito() {
-            return Err(self.con.traducir(LEER_PUERTAS, rol, permiso, &r));
-        }
-        let rulesets: Vec<RulesetApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
-        let reglas: Vec<ReglaApi> = self.con.leer(
-            LEER_PUERTAS,
-            rol,
-            permiso,
-            self.ep(&Endpoint::ReglasRama(rama)),
-        )?;
-        Ok(ReglasLeidas {
-            plan_da_reglas: true,
-            rulesets: rulesets.into_iter().map(|r| r.name).collect(),
-            reglas_rama: reglas.into_iter().map(|r| r.tipo).collect(),
-        })
+    }
+
+    fn leer_puertas_de(
+        &self,
+        rol: Rol,
+        ramas: &[&str],
+        checks_de: &str,
+    ) -> Vec<Paso<ReglasLeidas>> {
+        // Los rulesets son del repo: se leen una vez (solo si alguna rama
+        // es valida) y valen para todas.
+        let validas: Vec<Paso<()>> = ramas.iter().map(|r| validar_puertas(rol, r)).collect();
+        let comun = if validas.iter().any(Result::is_ok) {
+            Some(self.rulesets(rol))
+        } else {
+            None
+        };
+        ramas
+            .iter()
+            .zip(validas)
+            .map(|(rama, v)| {
+                v?;
+                match comun.as_ref() {
+                    Some(Ok(Some(rs))) => self.puertas_de_rama(rol, rama, rs, *rama == checks_de),
+                    Some(Ok(None)) => Ok(sin_reglas_por_plan()),
+                    Some(Err(i)) => Err(i.clone()),
+                    None => Err(rol_no_valido(LEER_PUERTAS, rol)),
+                }
+            })
+            .collect()
     }
 
     fn leer_permisos_ci(&self) -> Informe {
@@ -607,7 +672,7 @@ impl Plataforma for GitHub {
         let p: PermisosApi = match self.con.leer(
             LEER_PERMISOS_CI,
             Rol::Persona,
-            "administration:read",
+            PERMISO_PERMISOS_CI,
             self.ep(&Endpoint::PermisosWorkflow),
         ) {
             Ok(p) => p,
@@ -654,6 +719,129 @@ impl Plataforma for GitHub {
                     self.ep(&Endpoint::Usuario),
                 )
                 .map(Usuario::from)
+        })
+    }
+
+    fn proveedor(&self) -> Option<Proveedor> {
+        Some(Proveedor::GitHub)
+    }
+
+    fn leer_plan(&self, rol: Rol) -> Paso<PlanObservado> {
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(LEER_PLAN, rol));
+        }
+        let r: RepoPlanApi = self.con.leer(
+            LEER_PLAN,
+            rol,
+            PERMISO_LEER_PUERTAS,
+            self.ep(&Endpoint::Repo),
+        )?;
+        Ok(PlanObservado::GitHub {
+            // `internal` (Enterprise) cuenta como privado.
+            publico: !r.private && r.visibility.as_deref().is_none_or(|v| v == "public"),
+            organizacion: r.owner.tipo == "Organization",
+        })
+    }
+}
+
+/// Rama y rol de `leer-puertas`.
+fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
+    if !rama_valida(rama) {
+        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
+    }
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(LEER_PUERTAS, rol));
+    }
+    Ok(())
+}
+
+/// Lo leido cuando el plan no da los rulesets (403 con aviso de plan).
+fn sin_reglas_por_plan() -> ReglasLeidas {
+    ReglasLeidas {
+        plan_da_reglas: false,
+        ..ReglasLeidas::default()
+    }
+}
+
+impl GitHub {
+    /// Los nombres de los rulesets del repo; `None` si el plan no los da.
+    fn rulesets(&self, rol: Rol) -> Paso<Option<Vec<String>>> {
+        let r = self
+            .con
+            .pedir(LEER_PUERTAS, rol, self.ep(&Endpoint::Rulesets), None)?;
+        if es_aviso_de_plan(&r) {
+            return Ok(None);
+        }
+        if !r.exito() {
+            return Err(self
+                .con
+                .traducir(LEER_PUERTAS, rol, PERMISO_LEER_PUERTAS, &r));
+        }
+        let rulesets: Vec<RulesetApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
+        Ok(Some(rulesets.into_iter().map(|r| r.name).collect()))
+    }
+
+    /// Las reglas de `rama` con los `rulesets` ya leidos; los check-runs de
+    /// su cabeza solo `con_checks`.
+    fn puertas_de_rama(
+        &self,
+        rol: Rol,
+        rama: &str,
+        rulesets: &[String],
+        con_checks: bool,
+    ) -> Paso<ReglasLeidas> {
+        let reglas: Vec<ReglaApi> = self.con.leer(
+            LEER_PUERTAS,
+            rol,
+            PERMISO_LEER_PUERTAS,
+            self.ep(&Endpoint::ReglasRama(rama)),
+        )?;
+        let parametros = |tipo: &'static str| {
+            reglas
+                .iter()
+                .filter(move |r| r.tipo == tipo)
+                .filter_map(|r| r.parameters.as_ref())
+        };
+        let aprobaciones = parametros("pull_request")
+            .filter_map(|p| p.required_approving_review_count)
+            .max()
+            .unwrap_or(0);
+        let descartar_viejas =
+            parametros("pull_request").any(|p| p.dismiss_stale_reviews_on_push == Some(true));
+        let ultimo_push =
+            parametros("pull_request").any(|p| p.require_last_push_approval == Some(true));
+        let requeridos: Vec<String> = parametros("required_status_checks")
+            .flat_map(|p| p.required_status_checks.iter().map(|c| c.context.clone()))
+            .collect();
+        // Los check-runs de la cabeza de la rama (`heads/<rama>`, la forma
+        // que documenta la API). Si no se pueden leer, no se supone nada y
+        // se dice por que (H3 de TASK-035).
+        let (publicados, fallo_checks) = if con_checks {
+            let (_, ruta) = self.ep(&Endpoint::CheckRunsDeRama(rama));
+            match self
+                .con
+                .leer_paginas(LEER_PUERTAS, rol, PERMISO_CHECKS, ruta, |c| {
+                    self.con
+                        .parsear::<CheckRunsApi>(LEER_PUERTAS, c)
+                        .map(|x| x.check_runs)
+                }) {
+                Ok(v) => (Some(v.into_iter().map(|r| r.name).collect()), None),
+                Err(i) => (None, Some(FalloLectura::de(&i, PERMISO_CHECKS))),
+            }
+        } else {
+            (None, None)
+        };
+        Ok(ReglasLeidas {
+            plan_da_reglas: true,
+            rulesets: rulesets.to_vec(),
+            reglas_rama: reglas.into_iter().map(|r| r.tipo).collect(),
+            aprobaciones,
+            checks_requeridos: Some(requeridos),
+            todos_los_checks: false,
+            checks_publicados: publicados,
+            fallo_checks,
+            descartar_viejas,
+            ultimo_push,
         })
     }
 }
