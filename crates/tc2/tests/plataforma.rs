@@ -7,7 +7,7 @@
 
 mod comun;
 
-use comun::http_mock::{Mock, Simulada};
+use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
 use tc2::plataforma::{
@@ -64,6 +64,7 @@ fn pr(numero: u64, merged: bool, state: &str) -> String {
 /// numero de llamadas que en F1-13), y `abrir-pr` y `merge-pr` idempotentes.
 #[test]
 fn bateria_de_la_poc_m_e_idempotencia() {
+    let _serie = serie();
     let carpeta = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/plataforma/github"
@@ -324,6 +325,7 @@ fn bateria_de_la_poc_m_e_idempotencia() {
 /// sigue redirecciones y no lee mas de 1 MiB.
 #[test]
 fn el_envoltorio_rechaza_antes_de_la_red() {
+    let _serie = serie();
     for b in [
         "http://api.github.com",
         "http://localhost:1",
@@ -406,6 +408,7 @@ fn el_envoltorio_rechaza_antes_de_la_red() {
 /// persona; un rol sin token falla cerrado; el token no sale en ningun sitio.
 #[test]
 fn errores_dirigidos_a_la_persona() {
+    let _serie = serie();
     let plan = "{\"message\":\"Upgrade to GitHub Pro or make this repository public to enable this feature.\"}";
     let casos: Vec<(Simulada, &str, u8, &str)> = vec![
         (
@@ -622,6 +625,7 @@ fn review(estado: &str, login: &str, id: u64, tipo: &str) -> String {
 /// `estado-puertas` y `merge-pr`.
 #[test]
 fn protecciones_y_bordes() {
+    let _serie = serie();
     let verdes = format!(
         "[{},{}]",
         run("verificacion", 15368, "completed", "\"success\""),

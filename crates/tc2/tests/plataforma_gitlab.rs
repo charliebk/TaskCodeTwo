@@ -7,7 +7,7 @@
 
 mod comun;
 
-use comun::http_mock::{Mock, Simulada};
+use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
 use tc2::plataforma::{
@@ -138,6 +138,7 @@ fn mr_de(f: &mut serde_json::Value) -> &mut serde_json::Value {
 /// `sin-conflictos`. Y `abrir-pr` y `merge-pr` de GitLab son idempotentes.
 #[test]
 fn bateria_compartida_con_github_e_idempotencia() {
+    let _serie = serie();
     let casos = [
         (
             "verde",
@@ -340,6 +341,7 @@ fn mr(iid: u64, estado: &str, sha: &str) -> String {
 /// `/api/v4`) y los errores llegan dirigidos a la persona, sin el token.
 #[test]
 fn envoltorio_y_errores_de_gitlab() {
+    let _serie = serie();
     // Cabeceras y proyecto con nombre, codificado una vez.
     let mock = Mock::nuevo();
     mock.responder(
@@ -554,6 +556,7 @@ fn estados(f: &mut serde_json::Value) -> &mut serde_json::Value {
 /// que se pone rojo si se quita.
 #[test]
 fn protecciones_de_gitlab() {
+    let _serie = serie();
     let m = modelo(Proveedor::GitLab, &[]);
     let puertas = |retoque: &dyn Fn(&mut serde_json::Value)| {
         let (gl, _mock) = verde_con(retoque);

@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
@@ -44,6 +44,26 @@ pub struct Recibida {
 }
 
 type Rutas = BTreeMap<String, VecDeque<Simulada>>;
+
+/// Cerrojo que pone en serie, dentro de un binario de tests, los tests que
+/// hablan con un [`Mock`].
+static SERIE: Mutex<()> = Mutex::new(());
+
+/// Coge el cerrojo de los tests con [`Mock`]; se suelta al soltar la guarda.
+/// Cada test que use el mock la coge al empezar (`let _serie = serie();`).
+///
+/// Por que existe (TASK-115): en la maquina de desarrollo con Windows y un
+/// antivirus que filtra la red, el proceso de tests sufre paradas de unos
+/// 10 s alrededor de la red cuando varios tests hacen peticiones a la vez:
+/// peticiones de tests distintos se quedan paradas y se reanudan en el mismo
+/// milisegundo, sin que el mock tenga que ver (igual con el mock anterior).
+/// Si una llamada acumula mas de 30 s cae con `sinred`. En serie no se han
+/// visto. Solo afecta a estos tests: el resto de la suite sigue en paralelo.
+/// Un test que falla envenena el cerrojo; se recupera para que los demas
+/// sigan y den su propio resultado.
+pub fn serie() -> MutexGuard<'static, ()> {
+    SERIE.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 pub struct Mock {
     pub puerto: u16,
@@ -177,6 +197,7 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
 /// final (`Ok(0)`) en la lectura siguiente, sino que agota su plazo.
 #[test]
 fn tras_una_respuesta_completa_el_mock_no_manda_fin() {
+    let _serie = serie();
     let m = Mock::nuevo();
     m.responder("GET", "/x", Simulada::json(200, "{\"a\":1}"));
     let mut c = TcpStream::connect(("127.0.0.1", m.puerto)).expect("conectar");
