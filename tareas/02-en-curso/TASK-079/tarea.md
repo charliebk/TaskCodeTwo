@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1276709
-tokens_implementacion: null
+tokens_implementacion: 30631895
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -41,6 +41,29 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 - [ ] C8: `doctor` no hace fetch (no aparece en su registro) y muestra `sincronizado=`
 - [ ] C9: el stdout de `roadmap` es byte a byte el ROADMAP que `--escribir` publicaria
 
+## Autorrevision
+
+- rust-wasm-reviewer — 69d39bd
+- code-quality-reviewer — 69d39bd
+
+Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
+
+- MENOR: riesgos del plan sin arreglar: sin tiempo limite para un host
+  que no responde, `GCM_INTERACTIVE` sin fijar, y dos `fetch` a la vez
+  pueden dar `cannot lock ref` clasificado como `sin-red`.
+- Desviaciones del plan: `traer_estado` devuelve `Traida` (la transaccion
+  necesita el stderr); `Remoto` gana `SinRama`; la transaccion renueva la
+  marca tras un push con exito (C5 en un remoto vacio); `pendientes=N` con
+  `pendientes::contar`; firmas de `status_en`, `board_en` y
+  `siguiente::orden` cambian.
+- Tests anteriores ajustados: `siguiente.rs` (sin red con ssh que rechaza),
+  `tablero.rs` (comparacion sin la hora).
+- Mutaciones comprobadas (7, rojo y restauradas): registrar la marca en
+  `traer_estado`, fetch en `leer_fresco`, `aviso`, `diverge`, hora en el
+  stdout de `roadmap`, `doctor` sin fetch, marca tras el push.
+- Verificacion propia: `--test frescura --test tablero --test siguiente`
+  21 de 21.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -54,3 +77,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T16:10:29Z | diseno | agente:a802b338c5472820b | 36 | 99024 | 1160524 | 17125 | 31 | 1276709 | - | - |
+| 2026-11-17T17:01:23Z | implementacion | agente:a16a3488b3179ab29 | 254 | 666368 | 29853976 | 111297 | 48 | 30631895 | - | - |
