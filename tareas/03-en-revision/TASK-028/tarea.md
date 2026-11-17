@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 34541197
-tokens_revision: 20847464
+tokens_revision: 25425376
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-018, TASK-021]
@@ -44,6 +44,7 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 
 ## Rondas extra
 
+- Ronda 4: Carlos (consigna del 2026-11-16, opcion recomendada); IMP-2 e IMP-3 de calidad r3 nacen de la correccion (texto del aviso falso y estado «no comprobable» tratado como «sin relacion»), son baratos.
 - Ronda 3: Carlos (consigna del 2026-11-16, «aceptamos todas las respuestas de forma recomendada»); IMP-1 rust de la ronda 2 (orden de develop desde HEAD con historia sin relacion) y MEN-5 (comillas en PowerShell) son baratos y hay que verificarlos.
 
 ## Transiciones
@@ -68,3 +69,5 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | 2026-11-17T03:01:32Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 706 | 740790 | 423 | 0 | 741921 | - | - |
 | 2026-11-17T03:12:48Z | revision | agente:a7c1ea3e82c2b3c51 | 86 | 132344 | 4706548 | 37990 | 9 | 4876968 | 2 | rust-wasm-reviewer |
 | 2026-11-17T03:12:48Z | revision | agente:af2a0f919aa9c7879 | 40 | 153768 | 2059515 | 44829 | 14 | 2258152 | 2 | code-quality-reviewer |
+| 2026-11-17T03:27:20Z | revision | agente:a76a05dea73fb8f4d | 44 | 135234 | 2154556 | 39201 | 6 | 2329035 | 3 | rust-wasm-reviewer |
+| 2026-11-17T03:27:21Z | revision | agente:a8d5a2eb573d3ccab | 42 | 136513 | 2071643 | 40679 | 4 | 2248877 | 3 | code-quality-reviewer |

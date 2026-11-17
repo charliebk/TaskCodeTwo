@@ -2,7 +2,7 @@
 
 - Commit revisado: baef020e65d468e9fae8fcb9d6b62530091616dd (la rama esta en 5c1d4a5, que solo anade `tareas/` sobre baef020; `git diff baef020 5c1d4a5 -- crates` vacio)
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-028 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 

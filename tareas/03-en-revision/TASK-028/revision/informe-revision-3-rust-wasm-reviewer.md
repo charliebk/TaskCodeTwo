@@ -2,7 +2,7 @@
 
 - Commit revisado: baef020e65d468e9fae8fcb9d6b62530091616dd (el HEAD de la rama, 5c1d4a5, solo añade ficheros de tareas/; el codigo es el de baef020)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE
+- Veredicto: aprobada con correcciones
 
 ## Hallazgos
 
