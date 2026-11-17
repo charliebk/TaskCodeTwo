@@ -264,11 +264,17 @@ fn ramas(
     let head = worktrees(g, principal, NOMBRE)?
         .first()
         .and_then(|w| w.rama.clone());
+    let mut locales = Vec::new();
+    for r in RAMAS {
+        if commit_de(g, principal, NOMBRE, &format!("refs/heads/{r}"))?.is_some() {
+            locales.push(r);
+        }
+    }
     let mut nuevas: Vec<String> = Vec::new();
     let mut lineas = Vec::new();
     for r in RAMAS {
         let ruta = format!("refs/heads/{r}");
-        let local = commit_de(g, principal, NOMBRE, &ruta)?.is_some();
+        let local = locales.contains(&r);
         let en_remoto = remotas.iter().any(|x| x == r);
         let a = Accion::nueva(ruta, "rama", "proyecto", Decision::Existe);
         lineas.push(if local {
@@ -284,7 +290,10 @@ fn ramas(
                 format!("git fetch {REMOTO} {r} && git branch {r} {REMOTO}/{r}"),
             )
         } else if hay_commits {
-            let mut o = format!("git branch {r} HEAD");
+            // Desde la otra rama si existe (HEAD puede estar sin nacer en
+            // esta, tras un `init` cortado a medias); si no, desde HEAD.
+            let desde = locales.first().copied().unwrap_or("HEAD");
+            let mut o = format!("git branch {r} {desde}");
             if remoto {
                 o.push_str(&format!(" && git push {REMOTO} {r}"));
             }

@@ -606,6 +606,124 @@ fn repo_vacio_con_remoto_publica() {
     comun::registro_permitido(&g.registro());
 }
 
+/// HEAD sin nacer en otra rama (`master`): `main` y `develop` se crean, HEAD
+/// se queda donde estaba y la linea `HEAD` da a la persona la orden que la
+/// pasa a `develop` (`git switch` se negaria con los ficheros en el disco).
+#[test]
+fn head_en_master_queda_para_la_persona() {
+    let f = Fixture::nueva("init-master");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "master", "repo"]);
+    let repo = f.raiz.join("repo");
+    let h = correr(&repo, &f.git(), false, &sin_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    let head = de_clase(&h, "head");
+    assert_eq!(
+        head,
+        [(
+            "HEAD".to_owned(),
+            "persona",
+            Some("head-en-master".to_owned())
+        )]
+    );
+    let orden = h
+        .acciones
+        .iter()
+        .find(|a| a.clase == "head")
+        .and_then(|a| a.orden.clone())
+        .unwrap();
+    assert_eq!(
+        f.crudo(&repo, &["symbolic-ref", "HEAD"]).trim(),
+        "refs/heads/master"
+    );
+    // La orden de la linea deja HEAD en `develop` y el worktree limpio.
+    for parte in orden.split(" && ") {
+        let args: Vec<&str> = parte.split(' ').skip(1).collect();
+        f.crudo(&repo, &args);
+    }
+    assert_eq!(f.crudo(&repo, &["status", "--porcelain"]), "");
+    assert_eq!(
+        f.crudo(&repo, &["rev-parse", "HEAD"]),
+        f.crudo(&repo, &["rev-parse", "main"])
+    );
+}
+
+/// Con historia, `main` o `develop` que faltan los crea la persona (D3),
+/// desde la otra rama si existe.
+#[test]
+fn con_historia_las_ramas_que_faltan_son_de_la_persona() {
+    let f = Fixture::nueva("init-historia");
+    let repo = repo_vacio(&f);
+    escribir(&repo, "README.md", "x\n");
+    f.crudo(&repo, &["add", "README.md"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "inicial"]);
+    let h = correr(&repo, &f.git(), false, &sin_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    let main = h
+        .acciones
+        .iter()
+        .find(|a| a.ruta == "refs/heads/main")
+        .unwrap();
+    assert_eq!(
+        main.linea(),
+        "accion ruta=refs/heads/main clase=rama dueno=proyecto decision=persona motivo=con-historia orden=git%20branch%20main%20develop"
+    );
+    assert!(
+        f.crudo(&repo, &["branch", "--list", "main"]).is_empty(),
+        "init creo main con historia"
+    );
+    assert_eq!(
+        f.crudo(&repo, &["rev-list", "--count", "develop"]).trim(),
+        "1"
+    );
+}
+
+/// Un fallo al aplicar (commit sin identidad) sale `init error` con la ruta;
+/// lo de detras queda `pendiente motivo=no-aplicada` y, arreglada la causa,
+/// repetir `init` termina el trabajo.
+#[test]
+fn fallo_al_aplicar_y_repetir_termina() {
+    let f = Fixture::nueva("init-fallo");
+    let repo = repo_vacio(&f);
+    let sin_usuario = f.raiz.join("gitconfig-sin-usuario");
+    std::fs::write(
+        &sin_usuario,
+        "[user]\n\tuseConfigOnly = true\n[core]\n\tautocrlf = false\n",
+    )
+    .unwrap();
+    let g = Git::nuevo().con_entorno(vec![
+        ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
+        ("GIT_CONFIG_GLOBAL".into(), sin_usuario.into_os_string()),
+    ]);
+    let h = correr(&repo, &g, false, &sin_token);
+    let s = h.salida_en(false, Idioma::Es);
+    assert_eq!(s.codigo, 1, "{}", s.stdout);
+    assert_eq!(h.informe.valor("ruta"), Some("refs/heads/main"));
+    assert!(
+        s.stderr.starts_with("no se pudo crear refs/heads/main"),
+        "{}",
+        s.stderr
+    );
+    let decision = |ruta_acaba: &str| {
+        h.acciones
+            .iter()
+            .find(|a| a.ruta.replace('\\', "/").ends_with(ruta_acaba))
+            .map(|a| (a.decision.texto(), a.motivo.clone().unwrap_or_default()))
+            .unwrap()
+    };
+    assert_eq!(
+        decision("refs/heads/main"),
+        ("pendiente", "error".to_owned())
+    );
+    assert_eq!(decision("/tareas"), ("pendiente", "no-aplicada".to_owned()));
+    assert!(!repo.join("tareas").exists());
+    // Con identidad, el segundo `init` termina sin pisar lo ya creado.
+    let h = correr(&repo, &f.git(), false, &sin_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    assert_eq!(de_clase(&h, "config")[0].1, "existe");
+    assert_eq!(de_clase(&h, "rama")[0].1, "crea");
+    assert_eq!(f.crudo(&repo, &["status", "--porcelain"]), "");
+}
+
 /// C7: tras `init`, `desinstalar --proyecto --simular` lista, con
 /// `dueno=taskcodetwo`, todo lo de la 2.0 que creo `init`.
 #[test]

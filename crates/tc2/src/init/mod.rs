@@ -375,7 +375,8 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
         return Hecho { acciones, informe };
     }
     if !op.simular {
-        let mut fallo: Option<Informe> = None;
+        // (ruta, error) del primer fallo; lo que venia detras no se aplica.
+        let mut fallo: Option<(String, String)> = None;
         for a in acciones.iter_mut() {
             if a.decision != Decision::Crea {
                 continue;
@@ -388,24 +389,17 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
             if let Err(e) = aplicar::aplicar(&a.efecto, c) {
                 a.decision = Decision::Pendiente;
                 a.motivo = Some("error".to_owned());
-                fallo = Some(
-                    Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(
-                        Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
-                            .con("ruta", a.ruta.clone())
-                            .con("error", e),
-                    ),
-                );
-                fallo = fallo.map(|i| i.con("ruta", a.ruta.clone()));
+                fallo = Some((a.ruta.clone(), e));
             }
         }
-        if let Some(i) = fallo {
-            let mut f = cuenta(Resultado::Error, &acciones, &[]);
-            f.claves.extend(i.claves);
-            f.diagnostico = i.diagnostico;
-            return Hecho {
-                acciones,
-                informe: f,
-            };
+        if let Some((ruta, e)) = fallo {
+            let informe = cuenta(Resultado::Error, &acciones, &[("ruta", ruta.clone())])
+                .diagnostico(
+                    Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
+                        .con("ruta", ruta)
+                        .con("error", e),
+                );
+            return Hecho { acciones, informe };
         }
     }
     let r = if acciones.iter().any(|a| a.decision == Decision::Crea) {
