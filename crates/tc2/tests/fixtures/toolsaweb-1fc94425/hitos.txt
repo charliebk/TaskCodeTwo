@@ -1,0 +1,20 @@
+# ToolsaWeb 1fc94425964a5d33b5e2c3c4c39691dbd580c641: generado de scripts/grafo-tareas.py (cargar, titulos_de_hitos, ROADMAP.md)
+### H0 — Relaciones y modelo de datos
+### H14 — Motor de CivilBoot (núcleo de SOLIDOS)
+### H1 — Base de datos implementada, proyecto y sistema de referencia
+### H2 — Geometría en planta
+### H3 — Alzado
+### H4 — Sección, peraltes y perfiles transversales
+### H5 — Terreno y superficies
+### H6 — Armazón y vistas
+### H7 — Edición CAD
+### H8 — Normas, catálogos de contenido y ferrocarril
+### H9 — Medición, fases y existente
+### H10 — Informes
+### H11 — Exportaciones
+### H12 — Biblioteca de CivilBoots de sólidos
+### H15 — ToolsaWeb Topo: poligonales con estación total, primer módulo publicable
+### H16 — ToolsaWeb GNSS: cálculo con RINEX por suscripción propia
+### H18 — Parques solares: CivilBoot de disposición de placas, tierras e hidráulica
+### H13 — Publicación: despliegue, suscripción y acceso
+### H17 — Publicidad, redes sociales y programa de partners (último hito)

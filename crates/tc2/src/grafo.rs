@@ -516,4 +516,111 @@ mod tests {
         let d2 = Documento::Formato2(t, crate::tarea::Cuerpo::leer(""));
         assert_eq!(Nodo::de(&d2).estado(), Some("en-curso"));
     }
+
+    /// Instantanea de ToolsaWeb (SHA en la cabecera de cada fichero; D1):
+    /// `tareas.tsv` y `hitos.txt` salen de `cargar` y `titulos_de_hitos` de
+    /// `scripts/grafo-tareas.py`, y `esperado.txt` son las lineas «En
+    /// marcha» y «Listas para empezar» del `ROADMAP.md` de ese commit, en el
+    /// que `grafo-tareas.py --comprobar` sale 0.
+    const TW_TAREAS: &str = include_str!("../tests/fixtures/toolsaweb-1fc94425/tareas.tsv");
+    const TW_HITOS: &str = include_str!("../tests/fixtures/toolsaweb-1fc94425/hitos.txt");
+    const TW_ESPERADO: &str = include_str!("../tests/fixtures/toolsaweb-1fc94425/esperado.txt");
+
+    /// `id\tsprint\testado\tdescartada(si|no)\tdependencias(,)`.
+    fn nodos_tsv(tsv: &str) -> Vec<Nodo> {
+        tsv.lines()
+            .map(|l| l.trim_end_matches('\r'))
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(|l| {
+                let c: Vec<&str> = l.split('\t').collect();
+                let campo = |i: usize| c.get(i).copied().unwrap_or_default();
+                Nodo {
+                    id: campo(0).to_owned(),
+                    sprint: campo(1).parse().unwrap_or(u32::MAX),
+                    fase: if campo(3) == "si" {
+                        Fase::Descartada
+                    } else {
+                        Fase::Viva(campo(2).to_owned())
+                    },
+                    dependencias: campo(4)
+                        .split(',')
+                        .filter(|d| !d.is_empty())
+                        .map(str::to_owned)
+                        .collect(),
+                }
+            })
+            .collect()
+    }
+
+    /// IDs de la linea `- **<titulo>:** TASK-1 (x), TASK-2` del ROADMAP.
+    fn linea_esperada(titulo: &str) -> Vec<String> {
+        let prefijo = format!("- **{titulo}:** ");
+        let resto = TW_ESPERADO
+            .lines()
+            .find_map(|l| l.trim_end_matches('\r').strip_prefix(prefijo.as_str()))
+            .unwrap_or_default();
+        if resto == "ninguna" {
+            return Vec::new();
+        }
+        resto
+            .split(", ")
+            .filter_map(|p| p.split(' ').next())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// C1: el nucleo da exactamente las listas del ROADMAP de ToolsaWeb,
+    /// en el mismo orden, y las en marcha.
+    #[test]
+    fn toolsaweb_listas_y_en_marcha_como_su_roadmap() {
+        assert!(TW_TAREAS.starts_with("# ToolsaWeb 1fc94425964a5d33b5e2c3c4c39691dbd580c641"));
+        let nodos = nodos_tsv(TW_TAREAS);
+        assert_eq!(nodos.len(), 404);
+        let hitos = Hitos::de_titulos(TW_HITOS);
+        let o = orden_de_trabajo(&nodos, &hitos);
+        let esperadas = linea_esperada("Listas para empezar");
+        assert_eq!(esperadas.len(), 54);
+        assert_eq!(listas(&o, &nodos), esperadas);
+        assert_eq!(en_marcha(&o, &nodos), linea_esperada("En marcha"));
+        assert!(o.atascadas.is_empty());
+        assert!(o.avisos.hitos_sin_titulo.is_empty());
+        assert!(o.avisos.dependencias_inexistentes.is_empty());
+        // Ordenar los hitos por su numero no lo da (H14 va tras H0).
+        let por_numero = orden_de_trabajo(&nodos, &Hitos::default());
+        assert_ne!(listas(&por_numero, &nodos), esperadas);
+    }
+
+    /// Los `tarea.md` reales de ToolsaWeb en el SHA de la fixture pasan por
+    /// el lector estricto de formato 1 y se proyectan igual que la fixture.
+    /// Necesita un clon en ese SHA: `TC2_TOOLSAWEB=<clon> cargo test -p tc2
+    /// --lib toolsaweb_reales -- --ignored`.
+    #[test]
+    #[ignore = "necesita un clon de ToolsaWeb en TC2_TOOLSAWEB"]
+    fn toolsaweb_reales_se_leen_y_proyectan_como_la_fixture() {
+        let raiz = std::env::var_os("TC2_TOOLSAWEB");
+        assert!(raiz.is_some(), "falta TC2_TOOLSAWEB");
+        let Some(raiz) = raiz else { return };
+        let tareas = std::path::Path::new(&raiz).join("tareas");
+        let mut leidos = Vec::new();
+        let mut fallos = Vec::new();
+        for fase in std::fs::read_dir(&tareas).into_iter().flatten().flatten() {
+            for t in std::fs::read_dir(fase.path())
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
+                let md = t.path().join("tarea.md");
+                let Ok(texto) = std::fs::read_to_string(&md) else {
+                    continue;
+                };
+                match crate::tarea::leer(&texto.replace("\r\n", "\n")) {
+                    Ok(d) => leidos.push(Nodo::de(&d)),
+                    Err(e) => fallos.push(format!("{}: {e}", md.display())),
+                }
+            }
+        }
+        assert!(fallos.is_empty(), "{}", fallos.join("\n"));
+        leidos.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(leidos, nodos_tsv(TW_TAREAS));
+    }
 }
