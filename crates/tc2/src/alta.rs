@@ -23,10 +23,50 @@ pub const NOMBRE: &str = "new";
 /// Prefijo de las carpetas de tarea en la rama de estado.
 const PREFIJO: &str = "TASK-";
 
+/// Una tarea por crear (RF-01): lo que pone quien la da de alta, con las
+/// dependencias ya resueltas a `TASK-NNN`. La comparten `new` (un lote de
+/// una) e `import` (F3-2): un solo camino para reservar el ID, derivar la
+/// rama y avisar de los titulos parecidos.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entrada {
+    /// Titulo ([`titulo_valido`]).
+    pub titulo: String,
+    /// Tipo (`tarea::TIPOS`); decide el prefijo de la rama.
+    pub tipo: String,
+    /// Sprint (el hito, D2 de TASK-029).
+    pub sprint: u32,
+    /// Objetivo; vacio deja el de la plantilla.
+    pub objetivo: String,
+    /// Criterios de aceptacion; sin ninguno queda el de la plantilla.
+    pub criterios: Vec<String>,
+    /// Etiquetas.
+    pub etiquetas: Vec<String>,
+    /// Complejidad (`tarea::COMPLEJIDADES`).
+    pub complejidad: Option<String>,
+    /// Dependencias, `TASK-NNN`.
+    pub dependencias: Vec<String>,
+}
+
+impl Entrada {
+    /// Entrada con solo el titulo y los valores de la plantilla de F1-9.
+    pub fn nueva(titulo: &str) -> Self {
+        Self {
+            titulo: titulo.to_owned(),
+            tipo: TIPO.to_owned(),
+            sprint: 0,
+            objetivo: String::new(),
+            criterios: Vec::new(),
+            etiquetas: Vec::new(),
+            complejidad: None,
+            dependencias: Vec::new(),
+        }
+    }
+}
+
 /// Alta de una tarea: reserva el siguiente ID y escribe su `tarea.md`.
 #[derive(Debug)]
 pub struct Alta {
-    titulo: String,
+    entrada: Entrada,
     fecha: String,
     ocupados: BTreeSet<u32>,
     id: Cell<Option<u32>>,
@@ -41,8 +81,17 @@ impl Alta {
 
     /// Alta con una fecha `AAAA-MM-DD` dada.
     pub fn con_fecha(titulo: &str, fecha: &str) -> Self {
+        Self::de_entrada(Entrada::nueva(titulo), fecha)
+    }
+
+    /// Alta de `entrada` con la fecha de hoy (UTC).
+    pub fn con_entrada(entrada: Entrada) -> Self {
+        Self::de_entrada(entrada, &hoy())
+    }
+
+    fn de_entrada(entrada: Entrada, fecha: &str) -> Self {
         Self {
-            titulo: titulo.to_owned(),
+            entrada,
             fecha: fecha.to_owned(),
             ocupados: BTreeSet::new(),
             id: Cell::new(None),
@@ -60,7 +109,8 @@ impl Alta {
 
     /// Rama derivada del ID del ultimo intento (F2-4b).
     pub fn rama(&self) -> Option<String> {
-        self.id().map(|id| rama_de(&id, &self.titulo))
+        self.id()
+            .map(|id| rama_de(&id, &self.entrada.tipo, &self.entrada.titulo))
     }
 
     /// ID calculado en el ultimo intento (el que publico, si la transaccion
@@ -80,7 +130,7 @@ impl Operacion for Alta {
         NOMBRE
     }
     fn anotacion(&self) -> String {
-        format!("{NOMBRE}|{}", self.titulo)
+        format!("{NOMBRE}|{}", self.entrada.titulo)
     }
     fn exige_red(&self) -> bool {
         // Reserva algo compartido: sin red falla, nunca queda pendiente (D2b).
@@ -88,18 +138,81 @@ impl Operacion for Alta {
     }
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         let rutas = estado.rutas();
-        let n = siguiente_id(&rutas, &self.ocupados)?;
-        self.id.set(Some(n));
-        let id = formato_id(n);
-        comprobar_rama(&id, &self.titulo)?;
+        let ids = reservar(&rutas, &self.ocupados, 1)?;
+        self.id.set(ids.first().copied());
         // Sobre el mismo estado fresco del intento: dos altas a la vez se ven
         // (la segunda en publicar avisa de la primera, TASK-076 C1).
-        *self.parecidas.borrow_mut() = parecidas(estado, &rutas, &self.titulo)?;
-        Ok(vec![Cambio::nuevo(
-            format!("{id}/tarea.md"),
-            tarea_md(&id, &self.titulo, &self.fecha),
-        )])
+        let tareas = tareas(estado, &rutas)?;
+        let a = altas(
+            &tareas,
+            &ids,
+            std::slice::from_ref(&self.entrada),
+            &self.fecha,
+        )?;
+        *self.parecidas.borrow_mut() = a.parecidas;
+        Ok(a.cambios)
     }
+}
+
+/// Lo que sale de [`altas`]: un `tarea.md` por entrada y las tareas abiertas
+/// que se le parecen.
+#[derive(Debug)]
+pub(crate) struct Altas {
+    /// Un cambio por entrada, en su orden.
+    pub cambios: Vec<Cambio>,
+    /// Tareas abiertas parecidas a alguna entrada, sin repetir, por ID.
+    pub parecidas: Vec<Parecida>,
+}
+
+/// Nucleo puro del alta (F2-4 y F3-2): `entradas[i]` nace con el ID
+/// `ids[i]`. Comprueba la rama derivada de cada una y busca las tareas
+/// abiertas de `tareas` con un titulo parecido.
+pub(crate) fn altas(
+    tareas: &[Tarea],
+    ids: &[u32],
+    entradas: &[Entrada],
+    fecha: &str,
+) -> Result<Altas, Fallo> {
+    let mut cambios = Vec::with_capacity(entradas.len());
+    let mut vistas = BTreeSet::new();
+    let mut parecidas = Vec::new();
+    for (i, e) in entradas.iter().enumerate() {
+        let id = formato_id(
+            ids.get(i)
+                .copied()
+                .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))?,
+        );
+        comprobar_rama(&id, &e.tipo, &e.titulo)?;
+        cambios.push(Cambio::nuevo(
+            format!("{id}/tarea.md"),
+            tarea_de(&id, e, fecha),
+        ));
+        for p in parecidas_a(tareas, &e.titulo) {
+            if vistas.insert(p.id.clone()) {
+                parecidas.push(p);
+            }
+        }
+    }
+    parecidas.sort_by(|a: &Parecida, b| a.id.cmp(&b.id));
+    Ok(Altas { cambios, parecidas })
+}
+
+/// `n` IDs consecutivos desde [`siguiente_id`]: los de un lote no dejan
+/// huecos entre si (ADR F1-2, punto 3).
+pub(crate) fn reservar(
+    rutas: &[String],
+    ocupados: &BTreeSet<u32>,
+    n: usize,
+) -> Result<Vec<u32>, Fallo> {
+    let primero = siguiente_id(rutas, ocupados)?;
+    (0..n)
+        .map(|i| {
+            u32::try_from(i)
+                .ok()
+                .and_then(|i| primero.checked_add(i))
+                .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))
+        })
+        .collect()
 }
 
 /// Estados en los que una tarea esta abierta: contra ellas se avisa.
@@ -121,27 +234,35 @@ fn es_tarea_md(ruta: &str) -> bool {
     numero(ruta).is_some() && ruta.split_once('/').is_some_and(|(_, r)| r == "tarea.md")
 }
 
-/// Tareas abiertas cuyo titulo se parece a `titulo`, en orden de ID. Los
-/// `tarea.md` que no se leen o son de formato 1 se saltan sin fallar.
-fn parecidas(estado: &dyn Estado, rutas: &[String], titulo: &str) -> Result<Vec<Parecida>, Fallo> {
+/// Las tareas de formato 2 del estado, en orden de ruta, leidas en un solo
+/// proceso (F2-4b). Los `tarea.md` que no se leen o son de formato 1 se
+/// saltan sin fallar.
+pub(crate) fn tareas(estado: &dyn Estado, rutas: &[String]) -> Result<Vec<Tarea>, Fallo> {
     let mds: Vec<String> = rutas.iter().filter(|r| es_tarea_md(r)).cloned().collect();
-    let mut v = Vec::new();
-    for md in estado.leer_varios(&mds)?.into_iter().flatten() {
-        let Ok(Documento::Formato2(t, _)) = crate::tarea::leer(&md) else {
-            continue;
-        };
-        if !ABIERTOS.contains(&t.estado.as_str()) {
-            continue;
-        }
-        if let Some(p) = parecido(titulo, &t.titulo) {
-            v.push(Parecida {
-                id: t.id,
-                titulo: t.titulo,
+    Ok(estado
+        .leer_varios(&mds)?
+        .into_iter()
+        .flatten()
+        .filter_map(|md| match crate::tarea::leer(&md) {
+            Ok(Documento::Formato2(t, _)) => Some(t),
+            _ => None,
+        })
+        .collect())
+}
+
+/// Tareas abiertas de `tareas` cuyo titulo se parece a `titulo`.
+fn parecidas_a(tareas: &[Tarea], titulo: &str) -> Vec<Parecida> {
+    tareas
+        .iter()
+        .filter(|t| ABIERTOS.contains(&t.estado.as_str()))
+        .filter_map(|t| {
+            parecido(titulo, &t.titulo).map(|p| Parecida {
+                id: t.id.clone(),
+                titulo: t.titulo.clone(),
                 parecido: p,
-            });
-        }
-    }
-    Ok(v)
+            })
+        })
+        .collect()
 }
 
 /// Una linea de aviso con las tareas parecidas, en `idioma`; `None` si no
@@ -218,16 +339,16 @@ pub fn siguiente_id(rutas: &[String], ocupados: &BTreeSet<u32>) -> Result<u32, F
 /// Tipo con el que nace una tarea (plantilla de F1-9, punto 6).
 const TIPO: &str = "feature";
 
-/// Rama de la tarea `id` (ADR F1-3 y F1-9 punto 6): `feature/task-nnn-<slug>`
+/// Rama de la tarea `id` (ADR F1-3 y F1-9 punto 6): `<tipo>/task-nnn-<slug>`
 /// con el slug del titulo (F2-4b).
-pub fn rama_de(id: &str, titulo: &str) -> String {
-    crate::git::nombre_de_rama(id, TIPO, &slug(titulo))
+pub fn rama_de(id: &str, tipo: &str, titulo: &str) -> String {
+    crate::git::nombre_de_rama(id, tipo, &slug(titulo))
 }
 
 /// La rama derivada pasa la validacion de las operaciones de rama: si no,
 /// `start` no podria crearla.
-fn comprobar_rama(id: &str, titulo: &str) -> Result<(), Fallo> {
-    crate::git::rama::rama_valida(NOMBRE, id, TIPO, &slug(titulo))
+fn comprobar_rama(id: &str, tipo: &str, titulo: &str) -> Result<(), Fallo> {
+    crate::git::rama::rama_valida(NOMBRE, id, tipo, &slug(titulo))
         .map(drop)
         .map_err(|i| {
             Fallo::Error(
@@ -238,14 +359,24 @@ fn comprobar_rama(id: &str, titulo: &str) -> Result<(), Fallo> {
         })
 }
 
-/// `tarea.md` de una tarea recien creada: el modelo de F2-5 con la
-/// plantilla de F1-9 (punto 6) y la rama derivada del ID (F2-4b).
+/// `tarea.md` de una tarea recien creada con solo el titulo: el modelo de
+/// F2-5 con la plantilla de F1-9 (punto 6) y la rama derivada del ID (F2-4b).
 pub fn tarea_md(id: &str, titulo: &str, fecha: &str) -> String {
-    let mut t = Tarea::nueva(id, titulo, fecha);
-    // El tipo y la rama salen de la misma constante: no pueden divergir.
-    TIPO.clone_into(&mut t.tipo);
-    t.rama = Some(rama_de(id, titulo));
-    t.escribir(&Cuerpo::plantilla())
+    tarea_de(id, &Entrada::nueva(titulo), fecha)
+}
+
+/// `tarea.md` de `entrada` con el ID `id`: el enunciado en el cuerpo y el
+/// resto en el frontmatter. El tipo y la rama salen del mismo campo: no
+/// pueden divergir.
+fn tarea_de(id: &str, e: &Entrada, fecha: &str) -> String {
+    let mut t = Tarea::nueva(id, &e.titulo, fecha);
+    e.tipo.clone_into(&mut t.tipo);
+    t.sprint = e.sprint;
+    t.etiquetas.clone_from(&e.etiquetas);
+    t.complejidad.clone_from(&e.complejidad);
+    t.dependencias.clone_from(&e.dependencias);
+    t.rama = Some(rama_de(id, &e.tipo, &e.titulo));
+    t.escribir(&Cuerpo::con_enunciado(&e.objetivo, &e.criterios))
 }
 
 /// Fecha de hoy en UTC, `AAAA-MM-DD`, sin dependencias.
@@ -377,7 +508,7 @@ mod tests {
             ("Задача без латиницы", "feature/task-076-tarea"),
             ("漢字", "feature/task-076-tarea"),
         ] {
-            assert_eq!(rama_de("TASK-076", titulo), rama);
+            assert_eq!(rama_de("TASK-076", TIPO, titulo), rama);
             let md = tarea_md("TASK-076", titulo, "2026-11-16");
             let leida = match crate::tarea::leer(&md) {
                 Ok(crate::tarea::Documento::Formato2(t, _)) => t.rama,
@@ -389,9 +520,40 @@ mod tests {
                 crate::git::rama::rama_valida("t", "TASK-076", TIPO, slug).ok(),
                 Some(rama.to_owned())
             );
-            assert_eq!(comprobar_rama("TASK-076", titulo), Ok(()));
+            assert_eq!(comprobar_rama("TASK-076", TIPO, titulo), Ok(()));
         }
-        assert_eq!(rama_de("TASK-1000", "x"), "feature/task-1000-x");
+        assert_eq!(rama_de("TASK-1000", TIPO, "x"), "feature/task-1000-x");
+    }
+
+    /// TASK-029: con `tipo` como parametro, cada tipo del modelo da una rama
+    /// que pasa `rama_valida`, y el `tarea.md` lleva ese tipo y esa rama.
+    #[test]
+    fn rama_derivada_por_tipo_pasa_rama_valida() {
+        for tipo in crate::tarea::TIPOS {
+            let mut e = Entrada::nueva("Arreglar el login");
+            tipo.clone_into(&mut e.tipo);
+            let rama = rama_de("TASK-029", tipo, &e.titulo);
+            assert_eq!(rama, format!("{tipo}/task-029-arreglar-el-login"));
+            assert_eq!(comprobar_rama("TASK-029", tipo, &e.titulo), Ok(()));
+            let leida = match crate::tarea::leer(&tarea_de("TASK-029", &e, "2026-11-17")) {
+                Ok(Documento::Formato2(t, _)) => Some((t.tipo, t.rama)),
+                _ => None,
+            };
+            assert_eq!(leida, Some((tipo.to_owned(), Some(rama))));
+        }
+    }
+
+    #[test]
+    fn reservar_da_ids_consecutivos_sin_huecos() {
+        let r = rutas(&["TASK-004/tarea.md"]);
+        assert_eq!(reservar(&r, &BTreeSet::from([6]), 3), Ok(vec![7, 8, 9]));
+        assert_eq!(reservar(&r, &BTreeSet::new(), 0), Ok(vec![]));
+        let tope = rutas(&[&format!("TASK-{}/tarea.md", u32::MAX - 2)]);
+        assert_eq!(reservar(&tope, &BTreeSet::new(), 2).map(|v| v.len()), Ok(2));
+        assert!(matches!(
+            reservar(&tope, &BTreeSet::new(), 3),
+            Err(Fallo::Error(_))
+        ));
     }
 
     #[test]
