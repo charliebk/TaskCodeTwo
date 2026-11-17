@@ -19,8 +19,8 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, tarea_de};
-use crate::i18n::Mensaje;
+use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::grafo::DESCARTADA;
 use crate::i18n::catalogo::ciclo as txt;
 use crate::identidad::Quien;
 use crate::tarea::{Asignado, Cuerpo, PAUSA, REANUDAR, Tarea, Transicion};
@@ -30,11 +30,9 @@ use crate::toma::operacion::MODO;
 /// Nombre de `descartar`, de su operacion y de su fila de transicion.
 pub const DESCARTAR: &str = "descartar";
 
-/// Estado en el que queda una tarea descartada.
-pub const DESCARTADA: &str = "descartada";
-
-/// Estados desde los que se descarta, se pausa o se reanuda.
-pub const DE_ORIGEN: [&str; 4] = ["planificada", "en-diseno", "en-curso", "en-revision"];
+/// Estados de una tarea abierta (ni terminada ni descartada): desde ellos se
+/// descarta, se pausa o se reanuda.
+pub const ABIERTAS: [&str; 4] = ["planificada", "en-diseno", "en-curso", "en-revision"];
 
 /// Largo maximo del motivo de un descarte, en caracteres: cabe en una
 /// linea del ROADMAP y en la anotacion del commit.
@@ -68,43 +66,27 @@ impl Lanzada {
         }
     }
 
-    fn rechazo(&self, motivo: &str, m: Mensaje) -> Fallo {
-        Fallo::rechazada(motivo, m.con("id", self.id.as_str()))
-    }
-
-    /// La tarea de `estado`, si quien la lanza puede cambiarla (D2): la lleva
-    /// el o nadie.
-    fn tarea(&self, estado: &dyn Estado) -> Result<(Tarea, Cuerpo), Fallo> {
+    /// La tarea de `estado`, si quien lanza `orden` puede cambiarla (D2): la
+    /// lleva el o nadie.
+    fn tarea(&self, estado: &dyn Estado, orden: &str) -> Result<(Tarea, Cuerpo), Fallo> {
         *self.dueno.borrow_mut() = None;
         let (t, c) = tarea_de(estado, &self.id)?;
-        match &t.asignado_a {
-            Some(a) if !a.misma_persona(&self.asignado) => Err(match (a.login(), a.heredado()) {
-                (Some(login), _) => {
-                    *self.dueno.borrow_mut() = Some(login.to_owned());
-                    self.rechazo(
-                        "de-otra-persona",
-                        Mensaje::nuevo(&txt::DE_OTRA_PERSONA).con("login", login),
-                    )
-                }
-                (None, texto) => self.rechazo(
-                    "asignado-heredado",
-                    Mensaje::nuevo(&txt::ASIGNADO_HEREDADO).con("texto", texto.unwrap_or_default()),
-                ),
-            }),
-            _ => Ok((t, c)),
+        if let Some((fallo, dueno)) = de_otra_persona(
+            &self.id,
+            t.asignado_a.as_ref(),
+            &self.asignado,
+            orden,
+            ("de-otra-persona", &txt::DE_OTRA_PERSONA),
+        ) {
+            *self.dueno.borrow_mut() = dueno;
+            return Err(fallo);
         }
+        Ok((t, c))
     }
 
-    /// `terminada`, `descartada` u otro estado que no es de [`DE_ORIGEN`].
-    fn estado_no_valido(&self, estado: &str) -> Fallo {
-        match estado {
-            "terminada" => self.rechazo("terminada", Mensaje::nuevo(&txt::TERMINADA)),
-            DESCARTADA => self.rechazo("descartada", Mensaje::nuevo(&txt::DESCARTADA)),
-            otro => self.rechazo(
-                "estado-no-valido",
-                Mensaje::nuevo(&txt::ESTADO_NO_VALIDO).con("estado", otro),
-            ),
-        }
+    /// `terminada`, `descartada` u otro estado que no es de [`ABIERTAS`].
+    fn estado_no_valido(&self, estado: &str, orden: &str) -> Fallo {
+        por_estado(&self.id, estado, orden, &ABIERTAS)
     }
 
     /// El `tarea.md` con `actualizado` de hoy y la fila `fase`.
@@ -175,12 +157,12 @@ impl Operacion for Descartar {
     }
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let (mut t, cuerpo) = self.base.tarea(estado)?;
+        let (mut t, cuerpo) = self.base.tarea(estado, DESCARTAR)?;
         match t.estado.as_str() {
             // Ya descartada: nada que escribir; el motivo es el de entonces.
             DESCARTADA => return Ok(Vec::new()),
-            e if DE_ORIGEN.contains(&e) => {}
-            otro => return Err(self.base.estado_no_valido(otro)),
+            e if ABIERTAS.contains(&e) => {}
+            otro => return Err(self.base.estado_no_valido(otro, DESCARTAR)),
         }
         DESCARTADA.clone_into(&mut t.estado);
         t.motivo = Some(self.motivo.clone());
@@ -233,9 +215,9 @@ impl Operacion for Pausar {
     }
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let (t, cuerpo) = self.base.tarea(estado)?;
-        if !DE_ORIGEN.contains(&t.estado.as_str()) {
-            return Err(self.base.estado_no_valido(&t.estado));
+        let (t, cuerpo) = self.base.tarea(estado, self.fase())?;
+        if !ABIERTAS.contains(&t.estado.as_str()) {
+            return Err(self.base.estado_no_valido(&t.estado, self.fase()));
         }
         if cuerpo.en_pausa() != self.reanudar {
             // Ya en pausa (o ya sin ella): nada que escribir.

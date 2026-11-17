@@ -22,7 +22,7 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, tarea_de};
+use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
 use crate::grafo::{Nodo, dependencia_cumplida};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
@@ -35,8 +35,8 @@ use super::NOMBRE;
 /// la reanuda sin escribir estado (F1-3, decision 2, caso c).
 pub const EMPEZADA: [&str; 2] = ["en-curso", "en-revision"];
 
-/// Estados desde los que se puede empezar (D1 de TASK-033).
-pub const DE_ORIGEN: [&str; 2] = ["planificada", "en-diseno"];
+/// Estados desde los que `start` empieza una tarea (D1 de TASK-033).
+pub const EMPEZABLES: [&str; 2] = ["planificada", "en-diseno"];
 
 /// Estado en el que queda la tarea tomada.
 pub const EN_CURSO: &str = "en-curso";
@@ -135,36 +135,18 @@ impl Operacion for Tomar {
         if mia && EMPEZADA.contains(&t.estado.as_str()) {
             return Ok(Vec::new());
         }
-        match &t.asignado_a {
-            Some(a) if !mia => {
-                return Err(match (a.login(), a.heredado()) {
-                    (Some(login), _) => {
-                        *self.dueno.borrow_mut() = Some(login.to_owned());
-                        self.rechazo("tomada", Mensaje::nuevo(&txt::TOMADA).con("login", login))
-                    }
-                    (None, texto) => self.rechazo(
-                        "asignado-heredado",
-                        Mensaje::nuevo(&txt::ASIGNADO_HEREDADO)
-                            .con("texto", texto.unwrap_or_default()),
-                    ),
-                });
-            }
-            _ => {}
+        if let Some((fallo, dueno)) = de_otra_persona(
+            &self.id,
+            t.asignado_a.as_ref(),
+            &self.asignado,
+            NOMBRE,
+            ("tomada", &txt::TOMADA),
+        ) {
+            *self.dueno.borrow_mut() = dueno;
+            return Err(fallo);
         }
-        match t.estado.as_str() {
-            e if DE_ORIGEN.contains(&e) => {}
-            "terminada" => {
-                return Err(self.rechazo("terminada", Mensaje::nuevo(&txt::TERMINADA)));
-            }
-            "descartada" => {
-                return Err(self.rechazo("descartada", Mensaje::nuevo(&txt::DESCARTADA)));
-            }
-            otro => {
-                return Err(self.rechazo(
-                    "estado-no-valido",
-                    Mensaje::nuevo(&txt::ESTADO_NO_VALIDO).con("estado", otro),
-                ));
-            }
+        if !EMPEZABLES.contains(&t.estado.as_str()) {
+            return Err(por_estado(&self.id, &t.estado, NOMBRE, &EMPEZABLES));
         }
         // En pausa (TASK-034): no se empieza hasta reanudarla.
         if cuerpo.en_pausa() {
