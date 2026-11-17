@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-032-f3-5-board-y-status
 asignado_a: charlie.bk@gmail.com
@@ -73,6 +73,7 @@ MENORES aceptados (a seguimiento, TASK-124): `Ilegibles:` sin sanear; varios PR 
 | 2026-11-17T08:21:35Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T08:21:36Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T08:50:39Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T09:09:55Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -82,3 +83,9 @@ MENORES aceptados (a seguimiento, TASK-124): `Ilegibles:` sin sanear; varios PR 
 | 2026-11-17T08:50:39Z | implementacion | agente:a1d1639464f8a8566 | 192 | 334534 | 22966493 | 86538 | 43 | 23387757 | - | - |
 | 2026-11-17T09:05:39Z | revision | agente:a5e0e1e64ac493d0a | 36 | 114112 | 1579342 | 10727 | 0 | 1704217 | 1 | rust-wasm-reviewer |
 | 2026-11-17T09:05:39Z | revision | agente:a5aa3c0be1b6b36b4 | 72 | 141829 | 3725083 | 23011 | 8 | 3889995 | 1 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 48 min
+- Cierre (finish): 254 s, de 2026-11-17T09:05:41Z a 2026-11-17T09:09:55Z
