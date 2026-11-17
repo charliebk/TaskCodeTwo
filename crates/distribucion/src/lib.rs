@@ -22,6 +22,24 @@ pub const REPO: &str = "charliebk/TaskCodeTwo";
 /// (`gh attestation verify --signer-workflow`), como en los instaladores.
 pub const WORKFLOW_RELEASE: &str = "charliebk/TaskCodeTwo/.github/workflows/release.yml";
 
+/// Marca de inicio del bloque que `install.sh` anade al perfil del shell
+/// (F2-11) y que `tc2 desinstalar` quita (F2-14). Un test de `xtask` exige
+/// que `install.sh` use exactamente esta.
+pub const MARCA_INICIO_PERFIL: &str = "# >>> tc2 (TaskCodeTwo) >>>";
+
+/// Marca de fin del bloque del perfil del shell.
+pub const MARCA_FIN_PERFIL: &str = "# <<< tc2 (TaskCodeTwo) <<<";
+
+/// Linea del bloque del perfil entre las marcas, sin el directorio: empieza
+/// asi y lo demas es el `export` con el directorio de la instalacion.
+pub const LINEA_PERFIL: &str = "case \":$PATH:\" in ";
+
+/// `command` de la status line de la 2.0 en `settings.json` (F1-12 D1a; la
+/// escribira F3-12). Es el reconocedor cerrado de `tc2 desinstalar`: otra
+/// status line, tambien la de la 0.16 (`taskctl estado --stdin`), no es
+/// suya.
+pub const STATUS_LINE: &str = "tc2 estado --stdin";
+
 /// Releases del repositorio: `cli.lock` apunta a `<RELEASES>/download/<tag>/`.
 pub const RELEASES: &str = "https://github.com/charliebk/TaskCodeTwo/releases";
 

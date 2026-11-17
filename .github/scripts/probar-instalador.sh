@@ -212,6 +212,59 @@ path_idempotente() {
   echo "probar: VERDE: el PATH queda una sola vez y TC2_NO_MODIFY_PATH=1 no lo toca"
 }
 
+# TASK-078 (F2-14, C2 y C8): tras instalar con la linea, `tc2 desinstalar
+# --maquina` quita el binario y, en Unix, el bloque del perfil (el resto
+# identico byte a byte); en Windows, su entrada del PATH de usuario (las demas
+# intactas) y el propio tc2.exe en marcha, que borra un auxiliar al salir
+# (<= 10 s). Va la ultima: tambien quita lo que dejaron las pruebas de antes.
+desinstalar_maquina() {
+  claude_vacio="$tmp/claude-vacio"
+  mkdir -p "$claude_vacio"
+  if [ "$so" = windows ]; then
+    dir="$tmp/dest-desinstalar"
+    dest=$(dir_windows "$dir")
+    defecto="$LOCALAPPDATA\\taskcodetwo\\bin"
+    linea_windows "$dest"
+    [ "$(veces_en_path_usuario "$dest")" = 1 ] || rojo "el instalador no anadio $dest al PATH del usuario"
+    # El PATH de usuario esperado: el de ahora sin las entradas de tc2.
+    esperado=$(powershell.exe -NoProfile -Command "@(([Environment]::GetEnvironmentVariable('Path','User') -split ';') | Where-Object { \$_.TrimEnd('\\') -ine '$dest' -and [Environment]::ExpandEnvironmentVariables(\$_).TrimEnd('\\') -ine '$defecto' }) -join ';'" | tr -d '\r')
+    set +e
+    salida=$(TC2_INSTALL_DIR="$dest" CLAUDE_CONFIG_DIR=$(dir_windows "$claude_vacio") "$dir/tc2.exe" desinstalar --maquina 2>&1)
+    codigo=$?
+    set -e
+    echo "$salida"
+    [ "$codigo" = 0 ] || rojo "tc2 desinstalar --maquina salio con $codigo"
+    printf '%s\n' "$salida" | grep -q "decision=borra motivo=al-salir" || rojo "no se programo el autoborrado del binario en marcha"
+    n=0
+    while [ -e "$dir/tc2.exe" ] && [ "$n" -lt 20 ]; do
+      sleep 1
+      n=$((n + 1))
+    done
+    [ ! -e "$dir/tc2.exe" ] || rojo "tras 20 s sigue $dir/tc2.exe"
+    echo "probar: el auxiliar borro tc2.exe en ${n} s (limite 10 s)"
+    [ "$n" -le 10 ] || rojo "el auxiliar tardo ${n} s"
+    [ "$(veces_en_path_usuario "$dest")" = 0 ] || rojo "tras desinstalar, $dest sigue en el PATH del usuario"
+    ahora=$(powershell.exe -NoProfile -Command "[Environment]::GetEnvironmentVariable('Path','User')" | tr -d '\r')
+    [ "$ahora" = "$esperado" ] || rojo "desinstalar cambio otras entradas del PATH de usuario: '$ahora', se esperaba '$esperado'"
+  else
+    h="$tmp/home-desinstalar"
+    mkdir -p "$h"
+    printf '# de la persona\nalias ll="ls -l"\n' >"$h/.profile"
+    antes=$(cksum <"$h/.profile")
+    linea_unix "$h"
+    grep -qF '# >>> tc2 (TaskCodeTwo) >>>' "$h/.profile" || rojo "el instalador no escribio el bloque en .profile"
+    set +e
+    salida=$(env -u XDG_CACHE_HOME HOME="$h" CLAUDE_CONFIG_DIR="$claude_vacio" "$h/.local/bin/tc2" desinstalar --maquina 2>&1)
+    codigo=$?
+    set -e
+    echo "$salida"
+    [ "$codigo" = 0 ] || rojo "tc2 desinstalar --maquina salio con $codigo"
+    [ ! -e "$h/.local/bin/tc2" ] || rojo "tras desinstalar sigue $h/.local/bin/tc2"
+    [ "$(cksum <"$h/.profile")" = "$antes" ] || rojo "tras desinstalar, .profile no es el de antes de instalar"
+  fi
+  echo "probar: VERDE: tc2 desinstalar --maquina deja la maquina como antes de instalar"
+}
+
 sin_version() {
   unset TC2_VERSION
   set +e
@@ -239,6 +292,7 @@ case "$modo" in
     medir
     hash_alterado
     path_idempotente
+    desinstalar_maquina
     ;;
   publico)
     medir

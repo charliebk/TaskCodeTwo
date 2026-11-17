@@ -13,8 +13,14 @@ fn main() -> ExitCode {
     // F2-12: en Windows, `actualizar --cli` deja `tc2.exe.old` (un ejecutable
     // en marcha no se puede borrar); lo borra la siguiente ejecucion. Una
     // llamada al sistema si no existe.
+    // `desinstalar` no: su `--simular` no toca nada (revision 1, MEN-6 de
+    // TASK-078), y el `.old` lo quita su propio plan.
     #[cfg(windows)]
-    if let Ok(exe) = std::env::current_exe() {
+    if std::env::args_os()
+        .nth(1)
+        .is_none_or(|a| a != "desinstalar")
+        && let Ok(exe) = std::env::current_exe()
+    {
         tc2::actualizar_cli::limpiar_old(&exe);
     }
     let idioma = Idioma::de_entorno(|k| std::env::var(k).ok());

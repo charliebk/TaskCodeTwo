@@ -149,3 +149,30 @@ fn instaladores_ascii_y_con_la_llamada_en_la_ultima_linea() {
         .collect();
     assert!(con_exit.is_empty(), "install.ps1 usa exit: {con_exit:?}");
 }
+
+/// TASK-078 (F2-14): `install.sh` escribe el bloque del perfil con las
+/// marcas y la linea que `tc2 desinstalar` reconoce (constantes de
+/// `distribucion`), y `install.ps1` anade el directorio al PATH del usuario
+/// con `Add-PathUsuario`, cuya inversa hace `tc2 desinstalar`.
+#[test]
+fn install_sh_usa_las_marcas_que_quita_desinstalar() {
+    let sh = leer("install.sh");
+    assert!(
+        sh.contains(&format!(
+            "MARCA_INICIO=\"{}\"",
+            distribucion::MARCA_INICIO_PERFIL
+        )),
+        "install.sh no usa MARCA_INICIO_PERFIL"
+    );
+    assert!(
+        sh.contains(&format!("MARCA_FIN=\"{}\"", distribucion::MARCA_FIN_PERFIL)),
+        "install.sh no usa MARCA_FIN_PERFIL"
+    );
+    assert!(
+        sh.contains(&format!("printf '{}", distribucion::LINEA_PERFIL)),
+        "install.sh no escribe la linea del bloque"
+    );
+    let ps1 = leer("install.ps1");
+    assert!(ps1.contains("function Add-PathUsuario"));
+    assert!(ps1.contains(r"taskcodetwo\bin"));
+}

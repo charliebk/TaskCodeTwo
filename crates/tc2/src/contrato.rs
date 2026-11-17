@@ -249,7 +249,7 @@ pub fn corto(hash: &str) -> String {
 
 /// Los valores no llevan espacios: espacio, `%`, controles (y `,` dentro de
 /// una lista) se escriben como `%XX`, de forma reversible.
-fn escapar_valor(v: &str, en_lista: bool) -> String {
+pub(crate) fn escapar_valor(v: &str, en_lista: bool) -> String {
     let mut s = String::with_capacity(v.len());
     for c in v.chars() {
         if c == '%' || c.is_whitespace() || c.is_control() || (en_lista && c == ',') {

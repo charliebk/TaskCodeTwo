@@ -66,7 +66,8 @@ curl -fsSL https://github.com/charliebk/TaskCodeTwo/releases/download/v0.0.0-pru
 
    En Windows, reinstalar en otro directorio añade el nuevo al final del PATH
    del usuario, pero no quita el anterior: si el `tc2.exe` viejo sigue ahí,
-   gana él. Hasta `tc2 desinstalar` (F2-14), quita a mano la entrada antigua.
+   gana él. `tc2 desinstalar --maquina` (abajo) quita la del directorio por defecto
+   y, con `TC2_INSTALL_DIR` apuntando a otro, también la de ese y su binario.
    Un directorio con `;` (el separador del PATH) se rechaza.
 
 Volver a ejecutar la línea reinstala (o cambia de versión con `TC2_VERSION`).
@@ -137,6 +138,74 @@ tc2 actualizar --cli --version 2.1.0-rc.1   # una versión concreta (también ha
   comprometer la release compromete binario y `SHA256SUMS` a la vez (ver
   [releases.md](releases.md)).
 
+## Desinstalar
+
+Lo construyó TASK-078 (F2-14, RR-16). Orden recomendado: `--proyecto` en
+cada repo, luego `--maquina` y, al final, el plugin con la orden que imprime.
+
+```bash
+tc2 desinstalar --proyecto --simular   # el plan, sin tocar nada
+tc2 desinstalar --proyecto             # worktrees, .git/taskcodetwo/, exclude
+tc2 desinstalar --proyecto --config --borrar-tareas taskcodetwo/tareas
+tc2 desinstalar --maquina --simular
+tc2 desinstalar --maquina
+```
+
+- **Salida**: una línea por acción, `accion ruta=... clase=... dueno=...
+  decision=borra|conserva|persona|pendiente [motivo=...] [orden=...]`, y al
+  final `desinstalar <resultado> ambito=... borra=N conserva=N persona=N
+  pendiente=N`. Con `--simular` la última lleva `simular=si` y no se toca
+  nada. Una segunda ejecución da `sin-cambios`. Las órdenes que tiene que
+  ejecutar la persona salen también, legibles, por stderr.
+- **Qué quita `--maquina`** (solo lo que reconoce por su ruta, sus marcas o
+  su `command` exactos): el binario de `TC2_INSTALL_DIR` y del directorio por
+  defecto (si es este `tc2`, está en la carpeta propia de Windows o responde
+  a `tc2 version --json`; otro `tc2` queda `dueno=ajeno`), su `tc2.exe.old` y los temporales `.tc2-*.descarga` y
+  `.tc2.nuevo.*`; el bloque entre marcas de `~/.profile`, `~/.bashrc`,
+  `~/.zshrc` y `~/.bash_profile` (el resto del perfil queda igual byte a
+  byte, salvo el salto de línea final que `install.sh` añadió a un perfil que
+  no lo tenía; si la línea entre las marcas no es exactamente la del
+  instalador, no se toca y queda para la persona); en Windows, la entrada del PATH de usuario (la inversa de lo que
+  añadió `install.ps1`; las demás entradas, intactas) y la carpeta
+  `%LOCALAPPDATA%\taskcodetwo` si queda vacía; la caché del lanzador
+  (`taskcodetwo/cli/`), y la `statusLine` de `~/.claude/settings.json` solo si
+  su `command` es exactamente `tc2 estado --stdin`, sin contar los espacios
+  de los extremos (sin tocar ningún otro byte del fichero). Los ficheros se
+  reescriben de una vez (temporal y renombrado).
+- **En Windows, el `tc2.exe` en marcha** no se puede borrar: lo borra un
+  proceso auxiliar en cuanto `tc2` sale (como mucho 10 s; `motivo=al-salir`).
+  Si otro proceso está ejecutando ese binario, su grupo (binario, `.old`,
+  carpeta y entrada del PATH) queda `pendiente motivo=en-uso` sin tocar, el
+  resto se quita y la orden sale `rechazada` (3).
+- **Qué no toca**: los hooks de un `settings.json` (si uno nombra `tc2`, lo
+  avisa); el plugin y el marketplace, que son de Claude Code (imprime
+  `claude plugin uninstall 'taskcodetwo@<marketplace>' --scope <scope>`); un
+  `tc2` de la caché del plugin o de un gestor de paquetes (imprime la orden
+  del gestor: `npm uninstall -g taskcodetwo`, `brew uninstall taskcodetwo`,
+  `winget uninstall taskcodetwo`, `scoop uninstall taskcodetwo` o `cargo
+  uninstall tc2`); y nada de la 0.16 (`taskctl`, `taskcode-plugin`, su status
+  line, `.git/taskcode/`), que desinstala F9-10.
+- **Qué quita `--proyecto`**: el worktree de la rama de estado (`tareas/`) y
+  los de tarea (`.taskcodetwo/worktrees/<id>`), con sus registros;
+  `.git/taskcodetwo/` (cerrojo, caché de identidad, índices temporales) y las
+  líneas `/.taskcodetwo/worktrees/` y `/tareas/` de `.git/info/exclude`. Si un
+  worktree tiene cambios sin guardar o commits sin publicar, está bloqueado
+  (`git worktree lock`) o contiene la carpeta desde la que se lanza, sale
+  `rechazada` sin tocar nada. Nunca usa la red ni toca el remoto.
+- **Con confirmación**: `.taskcode/config.yml` (solo la de formato 2, la que
+  lee `tc2`) y `.taskcode/personas.yml` solo con `--config`; con la config de
+  la 0.16, las dos se quedan, porque son compartidas; la rama local
+  `taskcodetwo/tareas` y las refs `refs/taskcodetwo/*` solo con
+  `--borrar-tareas taskcodetwo/tareas` (el nombre exacto). La rama remota
+  nunca: imprime `git push origin --delete taskcodetwo/tareas` para que lo
+  decida la persona. Si la rama local tiene commits que el remoto no tiene,
+  la línea lleva `motivo=adelantada-del-remoto sha=<sha>` y stderr dice cómo
+  recuperarlos (`git branch taskcodetwo/tareas <sha>`).
+- **Uso**: `--config` y `--borrar-tareas` sin `--proyecto` dan `uso` (2), y
+  otro nombre de rama en `--borrar-tareas`, también. Con `--maquina
+  --proyecto` fuera de un repo sale `rechazada motivo=no-es-repo` sin hacer
+  nada, tampoco en la máquina.
+
 ## Compatibilidad con el plugin
 
 El plugin pregunta al `tc2` que encuentra (ADR F1-14, punto 5):
@@ -205,6 +274,14 @@ hay `gh`.
   compilado con la versión siguiente, con `--comprobar` y el hash alterado.
   Hasta el primer push con el job, **no verificado** en CI (TASK-027); su
   paso en Windows x64 se ensayó en local.
+
+`tc2 desinstalar` se prueba en `cargo test -p tc2`
+(`crates/tc2/tests/desinstalar.rs`) con un HOME falso y el PATH de usuario,
+los procesos y el autoborrado en memoria (nunca los de la máquina), y en
+`probar-instalador.sh local`: tras instalar con la línea, `desinstalar
+--maquina` deja el perfil como antes y, en Windows, quita la entrada del PATH
+de usuario y el `tc2.exe` en marcha. Hasta el primer push con ese paso, **no
+verificado** en CI (TASK-078).
 
 Los runners no son máquinas limpias (traen curl, gh y Node). La prueba en
 máquinas limpias de verdad es de F9-9a (TASK-071).

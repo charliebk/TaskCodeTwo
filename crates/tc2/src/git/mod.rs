@@ -151,6 +151,8 @@ pub fn base_de_rama(rama: &str) -> &'static str {
 pub(crate) struct Worktree {
     pub ruta: PathBuf,
     pub rama: Option<String>,
+    /// Con `git worktree lock`: `git worktree remove` lo rechaza.
+    pub bloqueado: bool,
 }
 
 pub(crate) fn worktrees(git: &Git, dir: &Path, op: &str) -> Paso<Vec<Worktree>> {
@@ -161,9 +163,12 @@ pub(crate) fn worktrees(git: &Git, dir: &Path, op: &str) -> Paso<Vec<Worktree>> 
             v.push(Worktree {
                 ruta: PathBuf::from(r),
                 rama: None,
+                bloqueado: false,
             });
         } else if let (Some(r), Some(w)) = (l.strip_prefix("branch refs/heads/"), v.last_mut()) {
             w.rama = Some(r.to_owned());
+        } else if let (true, Some(w)) = (l == "locked" || l.starts_with("locked "), v.last_mut()) {
+            w.bloqueado = true;
         }
     }
     Ok(v)
