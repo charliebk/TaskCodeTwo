@@ -261,7 +261,9 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         // La transaccion toma el cerrojo ella misma: se suelta antes y,
         // creada la rama, se vuelve a empezar para montarla.
         drop(cerrojo);
-        let mut c = Contexto::nuevo(git, &principal, &ninguna);
+        // Inicializar no lleva ROADMAP: el primero lo escribe la primera
+        // operacion (con la zona de por defecto).
+        let mut c = Contexto::nuevo(git, &principal, &ninguna, None);
         c.politica = politica;
         let i = transaccion(&c, &Inicializar);
         if !i.resultado.es_exito() {

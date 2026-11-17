@@ -10,3 +10,6 @@ Cargo.lock text eol=lf
 crates/tc2/esquemas/*.json text eol=lf
 # Evidencia de mediciones (TASK-113): se compara por sha256 con el original.
 docs/mediciones/** -text
+# Salidas de referencia del ROADMAP (TASK-031): mezclan CRLF (zona manual)
+# y LF (lo generado) y se comparan byte a byte.
+crates/tc2/tests/fixtures/roadmap/** -text

@@ -25,7 +25,7 @@ fn rapida() -> Politica {
 }
 
 fn escribir_estado(g: &Git, dir: &Path, op: &dyn Operacion) -> tc2::contrato::Informe {
-    let mut c = Contexto::nuevo(g, dir, &catalogo);
+    let mut c = Contexto::nuevo(g, dir, &catalogo, None);
     c.politica = rapida();
     let i = estado::transaccion(&c, op);
     contrato(&i);

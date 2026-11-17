@@ -316,7 +316,9 @@ fn importar_en(
     if o.simular {
         return simular(g, dir, &op, parecidas);
     }
-    let c = estado::Contexto::nuevo(g, dir, catalogo);
+    let personas = crate::roadmap::personas(g, dir);
+    let generar = crate::roadmap::generador(&personas);
+    let c = estado::Contexto::nuevo(g, dir, catalogo, Some(&generar));
     let mut i = estado::transaccion(&c, &op);
     NOMBRE.clone_into(&mut i.comando);
     alta::referencia_a_uso(&mut i);

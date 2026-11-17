@@ -2,33 +2,31 @@
 //! prioridad.
 //!
 //! Lee el estado tal como lo conoce este clon ([`estado::leer`]: sin
-//! `fetch` y sin escribir; la lectura fresca es de F3-5b), proyecta cada
-//! `tarea.md` a un [`Nodo`] y calcula el orden con [`grafo`]. El orden de los
-//! hitos sale de los titulos `### Hn — titulo` de la zona manual del
+//! `fetch` y sin escribir; la lectura fresca es de F3-5b) y calcula con
+//! [`crate::situacion`], lo mismo que `roadmap` (TASK-031 C4). El orden de
+//! los hitos sale de los titulos `### Hn — titulo` de la zona manual del
 //! `ROADMAP.md` de la rama de estado (D2 de TASK-030).
 //!
 //! Salida: `next ok listas=... en-marcha=... commit=<sha> [avisos]`, con
 //! `commit=` la foto del estado usada. Avisos, solo si los hay:
 //! `ilegibles=` (`tarea.md` que no se entienden: no se saltan en silencio),
 //! `ciclos=` (las atascadas), `dependencias-inexistentes=`,
-//! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=` y `duplicadas=`
-//! (IDs repetidos: vale el primero). Sin rama de estado, `rechazada`.
+//! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=`, `duplicadas=`
+//! (IDs repetidos: vale el primero) y `roadmap-roto=` (la zona manual del
+//! ROADMAP, rota: D3 de TASK-031). Sin rama de estado, `rechazada`.
 
 use std::path::Path;
 
 use crate::contrato::{Informe, Resultado, corto};
 use crate::estado::{self, Estado, Fallo};
 use crate::git::Git;
-use crate::grafo::{self, Hitos, Nodo};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::cli as txt_cli;
 use crate::i18n::catalogo::siguiente as txt;
+use crate::situacion::{self, Situacion};
 
 /// Nombre de la orden.
 pub const NOMBRE: &str = "next";
-
-/// `ROADMAP.md` en la raiz de la rama de estado (ADR F1-1, decision 3).
-const ROADMAP: &str = "ROADMAP.md";
 
 /// `next [--json]` en la carpeta actual (sin `--json`, que quita `lib.rs`).
 pub fn orden(args: &[String]) -> Informe {
@@ -66,26 +64,23 @@ pub fn siguiente_en(g: &Git, dir: &Path) -> Informe {
     }
 }
 
-/// Lo que se calcula sobre el estado.
+/// Lo que se calcula sobre el estado: la [`Situacion`] comun con `roadmap`.
 #[derive(Debug, Default)]
-struct Calculo {
-    listas: Vec<String>,
-    en_marcha: Vec<String>,
-    ilegibles: Vec<String>,
-    orden: grafo::Orden,
-}
+struct Calculo(Situacion);
 
 impl Calculo {
     fn informe(self, commit: &str) -> Informe {
-        let a = self.orden.avisos;
+        let roto = self.0.roadmap_roto();
+        let s = self.0;
+        let a = s.orden.avisos;
         let mut i = Informe::nuevo(NOMBRE, Resultado::Ok)
-            .con_lista("listas", self.listas)
-            .con_lista("en-marcha", self.en_marcha)
+            .con_lista("listas", s.listas)
+            .con_lista("en-marcha", s.en_marcha)
             .con("commit", commit);
         let hitos: Vec<String> = a.hitos_sin_titulo.iter().map(|h| format!("H{h}")).collect();
         for (clave, v) in [
-            ("ilegibles", self.ilegibles),
-            ("ciclos", self.orden.atascadas),
+            ("ilegibles", s.ilegibles),
+            ("ciclos", s.orden.atascadas),
             ("dependencias-inexistentes", a.dependencias_inexistentes),
             ("depende-de-descartada", a.depende_de_descartada),
             ("hitos-sin-titulo", hitos),
@@ -95,35 +90,17 @@ impl Calculo {
                 i = i.con_lista(clave, v);
             }
         }
+        // D3 de TASK-031: la zona manual rota se avisa.
+        if let Some(r) = roto {
+            i = i.con("roadmap-roto", r.motivo());
+        }
         i
     }
 }
 
 /// Listas, en marcha e ilegibles de `estado`.
 fn calcular(estado: &dyn Estado) -> Result<Calculo, Fallo> {
-    let rutas = estado.rutas();
-    let mut nodos = Vec::new();
-    let mut ilegibles = Vec::new();
-    for (ruta, leida) in estado::tareas(estado, &rutas)? {
-        match leida {
-            Ok(d) => nodos.push(Nodo::de(&d)),
-            Err(_) => ilegibles.push(ruta.split('/').next().unwrap_or(&ruta).to_owned()),
-        }
-    }
-    // Detras de las legibles: si un ID se repite, vale la legible. Una
-    // ilegible bloquea a quien dependa de ella.
-    nodos.extend(ilegibles.iter().map(|id| Nodo::ilegible(id)));
-    let hitos = match estado.leer(ROADMAP)? {
-        Some(t) => Hitos::del_roadmap(&t),
-        None => Hitos::default(),
-    };
-    let orden = grafo::orden_de_trabajo(&nodos, &hitos);
-    Ok(Calculo {
-        listas: grafo::listas(&orden, &nodos),
-        en_marcha: grafo::en_marcha(&orden, &nodos),
-        ilegibles,
-        orden,
-    })
+    situacion::calcular(estado).map(Calculo)
 }
 
 #[cfg(test)]
@@ -157,7 +134,7 @@ mod tests {
         let mut m = BTreeMap::new();
         m.insert(
             "TASK-001/tarea.md".into(),
-            tarea("TASK-001", 0, "planificada", &[]),
+            tarea("TASK-001", 1, "planificada", &[]),
         );
         m.insert("TASK-002/tarea.md".into(), "---\nid: roto\n".into());
         m.insert("TASK-003/plan.md".into(), "no es un tarea.md".into());
@@ -166,8 +143,9 @@ mod tests {
         let Ok(c) = c else { return };
         assert_eq!(
             c.informe("0123456789ab").linea(),
-            // Sin ROADMAP.md, el hito va por su numero y se avisa.
-            "next ok listas=TASK-001 en-marcha= commit=0123456789ab ilegibles=TASK-002 hitos-sin-titulo=H0"
+            // Sin ROADMAP.md vale la zona por defecto, que solo declara H0:
+            // H1 va por su numero y se avisa.
+            "next ok listas=TASK-001 en-marcha= commit=0123456789ab ilegibles=TASK-002 hitos-sin-titulo=H1"
         );
     }
 
@@ -188,14 +166,26 @@ mod tests {
             tarea("TASK-003", 3, "en-curso", &[]),
         );
         m.insert(
-            ROADMAP.into(),
+            situacion::ROADMAP.into(),
             "<!-- manual:inicio -->\n### H2 — Dos\n### H1 — Uno\n<!-- manual:fin -->\n".into(),
+        );
+        let c = calcular(&EnMemoria(m.clone()));
+        let Ok(c) = c else { return };
+        assert_eq!(
+            c.informe("0123456789ab").linea(),
+            "next ok listas=TASK-002,TASK-001 en-marcha=TASK-003 commit=0123456789ab hitos-sin-titulo=H3"
+        );
+        // D3 de TASK-031: sin la marca de fin, el orden sigue (lectura
+        // tolerante) y se avisa.
+        m.insert(
+            situacion::ROADMAP.into(),
+            "<!-- manual:inicio -->\n### H2 — Dos\n### H1 — Uno\n".into(),
         );
         let c = calcular(&EnMemoria(m));
         let Ok(c) = c else { return };
         assert_eq!(
             c.informe("0123456789ab").linea(),
-            "next ok listas=TASK-002,TASK-001 en-marcha=TASK-003 commit=0123456789ab hitos-sin-titulo=H3"
+            "next ok listas=TASK-002,TASK-001 en-marcha=TASK-003 commit=0123456789ab hitos-sin-titulo=H3 roadmap-roto=sin-fin"
         );
     }
 

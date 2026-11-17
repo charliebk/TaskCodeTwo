@@ -12,6 +12,7 @@ pub mod identidad;
 pub mod importar;
 pub mod init;
 pub mod plataforma;
+pub mod roadmap;
 pub mod siguiente;
 
 use super::Texto;
@@ -30,6 +31,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         importar::TODOS,
         init::TODOS,
         plataforma::TODOS,
+        roadmap::TODOS,
         siguiente::TODOS,
     ]
     .into_iter()

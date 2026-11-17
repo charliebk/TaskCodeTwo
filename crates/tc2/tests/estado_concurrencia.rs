@@ -16,11 +16,14 @@ use std::time::{Duration, Instant};
 
 use comun::Fixture;
 use comun::ops::{Anotar, catalogo, roadmap};
+use tc2::alta::Alta;
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Contexto, Politica};
+use tc2::estado::{self, Contexto, Operacion, Politica, Roadmap};
 use tc2::git::Git;
+use tc2::plataforma::Personas;
 
 const DIR: &str = "TC2_HIJO_DIR";
+const MODO: &str = "TC2_HIJO_MODO";
 const ETIQUETA: &str = "TC2_HIJO_ETIQUETA";
 const K: &str = "TC2_HIJO_K";
 const BARRERA: &str = "TC2_HIJO_BARRERA";
@@ -45,22 +48,30 @@ fn hijo_escritor() {
     // El entorno (configuracion aislada) lo hereda del padre.
     let git = Git::nuevo();
     let dir = Path::new(&dir);
-    let mut c = Contexto::nuevo(&git, dir, &catalogo);
+    // `alta`: altas con el generador de produccion (C1 de TASK-031).
+    let alta = std::env::var(MODO).is_ok_and(|m| m == "alta");
+    let personas = Personas::default();
+    let real = tc2::roadmap::generador(&personas);
+    let generar: Roadmap<'_> = if alta { &real } else { &roadmap };
+    let mut c = Contexto::nuevo(&git, dir, &catalogo, Some(generar));
     c.politica = Politica {
         intentos: 40,
         base: Duration::from_millis(15),
         espera_cerrojo: Duration::from_secs(120),
     };
-    c.roadmap = Some(&roadmap);
     for i in 0..k {
-        let op = Anotar::nueva(&format!("notas/{etiqueta}-{i}.md"), true);
-        let inf = estado::transaccion(&c, &op);
+        let op: Box<dyn Operacion> = if alta {
+            Box::new(Alta::nueva(&format!("t-{etiqueta}-{i}")))
+        } else {
+            Box::new(Anotar::nueva(&format!("notas/{etiqueta}-{i}.md"), true))
+        };
+        let inf = estado::transaccion(&c, op.as_ref());
         println!("RESULTADO {} {:?}", inf.linea(), inf.diagnostico);
         assert_eq!(inf.resultado, Resultado::Ok, "{}", inf.linea());
     }
 }
 
-fn lanzar(f: &Fixture, dir: &Path, etiqueta: &str, barrera: &Path) -> Child {
+fn lanzar(f: &Fixture, dir: &Path, etiqueta: &str, barrera: &Path, modo: &str) -> Child {
     Command::new(std::env::current_exe().unwrap())
         .args([
             "hijo_escritor",
@@ -73,6 +84,7 @@ fn lanzar(f: &Fixture, dir: &Path, etiqueta: &str, barrera: &Path) -> Child {
         .env(ETIQUETA, etiqueta)
         .env(K, ESCRITURAS.to_string())
         .env(BARRERA, barrera)
+        .env(MODO, modo)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -82,10 +94,14 @@ fn lanzar(f: &Fixture, dir: &Path, etiqueta: &str, barrera: &Path) -> Child {
 /// Lanza un hijo por carpeta, los suelta a la vez y comprueba que cada uno
 /// publico sus escrituras.
 fn a_la_vez(f: &Fixture, dirs: &[(&Path, &str)]) {
+    a_la_vez_en_modo(f, dirs, "anotar");
+}
+
+fn a_la_vez_en_modo(f: &Fixture, dirs: &[(&Path, &str)], modo: &str) {
     let barrera = f.raiz.join("barrera");
     let hijos: Vec<(String, Child)> = dirs
         .iter()
-        .map(|(d, e)| ((*e).to_owned(), lanzar(f, d, e, &barrera)))
+        .map(|(d, e)| ((*e).to_owned(), lanzar(f, d, e, &barrera, modo)))
         .collect();
     std::fs::write(&barrera, "ya").unwrap();
     for (e, h) in hijos {
@@ -161,6 +177,34 @@ fn dos_clones_escriben_a_la_vez_sin_perder_nada() {
         );
         assert_eq!(f.crudo(&c.join("tareas"), &["status", "--porcelain"]), "");
         assert_eq!(f.crudo(c, &["status", "--porcelain"]), "");
+    }
+}
+
+/// C1 de TASK-031: dos clones dan de alta a la vez con el generador de
+/// produccion; los dos acaban `ok`, el ROADMAP.md publicado tiene todas las
+/// tareas, la historia no tiene merges y `--comparar` lo da al dia.
+#[test]
+fn dos_clones_dan_de_alta_a_la_vez_y_el_roadmap_queda_al_dia() {
+    let f = Fixture::nueva("estado-roadmap-real");
+    let (bare, clon) = f.remoto_y_clon();
+    let otro = f.otro_clon(&bare, "otro");
+
+    a_la_vez_en_modo(&f, &[(&clon, "uno"), (&otro, "dos")], "alta");
+
+    let roadmap = f.crudo(&bare, &["show", &format!("{}:ROADMAP.md", estado::RAMA)]);
+    for n in 1..=2 * ESCRITURAS {
+        assert!(
+            roadmap.contains(&format!("| TASK-{n:03} | t-")),
+            "falta TASK-{n:03}:\n{roadmap}"
+        );
+    }
+    let merges = f.crudo(&bare, &["rev-list", "--merges", estado::RAMA]);
+    assert_eq!(merges, "", "historia lineal");
+    let g = f.git();
+    for c in [&clon, &otro] {
+        f.crudo(c, &["fetch", "-q", "origin"]);
+        let i = tc2::roadmap::comparar_en(&g, c);
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     }
 }
 
