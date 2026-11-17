@@ -37,6 +37,11 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 - [ ] C6: una linea por ruleset `taskcodetwo-*` con `decision=persona` y la orden que lo aplica, sin ninguna escritura en la plataforma (0 POST/PUT/PATCH en el doble HTTP)
 - [ ] C7: tras `init`, `tc2 desinstalar --proyecto --simular` lista todo lo que creo `init` con `dueno=taskcodetwo` (`init_y_desinstalar_se_reconocen`)
 
+## Autorrevision
+
+- rust-wasm-reviewer — 1713060
+- code-quality-reviewer — 1713060
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
