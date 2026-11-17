@@ -16,7 +16,7 @@
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
-//! (`board` y `status`, F3-5). Las capas
+//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -41,6 +41,7 @@ pub mod siguiente;
 pub mod situacion;
 pub mod tablero;
 pub mod tarea;
+pub mod toma;
 pub mod version;
 mod yaml;
 
@@ -300,7 +301,9 @@ fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Sa
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado
 /// desde su anotacion. Las operaciones nuevas se anaden aqui.
 fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
-    alta::desde_anotacion(anotacion).or_else(|| roadmap::desde_anotacion(anotacion))
+    alta::desde_anotacion(anotacion)
+        .or_else(|| roadmap::desde_anotacion(anotacion))
+        .or_else(|| toma::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
@@ -464,6 +467,18 @@ mod tests {
         ] {
             assert_eq!(ejecutar(&args).codigo, 2, "{args:?}");
         }
+    }
+
+    /// F3-6: el catalogo de produccion reconstruye la toma desde su
+    /// anotacion, igual que el alta y el roadmap.
+    #[test]
+    fn el_catalogo_reconstruye_la_toma() {
+        let op = catalogo("start|TASK-001|7|ana");
+        assert_eq!(
+            op.map(|o| (o.nombre().to_owned(), o.anotacion())),
+            Some(("start".to_owned(), "start|TASK-001|7|ana".to_owned()))
+        );
+        assert!(catalogo("start|TASK-001|7").is_none());
     }
 
     #[test]
