@@ -319,8 +319,9 @@ mod tests {
         let e = estado(&[("TASK-001", antes.clone())]);
         let op = Tomar::nueva("TASK-001", &ana(), AHORA);
         let cambios = op.aplicar(&e);
+        assert_eq!(cambios.as_ref().map(Vec::len), Ok(1), "{cambios:?}");
         let Ok([c]) = cambios.as_deref() else {
-            panic!("{cambios:?}");
+            return;
         };
         assert_eq!(c.ruta, "TASK-001/tarea.md");
         let esperado = antes
@@ -359,14 +360,23 @@ mod tests {
         assert_ne!(base, sin_rama);
         let e = estado(&[("TASK-002", sin_rama.clone())]);
         let op = Tomar::nueva("TASK-002", &ana(), AHORA);
-        let Ok(c) = op.aplicar(&e) else {
-            panic!("rechazada")
-        };
-        let texto = c.first().map(|c| c.contenido.clone()).unwrap_or_default();
-        assert!(
-            texto.contains("\nrama: \"feature/task-002-tarea-task-002\"\n"),
-            "{texto}"
-        );
+        let r = op.aplicar(&e);
+        let texto = r
+            .as_ref()
+            .ok()
+            .and_then(|c| c.first())
+            .map(|c| c.contenido.clone())
+            .unwrap_or_default();
+        // Todo igual que en `base` (que lleva la rama) salvo lo de la toma.
+        let esperado = base
+            .replace("estado: \"en-diseno\"", "estado: \"en-curso\"")
+            .replace("asignado_a: null", "asignado_a: {id: 7, login: \"ana\"}")
+            .replace("actualizado: \"2026-11-01\"", "actualizado: \"2026-11-17\"")
+            + &format!(
+                "| 2026-11-17T10:20:30Z | start | manual | agente | {} |\n",
+                crate::VERSION
+            );
+        assert_eq!(texto, esperado, "{r:?}");
         assert!(
             texto.contains("\ndependencias: []\nzonas: [ui, \"api\"] # comentario\n---\n"),
             "{texto}"
