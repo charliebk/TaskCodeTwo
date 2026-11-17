@@ -250,15 +250,27 @@ pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
             }
         }));
     }
-    json!({
+    // Sin `integration_id` cualquier identidad con permiso de escribir checks
+    // los daria por buenos (F1-5 lo descarta): la propuesta lleva una clave
+    // que GitHub no admite, asi que no se puede aplicar tal cual.
+    let nota = (!p.checks.is_empty()).then_some(NOTA_SIN_ORIGEN);
+    let mut v = json!({
         "name": p.nombre_completo(),
         "target": target,
         "enforcement": "active",
         "bypass_actors": [],
         "conditions": {"ref_name": {"include": include, "exclude": []}},
         "rules": reglas
-    })
+    });
+    if let (Some(n), Some(o)) = (nota, v.as_object_mut()) {
+        o.insert("_nota".to_owned(), n.into());
+    }
+    v
 }
+
+/// Nota de una propuesta con checks sin origen: no es aplicable.
+pub const NOTA_SIN_ORIGEN: &str =
+    "no aplicable: checks sin integration_id hasta F6-1; la aplica TASK-118";
 
 #[cfg(test)]
 mod tests {
@@ -311,7 +323,14 @@ mod tests {
             main["rules"][3]["parameters"]["strict_required_status_checks_policy"],
             false
         );
+        // Con checks sin origen, la propuesta no es aplicable tal cual.
+        assert_eq!(develop["_nota"], NOTA_SIN_ORIGEN);
+        assert!(
+            develop["rules"][3]["parameters"]["required_status_checks"][0]["integration_id"]
+                .is_null()
+        );
         let tareas = ruleset_github(&m[3]);
+        assert!(tareas.get("_nota").is_none());
         assert_eq!(
             tareas["conditions"]["ref_name"]["include"][0],
             "refs/heads/taskcodetwo/tareas"

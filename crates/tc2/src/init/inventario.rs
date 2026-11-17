@@ -21,19 +21,33 @@ use crate::plataforma::puertas::{modelo, ruleset_github};
 use crate::plataforma::{GitHub, GitLab, Plataforma, Proveedor, Rol, detectar};
 
 /// El adaptador de la plataforma y su proveedor, o el motivo por el que no
-/// lo hay (`sin-remoto`, `sin-plataforma`, `sin-token`).
-type Conexion = Result<(Box<dyn Plataforma>, Proveedor), &'static str>;
+/// lo hay (`sin-remoto`, `sin-token` o el motivo de `detectar`, como
+/// `plataforma-contradice`).
+type Conexion = Result<(Box<dyn Plataforma>, Proveedor), String>;
 
 /// Ramas de codigo que `init` deja (F1-3).
 const RAMAS: [&str; 2] = ["main", "develop"];
 
-/// Lineas de `lineas` que no estan en `texto` (comparadas sin espacios).
-fn faltan(texto: &str, lineas: &[&str]) -> Vec<String> {
+/// Lineas de `lineas` que no estan en `texto`. Se comparan sin espacios y
+/// sin la barra final: `/tareas` ya ignora lo mismo que `/tareas/`.
+pub(super) fn faltan(texto: &str, lineas: &[&str]) -> Vec<String> {
     lineas
         .iter()
-        .filter(|l| !texto.lines().any(|x| x.trim() == **l))
+        .filter(|l| !texto.lines().any(|x| misma_linea(x, l)))
         .map(|l| (*l).to_owned())
         .collect()
+}
+
+/// Si dos lineas de `.gitignore` o `exclude` son la misma regla.
+pub(super) fn misma_linea(a: &str, b: &str) -> bool {
+    let norm = |s: &str| s.trim().trim_end_matches('/').to_owned();
+    norm(a) == norm(b)
+}
+
+/// Orden entrecomillada para un shell POSIX (y PowerShell, salvo `'`):
+/// una ruta con espacios o `;` no parte la orden ni ejecuta nada.
+pub(super) fn comillas(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 fn sinred(detalle: &str) -> Informe {
@@ -129,7 +143,11 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
     };
 
     // `main` y `develop` (F1-3): con un commit raiz solo en un repo vacio.
-    ramas(c, &principal, remoto, &remotas, &mut v)?;
+    if !ramas(c, &principal, remoto, &remotas, &mut v)?
+        && let Some(a) = versionar(c, &principal, &v)?
+    {
+        v.push(a);
+    }
 
     // `info/exclude`.
     let comun = dir_comun(g, &principal, NOMBRE)?;
@@ -173,7 +191,11 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
             Decision::Rechaza,
         )
         .motivo("montada-en-otra-ruta")
-        .orden(format!("git worktree move {} {}", t(&r), CARPETA)),
+        .orden(format!(
+            "git worktree move {} {}",
+            comillas(&t(&r)),
+            CARPETA
+        )),
         Previsto::SinRed(_) | Previsto::Denegada(..) => {
             // Ya devuelto arriba.
             Accion::nueva(
@@ -189,7 +211,7 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
     let plataforma = if remoto {
         plataforma(c, &principal, clave.as_ref())?
     } else {
-        Err("sin-remoto")
+        Err("sin-remoto".to_owned())
     };
     v.push(personas_yml(&principal, &plataforma)?);
 
@@ -220,12 +242,16 @@ fn rechazo_016(ruta: String, clase: &'static str) -> Accion {
     a
 }
 
-/// Ramas de codigo que tiene `origin` (de [`RAMAS`]). Sin red, `sinred`.
+/// Todas las ramas que tiene `origin` (para saber si tiene historia, no solo
+/// `main` y `develop`). Sin red, `sinred`.
 fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<String>, Informe> {
-    let mut args = vec!["--heads".to_owned(), REMOTO.to_owned()];
-    args.extend(RAMAS.iter().map(|r| format!("refs/heads/{r}")));
-    let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let s = correr(c.git, principal, NOMBRE, Subcomando::LsRemote, &args)?;
+    let s = correr(
+        c.git,
+        principal,
+        NOMBRE,
+        Subcomando::LsRemote,
+        &["--heads", REMOTO],
+    )?;
     if !s.exito() {
         return Err(match clasificar_fallo_remoto(&s.stderr) {
             FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(&s.primera_linea_error()),
@@ -241,16 +267,20 @@ fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<String>, Info
         .collect())
 }
 
-/// Lineas de `main` y `develop` (D3): en un repo sin commits, un commit raiz
-/// con la configuracion y `.gitignore` y las dos ramas en el (publicadas si
-/// hay remoto); con historia, lo hace la persona.
+/// Lineas de `main` y `develop` (D3). El repo cuenta como vacio solo si no
+/// tiene commits y `origin` no tiene ninguna rama (la de estado no cuenta:
+/// es huerfana). Vacio: un commit raiz con la configuracion y `.gitignore` y
+/// las dos ramas en el (publicadas si hay remoto). Con historia, local o en
+/// `origin`, la rama que falta la crea la persona desde la que ya hay: un
+/// commit raiz propio dejaria en el remoto dos historias sin relacion.
+/// Devuelve si el repo estaba vacio.
 fn ramas(
     c: &Contexto<'_>,
     principal: &Path,
     remoto: bool,
     remotas: &[String],
     v: &mut Vec<Accion>,
-) -> Result<(), Informe> {
+) -> Result<bool, Informe> {
     let g = c.git;
     let hay_commits = !exigir(
         g,
@@ -270,12 +300,19 @@ fn ramas(
             locales.push(r);
         }
     }
+    // Ramas de `origin` con historia del proyecto (sin la de estado).
+    let historia_remota: Vec<&str> = remotas
+        .iter()
+        .map(String::as_str)
+        .filter(|r| *r != crate::huella::RAMA_ESTADO)
+        .collect();
+    let vacio = !hay_commits && historia_remota.is_empty();
     let mut nuevas: Vec<String> = Vec::new();
     let mut lineas = Vec::new();
     for r in RAMAS {
         let ruta = format!("refs/heads/{r}");
         let local = locales.contains(&r);
-        let en_remoto = remotas.iter().any(|x| x == r);
+        let en_remoto = historia_remota.contains(&r);
         let a = Accion::nueva(ruta, "rama", "proyecto", Decision::Existe);
         lineas.push(if local {
             if remoto && !en_remoto {
@@ -289,15 +326,30 @@ fn ramas(
                 "en-el-remoto",
                 format!("git fetch {REMOTO} {r} && git branch {r} {REMOTO}/{r}"),
             )
-        } else if hay_commits {
-            // Desde la otra rama si existe (HEAD puede estar sin nacer en
-            // esta, tras un `init` cortado a medias); si no, desde HEAD.
-            let desde = locales.first().copied().unwrap_or("HEAD");
-            let mut o = format!("git branch {r} {desde}");
+        } else if !vacio {
+            // Desde la otra rama local si existe (HEAD puede estar sin nacer
+            // en esta, tras un `init` cortado a medias); si no, desde la otra
+            // de `origin`, desde HEAD o desde la primera rama de `origin`.
+            let otra_remota = RAMAS
+                .iter()
+                .find(|x| historia_remota.contains(x))
+                .or_else(|| historia_remota.first());
+            let mut o = match (locales.first(), otra_remota) {
+                (Some(l), _) => format!("git branch {r} {l}"),
+                (None, Some(b)) if !hay_commits => {
+                    format!("git fetch {REMOTO} {b} && git branch {r} {REMOTO}/{b}")
+                }
+                _ => format!("git branch {r} HEAD"),
+            };
             if remoto {
                 o.push_str(&format!(" && git push {REMOTO} {r}"));
             }
-            persona(a, "con-historia", o)
+            let motivo = if hay_commits {
+                "con-historia"
+            } else {
+                "remoto-con-historia"
+            };
+            persona(a, motivo, o)
         } else {
             nuevas.push(r.to_owned());
             let mut a = a;
@@ -328,7 +380,37 @@ fn ramas(
             "git symbolic-ref HEAD refs/heads/develop && git reset -q".to_owned(),
         ));
     }
-    Ok(())
+    Ok(vacio)
+}
+
+/// Con historia, `init` deja la configuracion y `.gitignore` en el disco: la
+/// persona tiene que versionarlos (por PR) o quien clone no los tendra. Se
+/// dice si `init` los crea o cambia, o si siguen sin versionar.
+fn versionar(c: &Contexto<'_>, principal: &Path, v: &[Accion]) -> Result<Option<Accion>, Informe> {
+    const FICHEROS: [&str; 2] = [config::RUTA, ".gitignore"];
+    let los_toca = v
+        .iter()
+        .any(|a| matches!(a.clase, "config" | "gitignore") && a.decision == Decision::Crea);
+    let mut args = vec!["--porcelain", "--"];
+    args.extend(FICHEROS);
+    let sin_versionar = !exigir(c.git, principal, NOMBRE, Subcomando::Status, &args)?
+        .trim()
+        .is_empty();
+    Ok((los_toca || sin_versionar).then(|| {
+        persona(
+            Accion::nueva(
+                FICHEROS.join(","),
+                "versionar",
+                "proyecto",
+                Decision::Persona,
+            ),
+            "sin-versionar",
+            format!(
+                "git add -- {} && git commit -m \"chore: configura TaskCodeTwo\"",
+                FICHEROS.join(" ")
+            ),
+        )
+    }))
 }
 
 fn persona(mut a: Accion, motivo: &str, orden: String) -> Accion {
@@ -344,14 +426,15 @@ fn plataforma(
     clave: Option<&(&'static str, String)>,
 ) -> Result<Conexion, Informe> {
     let Some(url) = url_origin(c.git, principal, NOMBRE)? else {
-        return Ok(Err("sin-remoto"));
+        return Ok(Err("sin-remoto".to_owned()));
     };
-    let Ok(destino) = detectar(&url, clave.map(|(p, a)| (*p, a.as_str()))) else {
-        return Ok(Err("sin-plataforma"));
+    let destino = match detectar(&url, clave.map(|(p, a)| (*p, a.as_str()))) {
+        Ok(d) => d,
+        Err(i) => return Ok(Err(motivo_de_deteccion(&i))),
     };
     let credenciales = (c.credenciales)();
     if credenciales.token(Rol::Persona).is_none() {
-        return Ok(Err("sin-token"));
+        return Ok(Err("sin-token".to_owned()));
     }
     let p: Result<Box<dyn Plataforma>, Informe> = match destino.proveedor {
         Proveedor::GitHub => GitHub::nuevo(
@@ -369,8 +452,21 @@ fn plataforma(
         )
         .map(|x| Box::new(x) as Box<dyn Plataforma>),
     };
-    Ok(p.map(|p| (p, destino.proveedor))
-        .map_err(|_| "sin-plataforma"))
+    Ok(p.map(|p| (p, destino.proveedor)).map_err(|i| motivo_de(&i)))
+}
+
+/// Motivo concreto de un rechazo de `detectar` (su linea solo dice
+/// `motivo=plataforma` u `origin`; el porque esta en el mensaje): la clave
+/// del mensaje en minusculas y con guiones, p. ej. `plataforma-contradice`
+/// o `api-no-cambiable`. No lleva datos de la persona ni el token.
+fn motivo_de_deteccion(i: &Informe) -> String {
+    i.diagnostico
+        .as_ref()
+        .and_then(|m| m.clave().rsplit("::").next())
+        .map_or_else(
+            || "sin-plataforma".to_owned(),
+            |c| c.to_lowercase().replace('_', "-"),
+        )
 }
 
 /// Motivo de un informe de la plataforma para la linea `pendiente`.
@@ -397,7 +493,7 @@ fn personas_yml(principal: &Path, plataforma: &Conexion) -> Result<Accion, Infor
     }
     let (p, _) = match plataforma {
         Ok(p) => p,
-        Err(m) => return Ok(nueva(Decision::Pendiente).motivo(*m)),
+        Err(m) => return Ok(nueva(Decision::Pendiente).motivo(m.clone())),
     };
     let u = match p.identidad(Rol::Persona) {
         Ok(u) => u,
@@ -426,7 +522,7 @@ fn personas_yml(principal: &Path, plataforma: &Conexion) -> Result<Accion, Infor
 fn puertas(plataforma: &Conexion, v: &mut Vec<Accion>) {
     let leidas = match plataforma {
         Ok((p, prov)) => Ok((p.leer_puertas(Rol::Persona, "develop"), *prov)),
-        Err(m) => Err((*m).to_owned()),
+        Err(m) => Err(m.clone()),
     };
     for puerta in modelo() {
         let nombre = puerta.nombre_completo();
@@ -438,7 +534,7 @@ fn puertas(plataforma: &Conexion, v: &mut Vec<Accion>) {
             Ok((Ok(r), _)) if r.rulesets.contains(&nombre) => nueva(Decision::Existe),
             Ok((Ok(_), prov)) => {
                 let mut a = nueva(Decision::Persona)
-                    .motivo("sin-checks")
+                    .motivo("aplicar-con-task-118")
                     .orden(ORDEN_PUERTAS);
                 if *prov == Proveedor::GitHub {
                     a.propuesta = Some(ruleset_github(&puerta));

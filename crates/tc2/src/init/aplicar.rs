@@ -90,7 +90,7 @@ fn anadir(ruta: &Path, lineas: &[String]) -> Result<(), String> {
     };
     let mut nuevo = actual.clone();
     for l in lineas {
-        if actual.lines().any(|x| x.trim() == l) {
+        if actual.lines().any(|x| super::inventario::misma_linea(x, l)) {
             continue;
         }
         if !nuevo.is_empty() && !nuevo.ends_with('\n') {

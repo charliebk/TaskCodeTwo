@@ -470,11 +470,11 @@ mod tests {
             "taskcodetwo",
             Decision::Persona,
         )
-        .motivo("sin-checks")
+        .motivo("aplicar-con-task-118")
         .orden(ORDEN_PUERTAS);
         assert_eq!(
             a.linea(),
-            "accion ruta=taskcodetwo-main clase=ruleset dueno=taskcodetwo decision=persona motivo=sin-checks orden=tc2%20init%20--aplicar-puertas"
+            "accion ruta=taskcodetwo-main clase=ruleset dueno=taskcodetwo decision=persona motivo=aplicar-con-task-118 orden=tc2%20init%20--aplicar-puertas"
         );
         a.propuesta = Some(serde_json::json!({"name": "taskcodetwo-main"}));
         let v: serde_json::Value = serde_json::from_str(&a.json()).unwrap_or_default();

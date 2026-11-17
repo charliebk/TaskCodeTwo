@@ -519,7 +519,7 @@ fn sin_remoto_completa_al_anadirlo() {
         assert_eq!(
             *l,
             format!(
-                "accion ruta=taskcodetwo-{n} clase=ruleset dueno=taskcodetwo decision=persona motivo=sin-checks orden=tc2%20init%20--aplicar-puertas"
+                "accion ruta=taskcodetwo-{n} clase=ruleset dueno=taskcodetwo decision=persona motivo=aplicar-con-task-118 orden=tc2%20init%20--aplicar-puertas"
             )
         );
     }
@@ -722,6 +722,196 @@ fn fallo_al_aplicar_y_repetir_termina() {
     assert_eq!(de_clase(&h, "config")[0].1, "existe");
     assert_eq!(de_clase(&h, "rama")[0].1, "crea");
     assert_eq!(f.crudo(&repo, &["status", "--porcelain"]), "");
+}
+
+/// Remoto bare con un commit en `rama` (y nada mas): un proyecto que ya
+/// existe en la plataforma.
+fn bare_con_rama(f: &Fixture, rama: &str) -> PathBuf {
+    let b = bare(f);
+    f.crudo(&f.raiz, &["init", "-q", "-b", rama, "semilla"]);
+    let semilla = f.raiz.join("semilla");
+    escribir(&semilla, "README.md", "proyecto\n");
+    f.crudo(&semilla, &["add", "README.md"]);
+    f.crudo(&semilla, &["commit", "-q", "-m", "inicial"]);
+    f.crudo(&semilla, &["push", "-q", b.to_str().unwrap(), rama]);
+    b
+}
+
+/// Ramas de codigo del remoto (sin la de estado, que es huerfana).
+fn ramas_de(f: &Fixture, b: &Path) -> String {
+    f.crudo(b, &["for-each-ref", "--format=%(refname)", "refs/heads/"])
+        .lines()
+        .filter(|l| !l.contains("taskcodetwo/"))
+        .map(|l| format!("{l}\n"))
+        .collect()
+}
+
+/// Revision 1, IMP-1: repo local sin commits y `origin` que ya tiene
+/// historia (`main` sin `develop`, o solo otra rama): no cuenta como vacio.
+/// No se crea ningun commit raiz ni se publica nada en las ramas de codigo;
+/// la rama que falta la crea la persona desde la que ya hay.
+#[test]
+fn remoto_con_historia_no_es_repo_vacio() {
+    for (rama, ordenes) in [
+        (
+            "main",
+            [
+                "git fetch origin main && git branch main origin/main",
+                "git fetch origin main && git branch develop origin/main && git push origin develop",
+            ],
+        ),
+        (
+            "trunk",
+            [
+                "git fetch origin trunk && git branch main origin/trunk && git push origin main",
+                "git fetch origin trunk && git branch develop origin/trunk && git push origin develop",
+            ],
+        ),
+    ] {
+        let f = Fixture::nueva("init-imp1");
+        let repo = repo_vacio(&f);
+        let b = bare_con_rama(&f, rama);
+        let antes = ramas_de(&f, &b);
+        f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
+        let g = git_con_ssh(&f, &b);
+        let h = correr(&repo, &g, false, &sin_token);
+        assert_eq!(h.informe.resultado, Resultado::Ok, "{rama}: {}", stdout(&h));
+        let lineas: Vec<(String, Option<String>)> = h
+            .acciones
+            .iter()
+            .filter(|a| a.clase == "rama")
+            .map(|a| (a.decision.texto().to_owned(), a.orden.clone()))
+            .collect();
+        assert_eq!(
+            lineas,
+            ordenes
+                .iter()
+                .map(|o| ("persona".to_owned(), Some((*o).to_owned())))
+                .collect::<Vec<_>>(),
+            "{rama}: {}",
+            stdout(&h)
+        );
+        // Ni ramas locales nuevas ni historia ajena publicada.
+        assert_eq!(f.crudo(&repo, &["branch", "--list", "main", "develop"]), "");
+        assert_eq!(ramas_de(&f, &b), antes, "{rama}");
+        // La configuracion queda en el disco, y la linea dice que versionarla.
+        let v = de_clase(&h, "versionar");
+        assert_eq!(v.len(), 1, "{}", stdout(&h));
+        assert_eq!(v[0].1, "persona");
+    }
+}
+
+/// Revision 1, MEN-1 de calidad: con historia, una linea dice que hay que
+/// versionar la configuracion y `.gitignore`; deja de salir cuando estan
+/// en un commit.
+#[test]
+fn con_historia_pide_versionar_la_configuracion() {
+    let f = Fixture::nueva("init-versionar");
+    let repo = repo_vacio(&f);
+    escribir(&repo, "README.md", "x\n");
+    f.crudo(&repo, &["add", "README.md"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "inicial"]);
+    let g = f.git();
+    let h = correr(&repo, &g, false, &sin_token);
+    let v: Vec<&tc2::init::Accion> = h
+        .acciones
+        .iter()
+        .filter(|a| a.clase == "versionar")
+        .collect();
+    assert_eq!(v.len(), 1, "{}", stdout(&h));
+    assert_eq!(
+        v[0].linea(),
+        "accion ruta=.taskcode/config.yml,.gitignore clase=versionar dueno=proyecto decision=persona motivo=sin-versionar orden=git%20add%20--%20.taskcode/config.yml%20.gitignore%20&&%20git%20commit%20-m%20\"chore:%20configura%20TaskCodeTwo\""
+    );
+    f.crudo(&repo, &["add", "--", ".taskcode/config.yml", ".gitignore"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "configura"]);
+    let h = correr(&repo, &g, false, &sin_token);
+    assert!(de_clase(&h, "versionar").is_empty(), "{}", stdout(&h));
+}
+
+/// Revision 1, MEN-1 de rust: la orden de una rama de estado montada en otra
+/// ruta va entrecomillada (espacios y `;` no parten la orden).
+#[test]
+fn montada_en_otra_ruta_da_la_orden_entrecomillada() {
+    let f = Fixture::nueva("init-otra-ruta");
+    let repo = repo_vacio(&f);
+    let g = f.git();
+    assert_eq!(
+        correr(&repo, &g, false, &sin_token).informe.resultado,
+        Resultado::Ok
+    );
+    let otra = f.raiz.join("con espacios; echo X");
+    f.crudo(
+        &repo,
+        &["worktree", "move", "tareas", otra.to_str().unwrap()],
+    );
+    let h = correr(&repo, &g, false, &sin_token);
+    assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", stdout(&h));
+    assert_eq!(h.informe.valor("motivo"), Some("montada-en-otra-ruta"));
+    let ruta = f
+        .crudo(&repo, &["worktree", "list", "--porcelain"])
+        .lines()
+        .filter_map(|l| l.strip_prefix("worktree "))
+        .find(|l| l.contains("con espacios"))
+        .unwrap()
+        .to_owned();
+    let orden = h
+        .acciones
+        .iter()
+        .find(|a| a.clase == "worktree-estado")
+        .and_then(|a| a.orden.clone())
+        .unwrap();
+    assert_eq!(orden, format!("git worktree move '{ruta}' tareas"));
+}
+
+/// Revision 1, MEN-4 de calidad: `/tareas` sin barra final ya cuenta; no se
+/// anade `/tareas/` repetido.
+#[test]
+fn gitignore_sin_barra_final_no_se_duplica() {
+    let f = Fixture::nueva("init-gitignore");
+    let repo = repo_vacio(&f);
+    escribir(&repo, ".gitignore", "/tareas\n");
+    let h = correr(&repo, &f.git(), false, &sin_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    assert_eq!(
+        std::fs::read_to_string(repo.join(".gitignore")).unwrap(),
+        "/tareas\n/.taskcodetwo/\n"
+    );
+}
+
+/// Revision 1, MEN-4 de rust: si `detectar` rechaza la plataforma, las
+/// lineas `pendiente` dicen por que (aqui la clave contradice el host), y
+/// no se habla con ninguna API.
+#[test]
+fn plataforma_rechazada_conserva_el_motivo() {
+    let f = Fixture::nueva("init-detectar");
+    let repo = repo_vacio(&f);
+    escribir(
+        &repo,
+        ".taskcode/config.yml",
+        "---\nformato: 2\nplataforma:\n  proveedor: \"gitlab\"\n  api: \"https://gitlab.com/api/v4\"\n",
+    );
+    let b = bare(&f);
+    f.crudo(
+        &repo,
+        &["remote", "add", "origin", "ssh://git@github.com/o/r.git"],
+    );
+    let h = correr(&repo, &git_con_ssh(&f, &b), false, &con_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    let motivos: Vec<Option<String>> = h
+        .acciones
+        .iter()
+        .filter(|a| matches!(a.clase, "personas" | "ruleset"))
+        .map(|a| a.motivo.clone())
+        .collect();
+    assert_eq!(motivos.len(), 6);
+    assert!(
+        motivos
+            .iter()
+            .all(|m| m.as_deref() == Some("plataforma-contradice")),
+        "{}",
+        stdout(&h)
+    );
 }
 
 /// C7: tras `init`, `desinstalar --proyecto --simular` lista, con
