@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [distribucion, tests]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-115-seguimiento-de-f2-12-menores-de-actualiz
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 28030245
 tokens_revision: null
 creado: 2026-11-16
 actualizado: 2026-11-17
@@ -124,3 +124,11 @@ determinista y los dos «10 de 10» de arriba.
 | 2026-11-17T03:47:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T03:48:28Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T03:48:29Z | start | automatico | persona | 0.16.1 |
+| 2026-11-17T04:42:50Z | review | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-17T04:42:50Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 14 | 11853 | 4062700 | 3225 | 0 | 4077792 | - | - |
+| 2026-11-17T04:42:50Z | implementacion | agente:ada497c0c22a4f5e3 | 256 | 270586 | 23580049 | 101562 | 34 | 23952453 | - | - |
