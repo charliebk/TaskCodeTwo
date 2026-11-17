@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-028-f3-1-taskctl-init-setup
 asignado_a: charlie.bk@gmail.com
@@ -74,6 +74,7 @@ MENORES aceptados (a seguimiento, TASK-119): MEN-5 rust (comillas tipograficas y
 | 2026-11-17T03:01:32Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T03:20:58Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T03:35:00Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T03:46:48Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -90,3 +91,10 @@ MENORES aceptados (a seguimiento, TASK-119): MEN-5 rust (comillas tipograficas y
 | 2026-11-17T03:27:21Z | revision | agente:a8d5a2eb573d3ccab | 42 | 136513 | 2071643 | 40679 | 4 | 2248877 | 3 | code-quality-reviewer |
 | 2026-11-17T03:43:36Z | revision | agente:acb0c9d47f339c9bf | 70 | 144210 | 3679594 | 41796 | 20 | 3865670 | 4 | rust-wasm-reviewer |
 | 2026-11-17T03:43:36Z | revision | agente:a764267aa7b913b51 | 60 | 132555 | 2789028 | 28401 | 9 | 2950044 | 4 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 144 min
+- Paso de la hora: 144 min reales frente a 300 estimados
+- Cierre (finish): 190 s, de 2026-11-17T03:43:38Z a 2026-11-17T03:46:48Z

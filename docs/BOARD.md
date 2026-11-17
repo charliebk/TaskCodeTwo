@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
-## Planificadas (00-planificadas) — 62
+## Planificadas (00-planificadas) — 63
 
 ```text
 ID        Titulo                                                                 Asignado
 --------  ---------------------------------------------------------------------  -------------
-TASK-028  F3-1 taskctl init / setup                                              (sin asignar)
 TASK-029  F3-2 new e import en bloque con dependencias e hito                    (sin asignar)
 TASK-030  F3-3 next: lo listo para empezar por dependencias y prioridad          (sin asignar)
 TASK-031  F3-4 roadmap: la vista para todos                                      (sin asignar)
@@ -69,9 +68,11 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                           (sin asignar)
 TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                 (sin asignar)
 TASK-115  Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable  (sin asignar)
+TASK-117  Seguimiento de F2-14: menores aceptados de tc2 desinstalar             (sin asignar)
+TASK-118  Aplicar las puertas (rulesets) desde tc2 init                          (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 37
+## Terminadas (04-terminadas) — 38
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -103,6 +104,7 @@ TASK-024  F2-8 i18n de mensajes                                                 
 TASK-025  F2-10 Build de ejecutables por sistema en la CI, firmados                 charlie.bk@gmail.com
 TASK-026  F2-11 Instaladores de una linea                                           charlie.bk@gmail.com
 TASK-027  F2-12 taskctl actualizar --cli y aviso de version nueva                   charlie.bk@gmail.com
+TASK-028  F3-1 tc2 init                                                             charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com
