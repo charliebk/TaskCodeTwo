@@ -12,9 +12,8 @@ use std::fmt::Write as _;
 
 use super::mermaid;
 use crate::grafo::{self, Fase, PLANIFICADA, TERMINADA};
-use crate::identidad::convertir_heredado;
 use crate::plataforma::Personas;
-use crate::situacion::{Ficha, Situacion};
+use crate::situacion::{self, Ficha, Quien, Situacion};
 use crate::tarea::Asignado;
 
 /// Tercera linea del fichero: lo generado y su formato.
@@ -119,15 +118,11 @@ impl<'a> Datos<'a> {
         }
     }
 
+    /// El «quien» comun de [`situacion::quien`], con el heredado como celda.
     fn con_quien(&self, a: Option<&Asignado>) -> String {
-        let Some(a) = a else {
-            return "—".to_owned();
-        };
-        let a = convertir_heredado(a.clone(), self.personas);
-        match (a.login(), a.heredado()) {
-            (Some(l), _) => format!("@{l}"),
-            (None, Some(h)) => celda(h),
-            (None, None) => "—".to_owned(),
+        match situacion::quien(a, self.personas) {
+            Quien::Heredado(h) => celda(&h),
+            q => q.texto(),
         }
     }
 }
