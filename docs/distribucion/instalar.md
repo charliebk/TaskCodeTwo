@@ -206,6 +206,51 @@ tc2 desinstalar --maquina
   --proyecto` fuera de un repo sale `rechazada motivo=no-es-repo` sin hacer
   nada, tampoco en la máquina.
 
+## Comprobar los recursos: skills, agentes y plugin
+
+Lo construyó TASK-080 (F3-9; ADR F1-14, punto 8, y F1-15, decisión 2).
+`tc2 doctor --recursos` hace el inventario de lo instalado y dice qué falta,
+sin escribir nada:
+
+```bash
+tc2 doctor --recursos          # 5 líneas como mucho
+tc2 doctor --recursos --json   # una línea con todos los hallazgos y el inventario
+```
+
+- **Inventario**: los plugins de `<claude>/plugins/installed_plugins.json`
+  que estén habilitados (`enabledPlugins` de `<claude>/settings.json`,
+  `.claude/settings.json` y `.claude/settings.local.json` del proyecto, el
+  último que lo dice gana; un plugin en `false` no cuenta), con el prefijo
+  `plugin:` en sus skills y agentes; `<claude>/skills` y `<claude>/agents`;
+  `.claude/skills` y `.claude/agents` del proyecto; y el agente integrado
+  `general-purpose`. `<claude>` es `CLAUDE_CONFIG_DIR` o `~/.claude`. El id
+  es el `name:` del frontmatter (con aviso `nombre-distinto` si no coincide
+  con la carpeta o el fichero).
+- **Primera línea**: `doctor <ok|rechazada> fallos=N avisos=N
+  no-comprobado=N skills=N agentes=N inventario=<12 hex>`; la huella es la
+  que anotará `roles.<rol>.inventario`. Detrás, los hallazgos que no son `ok`
+  (`recursos <id> <estado> motivo=... tipo=... [tarea=...] [nivel=...]
+  arreglo=...`) y, si no caben, `y N mas: tc2 doctor --recursos --json`.
+- **Qué se comprueba**:
+  - obligatorio: el plugin `taskcodetwo`. Mientras no esté, una sola `falla`
+    con `arreglo=claude plugin install taskcodetwo` (código 3 en todas las
+    máquinas hasta que se publique, D3a);
+  - necesario: lo que nombran `recursos:` de `.taskcode/config.yml` (de
+    `origin/develop`) y `roles.*.skills` y `roles.revision.agente` de las
+    tareas no terminadas: si no está, `falla motivo=no-instalado` con su
+    arreglo (y `tarea=` si viene de una tarea);
+  - conveniente: engram, context7 (por el nombre del servidor MCP o del
+    plugin) y `rtk` en el PATH: `aviso` y sigue;
+  - estorba: la 0.16 (`taskcode-plugin`) habilitada a la vez: `aviso`.
+- **Lo que no se puede leer** (`installed_plugins.json` corrupto, un
+  `installPath` que no existe) sale `no-comprobado` con el motivo, y lo que
+  dependía de eso también: nunca `ok`.
+- El `tc2 doctor` normal lleva un hallazgo agregado, `recursos no-instalados
+  falla ids=N arreglo=tc2 doctor --recursos`, si falta algo.
+- **No se lee**: las rutas propias de `skills` o `agents` en `plugin.json`,
+  los agentes en subcarpetas ni la skill única en la raíz de un plugin;
+  hooks de terceros que estorban, aún no.
+
 ## Compatibilidad con el plugin
 
 El plugin pregunta al `tc2` que encuentra (ADR F1-14, punto 5):
