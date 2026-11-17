@@ -10,7 +10,8 @@
 //!
 //! - Lista para empezar: `planificada` con todas sus dependencias existentes
 //!   `terminada`. Una dependencia inexistente no bloquea (aviso); una
-//!   descartada sale del orden pero bloquea (D3, aviso).
+//!   descartada sale del orden pero bloquea (D3, aviso); una ilegible
+//!   tambien bloquea (no se sabe si esta terminada).
 //! - Ciclo: sus tareas, y las que dependen de ellas, quedan `atascadas`,
 //!   fuera del orden y de las listas.
 //!
@@ -30,13 +31,17 @@ pub const DESCARTADA: &str = "descartada";
 /// Estados de las tareas que alguien lleva entre manos.
 pub const EN_MARCHA: [&str; 3] = ["en-diseno", "en-curso", "en-revision"];
 
-/// Si una tarea cuenta para el orden o esta descartada.
+/// Si una tarea cuenta para el orden, esta descartada o no se pudo leer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fase {
     /// No descartada, con su `estado`.
     Viva(String),
     /// Descartada: fuera del orden, pero bloquea a quien dependa de ella.
     Descartada,
+    /// Su `tarea.md` no se entiende: fuera del orden y, como no se sabe si
+    /// esta terminada, bloquea a quien dependa de ella (quien la lee la
+    /// avisa aparte).
+    Ilegible,
 }
 
 /// Lo minimo de una tarea para ordenarla.
@@ -80,11 +85,22 @@ impl Nodo {
         }
     }
 
+    /// Nodo de un `tarea.md` ilegible de la carpeta `id`: sin hito ni
+    /// dependencias conocidos.
+    pub fn ilegible(id: &str) -> Self {
+        Self {
+            id: id.to_owned(),
+            sprint: 0,
+            fase: Fase::Ilegible,
+            dependencias: Vec::new(),
+        }
+    }
+
     /// Estado si esta viva.
     pub fn estado(&self) -> Option<&str> {
         match &self.fase {
             Fase::Viva(e) => Some(e),
-            Fase::Descartada => None,
+            Fase::Descartada | Fase::Ilegible => None,
         }
     }
 }
@@ -221,7 +237,7 @@ pub fn orden_de_trabajo(nodos: &[Nodo], hitos: &Hitos) -> Orden {
     };
     let vivas: BTreeMap<&str, &Nodo> = idx
         .iter()
-        .filter(|(_, n)| n.fase != Fase::Descartada)
+        .filter(|(_, n)| matches!(n.fase, Fase::Viva(_)))
         .map(|(k, n)| (*k, *n))
         .collect();
     let mut avisos = Avisos::default();
@@ -231,12 +247,15 @@ pub fn orden_de_trabajo(nodos: &[Nodo], hitos: &Hitos) -> Orden {
         let deps: BTreeSet<&str> = n.dependencias.iter().map(String::as_str).collect();
         let mut cuenta = 0;
         for d in deps {
-            match idx.get(d) {
+            match idx.get(d).map(|m| &m.fase) {
                 None => avisos.dependencias_inexistentes.push(format!("{id}>{d}")),
-                Some(m) if m.fase == Fase::Descartada => {
+                Some(Fase::Descartada) => {
                     avisos.depende_de_descartada.push(format!("{id}>{d}"));
                 }
-                Some(_) => {
+                // Ya avisada como ilegible por quien la leyo; bloquea en
+                // `listas`.
+                Some(Fase::Ilegible) => {}
+                Some(Fase::Viva(_)) => {
                     cuenta += 1;
                     dependientes.entry(d).or_default().push(id);
                 }
@@ -388,6 +407,21 @@ mod tests {
         assert_eq!(o.orden, ids(&["TASK-002", "TASK-003"]));
         assert_eq!(listas(&o, &nodos), ids(&["TASK-003"]));
         assert_eq!(o.avisos.depende_de_descartada, ids(&["TASK-002>TASK-001"]));
+    }
+
+    /// Una dependencia ilegible no es inexistente: bloquea, sin aviso de
+    /// inexistente ni de descartada (el aviso es `ilegibles=`).
+    #[test]
+    fn dependencia_ilegible_bloquea() {
+        let nodos = [
+            Nodo::ilegible("TASK-001"),
+            n("TASK-002", 0, "planificada", &["TASK-001"]),
+        ];
+        let o = orden_de_trabajo(&nodos, &Hitos::default());
+        assert_eq!(o.orden, ids(&["TASK-002"]));
+        assert!(listas(&o, &nodos).is_empty());
+        assert!(o.avisos.dependencias_inexistentes.is_empty());
+        assert!(o.avisos.depende_de_descartada.is_empty());
     }
 
     /// C2: un ciclo deja atascadas sus tareas y las que dependen de ellas,
