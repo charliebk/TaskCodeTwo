@@ -8,8 +8,10 @@
 //! - las refs propias, bajo [`PREFIJO_REFS`];
 //! - la carpeta de los worktrees de tarea, [`CARPETA_WORKTREES`];
 //! - lo que se guarda en la carpeta comun de git (`.git` del principal),
-//!   bajo [`CARPETA_COMUN`]: el cerrojo, la cache de identidad y los indices
-//!   temporales de la transaccion.
+//!   bajo [`CARPETA_COMUN`]: el cerrojo, la cache de identidad, la marca de
+//!   la ultima sincronizacion y los indices temporales de la transaccion.
+//!   `tc2 desinstalar` borra la carpeta entera, asi que un fichero nuevo
+//!   aqui queda reconocido sin tocarlo.
 //!
 //! La configuracion del proyecto (`.taskcode/config.yml`, `personas.yml` y
 //! el vocabulario) no esta aqui: F1-12 D4a la deja compartida con la 0.16.
@@ -52,6 +54,10 @@ pub const FICHERO_CERROJO: &str = "estado.lock";
 
 /// Cache de la identidad, en [`CARPETA_COMUN`] (F2-13).
 pub const FICHERO_IDENTIDAD: &str = "identidad.yml";
+
+/// Hora del ultimo `fetch` con exito de la rama de estado, en
+/// [`CARPETA_COMUN`] (F3-5b, D3a).
+pub const FICHERO_SINCRONIZACION: &str = "sincronizacion";
 
 /// Indices temporales de la transaccion, en [`CARPETA_COMUN`].
 pub const CARPETA_TEMPORALES: &str = "estado-tmp";
@@ -106,6 +112,16 @@ mod tests {
         assert!(TEXTO_LEEME.contains(&format!("(`{RAMA_ESTADO}`)")));
         assert_eq!(RUTA_WORKFLOW, format!(".github/workflows/{NOMBRE}.yml"));
         assert_eq!(PREFIJO_RULESETS, format!("{NOMBRE}-"));
+        // Los ficheros de la carpeta comun no se pisan entre si.
+        let ficheros = [
+            FICHERO_CERROJO,
+            FICHERO_IDENTIDAD,
+            FICHERO_SINCRONIZACION,
+            CARPETA_TEMPORALES,
+        ];
+        for (i, a) in ficheros.iter().enumerate() {
+            assert!(ficheros[i + 1..].iter().all(|b| a != b), "{a} repetido");
+        }
     }
 
     /// Las lineas de `exclude` y `.gitignore` nombran las carpetas reales.
