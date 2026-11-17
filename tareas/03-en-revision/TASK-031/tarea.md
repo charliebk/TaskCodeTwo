@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: 30477346
+tokens_implementacion: 31389330
 tokens_revision: 11695419
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -85,6 +85,7 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 | 2026-11-17T06:54:06Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T06:54:07Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T07:34:02Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T08:04:46Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -94,3 +95,8 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 | 2026-11-17T07:34:02Z | implementacion | agente:aaa954d4d28d87f09 | 242 | 317775 | 25506272 | 126223 | 21 | 25950512 | - | - |
 | 2026-11-17T07:50:35Z | revision | agente:ace2aa3dc468d04ff | 100 | 137119 | 5205970 | 27519 | 6 | 5370708 | 1 | rust-wasm-reviewer |
 | 2026-11-17T07:50:36Z | revision | agente:a1d85b913c26ea9d8 | 102 | 161017 | 6127438 | 36154 | 31 | 6324711 | 1 | code-quality-reviewer |
+| 2026-11-17T08:04:46Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1039 | 910619 | 324 | 0 | 911984 | - | - |
+
+## Revisores no relanzados
+
+- ronda 2: code-quality-reviewer - solo tenia hallazgos MENOR pendientes y la correccion no toca sus ficheros
