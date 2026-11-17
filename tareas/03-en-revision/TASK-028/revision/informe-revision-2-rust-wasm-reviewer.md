@@ -2,7 +2,7 @@
 
 - Commit revisado: 2da874858cbdd8149b00e8c3fa4fe864bd3a560a
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 

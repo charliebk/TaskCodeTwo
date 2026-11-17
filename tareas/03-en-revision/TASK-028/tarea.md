@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 34541197
-tokens_revision: 13712344
+tokens_revision: 20847464
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-018, TASK-021]
@@ -42,6 +42,10 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 - rust-wasm-reviewer — 1713060
 - code-quality-reviewer — 1713060
 
+## Rondas extra
+
+- Ronda 3: Carlos (consigna del 2026-11-16, «aceptamos todas las respuestas de forma recomendada»); IMP-1 rust de la ronda 2 (orden de develop desde HEAD con historia sin relacion) y MEN-5 (comillas en PowerShell) son baratos y hay que verificarlos.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -61,3 +65,5 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | 2026-11-17T02:38:56Z | revision | agente:aa56fabbf82a2c151 | 128 | 170672 | 8032094 | 35315 | 7 | 8238209 | 1 | rust-wasm-reviewer |
 | 2026-11-17T02:38:58Z | revision | agente:ab6086f3b91d9fb40 | 94 | 149722 | 5299433 | 24886 | 10 | 5474135 | 1 | code-quality-reviewer |
 | 2026-11-17T03:01:32Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 706 | 740790 | 423 | 0 | 741921 | - | - |
+| 2026-11-17T03:12:48Z | revision | agente:a7c1ea3e82c2b3c51 | 86 | 132344 | 4706548 | 37990 | 9 | 4876968 | 2 | rust-wasm-reviewer |
+| 2026-11-17T03:12:48Z | revision | agente:af2a0f919aa9c7879 | 40 | 153768 | 2059515 | 44829 | 14 | 2258152 | 2 | code-quality-reviewer |
