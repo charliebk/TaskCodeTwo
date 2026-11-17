@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-080-f3-9-inventario-de-skills-y-agentes-inst
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1287739
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -48,3 +48,10 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-17T19:27:49Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-17T19:35:53Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-17T19:35:52Z | diseno | agente:aadf9663d0b6fec03 | 36 | 91525 | 1179081 | 17097 | 33 | 1287739 | - | - |
