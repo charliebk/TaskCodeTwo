@@ -24,6 +24,23 @@ const PLANTILLA: &str = "## Objetivo
 |---|---|---|---|---|
 ";
 
+/// Hueco del objetivo en la plantilla.
+const OBJETIVO_PLANTILLA: &str = "<que se quiere y por que>";
+/// Hueco del criterio en la plantilla.
+const CRITERIO_PLANTILLA: &str = "- [ ] <criterio comprobable>";
+
+/// Una linea de texto libre que no abre seccion ni cerca: si empieza (con
+/// hasta 3 espacios) por `#`, `` ` `` o `~`, se le antepone `\`.
+fn escapar_linea(linea: &str) -> String {
+    let sin = linea.trim_start_matches(' ');
+    let sangria = linea.len() - sin.len();
+    if sangria <= 3 && sin.starts_with(['#', '`', '~']) {
+        format!("{}\\{sin}", &linea[..sangria])
+    } else {
+        linea.to_owned()
+    }
+}
+
 /// Una seccion `## <titulo>` con su texto, incluida la linea del titulo.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Seccion {
@@ -115,6 +132,38 @@ impl Cuerpo {
         Self::leer(PLANTILLA)
     }
 
+    /// La plantilla con el enunciado puesto (RF-01): `objetivo` en
+    /// `## Objetivo` y un `- [ ] <criterio>` por criterio. Lo que venga vacio
+    /// se queda con el texto de la plantilla. Una linea del objetivo que
+    /// abriria una seccion o una cerca de codigo se escapa con `\`: el texto
+    /// es dato no confiable y no puede cambiar la forma del cuerpo (F1-8).
+    pub fn con_enunciado(objetivo: &str, criterios: &[String]) -> Self {
+        // Se parte la plantilla por sus huecos antes de meter nada: un texto
+        // que contenga el hueco del criterio no desvia la sustitucion.
+        let partes = PLANTILLA
+            .split_once(OBJETIVO_PLANTILLA)
+            .and_then(|(a, resto)| resto.split_once(CRITERIO_PLANTILLA).map(|(b, c)| (a, b, c)));
+        let Some((antes, entre, despues)) = partes else {
+            return Self::plantilla();
+        };
+        let objetivo = if objetivo.trim().is_empty() {
+            OBJETIVO_PLANTILLA.to_owned()
+        } else {
+            let lineas: Vec<String> = objetivo.trim().lines().map(escapar_linea).collect();
+            lineas.join("\n")
+        };
+        let lista = if criterios.is_empty() {
+            CRITERIO_PLANTILLA.to_owned()
+        } else {
+            let v: Vec<String> = criterios
+                .iter()
+                .map(|c| format!("- [ ] {}", c.trim()))
+                .collect();
+            v.join("\n")
+        };
+        Self::leer(&format!("{antes}{objetivo}{entre}{lista}{despues}"))
+    }
+
     /// Texto del cuerpo: lo leido, byte a byte.
     pub fn escribir(&self) -> String {
         let mut s = self.preambulo.clone();
@@ -150,6 +199,50 @@ mod tests {
         let p = Cuerpo::plantilla();
         assert_eq!(p.escribir(), PLANTILLA);
         assert_eq!(p.secciones.len(), 5);
+    }
+
+    #[test]
+    fn enunciado_en_la_plantilla_sin_romper_las_secciones() {
+        assert_eq!(Cuerpo::con_enunciado("", &[]), Cuerpo::plantilla());
+        let c = Cuerpo::con_enunciado(
+            "Primera linea\n## no es seccion\n```\n  # tampoco",
+            &["uno".to_owned(), " dos ".to_owned()],
+        );
+        let titulos: Vec<&str> = c.secciones.iter().map(|s| s.titulo.as_str()).collect();
+        assert_eq!(
+            titulos,
+            [
+                "Objetivo",
+                "Criterios de aceptacion",
+                "Escenarios",
+                "Resultado",
+                "Transiciones"
+            ]
+        );
+        let objetivo = c.seccion("Objetivo").map(|s| s.texto.as_str());
+        assert_eq!(
+            objetivo,
+            Some("## Objetivo\n\nPrimera linea\n\\## no es seccion\n\\```\n  \\# tampoco\n\n")
+        );
+        let criterios = c
+            .seccion("Criterios de aceptacion")
+            .map(|s| s.texto.as_str());
+        assert_eq!(
+            criterios,
+            Some("## Criterios de aceptacion\n\n- [ ] uno\n- [ ] dos\n\n")
+        );
+        assert_eq!(escapar_linea("    # codigo"), "    # codigo");
+        // Un objetivo con el texto del hueco del criterio no lo desvia.
+        let c = Cuerpo::con_enunciado(
+            "ver - [ ] <criterio comprobable> aqui",
+            &["real".to_owned()],
+        );
+        let t = c.escribir();
+        assert!(
+            t.contains("\n\nver - [ ] <criterio comprobable> aqui\n\n"),
+            "{t}"
+        );
+        assert!(t.contains("\n\n- [ ] real\n\n"), "{t}");
     }
 
     #[test]

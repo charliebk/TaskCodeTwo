@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (carpeta fija `TASK-NNN/`, estado como campo), [ADR F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) (ID y toma con el «quién»), [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (nombre de rama), [ADR F1-5](F1-5-puertas-en-github.md) (decisión 4: la aprobación es el commit firmado con `Plan-Blob` sobre el blob de `plan-final.md`) y [ADR F1-8](F1-8-seguridad-modelo-de-amenazas.md) (zona Z2 y activo `A10`: el texto de las tareas es dato no confiable)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a y D5a del plan de TASK-010)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
+- Adenda (2026-11-17, TASK-029): clave opcional `lote` para el import en bloque; ver [la adenda al final](#adenda-f3-2-task-029--clave-opcional-lote)
 
 ## Contexto
 
@@ -506,3 +507,35 @@ Este ADR se planificó con un solo rol (arquitectura). Lo que no cubrió:
   ToolsaWeb tiene 404). Lo mide F3-4.
 - **Spec Kit**: la `constitution` y los comandos de Spec Kit no tienen dueño
   en el plan.
+
+## Adenda (F3-2, TASK-029) — clave opcional `lote`
+
+Se reabre por escrito el **punto 3** (campos del frontmatter) para una clave
+nueva, decisión D1 de TASK-029 (aceptada por Carlos con la consigna del
+2026-11-16).
+
+- **Qué es**: `lote: "<lote>/<clave>"` en una tarea creada por
+  `tc2 import`. `<lote>` es el `lote:` de la cabecera del fichero (o, sin
+  cabecera, el slug del nombre del fichero) y `<clave>` la de la entrada
+  (el primer token del `###`, como `F3-2`, o el slug del título). Por ella
+  un import repetido reconoce lo que ya creó y solo crea lo que falta: no
+  depende del título, que la persona puede editar.
+- **Opcional**, a diferencia de las 21 claves del punto 3: si falta vale
+  `null` y solo se escribe con valor, **después de `dependencias`** (la
+  última clave conocida, antes de las desconocidas). Una tarea de antes de
+  esta adenda se lee y se reescribe byte a byte igual (la dorada de F2-5
+  sigue pasando) y `new` no la escribe.
+- **Esquema**: texto sin caracteres de control con una `/` que separa dos
+  partes no vacías; cualquier otra cosa es error de lectura, como el resto
+  del esquema estricto (punto 5). Ya no cuenta como clave desconocida.
+- **Lo que no hace**: un import no sincroniza. La tarea ya importada no se
+  actualiza aunque su entrada cambie en el fichero; sale en `existentes=`.
+- **Hito**: es `sprint` (D2 de TASK-029); el «hito de decisiones» de F1-18
+  sigue fuera y se conserva como clave desconocida.
+
+Evidencia: `crates/tc2/src/alta.rs`
+(`plantilla_escapa_el_titulo_y_sigue_f1_9`, que fija el orden de claves con
+y sin `lote`), `crates/tc2/tests/tarea.rs` (`ida_y_vuelta_byte_a_byte`, sin
+cambios) y `crates/tc2/tests/importar.rs`
+(`c1_c3_importa_37_en_un_commit_y_repetir_no_crea_nada`,
+`c4_dos_entradas_mas_crean_solo_esas_dos`).

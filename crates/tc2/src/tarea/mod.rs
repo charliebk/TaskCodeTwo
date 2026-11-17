@@ -24,6 +24,10 @@ pub use modelo::{
 };
 
 /// Un `tarea.md` leido.
+// Se lee uno a uno y se destructura enseguida: la diferencia de tamano entre
+// variantes (la clave `lote` de TASK-029 la paso de 200 bytes) no se nota, y
+// un `Box` cambiaria el patron de todos los que lo leen.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Documento {
     /// Formato 1 (0.16), sin `formato`.
