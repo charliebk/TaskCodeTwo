@@ -347,13 +347,15 @@ fn es_tc2(bin: &Path) -> bool {
 }
 
 /// `plugins/installed_plugins.json` de Claude Code (solo lectura), si esta
-/// y es JSON.
+/// y es JSON. La lectura es la del inventario (F3-9).
 fn instalados(c: &Contexto<'_>) -> Result<Option<serde_json::Value>, Informe> {
     let Some(dir) = c.entorno.dir_claude() else {
         return Ok(None);
     };
-    let p = dir.join("plugins").join("installed_plugins.json");
-    Ok(leer(&p)?.and_then(|b| serde_json::from_slice(&b).ok()))
+    match crate::inventario::leer_instalados(&dir) {
+        Ok(v) => Ok(v.and_then(Result::ok)),
+        Err(e) => Err(no_se_lee(&crate::inventario::ruta_instalados(&dir), &e)),
+    }
 }
 
 /// Un nombre o scope que se puede poner en una orden: letras, digitos, `.`,

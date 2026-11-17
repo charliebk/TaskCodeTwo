@@ -65,6 +65,7 @@ fn hallazgos(
         dir,
         git: g,
         conectar,
+        claude: None,
     })
     .unwrap_or_else(|i| panic!("{}", i.linea()))
 }
@@ -145,6 +146,9 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str], env: &[(&str, &str)]) -> (i32, St
         .env("TC2_IDIOMA", "es")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CEILING_DIRECTORIES", &f.raiz)
+        // El inventario (F3-9) lee una carpeta de Claude Code propia, nunca
+        // la de la maquina.
+        .env("CLAUDE_CONFIG_DIR", f.raiz.join("claude"))
         .env_remove("TC2_TOKEN_AGENTE")
         .env_remove("TC2_TOKEN_PERSONA")
         .env_remove("TC2_TOKEN_REVISOR")
@@ -194,8 +198,15 @@ fn sin_git_falla_y_fuera_de_un_repo_rechaza() {
         "{err}"
     );
     assert_eq!(err.lines().count(), 1, "{err}");
-    let (c, out, _) = tc2(&f, &vacia, &["doctor", "--recursos"], &[]);
+    // C11 de TASK-080: `--recursos` con algo de mas es uso.
+    let (c, out, _) = tc2(&f, &vacia, &["doctor", "--recursos", "x"], &[]);
     assert_eq!((c, out.as_str()), (2, "doctor uso motivo=argumentos\n"));
+    // Fuera de un repo, `--recursos` rechaza como `doctor`.
+    let (c, out, _) = tc2(&f, &vacia, &["doctor", "--recursos"], &[]);
+    assert_eq!(
+        (c, out.as_str()),
+        (3, "doctor rechazada motivo=no-es-repo\n")
+    );
 }
 
 // ---------------------------------------------------------------------

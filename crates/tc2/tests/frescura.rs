@@ -598,6 +598,7 @@ fn c8_doctor_sin_fetch_y_con_sincronizado() {
         dir: &a,
         git: &g,
         conectar: &conectar,
+        claude: None,
     };
     let s = tc2::doctor::orden(&[], false, Idioma::Es, &e);
     let primera = s.stdout.lines().next().unwrap();

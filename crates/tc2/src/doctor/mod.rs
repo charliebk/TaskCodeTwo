@@ -16,11 +16,19 @@
 //! los peores primero, y si no caben, `y N mas: tc2 doctor --json`. Con
 //! `--json`, una linea con todos los hallazgos (tambien los `ok`). Codigo 3
 //! con alguna `falla` (D5a); 0 con avisos o no-comprobados.
+//!
+//! `doctor --recursos` (F3-9, [`recursos`]): el inventario de skills y
+//! agentes y el manifiesto de recursos, con la primera linea `doctor
+//! <ok|rechazada> fallos=N avisos=N no-comprobado=N skills=N agentes=N
+//! inventario=<12hex>` y `y N mas: tc2 doctor --recursos --json`; con
+//! `--json`, ademas de `hallazgos`, la lista `inventario`. El `doctor`
+//! normal lleva el hallazgo agregado `recursos no-instalados`.
 
 pub mod capacidades;
 mod entorno;
 mod estado;
 pub mod plataforma;
+pub mod recursos;
 
 use std::path::Path;
 
@@ -191,23 +199,61 @@ fn cuantos(hs: &[Hallazgo], e: Estado) -> usize {
     hs.iter().filter(|h| h.estado == e).count()
 }
 
-/// La linea de contrato de `doctor` (funcion pura): `rechazada` con alguna
-/// `falla` (D5a), `ok` si no. El diagnostico nombra el primer fallo.
-pub fn informe(hs: &[Hallazgo], r: &Resumen) -> Informe {
+/// Donde se ve el detalle de `doctor`.
+const DETALLE: &str = "tc2 doctor --json";
+
+/// Donde se ve el detalle de `doctor --recursos`.
+const DETALLE_RECURSOS: &str = "tc2 doctor --recursos --json";
+
+/// El principio de la linea de contrato: `rechazada` con alguna `falla`
+/// (D5a), `ok` si no, y las tres cuentas.
+fn cuentas(hs: &[Hallazgo]) -> Informe {
     let fallos = cuantos(hs, Estado::Falla);
     let resultado = if fallos > 0 {
         Resultado::Rechazada
     } else {
         Resultado::Ok
     };
-    let mut i = Informe::nuevo(NOMBRE, resultado)
+    Informe::nuevo(NOMBRE, resultado)
         .con("fallos", fallos.to_string())
         .con("avisos", cuantos(hs, Estado::Aviso).to_string())
         .con(
             "no-comprobado",
             cuantos(hs, Estado::NoComprobado).to_string(),
         )
-        .con("plataforma", r.plataforma.clone());
+}
+
+/// El diagnostico que nombra el primer fallo, si lo hay.
+fn con_diagnostico(i: Informe, hs: &[Hallazgo], detalle: &str) -> Informe {
+    match ordenados(hs)
+        .into_iter()
+        .find(|h| h.estado == Estado::Falla)
+    {
+        Some(primero) => i.diagnostico(
+            Mensaje::nuevo(&txt::CON_FALLOS)
+                .con("n", cuantos(hs, Estado::Falla).to_string())
+                .con("primero", primero.linea())
+                .con("detalle", detalle),
+        ),
+        None => i,
+    }
+}
+
+/// La linea de contrato de `doctor --recursos` (funcion pura): las cuentas,
+/// `skills=`, `agentes=` e `inventario=` (la huella), sin `plataforma=`.
+pub fn informe_recursos(hs: &[Hallazgo], inv: &crate::inventario::Inventario) -> Informe {
+    use crate::inventario::Tipo;
+    let i = cuentas(hs)
+        .con("skills", inv.cuantas(Tipo::Skill).to_string())
+        .con("agentes", inv.cuantas(Tipo::Agente).to_string())
+        .con("inventario", inv.huella());
+    con_diagnostico(i, hs, DETALLE_RECURSOS)
+}
+
+/// La linea de contrato de `doctor` (funcion pura): `rechazada` con alguna
+/// `falla` (D5a), `ok` si no. El diagnostico nombra el primer fallo.
+pub fn informe(hs: &[Hallazgo], r: &Resumen) -> Informe {
+    let mut i = cuentas(hs).con("plataforma", r.plataforma.clone());
     if let Some(c) = &r.capacidades {
         i = i.con("plan", c.plan.clone());
         if let Some((imp, sus, nod)) = c.cuentas {
@@ -226,17 +272,7 @@ pub fn informe(hs: &[Hallazgo], r: &Resumen) -> Informe {
     if let Some(s) = &r.sincronizado {
         i = i.con("sincronizado", s.clone());
     }
-    if let Some(primero) = ordenados(hs)
-        .into_iter()
-        .find(|h| h.estado == Estado::Falla)
-    {
-        i = i.diagnostico(
-            Mensaje::nuevo(&txt::CON_FALLOS)
-                .con("n", fallos.to_string())
-                .con("primero", primero.linea()),
-        );
-    }
-    i
+    con_diagnostico(i, hs, DETALLE)
 }
 
 /// Los hallazgos que no son `ok`, los peores primero (estable: dentro de
@@ -251,36 +287,77 @@ pub fn ordenados(hs: &[Hallazgo]) -> Vec<&Hallazgo> {
 /// los hallazgos que caben en [`MAX_LINEAS`]; si no caben todos, los
 /// primeros y `y N mas: tc2 doctor --json`.
 pub fn lineas(hs: &[Hallazgo], r: &Resumen) -> Vec<String> {
-    let mut v = vec![informe(hs, r).linea()];
+    lineas_de(informe(hs, r).linea(), hs, DETALLE)
+}
+
+/// Las lineas de stdout de `doctor --recursos` sin `--json` (funcion pura),
+/// con `y N mas: tc2 doctor --recursos --json` si no caben.
+pub fn lineas_recursos(hs: &[Hallazgo], inv: &crate::inventario::Inventario) -> Vec<String> {
+    lineas_de(informe_recursos(hs, inv).linea(), hs, DETALLE_RECURSOS)
+}
+
+fn lineas_de(primera: String, hs: &[Hallazgo], detalle: &str) -> Vec<String> {
+    let mut v = vec![primera];
     let malos = ordenados(hs);
     let hueco = MAX_LINEAS - 1;
     if malos.len() <= hueco {
         v.extend(malos.iter().map(|h| h.linea()));
     } else {
         v.extend(malos.iter().take(hueco - 1).map(|h| h.linea()));
-        v.push(format!(
-            "y {} mas: tc2 doctor --json",
-            malos.len() - (hueco - 1)
-        ));
+        v.push(format!("y {} mas: {detalle}", malos.len() - (hueco - 1)));
     }
     v
 }
 
-/// La salida del proceso: texto o JSON (una linea con todos los
-/// hallazgos), diagnostico en stderr solo con alguna `falla`.
-pub fn salida(hs: &[Hallazgo], r: &Resumen, json: bool, idioma: Idioma) -> Salida {
-    let i = informe(hs, r);
+/// La salida de un informe: texto (`lineas`) o JSON (una linea con todos
+/// los hallazgos y `extra`, ya con su clave), diagnostico en stderr solo con
+/// alguna `falla`.
+fn salida_de(
+    i: &Informe,
+    hs: &[Hallazgo],
+    json: bool,
+    idioma: Idioma,
+    lineas: Vec<String>,
+    extra: &str,
+) -> Salida {
     let mut s = i.salida_en(json, idioma);
     if json {
         let todos: Vec<String> = hs.iter().map(Hallazgo::json).collect();
         let linea = s.stdout.trim_end();
         if let Some(sin_cierre) = linea.strip_suffix('}') {
-            s.stdout = format!("{sin_cierre},\"hallazgos\":[{}]}}\n", todos.join(","));
+            s.stdout = format!(
+                "{sin_cierre},\"hallazgos\":[{}]{extra}}}\n",
+                todos.join(",")
+            );
         }
     } else {
-        s.stdout = lineas(hs, r).join("\n") + "\n";
+        s.stdout = lineas.join("\n") + "\n";
     }
     s
+}
+
+/// La salida del proceso: texto o JSON (una linea con todos los
+/// hallazgos), diagnostico en stderr solo con alguna `falla`.
+pub fn salida(hs: &[Hallazgo], r: &Resumen, json: bool, idioma: Idioma) -> Salida {
+    salida_de(&informe(hs, r), hs, json, idioma, lineas(hs, r), "")
+}
+
+/// La salida de `doctor --recursos`: como [`salida`], y en JSON ademas la
+/// lista `inventario` (D4a: la lista completa solo en JSON).
+pub fn salida_recursos(
+    hs: &[Hallazgo],
+    inv: &crate::inventario::Inventario,
+    json: bool,
+    idioma: Idioma,
+) -> Salida {
+    salida_de(
+        &informe_recursos(hs, inv),
+        hs,
+        json,
+        idioma,
+        lineas_recursos(hs, inv),
+        &format!(",\"inventario\":{}", inv.json()),
+    )
 }
 
 /// Lo que necesita `doctor` del entorno.
@@ -291,6 +368,10 @@ pub struct Entorno<'a> {
     pub git: &'a Git,
     /// Construye el adaptador de la plataforma.
     pub conectar: &'a Conectar<'a>,
+    /// Carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`) para el
+    /// inventario. `None`: no se sabe; el `doctor` normal no agrega los
+    /// recursos y `--recursos` lo dice como `no-comprobado`.
+    pub claude: Option<&'a Path>,
 }
 
 /// Todas las comprobaciones. `Err` solo si no se puede ni empezar (fuera de
@@ -325,6 +406,9 @@ pub fn comprobar(e: &Entorno<'_>) -> Result<(Vec<Hallazgo>, Resumen), Informe> {
     hs.extend(estado::instalacion(e.git, e.dir));
     let (h, plataforma, capacidades) = plataforma::comprobar(e);
     hs.extend(h);
+    if e.claude.is_some() {
+        hs.push(recursos::agregado(e));
+    }
     // La hora de la marca, sin `fetch` (D4a de F3-5b: doctor solo lee).
     let sincronizado =
         crate::estado::sincronizado_texto(crate::estado::sincronizado_en(e.git, e.dir));
@@ -339,21 +423,28 @@ pub fn comprobar(e: &Entorno<'_>) -> Result<(Vec<Hallazgo>, Resumen), Informe> {
     ))
 }
 
-/// Lee las opciones (sin `--json`): ninguna.
-fn leer_opciones(args: &[String]) -> Result<(), Informe> {
-    if args.is_empty() {
-        Ok(())
-    } else {
-        Err(Informe::nuevo(NOMBRE, Resultado::Uso)
+/// Lee las opciones (sin `--json`): nada o `--recursos` (devuelve si esta).
+fn leer_opciones(args: &[String]) -> Result<bool, Informe> {
+    match args {
+        [] => Ok(false),
+        [a] if a == "--recursos" => Ok(true),
+        _ => Err(Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", "argumentos")
-            .diagnostico(&txt::USO_DOCTOR))
+            .diagnostico(&txt::USO_DOCTOR)),
     }
 }
 
-/// `doctor [--json]` (sin `--json`, que quita `lib.rs`).
+/// `doctor [--recursos] [--json]` (sin `--json`, que quita `lib.rs`).
 pub fn orden(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>) -> Salida {
-    if let Err(i) = leer_opciones(args) {
-        return i.salida_en(json, idioma);
+    let con_recursos = match leer_opciones(args) {
+        Ok(r) => r,
+        Err(i) => return i.salida_en(json, idioma),
+    };
+    if con_recursos {
+        return match recursos::comprobar(e) {
+            Ok((hs, inv)) => salida_recursos(&hs, &inv, json, idioma),
+            Err(i) => i.salida_en(json, idioma),
+        };
     }
     match comprobar(e) {
         Ok((hs, r)) => salida(&hs, &r, json, idioma),
@@ -469,15 +560,86 @@ mod tests {
         );
     }
 
+    /// C11: `--recursos` solo; cualquier otra cosa, `doctor uso
+    /// motivo=argumentos`.
     #[test]
     fn argumentos_de_mas_son_uso() {
-        assert!(leer_opciones(&[]).is_ok());
-        for a in ["--recursos", "x"] {
-            let i = leer_opciones(&[a.to_owned()]).err();
+        assert_eq!(leer_opciones(&[]).ok(), Some(false));
+        assert_eq!(leer_opciones(&["--recursos".to_owned()]).ok(), Some(true));
+        for a in [
+            vec!["x"],
+            vec!["--recursos", "x"],
+            vec!["--recursos", "--recursos"],
+            vec!["x", "--recursos"],
+        ] {
+            let args: Vec<String> = a.iter().map(|s| (*s).to_owned()).collect();
+            let i = leer_opciones(&args).err();
             assert_eq!(
                 i.map(|i| i.linea()).as_deref(),
-                Some("doctor uso motivo=argumentos")
+                Some("doctor uso motivo=argumentos"),
+                "{a:?}"
             );
         }
+    }
+
+    /// C4: la primera linea de `--recursos` lleva `skills=`, `agentes=` e
+    /// `inventario=` (12 hex) sin `plataforma=`; como mucho 5 lineas, con `y
+    /// N mas: tc2 doctor --recursos --json`. C5: el JSON en una linea con
+    /// `hallazgos` (tambien los ok) e `inventario`, sin ANSI.
+    #[test]
+    fn salida_de_recursos() {
+        use crate::inventario::{Entrada, Inventario, Origen, Tipo};
+        let inv = Inventario::nuevo(
+            vec![
+                Entrada {
+                    tipo: Tipo::Agente,
+                    id: "general-purpose".to_owned(),
+                    origen: Origen::Integrado,
+                },
+                Entrada {
+                    tipo: Tipo::Skill,
+                    id: "alfa".to_owned(),
+                    origen: Origen::Usuario,
+                },
+            ],
+            Vec::new(),
+        );
+        let hs = vec![
+            h("recursos", "taskcodetwo", Estado::Falla),
+            h("recursos", "a", Estado::Aviso),
+            h("recursos", "b", Estado::Aviso),
+            h("recursos", "c", Estado::NoComprobado),
+            h("recursos", "d", Estado::Aviso),
+            h("recursos", "alfa", Estado::Ok),
+        ];
+        let l = lineas_recursos(&hs, &inv);
+        assert_eq!(l.len(), MAX_LINEAS);
+        assert_eq!(
+            l[0],
+            format!(
+                "doctor rechazada fallos=1 avisos=3 no-comprobado=1 skills=1 agentes=1 inventario={}",
+                inv.huella()
+            )
+        );
+        assert!(!l[0].contains("plataforma="));
+        assert_eq!(l[1], "recursos taskcodetwo falla motivo=m");
+        assert_eq!(l[4], "y 2 mas: tc2 doctor --recursos --json");
+        let s = salida_recursos(&hs, &inv, false, Idioma::Es);
+        assert_eq!(s.codigo, 3);
+        assert_eq!(s.stderr.lines().count(), 1);
+        assert!(
+            s.stderr.contains("tc2 doctor --recursos --json"),
+            "{}",
+            s.stderr
+        );
+        let j = salida_recursos(&hs, &inv, true, Idioma::Es);
+        assert_eq!(j.stdout.lines().count(), 1);
+        assert!(!j.stdout.contains('\u{1b}'));
+        let v: serde_json::Value = serde_json::from_str(&j.stdout).unwrap_or_default();
+        assert_eq!(v["hallazgos"].as_array().map(Vec::len), Some(6));
+        assert_eq!(v["hallazgos"][5]["estado"], "ok");
+        assert_eq!(v["claves"]["inventario"], inv.huella());
+        assert_eq!(v["inventario"][0]["id"], "alfa");
+        assert_eq!(v["inventario"][1]["origen"], "integrado");
     }
 }
