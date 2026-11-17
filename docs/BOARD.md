@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
-## Planificadas (00-planificadas) — 63
+## Planificadas (00-planificadas) — 62
 
 ```text
 ID        Titulo                                                               Asignado
 --------  -------------------------------------------------------------------  -------------
-TASK-029  F3-2 new e import en bloque con dependencias e hito                  (sin asignar)
 TASK-030  F3-3 next: lo listo para empezar por dependencias y prioridad        (sin asignar)
 TASK-031  F3-4 roadmap: la vista para todos                                    (sin asignar)
 TASK-032  F3-5 board y status                                                  (sin asignar)
@@ -72,7 +71,7 @@ TASK-118  Aplicar las puertas (rulesets) desde tc2 init                        (
 TASK-119  Seguimiento de F3-1: menores aceptados de tc2 init                   (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 39
+## Terminadas (04-terminadas) — 40
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -105,6 +104,7 @@ TASK-025  F2-10 Build de ejecutables por sistema en la CI, firmados             
 TASK-026  F2-11 Instaladores de una linea                                           charlie.bk@gmail.com
 TASK-027  F2-12 taskctl actualizar --cli y aviso de version nueva                   charlie.bk@gmail.com
 TASK-028  F3-1 tc2 init                                                             charlie.bk@gmail.com
+TASK-029  F3-2 tc2 new e import en bloque con dependencias e hito                   charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com

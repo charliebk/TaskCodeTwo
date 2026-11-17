@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-029-f3-2-new-e-import-en-bloque-con-dependen
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: 24481628
+tokens_implementacion: 25327330
 tokens_revision: 5293913
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -62,6 +62,7 @@ MENORES aceptados (van a seguimiento, TASK-120): cabecera ignorada sin aviso con
 | 2026-11-17T05:00:32Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T05:00:33Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T05:38:56Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T05:57:35Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -71,3 +72,10 @@ MENORES aceptados (van a seguimiento, TASK-120): cabecera ignorada sin aviso con
 | 2026-11-17T05:38:56Z | implementacion | agente:a7c771d9486edd75c | 200 | 322444 | 21509326 | 123150 | 45 | 21955120 | - | - |
 | 2026-11-17T05:54:16Z | revision | agente:a6b9d1c127cf68861 | 32 | 113381 | 1323137 | 12456 | 1 | 1449006 | 1 | rust-wasm-reviewer |
 | 2026-11-17T05:54:17Z | revision | agente:a29912eb034a2088b | 70 | 145905 | 3670405 | 28527 | 1 | 3844907 | 1 | code-quality-reviewer |
+| 2026-11-17T05:54:19Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1075 | 844207 | 418 | 0 | 845702 | - | - |
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 57 min
+- Cierre (finish): 196 s, de 2026-11-17T05:54:19Z a 2026-11-17T05:57:35Z
