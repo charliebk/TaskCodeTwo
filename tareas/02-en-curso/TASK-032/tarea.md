@@ -35,6 +35,26 @@ Tarea F3-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 - [ ] C3b: `board` lista En diseno, En curso, En revision y Listas para empezar con ID, titulo, quien y PR, y avisa `revision-sin-pr=` y `pr-sin-revision=` (unitario con fake de `Plataforma`)
 - [ ] C3c: sin plataforma o sin red `board` sale 0 con la parte de estado completa y `plataforma=no-configurada|sin-credenciales|sin-red|error`, sin pendientes; `status` no consulta nunca la plataforma (fakes que fallan y test de que `status` no construye ningun adaptador)
 
+## Autorrevision
+
+- rust-wasm-reviewer — 8a3a2c5
+- code-quality-reviewer — 8a3a2c5
+
+Hallazgos propios (pase de «Que se revisa» de cada revisora; ninguno
+CRITICO ni IMPORTANTE):
+
+- MENOR: `conectar_produccion` reduce a `no-configurada` cualquier fallo al
+  leer `origin` o la configuracion de la base (incluida una configuracion
+  invalida); el detalle lo da `tc2 identidad` o `doctor`. Se deja asi:
+  `board` es una vista y no debe fallar por la plataforma (C3c).
+- MENOR: con terminal y `TC2_TOKEN_PERSONA`, `board` consulta con el rol
+  `persona` sin comprobar que este en la lista de personas (es una lectura;
+  `estado-puertas` si lo comprueba porque decide).
+- MENOR: `texto_de_avisos` de `tablero` repite la forma de leer una lista
+  del informe que tiene `roadmap`; no hay decision duplicada.
+- Mutacion comprobada: `min_by_key` → `max_by_key` en `cruzar` hace fallar
+  `board_cruza_los_pr_y_avisa`.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
