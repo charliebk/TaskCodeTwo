@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2348184
-tokens_implementacion: null
+tokens_implementacion: 17360466
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -41,6 +41,24 @@ Tarea F3-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 - [ ] C10: `tc2 reanudar` anade la fila `reanudar` y la tarea vuelve a `next`; reanudar una que no esta en pausa da `sin-cambios`
 - [ ] C11: ID mal formado, sin ID o argumentos de mas dan uso (2) como `start`; `--json` da el mismo contenido en una linea
 
+## Autorrevision
+
+- rust-wasm-reviewer — e4c2c67
+- code-quality-reviewer — e4c2c67
+
+Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
+
+- MENOR: `Descartar::exige_red` solo lo vigilan unitarios; el `fetch` previo
+  de `descartar` ya da `sinred pendiente=no` antes de la transaccion.
+- MENOR: la carrera `descartar` contra `start` simultaneos la cubre la
+  reejecucion de la transaccion, sin test de dos procesos.
+- Desviacion del plan: la anotacion de `pausa`/`reanudar` lleva el instante
+  para que una pausa pendiente publique la hora real (F1-17).
+- Mutaciones comprobadas (rojo y restauradas): dueno en `Lanzada::tarea`
+  (c6 y unitarios), guarda `dentro_de` del worktree (c5), filtro de pausadas
+  en `listas` (c9 y roadmap), rechazo `pausada` en `Tomar` (c9 y unitario).
+- Verificacion propia: `--test ciclo --test toma` 25 de 25.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -54,3 +72,4 @@ Tarea F3-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T10:59:22Z | diseno | agente:ac028239097a018af | 66 | 106812 | 2218605 | 22701 | 44 | 2348184 | - | - |
+| 2026-11-17T11:48:10Z | implementacion | agente:a0e0ce1e3af214169 | 160 | 575375 | 16695903 | 89028 | 49 | 17360466 | - | - |
