@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [distribucion, tests]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-115-seguimiento-de-f2-12-menores-de-actualiz
 asignado_a: charlie.bk@gmail.com
@@ -39,3 +39,4 @@ Cerrar los MENORES aceptados en TASK-027 y estabilizar tests/comun/http_mock.rs,
 |---|---|---|---|---|
 | 2026-11-17T03:47:05Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T03:48:28Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T03:48:29Z | start | automatico | persona | 0.16.1 |
