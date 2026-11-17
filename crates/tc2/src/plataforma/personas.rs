@@ -236,6 +236,16 @@ impl Personas {
         self.entradas.iter().find(|p| p.id == id)
     }
 
+    /// La persona de ese login, sin distinguir mayusculas (como los valida
+    /// [`Personas::leer`]: no hay dos que solo difieran en ellas). `reasignar`
+    /// (F3-10) la busca asi: la lista es la autoridad.
+    pub fn por_login(&self, login: &str) -> Option<&Persona> {
+        let login = login.to_lowercase();
+        self.entradas
+            .iter()
+            .find(|p| p.login.to_lowercase() == login)
+    }
+
     /// La persona que declara ese correo de la 0.16 (sin distinguir
     /// mayusculas).
     pub fn por_correo(&self, correo: &str) -> Option<&Persona> {
@@ -383,6 +393,21 @@ mod tests {
             assert!(p.mostrar().starts_with(&p.login));
         }
         assert!(l.contiene(8) && !l.contiene(10));
+        Ok(())
+    }
+
+    /// TASK-081: por login sin distinguir mayusculas; uno que no esta (mal
+    /// escrito, con espacios o vacio), `None`.
+    #[test]
+    fn por_login_sin_distinguir_mayusculas() -> Result<(), Informe> {
+        let l = Personas::leer(
+            "personas:\n  - {id: 7, login: \"Ana-G\"}\n  - {id: 9, login: \"luis\"}\n",
+        )?;
+        assert_eq!(l.por_login("ana-g").map(|p| p.id), Some(7));
+        assert_eq!(l.por_login("LUIS").map(|p| p.id), Some(9));
+        for malo in ["ana", "ana-g ", "", "luis[bot]"] {
+            assert!(l.por_login(malo).is_none(), "{malo:?}");
+        }
         Ok(())
     }
 

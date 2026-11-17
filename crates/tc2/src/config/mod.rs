@@ -69,6 +69,9 @@ pub struct Config {
     pub tope_rondas: u8,
     /// Presupuesto por defecto de los lotes (F1-16); `None` si no se declara.
     pub lote: Option<Lote>,
+    /// Dias sin actividad tras los que otra persona puede liberar o
+    /// reasignar una tarea y `status`/`board` la marcan (F3-10, D1a).
+    pub dias_sin_actividad: u16,
 }
 
 /// `politica_carriles.<carril>`: lo que no se declara es el suelo.
@@ -286,6 +289,7 @@ impl Config {
             modo_flujo: ModoFlujo::Manual,
             tope_rondas: 2,
             lote: None,
+            dias_sin_actividad: 7,
         }
     }
 }

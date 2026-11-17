@@ -43,7 +43,9 @@
               "review",
               "finish",
               "descartar",
-              "pausa"
+              "pausa",
+              "liberar",
+              "reasignar"
             ],
             "description": "en que transiciones corre (por defecto, en todas)",
             "items": {
@@ -55,7 +57,9 @@
                 "review",
                 "finish",
                 "descartar",
-                "pausa"
+                "pausa",
+                "liberar",
+                "reasignar"
               ],
               "type": "string"
             },
@@ -85,6 +89,13 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "dias_sin_actividad": {
+      "default": 7,
+      "description": "dias sin actividad tras los que otra persona puede liberar o reasignar una tarea y status y board la marcan [F1-11 adenda de TASK-081; F3-10 D1a]",
+      "maximum": 365,
+      "minimum": 1,
+      "type": "integer"
     },
     "formato": {
       "description": "version del formato del proyecto; con 2 manda la 2.0 [F1-12 D4a, decision 6]",

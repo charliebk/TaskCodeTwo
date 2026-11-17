@@ -16,8 +16,9 @@
 //! (identidad, D6); la toma en seco sobre lo leido (los rechazos salen sin
 //! esperar al push); la base valida (`origin/develop`, o para `hotfix` el
 //! ultimo tag de `origin/main` o su punta, D4; `release` se rechaza);
-//! `comprobar-id` (una rama `*/task-nnn-*` que no es de quien la lanza,
-//! `ocupada`); la carpeta del worktree libre (`carpeta-ocupada`); la
+//! `comprobar-id` (una rama `*/task-nnn-*` que no es la de su `rama:`,
+//! `ocupada`; la propia la retoma, F3-10); la carpeta del worktree libre
+//! (`carpeta-ocupada`); la
 //! transaccion; la rama y el worktree.
 //!
 //! Lanzada desde un worktree de tarea escribe el estado en el principal (lo
@@ -170,8 +171,10 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         // 5c. Ya es suya y esta empezada: crear solo lo que falte.
         return Ok(destino.crear(None, &quien));
     }
-    // 5. El ID no tiene rama de nadie mas.
-    let c = git::comprobar_id(g, &principal, id);
+    // 5. El ID no tiene rama de nadie mas. La suya propia (la de `rama:`)
+    // no cuenta: tras `liberar` o `reasignar` (F3-10) la siguiente persona
+    // sigue en ella y `crear` la recupera con `git::reanudar`.
+    let c = git::comprobar_id_salvo(g, &principal, id, Some(&rama));
     if !c.resultado.es_exito() {
         return Err(c);
     }

@@ -17,7 +17,8 @@
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
 //! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`ciclo`]
-//! (`descartar`, `pausa` y `reanudar`, F3-7) y [`doctor`] (F3-8). Las capas
+//! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
+//! F3-10) y [`doctor`] (F3-8). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -170,6 +171,16 @@ where
             let reanudar = orden == ciclo::REANUDAR;
             de_una_tarea(orden, |e| ciclo::orden_pausa(&resto, reanudar, e)).salida_en(json, idioma)
         }
+        [orden, resto @ ..] if orden == ciclo::LIBERAR => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(ciclo::LIBERAR, |e| ciclo::orden_liberar(&resto, e))
+                .salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == ciclo::REASIGNAR => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(ciclo::REASIGNAR, |e| ciclo::orden_reasignar(&resto, e))
+                .salida_en(json, idioma)
+        }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_identidad(&resto).salida_en(json, idioma)
@@ -302,7 +313,8 @@ fn orden_identidad(args: &[String]) -> Informe {
 }
 
 /// Una orden sobre una tarea (`start`, F3-6; `descartar`, `pausa` y
-/// `reanudar`, F3-7) en la carpeta actual: quien la lanza sale de
+/// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10) en la carpeta actual:
+/// quien la lanza sale de
 /// [`identidad::resolver`] con el terminal y los tokens del proceso.
 fn de_una_tarea(nombre: &str, orden: impl FnOnce(&toma::Entorno<'_>) -> Informe) -> Informe {
     use std::io::IsTerminal;
