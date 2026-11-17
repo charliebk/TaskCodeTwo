@@ -363,10 +363,20 @@ fn orden_doctor(args: &[String], json: bool, idioma: Idioma) -> Salida {
     };
     let g = git::Git::nuevo();
     let conectar = tablero::conectar_produccion(&g, &dir);
+    // La carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`), solo para
+    // leer el inventario (F3-9).
+    let claude = instalacion::Entorno::de_variables(
+        instalacion::Sistema::actual(),
+        std::path::PathBuf::new(),
+        std::process::id(),
+        |k| std::env::var(k).ok(),
+    )
+    .dir_claude();
     let e = doctor::Entorno {
         dir: &dir,
         git: &g,
         conectar: &conectar,
+        claude: claude.as_deref(),
     };
     doctor::orden(args, json, idioma, &e)
 }
