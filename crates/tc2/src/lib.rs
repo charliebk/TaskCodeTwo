@@ -38,6 +38,7 @@ pub mod identidad;
 pub mod importar;
 pub mod init;
 pub mod instalacion;
+pub mod inventario;
 pub mod plataforma;
 pub mod roadmap;
 pub mod siguiente;
