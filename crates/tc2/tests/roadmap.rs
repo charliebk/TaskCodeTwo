@@ -141,11 +141,9 @@ fn zona_rota_no_bloquea_y_se_avisa() {
         "{out}"
     );
     assert!(err.contains("tareas/ROADMAP.md"), "{err}");
-    // Solo se preparo el fichero de la persona; nada publicado.
-    assert_eq!(
-        antes.replace(" M ROADMAP.md", "M  ROADMAP.md"),
-        f.huella(&bare, &clon)
-    );
+    // Nada publicado y el indice como estaba (MEN-1 de la revision 1): la
+    // zona se valida antes de preparar nada.
+    assert_eq!(antes, f.huella(&bare, &clon));
 
     // Lo publicado con la zona rota (un commit a mano en otro clon).
     let otro = f.otro_clon(&bare, "otro");
@@ -163,6 +161,176 @@ fn zona_rota_no_bloquea_y_se_avisa() {
     assert!(
         out.starts_with("roadmap rechazada motivo=roadmap-roto roto=sin-fin"),
         "{out}"
+    );
+}
+
+/// Cambia la linea `## Hitos` de la zona de `tareas/ROADMAP.md` de `clon`
+/// por ella mas `nota`.
+fn anotar_zona(clon: &Path, nota: &str) {
+    let fichero = clon.join("tareas").join(ROADMAP);
+    let t = std::fs::read_to_string(&fichero).unwrap();
+    assert!(t.contains("\n## Hitos\n"), "{t}");
+    std::fs::write(
+        &fichero,
+        t.replacen("\n## Hitos\n", &format!("\n## Hitos\n{nota}\n"), 1),
+    )
+    .unwrap();
+}
+
+/// IMP-1 de la revision 1: A y B montan el mismo commit; A publica su zona
+/// y B, que partio de la anterior, no la pisa: `zona-divergente`, nada
+/// publicado, su edicion sigue en la carpeta y el indice como estaba. Si B
+/// no edito la zona, no hay conflicto.
+#[test]
+fn zona_editada_a_la_vez_por_dos_no_se_pisa() {
+    let f = Fixture::nueva("roadmap-divergente");
+    let (bare, a) = con_estado_montado(&f);
+    let b = f.otro_clon(&bare, "clon-b");
+    assert!(estado::montar(&f.git(), &b).resultado.es_exito());
+
+    anotar_zona(&a, "NOTA DE A");
+    let out = con_codigo(&f, &a, &["roadmap", "--escribir"], 0);
+    assert!(out.starts_with("roadmap ok "), "{out}");
+    assert!(publicado(&f, &bare).contains("NOTA DE A"));
+
+    anotar_zona(&b, "NOTA DE B");
+    let fichero_b = b.join("tareas").join(ROADMAP);
+    let editado_b = std::fs::read_to_string(&fichero_b).unwrap();
+    let antes = f.huella(&bare, &b);
+    let (c, out, err) = tc2(&f, &b, &["roadmap", "--escribir"]);
+    assert_eq!(c, 3, "{out} {err}");
+    assert!(
+        out.starts_with("roadmap rechazada ") && out.contains(" motivo=zona-divergente"),
+        "{out}"
+    );
+    assert!(
+        err.contains("tareas/ROADMAP.md") && err.contains("a mano"),
+        "{err}"
+    );
+    let r = publicado(&f, &bare);
+    assert!(r.contains("NOTA DE A") && !r.contains("NOTA DE B"), "{r}");
+    assert_eq!(std::fs::read_to_string(&fichero_b).unwrap(), editado_b);
+    // Solo se movio la ref remota que trajo el fetch; el indice, igual.
+    let sin_remota = |h: &str| {
+        h.lines()
+            .filter(|l| !l.contains(&format!("refs/remotes/origin/{RAMA}")))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(sin_remota(&antes), sin_remota(&f.huella(&bare, &b)));
+    assert_eq!(
+        f.crudo(&b.join("tareas"), &["status", "--porcelain"]),
+        " M ROADMAP.md\n"
+    );
+
+    // B descarta su edicion: sin conflicto, trae lo de A.
+    f.crudo(&b.join("tareas"), &["checkout", "--", ROADMAP]);
+    let out = con_codigo(&f, &b, &["roadmap", "--escribir"], 0);
+    assert!(
+        out.contains(" tareas=al-dia") || out.starts_with("roadmap sin-cambios"),
+        "{out}"
+    );
+    f.crudo(
+        &b.join("tareas"),
+        &["merge", "-q", "--ff-only", &format!("origin/{RAMA}")],
+    );
+    assert!(
+        std::fs::read_to_string(&fichero_b)
+            .unwrap()
+            .contains("NOTA DE A")
+    );
+}
+
+/// MEN-2 de la revision 1: si `--escribir` no publica (remoto inalcanzable),
+/// el indice de `tareas/` queda como estaba y la edicion sigue ahi.
+#[test]
+fn escribir_que_falla_deja_el_indice_como_estaba() {
+    let f = Fixture::nueva("roadmap-falla");
+    let (_bare, clon) = con_estado_montado(&f);
+    anotar_zona(&clon, "SIN RED");
+    let lejos = f.raiz.join("no-existe.git");
+    f.crudo(
+        &clon,
+        &["remote", "set-url", "origin", lejos.to_str().unwrap()],
+    );
+    let (c, out, _) = tc2(&f, &clon, &["roadmap", "--escribir"]);
+    assert_ne!(c, 0, "{out}");
+    assert_eq!(
+        f.crudo(&clon.join("tareas"), &["status", "--porcelain"]),
+        " M ROADMAP.md\n"
+    );
+    assert!(
+        std::fs::read_to_string(clon.join("tareas").join(ROADMAP))
+            .unwrap()
+            .contains("SIN RED")
+    );
+}
+
+/// Sin remoto, la zona editada se prepara antes de la transaccion (el
+/// adelanto de la carpeta va dentro) y se publica en la rama local.
+#[test]
+fn zona_editada_sin_remoto() {
+    let f = Fixture::nueva("roadmap-sin-remoto");
+    let solo = f.raiz.join("solo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
+    escribir(&solo, "README.md", "x\n");
+    f.crudo(&solo, &["add", "README.md"]);
+    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
+    con_codigo(&f, &solo, &["new", "Primera"], 0);
+    assert!(estado::montar(&f.git(), &solo).resultado.es_exito());
+    anotar_zona(&solo, "LOCAL");
+    let out = con_codigo(&f, &solo, &["roadmap", "--escribir"], 0);
+    assert!(out.contains(" tareas=al-dia"), "{out}");
+    let r = f.crudo(&solo, &["show", &format!("{RAMA}:{ROADMAP}")]);
+    assert!(r.contains("\n## Hitos\nLOCAL\n"), "{r}");
+    assert_eq!(
+        f.crudo(&solo.join("tareas"), &["status", "--porcelain"]),
+        ""
+    );
+}
+
+/// MEN-1 de calidad de la revision 1: un cambio solo fuera de la zona no se
+/// publica y se avisa en stderr (codigo 0).
+#[test]
+fn cambio_fuera_de_la_zona_se_avisa() {
+    let f = Fixture::nueva("roadmap-fuera");
+    let (bare, clon) = con_estado_montado(&f);
+    let antes = publicado(&f, &bare);
+    let fichero = clon.join("tareas").join(ROADMAP);
+    let t = std::fs::read_to_string(&fichero).unwrap();
+    std::fs::write(
+        &fichero,
+        t.replace("\n## En curso\n", "\n## En curso EDIT\n"),
+    )
+    .unwrap();
+    let (c, out, err) = tc2(&f, &clon, &["roadmap", "--escribir"]);
+    assert_eq!(c, 0, "{out} {err}");
+    assert!(out.contains(" avisos=fuera-de-zona"), "{out}");
+    assert!(
+        err.starts_with("aviso: tareas/ROADMAP.md tiene cambios fuera de la zona manual"),
+        "{err}"
+    );
+    assert_eq!(publicado(&f, &bare), antes);
+}
+
+/// MEN-6 de calidad de la revision 1: una lista de personas ilegible en la
+/// base se avisa; sin lista, no.
+#[test]
+fn personas_ilegibles_se_avisan() {
+    let f = Fixture::nueva("roadmap-personas");
+    let (_bare, clon) = con_estado_montado(&f);
+    let (c, _, err) = tc2(&f, &clon, &["roadmap", "--comparar"]);
+    assert_eq!((c, err.as_str()), (0, ""));
+    escribir(&clon, ".taskcode/personas.yml", "personas: [ esto no\n");
+    f.crudo(&clon, &["add", ".taskcode/personas.yml"]);
+    f.crudo(&clon, &["commit", "-q", "-m", "personas rotas"]);
+    f.crudo(&clon, &["push", "-q", "origin", "develop"]);
+    let (c, out, err) = tc2(&f, &clon, &["roadmap", "--comparar"]);
+    assert_eq!(c, 0, "{out}");
+    assert!(out.contains(" avisos=personas-ilegibles"), "{out}");
+    assert!(
+        err.starts_with("aviso: no se pudo leer la lista de personas"),
+        "{err}"
     );
 }
 
