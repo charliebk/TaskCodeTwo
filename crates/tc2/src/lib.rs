@@ -25,6 +25,7 @@ pub mod descarga;
 pub mod desinstalar;
 pub mod estado;
 pub mod git;
+pub mod grafo;
 pub mod huella;
 pub mod i18n;
 pub mod identidad;
