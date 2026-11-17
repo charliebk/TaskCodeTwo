@@ -11,8 +11,8 @@
 //! `commit=` la foto del estado usada. Avisos, solo si los hay:
 //! `ilegibles=` (`tarea.md` que no se entienden: no se saltan en silencio),
 //! `ciclos=` (las atascadas), `dependencias-inexistentes=`,
-//! `depende-de-descartada=` (`A>B`) y `hitos-sin-titulo=`. Sin rama de
-//! estado, `rechazada`.
+//! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=` y `duplicadas=`
+//! (IDs repetidos: vale el primero). Sin rama de estado, `rechazada`.
 
 use std::path::Path;
 
@@ -89,6 +89,7 @@ impl Calculo {
             ("dependencias-inexistentes", a.dependencias_inexistentes),
             ("depende-de-descartada", a.depende_de_descartada),
             ("hitos-sin-titulo", hitos),
+            ("duplicadas", a.duplicadas),
         ] {
             if !v.is_empty() {
                 i = i.con_lista(clave, v);

@@ -191,6 +191,9 @@ pub struct Avisos {
     pub depende_de_descartada: Vec<String>,
     /// Hitos con tareas en el orden y sin titulo `### Hn — titulo`.
     pub hitos_sin_titulo: Vec<u32>,
+    /// IDs que salen en mas de un nodo: cuenta el primero y el resto no se
+    /// ignora en silencio.
+    pub duplicadas: Vec<String>,
 }
 
 /// Resultado del orden de trabajo.
@@ -241,6 +244,13 @@ pub fn orden_de_trabajo(nodos: &[Nodo], hitos: &Hitos) -> Orden {
         .map(|(k, n)| (*k, *n))
         .collect();
     let mut avisos = Avisos::default();
+    let mut vistos = BTreeSet::new();
+    let duplicadas: BTreeSet<&str> = nodos
+        .iter()
+        .map(|n| n.id.as_str())
+        .filter(|id| !vistos.insert(*id))
+        .collect();
+    avisos.duplicadas = duplicadas.into_iter().map(str::to_owned).collect();
     let mut faltan: BTreeMap<&str, usize> = BTreeMap::new();
     let mut dependientes: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for (id, n) in &vivas {
@@ -407,6 +417,19 @@ mod tests {
         assert_eq!(o.orden, ids(&["TASK-002", "TASK-003"]));
         assert_eq!(listas(&o, &nodos), ids(&["TASK-003"]));
         assert_eq!(o.avisos.depende_de_descartada, ids(&["TASK-002>TASK-001"]));
+    }
+
+    /// Un ID repetido no se ignora en silencio: vale el primero y se avisa.
+    #[test]
+    fn id_repetido_avisa() {
+        let nodos = [
+            n("TASK-001", 0, "planificada", &[]),
+            n("TASK-001", 0, "terminada", &[]),
+            n("TASK-002", 0, "planificada", &["TASK-001"]),
+        ];
+        let o = orden_de_trabajo(&nodos, &Hitos::default());
+        assert_eq!(o.avisos.duplicadas, ids(&["TASK-001"]));
+        assert_eq!(listas(&o, &nodos), ids(&["TASK-001"]));
     }
 
     /// Una dependencia ilegible no es inexistente: bloquea, sin aviso de
