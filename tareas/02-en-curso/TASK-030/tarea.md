@@ -34,6 +34,20 @@ Tarea F3-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 - [ ] C3: `tc2 next [--json]` imprime `next ok listas=... en_marcha=... commit=<sha>` en es y en, `--json` valido, sin red funciona sobre la copia del clon y sin rama de estado da `rechazada` (`tests/siguiente.rs`)
 - [ ] C4: un `tarea.md` ilegible no se salta en silencio: sale en `ilegibles=`
 
+## Notas de implementacion
+
+- Fixture de C1: ToolsaWeb `1fc94425964a5d33b5e2c3c4c39691dbd580c641` (`grafo-tareas.py --comprobar` sale 0 en un clon temporal), en `crates/tc2/tests/fixtures/toolsaweb-1fc94425/`.
+- Suposiciones del plan comprobadas en ese SHA: 404 tareas, todos los IDs de 3 cifras y sin sufijo; los 404 `tarea.md` reales pasan por el lector estricto de formato 1 y se proyectan igual que la fixture (test `#[ignore]` `toolsaweb_reales_se_leen_y_proyectan_como_la_fixture` con `TC2_TOOLSAWEB`); ninguna descartada esta terminada. La rama de estado plana (`TASK-NNN/tarea.md`) es la del ADR F1-1 y la que escriben `new` e `import`.
+- Desviacion: las claves van con guiones (`en-marcha=`, `dependencias-inexistentes=`, `depende-de-descartada=`, `hitos-sin-titulo=`) y no con `_` como dicen C3 y el plan: el contrato de F1-4 fija «claves en minusculas con guiones» y `tests/comun::contrato` lo comprueba.
+- Desviacion: un `tarea.md` ilegible bloquea a quien depende de el (`Fase::Ilegible`); tratarlo como inexistente lo dejaba como lista. Aviso nuevo `duplicadas=` para IDs repetidos.
+- Desviacion: el lector de hitos (paso 4) entro con el nucleo en el paso 1 (`Hitos::del_roadmap`).
+- Diferencia conocida con el oraculo: una dependencia de formato 1 con etiqueta `descartada` y estado `terminada` bloquea aqui (D3) y no en `grafo-tareas.py`; en el SHA de la fixture no hay ninguna.
+
+## Autorrevision
+
+- rust-wasm-reviewer — 484e64a
+- code-quality-reviewer — 484e64a
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
