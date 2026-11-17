@@ -92,9 +92,11 @@ pub struct MaquinaReal;
 const PS_LEER_PATH: &str = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment'); if ($null -eq $k) { exit 3 }; $v = $k.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); $k.Close(); if ($null -eq $v) { exit 3 }; [Console]::Out.Write([string]$v)";
 
 /// Escribe el PATH nuevo con el mismo tipo de valor si sigue siendo el
-/// viejo, y avisa a las ventanas abiertas como el instalador.
+/// viejo, y avisa a las ventanas abiertas como el instalador. Una variable
+/// de entorno vacia llega como `$null`: `[string]` la vuelve `''` (un PATH
+/// que se queda vacio se escribe vacio, sin pasar `$null` a `SetValue`).
 #[cfg(windows)]
-const PS_ESCRIBIR_PATH: &str = "$ErrorActionPreference = 'Stop'; $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true); try { $actual = [string]$k.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); if ($actual -cne $env:TC2_PATH_VIEJO) { exit 4 }; $tipo = [Microsoft.Win32.RegistryValueKind]::ExpandString; if ($k.GetValueNames() -contains 'Path') { $tipo = $k.GetValueKind('Path') }; $k.SetValue('Path', $env:TC2_PATH_NUEVO, $tipo) } finally { $k.Close() }; [Environment]::SetEnvironmentVariable('TC2_INSTALAR_AVISO', '1', 'User'); [Environment]::SetEnvironmentVariable('TC2_INSTALAR_AVISO', $null, 'User')";
+const PS_ESCRIBIR_PATH: &str = "$ErrorActionPreference = 'Stop'; $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true); try { $actual = [string]$k.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); if ($actual -cne [string]$env:TC2_PATH_VIEJO) { exit 4 }; $tipo = [Microsoft.Win32.RegistryValueKind]::ExpandString; if ($k.GetValueNames() -contains 'Path') { $tipo = $k.GetValueKind('Path') }; $k.SetValue('Path', [string]$env:TC2_PATH_NUEVO, $tipo) } finally { $k.Close() }; [Environment]::SetEnvironmentVariable('TC2_INSTALAR_AVISO', '1', 'User'); [Environment]::SetEnvironmentVariable('TC2_INSTALAR_AVISO', $null, 'User')";
 
 /// Cuenta los procesos distintos de `TC2_PID` que ejecutan `TC2_RUTA`.
 #[cfg(windows)]
@@ -167,9 +169,10 @@ impl Maquina for MaquinaReal {
         dirs: &[PathBuf],
     ) -> io::Result<()> {
         use std::os::windows::process::CommandExt;
-        // DETACHED_PROCESS | CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP: el
-        // auxiliar sobrevive a este proceso y a su consola.
-        const FLAGS: u32 = 0x0000_0008 | 0x0800_0000 | 0x0000_0200;
+        // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP: el auxiliar sobrevive a
+        // este proceso. Sin DETACHED_PROCESS: con el, `powershell.exe` sale
+        // con 0 sin ejecutar el script (revision 1, IMP-1).
+        const FLAGS: u32 = 0x0800_0000 | 0x0000_0200;
         let unir = |v: &[PathBuf]| {
             let mut s = std::ffi::OsString::new();
             for (i, p) in v.iter().enumerate() {
@@ -223,5 +226,46 @@ impl Maquina for MaquinaReal {
         _dirs: &[PathBuf],
     ) -> io::Result<()> {
         Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    /// Revision 1, IMP-1 (C8): el auxiliar REAL borra un fichero y una
+    /// carpeta temporales propios cuando el PID ya ha acabado, en <= 10 s.
+    /// No toca el binario, el PATH ni el registro.
+    #[test]
+    fn el_auxiliar_real_borra_tras_salir_el_proceso() -> io::Result<()> {
+        let dir = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("autoborrado-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let sub = dir.join("carpeta con 'comilla' y $");
+        std::fs::create_dir_all(&sub)?;
+        let fichero = sub.join("tc2.exe");
+        std::fs::write(&fichero, b"x")?;
+        // Un PID que ya ha acabado.
+        let mut hijo = std::process::Command::new("cmd")
+            .args(["/c", "exit 0"])
+            .spawn()?;
+        let pid = hijo.id();
+        hijo.wait()?;
+        MaquinaReal.programar_borrado(
+            pid,
+            std::slice::from_ref(&fichero),
+            std::slice::from_ref(&sub),
+        )?;
+        let inicio = Instant::now();
+        while (fichero.exists() || sub.exists()) && inicio.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let borrado = !fichero.exists() && !sub.exists();
+        let tardo = inicio.elapsed();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(borrado, "tras {tardo:?} siguen el fichero o la carpeta");
+        Ok(())
     }
 }
