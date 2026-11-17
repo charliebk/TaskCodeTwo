@@ -221,7 +221,11 @@ tc2 doctor --recursos --json   # una línea con todos los hallazgos y el inventa
   que estén habilitados (`enabledPlugins` de `<claude>/settings.json`,
   `.claude/settings.json` y `.claude/settings.local.json` del proyecto, el
   último que lo dice gana; un plugin en `false` no cuenta), con el prefijo
-  `plugin:` en sus skills y agentes; `<claude>/skills` y `<claude>/agents`;
+  `plugin:` en sus skills y agentes; los sincronizados desde claude.ai
+  (`<claude>/plugins/synced/`, id `<name>@synced`: los del `manifest.json`
+  de cuenta más reciente, salvo `"<name>@synced": false` o
+  `syncClaudeAiPlugins: false`, y nunca los de `plugins/.trash/`);
+  `<claude>/skills` y `<claude>/agents`;
   `.claude/skills` y `.claude/agents` del proyecto; y el agente integrado
   `general-purpose`. `<claude>` es `CLAUDE_CONFIG_DIR` o `~/.claude`. El id
   es el `name:` del frontmatter (con aviso `nombre-distinto` si no coincide

@@ -600,6 +600,60 @@ fn determinista() {
     assert_eq!(huella(&salidas[0]), huella(&salidas[2]));
 }
 
+/// C1 y C8 con plugins sincronizados desde claude.ai: el habilitado entra
+/// en el inventario con el prefijo de su `plugin.json`; uno en `.trash` no;
+/// un `manifest.json` corrupto de otra cuenta sale `no-comprobado`.
+#[test]
+fn sincronizados_en_el_inventario() {
+    let f = Fixture::nueva("recursos-sincronizados");
+    let claude = maquina(&f, NORMAL);
+    let cuenta = claude.join("plugins").join("synced").join("cuenta-a");
+    escribir(
+        &cuenta,
+        "manifest.json",
+        "{\"lastUpdated\": \"2026-11-01T00:00:00Z\", \"plugins\": [{\"name\": \"datos\", \"version\": \"3.0.0\", \"installationPreference\": \"available\", \"generation\": 2}]}",
+    );
+    escribir(
+        &cuenta,
+        "datos~g2/.claude-plugin/plugin.json",
+        "{\"name\": \"data\"}",
+    );
+    escribir(
+        &cuenta,
+        "datos~g2/skills/analizar/SKILL.md",
+        &skill("analizar"),
+    );
+    escribir(
+        &claude,
+        "plugins/.trash/basura/skills/z/SKILL.md",
+        &skill("z"),
+    );
+    escribir(
+        &claude,
+        "plugins/synced/cuenta-rota/manifest.json",
+        "{ roto",
+    );
+    let (_, clon) = repo(&f, None, &[]);
+    let (_, out, _) = tc2(&f, &clon, &claude, &["doctor", "--recursos", "--json"]);
+    let v = json(&out);
+    let ids: Vec<&str> = v["inventario"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert!(ids.contains(&"data:analizar"), "{ids:?}");
+    assert!(
+        !ids.iter().any(|i| i.ends_with(":z") || *i == "z"),
+        "{ids:?}"
+    );
+    let hs = hallazgos(&v);
+    assert!(
+        hs.contains(&"synced/cuenta-rota no-comprobado motivo=json-invalido".to_owned()),
+        "{hs:?}"
+    );
+}
+
 /// C11: `doctor --recursos x` es uso.
 #[test]
 fn argumentos_de_mas_son_uso() {

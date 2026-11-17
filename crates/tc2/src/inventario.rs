@@ -14,6 +14,11 @@
 //!   `true`). Un `scope` de proyecto o local solo cuenta si su `projectPath`
 //!   es este proyecto. Sus skills (`skills/<n>/SKILL.md`) y agentes
 //!   (`agents/<n>.md`) llevan el prefijo del plugin (`plugin:id`);
+//! - los plugins sincronizados desde claude.ai (`<claude>/plugins/synced/`,
+//!   id `<name>@synced`): los del `manifest.json` de cuenta mas reciente,
+//!   salvo `"<name>@synced": false`, `defaultEnabled: false` o
+//!   `syncClaudeAiPlugins: false`; ceden ante un plugin de otro origen con el
+//!   mismo nombre y `plugins/.trash/` no cuenta;
 //! - `<claude>/skills` y `<claude>/agents` (usuario);
 //! - `.claude/skills` y `.claude/agents` del proyecto;
 //! - los agentes integrados de Claude Code ([`INTEGRADOS`]).
@@ -417,26 +422,203 @@ fn servidores_mcp(v: &Value, a: &mut Acumulado) {
     }
 }
 
-/// `enabledPlugins` de los tres ficheros de settings, el ultimo gana.
-fn habilitados(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) -> BTreeMap<String, bool> {
+/// Lo que dicen los settings sobre los plugins.
+struct Ajustes {
+    /// `enabledPlugins` de los tres ficheros, el ultimo gana.
+    habilitados: BTreeMap<String, bool>,
+    /// `syncClaudeAiPlugins` del usuario (por defecto `true`).
+    sincronizar: bool,
+}
+
+/// `enabledPlugins` de los tres ficheros de settings (el ultimo gana) y
+/// `syncClaudeAiPlugins` de los del usuario.
+fn ajustes(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) -> Ajustes {
     let mut m = BTreeMap::new();
+    let mut sincronizar = true;
     let claude = raiz.join(".claude");
-    for p in [
+    for (i, p) in [
         dir_claude.join("settings.json"),
         claude.join("settings.json"),
         claude.join("settings.local.json"),
-    ] {
-        if let Some(v) = json_de(&p, a, "settings")
-            && let Some(e) = v.get("enabledPlugins").and_then(Value::as_object)
-        {
+    ]
+    .iter()
+    .enumerate()
+    {
+        let Some(v) = json_de(p, a, "settings") else {
+            continue;
+        };
+        if let Some(e) = v.get("enabledPlugins").and_then(Value::as_object) {
             for (k, x) in e {
                 if let Some(b) = x.as_bool() {
                     m.insert(k.clone(), b);
                 }
             }
         }
+        if i == 0 && v.get("syncClaudeAiPlugins").and_then(Value::as_bool) == Some(false) {
+            sincronizar = false;
+        }
     }
-    m
+    Ajustes {
+        habilitados: m,
+        sincronizar,
+    }
+}
+
+/// Carga el plugin de `dir` con clave `clave` (`nombre@origen`) si esta
+/// habilitado: `enabledPlugins` o, sin entrada, `defaultEnabled` de su
+/// manifiesto. Su nombre (prefijo de los ids) es el `name` del manifiesto o
+/// `por_defecto`. `omitir` descarta un nombre ya cargado (los sincronizados
+/// ceden ante cualquier otro origen). Devuelve si lo cargo.
+fn cargar_plugin(
+    dir: &Path,
+    clave: &str,
+    por_defecto: &str,
+    version: Option<&str>,
+    ajustes: &Ajustes,
+    omitir: bool,
+    a: &mut Acumulado,
+) -> bool {
+    let manifiesto = json_de(&dir.join(".claude-plugin").join("plugin.json"), a, clave);
+    let por_defecto_on = manifiesto
+        .as_ref()
+        .and_then(|m| m.get("defaultEnabled"))
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if !ajustes
+        .habilitados
+        .get(clave)
+        .copied()
+        .unwrap_or(por_defecto_on)
+    {
+        return false;
+    }
+    let nombre = manifiesto
+        .as_ref()
+        .and_then(|m| m.get("name"))
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty())
+        .unwrap_or(por_defecto)
+        .to_owned();
+    if omitir && a.plugins.iter().any(|p| p.nombre == nombre) {
+        return false;
+    }
+    let version = version
+        .or_else(|| {
+            manifiesto
+                .as_ref()
+                .and_then(|m| m.get("version"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_owned);
+    if let Some(m) = json_de(&dir.join(".mcp.json"), a, clave) {
+        servidores_mcp(&m, a);
+    }
+    let origen = Origen::Plugin {
+        nombre: nombre.clone(),
+        version: version.clone(),
+    };
+    leer_carpetas(
+        &dir.join("skills"),
+        &dir.join("agents"),
+        &format!("{nombre}:"),
+        &origen,
+        a,
+    );
+    a.plugins.push(Plugin {
+        nombre,
+        clave: clave.to_owned(),
+        version,
+    });
+    true
+}
+
+/// Clave de orden de `lastUpdated` (numero o texto ISO).
+fn orden_de_fecha(v: Option<&Value>) -> String {
+    match v {
+        Some(Value::Number(n)) => format!("{:030.3}", n.as_f64().unwrap_or(0.0)),
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    }
+}
+
+/// Los plugins sincronizados desde claude.ai (`plugins/synced/<cuenta>/`,
+/// id `<name>@synced`; doc de Claude Code «Plugin loading reference»). Cuenta
+/// solo la carpeta de cuenta cuyo `manifest.json` tiene el `lastUpdated` mas
+/// reciente (la de la sesion que sincroniza en cada arranque); de ella, cada
+/// plugin del manifiesto con su carpeta `<name>~g<generation>` o `<name>`.
+/// `plugins/.trash/` no cuenta. Con `syncClaudeAiPlugins: false` no se leen.
+fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
+    if !ajustes.sincronizar {
+        return;
+    }
+    let raiz = dir_claude.join("plugins").join("synced");
+    let mut cuentas: Vec<(String, PathBuf, Value)> = Vec::new();
+    for c in hijos(&raiz).into_iter().filter(|c| c.is_dir()) {
+        let id = format!(
+            "synced/{}",
+            c.file_name().and_then(|n| n.to_str()).unwrap_or_default()
+        );
+        let ruta = c.join("manifest.json");
+        if !ruta.is_file() {
+            continue;
+        }
+        let Some(m) = json_de(&ruta, a, &id) else {
+            continue;
+        };
+        if !m.get("plugins").is_some_and(Value::is_array) {
+            a.ilegibles.push(Incidencia {
+                id,
+                motivo: "formato-desconocido",
+                ruta: t(&ruta),
+            });
+            continue;
+        }
+        cuentas.push((orden_de_fecha(m.get("lastUpdated")), c, m));
+    }
+    // La mas reciente; a igualdad, la ultima por nombre (determinista).
+    let Some((_, cuenta, m)) = cuentas
+        .into_iter()
+        .max_by(|x, y| (&x.0, &x.1).cmp(&(&y.0, &y.1)))
+    else {
+        return;
+    };
+    let lista = m
+        .get("plugins")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for p in lista {
+        let Some(nombre) = p
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|n| !n.is_empty())
+        else {
+            continue;
+        };
+        let generacion = p.get("generation").and_then(Value::as_u64).unwrap_or(1);
+        let candidatas = [
+            (generacion > 1).then(|| cuenta.join(format!("{nombre}~g{generacion}"))),
+            Some(cuenta.join(nombre)),
+        ];
+        let Some(dir) = candidatas.into_iter().flatten().find(|d| d.is_dir()) else {
+            a.ilegibles.push(Incidencia {
+                id: format!("{nombre}@synced"),
+                motivo: "sin-carpeta",
+                ruta: t(&cuenta),
+            });
+            continue;
+        };
+        let version = p.get("version").and_then(Value::as_str);
+        cargar_plugin(
+            &dir,
+            &format!("{nombre}@synced"),
+            nombre,
+            version,
+            ajustes,
+            true,
+            a,
+        );
+    }
 }
 
 /// Si una entrada de `installed_plugins.json` vale para este proyecto: de
@@ -453,7 +635,7 @@ fn aplica(x: &Value, raiz: &Path) -> bool {
 }
 
 /// Los plugins habilitados con sus skills y agentes.
-fn leer_plugins(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) {
+fn leer_plugins(dir_claude: &Path, raiz: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
     let ruta = ruta_instalados(dir_claude);
     let v = match leer_instalados(dir_claude) {
         Ok(None) => return,
@@ -483,7 +665,6 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) {
         });
         return;
     };
-    let estado = habilitados(dir_claude, raiz, a);
     for (clave, entradas) in mapa {
         let Some(x) = entradas
             .as_array()
@@ -491,7 +672,7 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) {
         else {
             continue;
         };
-        if estado.get(clave) == Some(&false) {
+        if ajustes.habilitados.get(clave) == Some(&false) {
             continue;
         }
         let Some(install) = x.get("installPath").and_then(Value::as_str) else {
@@ -511,53 +692,15 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) {
             });
             continue;
         }
-        let manifiesto = json_de(&dir.join(".claude-plugin").join("plugin.json"), a, clave);
-        let por_defecto = manifiesto
-            .as_ref()
-            .and_then(|m| m.get("defaultEnabled"))
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
-        if !estado.get(clave).copied().unwrap_or(por_defecto) {
-            continue;
-        }
-        let nombre = manifiesto
-            .as_ref()
-            .and_then(|m| m.get("name"))
-            .and_then(Value::as_str)
-            .filter(|n| !n.is_empty())
-            .map_or_else(
-                || clave.split('@').next().unwrap_or(clave).to_owned(),
-                str::to_owned,
-            );
-        let version = x
-            .get("version")
-            .and_then(Value::as_str)
-            .or_else(|| {
-                manifiesto
-                    .as_ref()
-                    .and_then(|m| m.get("version"))
-                    .and_then(Value::as_str)
-            })
-            .map(str::to_owned);
-        if let Some(m) = json_de(&dir.join(".mcp.json"), a, clave) {
-            servidores_mcp(&m, a);
-        }
-        let origen = Origen::Plugin {
-            nombre: nombre.clone(),
-            version: version.clone(),
-        };
-        leer_carpetas(
-            &dir.join("skills"),
-            &dir.join("agents"),
-            &format!("{nombre}:"),
-            &origen,
+        cargar_plugin(
+            &dir,
+            clave,
+            clave.split('@').next().unwrap_or(clave),
+            x.get("version").and_then(Value::as_str),
+            ajustes,
+            false,
             a,
         );
-        a.plugins.push(Plugin {
-            nombre,
-            clave: clave.clone(),
-            version,
-        });
     }
 }
 
@@ -576,7 +719,12 @@ fn ruta_claude_json(dir_claude: &Path) -> PathBuf {
 pub fn leer(dir_claude: Option<&Path>, raiz: &Path) -> Lectura {
     let mut a = Acumulado::default();
     if let Some(d) = dir_claude {
-        leer_plugins(d, raiz, &mut a);
+        let ajustes = ajustes(d, raiz, &mut a);
+        leer_plugins(d, raiz, &ajustes, &mut a);
+        // Despues de los instalados: un sincronizado cede ante otro origen
+        // con el mismo nombre (doc «Plugin loading reference», Name
+        // conflicts, punto 5).
+        leer_sincronizados(d, &ajustes, &mut a);
         leer_carpetas(
             &d.join("skills"),
             &d.join("agents"),
@@ -819,6 +967,115 @@ mod tests {
         m.escribir("claude/plugins/installed_plugins.json", "[1, 2]");
         let l = leer(Some(&claude), &m.0);
         assert_eq!(l.ilegibles[0].motivo, "formato-desconocido");
+    }
+
+    /// Plugins sincronizados desde claude.ai (`plugins/synced/<cuenta>/`):
+    /// cuenta la cuenta del `manifest.json` mas reciente; la carpeta `~g2` se
+    /// nombra por el `name` de su `plugin.json`; `<name>@synced: false` lo
+    /// apaga; cede ante un instalado del mismo nombre; `.trash` no cuenta; un
+    /// manifiesto corrupto o un plugin sin carpeta quedan como ilegibles; con
+    /// `syncClaudeAiPlugins: false` no se lee nada.
+    #[test]
+    fn sincronizados_desde_claude_ai() {
+        let m = Tmp::nueva("sincronizados");
+        let claude = m.0.join("claude");
+        let bueno = m.0.join("cache").join("bueno");
+        m.escribir("cache/bueno/skills/rev/SKILL.md", &skill("rev"));
+        m.escribir(
+            "claude/plugins/installed_plugins.json",
+            &serde_json::json!({"version": 2, "plugins": {
+                "bueno@mk": [{"scope": "user", "installPath": bueno}]
+            }})
+            .to_string(),
+        );
+        let s = "claude/plugins/synced";
+        let entrada = |n: &str| {
+            serde_json::json!({"pluginId": format!("id-{n}"), "name": n, "version": "1.0.0",
+                "marketplaceName": "mk-claude", "installationPreference": "available",
+                "marketplaceKind": "anthropic_catalog", "generation": 2})
+        };
+        m.escribir(
+            &format!("{s}/cuenta-vieja/manifest.json"),
+            &serde_json::json!({"lastUpdated": "2026-01-01T00:00:00Z", "plugins": [entrada("viejo")]})
+                .to_string(),
+        );
+        m.escribir(
+            &format!("{s}/cuenta-vieja/viejo~g2/skills/v/SKILL.md"),
+            &skill("v"),
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/manifest.json"),
+            &serde_json::json!({"lastUpdated": "2026-11-01T00:00:00Z", "plugins": [
+                entrada("datos"), entrada("apagado-s"), entrada("dup"), entrada("falta")
+            ]})
+            .to_string(),
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/datos~g2/.claude-plugin/plugin.json"),
+            r#"{"name": "data"}"#,
+        );
+        m.escribir(&format!("{s}/cuenta-nueva/datos~g2.meta.json"), "{}");
+        m.escribir(
+            &format!("{s}/cuenta-nueva/datos~g2/skills/analizar/SKILL.md"),
+            &skill("analizar"),
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/datos~g2/agents/ag-datos.md"),
+            "x",
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/apagado-s/skills/x/SKILL.md"),
+            &skill("x"),
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/dup~g2/.claude-plugin/plugin.json"),
+            r#"{"name": "bueno"}"#,
+        );
+        m.escribir(
+            &format!("{s}/cuenta-nueva/dup~g2/skills/otra/SKILL.md"),
+            &skill("otra"),
+        );
+        m.escribir(&format!("{s}/cuenta-rota/manifest.json"), "{ roto");
+        m.escribir(
+            "claude/plugins/.trash/basura/skills/z/SKILL.md",
+            &skill("z"),
+        );
+        m.escribir(
+            "claude/settings.json",
+            r#"{"enabledPlugins": {"apagado-s@synced": false}}"#,
+        );
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert_eq!(
+            lineas(&l),
+            [
+                "skill bueno:rev plugin",
+                "skill data:analizar plugin",
+                "agente data:ag-datos plugin",
+                "agente general-purpose integrado",
+            ]
+        );
+        assert_eq!(
+            l.inventario
+                .plugins()
+                .iter()
+                .map(|p| format!("{} {} {:?}", p.nombre, p.clave, p.version))
+                .collect::<Vec<_>>(),
+            ["bueno bueno@mk None", "data datos@synced Some(\"1.0.0\")"]
+        );
+        assert_eq!(
+            l.ilegibles
+                .iter()
+                .map(|i| format!("{} {}", i.id, i.motivo))
+                .collect::<Vec<_>>(),
+            [
+                "falta@synced sin-carpeta",
+                "synced/cuenta-rota json-invalido"
+            ]
+        );
+        m.escribir("claude/settings.json", r#"{"syncClaudeAiPlugins": false}"#);
+        let l = leer(Some(&claude), &m.0.join("p"));
+        assert!(l.inventario.plugin("data").is_none());
+        assert!(l.ilegibles.is_empty(), "{:?}", l.ilegibles);
     }
 
     /// C10 (parte de biblioteca): el mismo contenido creado en otro orden da
