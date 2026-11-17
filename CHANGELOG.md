@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-030 (feature) — F3-3 tc2 next: lo listo para empezar por dependencias y prioridad (2026-11-17)
 - TASK-029 (feature) — F3-2 tc2 new e import en bloque con dependencias e hito (2026-11-17)
 - TASK-115 (fix) — Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable (2026-11-17)
 - TASK-028 (feature) — F3-1 tc2 init (2026-11-17)

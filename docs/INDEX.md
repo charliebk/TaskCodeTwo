@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-030 — F3-3 tc2 next: lo listo para empezar por dependencias y prioridad · etiquetas: (sin etiquetas) · rama feature/task-030-f3-3-next-lo-listo-para-empezar-por-depe · terminada 2026-11-17 · tareas/04-terminadas/TASK-030/
 - TASK-029 — F3-2 tc2 new e import en bloque con dependencias e hito · etiquetas: (sin etiquetas) · rama feature/task-029-f3-2-new-e-import-en-bloque-con-dependen · terminada 2026-11-17 · tareas/04-terminadas/TASK-029/
 - TASK-115 — Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable · etiquetas: distribucion, tests · rama fix/task-115-seguimiento-de-f2-12-menores-de-actualiz · terminada 2026-11-17 · tareas/04-terminadas/TASK-115/
 - TASK-028 — F3-1 tc2 init · etiquetas: (sin etiquetas) · rama feature/task-028-f3-1-taskctl-init-setup · terminada 2026-11-17 · tareas/04-terminadas/TASK-028/

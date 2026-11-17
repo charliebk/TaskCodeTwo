@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-030-f3-3-next-lo-listo-para-empezar-por-depe
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: 18164018
+tokens_implementacion: 19040413
 tokens_revision: 4876472
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -66,6 +66,7 @@ MENORES aceptados (a seguimiento, TASK-121): `Hitos::del_roadmap` con fin de zon
 | 2026-11-17T06:02:15Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T06:02:16Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T06:34:57Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T06:49:25Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -75,3 +76,10 @@ MENORES aceptados (a seguimiento, TASK-121): `Hitos::del_roadmap` con fin de zon
 | 2026-11-17T06:34:57Z | implementacion | agente:a4fc4ee548cfbb29f | 182 | 228763 | 14374815 | 71580 | 42 | 14675340 | - | - |
 | 2026-11-17T06:46:10Z | revision | agente:a7c911d23a903a700 | 38 | 105447 | 1597102 | 11462 | 2 | 1714049 | 1 | rust-wasm-reviewer |
 | 2026-11-17T06:46:11Z | revision | agente:a84273a1b83c3f64b | 66 | 120673 | 3023313 | 18371 | 3 | 3162423 | 1 | code-quality-reviewer |
+| 2026-11-17T06:46:12Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1311 | 874877 | 205 | 0 | 876395 | - | - |
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 47 min
+- Cierre (finish): 193 s, de 2026-11-17T06:46:12Z a 2026-11-17T06:49:25Z
