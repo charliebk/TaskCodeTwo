@@ -50,3 +50,8 @@ Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de 
 | 2026-11-16T22:31:19Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-16T22:37:05Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-16T23:54:31Z | start | automatico | persona | 0.16.1 |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 390580b
+- code-quality-reviewer — 390580b
