@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-028-f3-1-taskctl-init-setup
 asignado_a: charlie.bk@gmail.com
@@ -43,3 +43,4 @@ Tarea F3-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 |---|---|---|---|---|
 | 2026-11-17T01:17:11Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T01:22:52Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T01:22:53Z | start | automatico | persona | 0.16.1 |
