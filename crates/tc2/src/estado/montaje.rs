@@ -4,8 +4,12 @@
 //! publicado por la misma transaccion que cualquier escritura: no hace falta
 //! `worktree add --orphan` (Git 2.42), y si dos clones la crean a la vez el
 //! segundo recibe non-fast-forward, re-ejecuta, la ve creada y solo la monta.
+//!
+//! [`previsto`] dice, sin escribir nada, que haria [`montar`]; `montar` parte
+//! de esa misma clasificacion, asi que `tc2 init --simular` (F3-1) y la
+//! ejecucion no se pueden separar.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::cerrojo::{Cerrojo, ErrorCerrojo};
 use super::lectura::Estado;
@@ -60,6 +64,88 @@ fn renombrado(mut i: Informe) -> Informe {
     i
 }
 
+/// Lo que haria [`montar`] ahora mismo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Previsto {
+    /// Ya montada en `tareas/`: nada que hacer.
+    Montada,
+    /// La rama local existe y falta montarla.
+    Local,
+    /// La rama solo esta en el remoto: se trae y se monta.
+    DelRemoto,
+    /// No esta en ningun sitio: se crea (y se publica si hay remoto).
+    Crear,
+    /// `tareas/` existe con contenido que no es la rama (un repo de la 0.16).
+    Ocupada,
+    /// La rama esta montada en otra carpeta.
+    OtraRuta(PathBuf),
+    /// No se pudo hablar con el remoto (el detalle de git).
+    SinRed(String),
+    /// El remoto deniega la lectura (credenciales, no existe...).
+    Denegada(FalloRemoto, String),
+}
+
+/// Que haria [`montar`] en el repo de `dir`, sin escribir nada: lee los
+/// worktrees, la carpeta, las ramas y, si hace falta, el remoto con
+/// `ls-remote` (que no escribe refs, a diferencia de `fetch`).
+pub fn previsto(git: &Git, dir: &Path) -> Result<Previsto, Informe> {
+    let principal = localizar_principal(git, dir)?;
+    previsto_en(git, &principal)
+}
+
+fn previsto_en(git: &Git, principal: &Path) -> Result<Previsto, Informe> {
+    let carpeta = principal.join(CARPETA);
+    for w in worktrees(git, principal, OP)?
+        .iter()
+        .filter(|w| w.rama.as_deref() == Some(RAMA))
+    {
+        // Un registro cuya carpeta ya no existe no cuenta: `montar` lo poda.
+        if !w.ruta.exists() {
+            continue;
+        }
+        return Ok(if misma_ruta(&w.ruta, &carpeta) {
+            Previsto::Montada
+        } else {
+            Previsto::OtraRuta(w.ruta.clone())
+        });
+    }
+    let ocupada = std::fs::read_dir(&carpeta)
+        .map(|mut d| d.next().is_some())
+        .unwrap_or(carpeta.exists());
+    if ocupada {
+        return Ok(Previsto::Ocupada);
+    }
+    if commit_de(git, principal, OP, &format!("refs/heads/{RAMA}"))?.is_some() {
+        return Ok(Previsto::Local);
+    }
+    if !hay_remoto(git, principal, OP)? {
+        return Ok(Previsto::Crear);
+    }
+    let s = correr(
+        git,
+        principal,
+        OP,
+        Subcomando::LsRemote,
+        &["--heads", REMOTO, &format!("refs/heads/{RAMA}")],
+    )?;
+    if s.exito() {
+        return Ok(if s.stdout.trim().is_empty() {
+            Previsto::Crear
+        } else {
+            Previsto::DelRemoto
+        });
+    }
+    match clasificar_fallo_remoto(&s.stderr) {
+        FalloRemoto::RamaInexistente => Ok(Previsto::Crear),
+        FalloRemoto::SinRed => Ok(Previsto::SinRed(s.primera_linea_error())),
+        FalloRemoto::Local => Err(crate::git::remoto::error_local(
+            OP,
+            &s.primera_linea_error(),
+        )),
+        otro => Ok(Previsto::Denegada(otro, s.primera_linea_error())),
+    }
+}
+
 /// Crea la rama de estado si no existe (local, en el remoto o en ningun
 /// sitio) y la monta en `tareas/` del worktree principal. Idempotente: ya
 /// montada → `sin-cambios`. Si la carpeta se borro (tambien con
@@ -102,100 +188,86 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
         }
     };
 
-    for w in worktrees(git, &principal, OP)?
-        .iter()
-        .filter(|w| w.rama.as_deref() == Some(RAMA))
-    {
-        if !w.ruta.exists() {
-            exigir(git, &principal, OP, Subcomando::Worktree, &["prune"])?;
-        } else if misma_ruta(&w.ruta, &carpeta) {
+    let previsto = previsto_en(git, &principal)?;
+    match &previsto {
+        Previsto::Montada => {
             excluir(git, &principal, OP, &format!("/{CARPETA}/"))?;
             return Ok(ok(Resultado::SinCambios, None));
-        } else {
+        }
+        Previsto::OtraRuta(ruta) => {
             return Ok(Informe::nuevo(OP, Resultado::Rechazada)
                 .con("rama", RAMA)
                 .con("motivo", "montada-en-otra-ruta")
                 .diagnostico(
                     Mensaje::nuevo(&txt::MONTADA_EN_OTRA_RUTA)
                         .con("rama", RAMA)
-                        .con("ruta", w.ruta.display().to_string()),
+                        .con("ruta", ruta.display().to_string()),
                 ));
         }
+        Previsto::Ocupada => {
+            return Ok(Informe::nuevo(OP, Resultado::Rechazada)
+                .con("ruta", CARPETA)
+                .con("motivo", "tareas-ocupada")
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("carpeta", CARPETA)));
+        }
+        Previsto::SinRed(detalle) => return Ok(sin_red(detalle)),
+        Previsto::Denegada(f, detalle) => return Ok(denegada(*f, detalle)),
+        Previsto::Local | Previsto::DelRemoto | Previsto::Crear => {}
     }
-    let ocupada = std::fs::read_dir(&carpeta)
-        .map(|mut d| d.next().is_some())
-        .unwrap_or(carpeta.exists());
-    if ocupada {
-        return Ok(Informe::nuevo(OP, Resultado::Rechazada)
-            .con("ruta", CARPETA)
-            .con("motivo", "tareas-ocupada")
-            .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("carpeta", CARPETA)));
+    // Un registro de la rama cuya carpeta se borro impide volver a montarla.
+    if worktrees(git, &principal, OP)?
+        .iter()
+        .any(|w| w.rama.as_deref() == Some(RAMA) && !w.ruta.exists())
+    {
+        exigir(git, &principal, OP, Subcomando::Worktree, &["prune"])?;
     }
 
     let remoto = hay_remoto(git, &principal, OP)?;
     let local = format!("refs/heads/{RAMA}");
     let remota = format!("refs/remotes/{REMOTO}/{RAMA}");
 
-    if commit_de(git, &principal, OP, &local)?.is_none() {
-        let mut en_remoto = false;
-        if remoto {
-            let refspec = format!("refs/heads/{RAMA}:{remota}");
-            let s = correr(
-                git,
-                &principal,
-                OP,
-                Subcomando::Fetch,
-                &["-q", REMOTO, &refspec],
-            )?;
-            if s.exito() {
-                en_remoto = true;
-            } else {
-                match clasificar_fallo_remoto(&s.stderr) {
-                    FalloRemoto::RamaInexistente => {}
-                    FalloRemoto::SinRed => {
-                        return Ok(Informe::nuevo(OP, Resultado::Sinred)
-                            .con("pendiente", "no")
-                            .diagnostico(
-                                Mensaje::nuevo(&txt::MONTAR_EXIGE_RED)
-                                    .con("error", s.primera_linea_error()),
-                            ));
-                    }
-                    FalloRemoto::Local => {
-                        return Err(crate::git::remoto::error_local(
-                            OP,
-                            &s.primera_linea_error(),
-                        ));
-                    }
-                    otro => {
-                        return Ok(Informe::nuevo(OP, Resultado::Denegada)
-                            .con("motivo", otro.motivo())
-                            .diagnostico(
-                                Mensaje::nuevo(&txt::MONTAR_DENEGADA)
-                                    .con("error", s.primera_linea_error()),
-                            ));
-                    }
-                }
-            }
-        }
-        if en_remoto {
+    let mut crear = previsto == Previsto::Crear;
+    if previsto == Previsto::DelRemoto {
+        let refspec = format!("refs/heads/{RAMA}:{remota}");
+        let s = correr(
+            git,
+            &principal,
+            OP,
+            Subcomando::Fetch,
+            &["-q", REMOTO, &refspec],
+        )?;
+        if s.exito() {
             exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
         } else {
-            if !puede_crear {
-                return Err(Informe::nuevo(OP, Resultado::Error)
-                    .diagnostico(Mensaje::nuevo(&txt::RAMA_SIGUE_SIN_EXISTIR).con("rama", RAMA)));
+            match clasificar_fallo_remoto(&s.stderr) {
+                // Desaparecio del remoto entre la lectura y el fetch.
+                FalloRemoto::RamaInexistente => crear = true,
+                FalloRemoto::SinRed => return Ok(sin_red(&s.primera_linea_error())),
+                FalloRemoto::Local => {
+                    return Err(crate::git::remoto::error_local(
+                        OP,
+                        &s.primera_linea_error(),
+                    ));
+                }
+                otro => return Ok(denegada(otro, &s.primera_linea_error())),
             }
-            // La transaccion toma el cerrojo ella misma: se suelta antes y,
-            // creada la rama, se vuelve a empezar para montarla.
-            drop(cerrojo);
-            let mut c = Contexto::nuevo(git, &principal, &ninguna);
-            c.politica = politica;
-            let i = transaccion(&c, &Inicializar);
-            if !i.resultado.es_exito() {
-                return Ok(renombrado(i));
-            }
-
-            return paso(git, dir, politica, false);
         }
+    }
+    if crear {
+        if !puede_crear {
+            return Err(Informe::nuevo(OP, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::RAMA_SIGUE_SIN_EXISTIR).con("rama", RAMA)));
+        }
+        // La transaccion toma el cerrojo ella misma: se suelta antes y,
+        // creada la rama, se vuelve a empezar para montarla.
+        drop(cerrojo);
+        let mut c = Contexto::nuevo(git, &principal, &ninguna);
+        c.politica = politica;
+        let i = transaccion(&c, &Inicializar);
+        if !i.resultado.es_exito() {
+            return Ok(renombrado(i));
+        }
+        return paso(git, dir, politica, false);
     }
 
     let ruta = carpeta.to_str().ok_or_else(|| {
@@ -226,4 +298,16 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
     }
     let head = commit_de(git, &carpeta, OP, "HEAD")?;
     Ok(ok(Resultado::Ok, head))
+}
+
+fn sin_red(detalle: &str) -> Informe {
+    Informe::nuevo(OP, Resultado::Sinred)
+        .con("pendiente", "no")
+        .diagnostico(Mensaje::nuevo(&txt::MONTAR_EXIGE_RED).con("error", detalle))
+}
+
+fn denegada(f: FalloRemoto, detalle: &str) -> Informe {
+    Informe::nuevo(OP, Resultado::Denegada)
+        .con("motivo", f.motivo())
+        .diagnostico(Mensaje::nuevo(&txt::MONTAR_DENEGADA).con("error", detalle))
 }
