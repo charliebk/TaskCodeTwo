@@ -184,7 +184,8 @@ fn tras_una_respuesta_completa_el_mock_no_manda_fin() {
         .expect("enviar");
     c.set_read_timeout(Some(Duration::from_secs(5)))
         .expect("plazo");
-    let mut lector = BufReader::new(c.try_clone().expect("clonar"));
+    // Sin clonar el socket: el plazo se cambia sobre el mismo que se lee.
+    let mut lector = BufReader::new(&c);
     let mut largo = None;
     loop {
         let mut l = String::new();
@@ -203,7 +204,9 @@ fn tras_una_respuesta_completa_el_mock_no_manda_fin() {
     lector.read_exact(&mut cuerpo).expect("cuerpo");
     assert_eq!(cuerpo, b"{\"a\":1}");
     // La respuesta esta completa: la lectura siguiente agota el plazo.
-    c.set_read_timeout(Some(Duration::from_millis(300)))
+    lector
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(300)))
         .expect("plazo");
     let mut uno = [0u8; 1];
     match lector.read(&mut uno) {
