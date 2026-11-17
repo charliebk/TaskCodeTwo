@@ -200,6 +200,8 @@ pub struct Accion {
     pub motivo: Option<String>,
     /// La orden que lo quita, cuando la decision es de la persona.
     pub orden: Option<String>,
+    /// Commit que se pierde si se aplica (la rama de estado adelantada).
+    pub sha: Option<String>,
     /// Si impide aplicar el plan (`rechazada` sin tocar nada).
     pub bloquea: bool,
     /// Lo que se hace al aplicar.
@@ -221,6 +223,7 @@ impl Accion {
             decision,
             motivo: None,
             orden: None,
+            sha: None,
             bloquea: false,
             efecto: Efecto::Ninguno,
         }
@@ -254,7 +257,11 @@ impl Accion {
             self.dueno,
             self.decision.texto()
         );
-        for (k, v) in [("motivo", &self.motivo), ("orden", &self.orden)] {
+        for (k, v) in [
+            ("motivo", &self.motivo),
+            ("orden", &self.orden),
+            ("sha", &self.sha),
+        ] {
             if let Some(v) = v {
                 s.push_str(&format!(" {k}={}", escapar_valor(v, false)));
             }
@@ -271,7 +278,11 @@ impl Accion {
             cadena_json(self.dueno),
             cadena_json(self.decision.texto())
         );
-        for (k, v) in [("motivo", &self.motivo), ("orden", &self.orden)] {
+        for (k, v) in [
+            ("motivo", &self.motivo),
+            ("orden", &self.orden),
+            ("sha", &self.sha),
+        ] {
             if let Some(v) = v {
                 s.push_str(&format!(",\"{k}\":{}", cadena_json(v)));
             }
@@ -283,6 +294,13 @@ impl Accion {
     /// Aviso para la persona por stderr (aunque la orden salga bien): la
     /// orden que tiene que ejecutar, o el hook que nombra `tc2`.
     fn aviso(&self) -> Option<Mensaje> {
+        if let (Some("adelantada-del-remoto"), Some(sha)) = (self.motivo.as_deref(), &self.sha) {
+            return Some(
+                Mensaje::nuevo(&txt::AVISO_ADELANTADA)
+                    .con("rama", crate::huella::RAMA_ESTADO)
+                    .con("sha", sha.as_str()),
+            );
+        }
         if self.clase == "hook" {
             return Some(Mensaje::nuevo(&txt::AVISO_HOOK).con("ruta", self.ruta.as_str()));
         }
@@ -424,7 +442,16 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
             .con("persona", n(Decision::Persona).to_string())
             .con("pendiente", n(Decision::Pendiente).to_string())
     };
-    if let Some(b) = acciones.iter().find(|a| a.bloquea) {
+    if let Some(b) = acciones.iter().find(|a| a.bloquea).cloned() {
+        // No se toca nada: lo que se habria borrado queda pendiente, y el
+        // resumen no cuenta borrados que no hay.
+        for a in acciones
+            .iter_mut()
+            .filter(|a| a.decision == Decision::Borra)
+        {
+            a.decision = Decision::Pendiente;
+            a.motivo = Some("no-aplicada".to_owned());
+        }
         let motivo = b.motivo.clone().unwrap_or_default();
         let i = base(Resultado::Rechazada, &acciones)
             .con("motivo", motivo.clone())
@@ -482,9 +509,16 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
             };
         }
     }
-    let en_uso = acciones
-        .iter()
-        .find(|a| a.decision == Decision::Pendiente && a.motivo.as_deref() == Some("en-uso"));
+    // El que se nombra es el binario del grupo en uso, no su primera linea
+    // (un temporal o el `.old`).
+    let en_uso_de = |clase: Option<&str>| {
+        acciones.iter().find(|a| {
+            a.decision == Decision::Pendiente
+                && a.motivo.as_deref() == Some("en-uso")
+                && clase.is_none_or(|c| a.clase == c)
+        })
+    };
+    let en_uso = en_uso_de(Some("binario")).or_else(|| en_uso_de(None));
     let informe = if let Some(a) = en_uso {
         let ruta = a.ruta.clone();
         base(Resultado::Rechazada, &acciones)
@@ -525,7 +559,7 @@ fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
             if &ahora != antes {
                 return Err("cambio desde el plan".to_owned());
             }
-            std::fs::write(ruta, despues).map_err(|e| e.to_string())
+            escribir_atomico(ruta, despues).map_err(|e| e.to_string())
         }
         Efecto::PathUsuario { viejo, nuevo } => c
             .maquina
@@ -546,6 +580,29 @@ fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
         } => proyecto::borrar_ref(c.git, principal, referencia, sha),
         Efecto::BorrarRamaEstado { principal, sha } => proyecto::borrar_rama(c.git, principal, sha),
     }
+}
+
+/// Escribe `ruta` de una vez: un temporal en la misma carpeta y un
+/// renombrado, para que un corte no deje el perfil o el `settings.json` de
+/// la persona vacio. Si `ruta` es un enlace simbolico se escribe su destino
+/// (como `cat >` de `install.sh`), y se conservan sus permisos.
+fn escribir_atomico(ruta: &Path, contenido: &[u8]) -> std::io::Result<()> {
+    let destino = if std::fs::symlink_metadata(ruta)?.file_type().is_symlink() {
+        std::fs::canonicalize(ruta)?
+    } else {
+        ruta.to_path_buf()
+    };
+    let permisos = std::fs::metadata(&destino)?.permissions();
+    let mut nombre = destino.file_name().unwrap_or_default().to_os_string();
+    nombre.push(format!(".tc2-tmp-{}", std::process::id()));
+    let tmp = destino.with_file_name(nombre);
+    let r = std::fs::write(&tmp, contenido)
+        .and_then(|()| std::fs::set_permissions(&tmp, permisos))
+        .and_then(|()| std::fs::rename(&tmp, &destino));
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
 }
 
 /// La orden completa desde la linea de ordenes, en la carpeta actual y con

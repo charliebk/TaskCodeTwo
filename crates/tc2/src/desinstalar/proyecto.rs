@@ -13,7 +13,7 @@ use crate::estado::{CARPETA, Cerrojo};
 use crate::git::estado::dir_comun;
 use crate::git::rama::renombrar;
 use crate::git::{
-    CARPETA_WORKTREES, Git, REMOTO, Subcomando, commit_de, es_ancestro, exigir,
+    CARPETA_WORKTREES, Git, REMOTO, Subcomando, Worktree, commit_de, es_ancestro, exigir,
     localizar_principal, misma_ruta, worktrees,
 };
 use crate::huella::{self, RAMA_ESTADO};
@@ -25,14 +25,30 @@ fn lineas_exclude() -> [String; 2] {
     [format!("/{CARPETA_WORKTREES}/"), format!("/{CARPETA}/")]
 }
 
-/// Por que un worktree no se puede quitar sin perder nada, o `None`.
+/// Si la carpeta `dir` esta dentro de `ruta` (o es ella).
+fn dentro(dir: &Path, ruta: &Path) -> bool {
+    match (std::fs::canonicalize(dir), std::fs::canonicalize(ruta)) {
+        (Ok(d), Ok(r)) => d.starts_with(r),
+        _ => dir.starts_with(ruta),
+    }
+}
+
+/// Por que un worktree no se puede quitar sin perder nada (o sin que falle
+/// `git worktree remove` a mitad del plan), o `None`.
 fn bloqueo(
-    git: &Git,
+    c: &Contexto<'_>,
     principal: &Path,
-    ruta: &Path,
-    rama: Option<&str>,
+    w: &Worktree,
     de_tarea: bool,
 ) -> Result<Option<&'static str>, Informe> {
+    let (git, ruta, rama) = (c.git, w.ruta.as_path(), w.rama.as_deref());
+    if w.bloqueado {
+        return Ok(Some("worktree-bloqueado"));
+    }
+    // Desde dentro, `git worktree remove` no puede borrar la carpeta actual.
+    if dentro(c.dir, ruta) {
+        return Ok(Some("carpeta-actual-dentro"));
+    }
     let status = exigir(
         git,
         ruta,
@@ -85,7 +101,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
         } else {
             "worktree-tarea"
         };
-        match bloqueo(g, &principal, &w.ruta, w.rama.as_deref(), de_tarea)? {
+        match bloqueo(c, &principal, w, de_tarea)? {
             Some(m) => {
                 let mut a =
                     Accion::nueva(t(&w.ruta), clase, "taskcodetwo", Decision::Conserva).motivo(m);
@@ -203,16 +219,29 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     }
     // La rama local de estado: solo con --borrar-tareas <nombre exacto>.
     let local = format!("refs/heads/{RAMA_ESTADO}");
+    let remota = format!("refs/remotes/{REMOTO}/{RAMA_ESTADO}");
+    let sha_remota = commit_de(g, &principal, NOMBRE, &remota)?;
     if let Some(sha) = commit_de(g, &principal, NOMBRE, &local)? {
         if op.borrar_tareas.is_some() {
-            v.push(Accion::borra(
+            // Con commits que el remoto no tiene, se avisa y la linea lleva
+            // el sha para recuperarlos (`git branch <rama> <sha>`).
+            let publicada = match &sha_remota {
+                Some(r) => es_ancestro(g, &principal, NOMBRE, &sha, r)?,
+                None => false,
+            };
+            let mut a = Accion::borra(
                 local,
                 "rama-estado",
                 Efecto::BorrarRamaEstado {
                     principal: principal.clone(),
-                    sha,
+                    sha: sha.clone(),
                 },
-            ));
+            );
+            if !publicada {
+                a = a.motivo("adelantada-del-remoto");
+                a.sha = Some(sha);
+            }
+            v.push(a);
         } else {
             v.push(
                 Accion::nueva(local, "rama-estado", "taskcodetwo", Decision::Conserva)
@@ -221,8 +250,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
         }
     }
     // La remota nunca (D2): con --borrar-tareas, la orden para la persona.
-    let remota = format!("refs/remotes/{REMOTO}/{RAMA_ESTADO}");
-    if commit_de(g, &principal, NOMBRE, &remota)?.is_some() {
+    if sha_remota.is_some() {
         let a = Accion::nueva(remota, "rama-remota", "taskcodetwo", Decision::Conserva);
         v.push(if op.borrar_tareas.is_some() {
             let mut a = a.orden(format!("git push {REMOTO} --delete {RAMA_ESTADO}"));
@@ -232,13 +260,20 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
             a.motivo("remota")
         });
     }
-    // Configuracion del proyecto: solo con --config (C6). La de la 0.16
-    // (sin `formato: 2`) no es de la 2.0: se queda siempre (D6).
+    // Configuracion del proyecto: solo con --config (C6). Es de la 2.0 si
+    // `config::leer` la reconoce (formato 2); la de la 0.16 no es suya y se
+    // queda siempre, y con ella `personas.yml`, compartido (F1-12 D4a, D6).
     let config = principal.join(crate::config::RUTA);
+    let mut de_la_016 = false;
     if let Some(bytes) = leer(&config)? {
-        let de_la_2 = String::from_utf8_lossy(&bytes)
-            .lines()
-            .any(|l| l.trim() == "formato: 2");
+        let de_la_2 = match crate::config::leer(&String::from_utf8_lossy(&bytes)) {
+            Ok(_) => true,
+            Err(e) => matches!(
+                e.motivo,
+                crate::config::Motivo::ConfigInvalida | crate::config::Motivo::FormatoNuevo
+            ),
+        };
+        de_la_016 = !de_la_2;
         v.push(match (de_la_2, op.config) {
             (false, _) => Accion::nueva(t(&config), "config", "taskcode-016", Decision::Conserva),
             (true, true) => Accion::borra(t(&config), "config", Efecto::Fichero(config.clone())),
@@ -248,7 +283,9 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     }
     let personas = principal.join(crate::plataforma::personas::RUTA);
     if personas.is_file() {
-        v.push(if op.config {
+        v.push(if de_la_016 {
+            Accion::nueva(t(&personas), "config", "taskcode-016", Decision::Conserva)
+        } else if op.config {
             Accion::borra(t(&personas), "config", Efecto::Fichero(personas.clone()))
         } else {
             Accion::nueva(t(&personas), "config", "taskcodetwo", Decision::Conserva)

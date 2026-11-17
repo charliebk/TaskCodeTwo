@@ -17,6 +17,10 @@ crate::i18n::textos! {
         es: "aviso: {ruta} tiene un hook que nombra tc2; desinstalar nunca edita los hooks: quitalo tu si ya no lo quieres",
         en: "warning: {ruta} has a hook that names tc2; desinstalar never edits hooks: remove it yourself if you no longer want it",
     }
+    AVISO_ADELANTADA {
+        es: "aviso: la rama local {rama} tiene commits que el remoto no tiene; se borra porque lo pediste con su nombre exacto. Para recuperarlos: git branch {rama} {sha}",
+        en: "warning: the local branch {rama} has commits the remote does not have; it is deleted because you asked for it by its exact name. To recover them: git branch {rama} {sha}",
+    }
     BLOQUEADA {
         es: "no se ha tocado nada: {ruta} ({motivo}). Guarda y publica sus cambios (o quitalo tu) y repite",
         en: "nothing was touched: {ruta} ({motivo}). Save and push its changes (or remove it yourself) and try again",
