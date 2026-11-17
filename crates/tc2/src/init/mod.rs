@@ -291,13 +291,22 @@ impl Hecho {
             );
             stderr.push('\n');
         }
-        if self
-            .acciones
-            .iter()
-            .any(|a| a.motivo.as_deref() == Some("historia-sin-relacion"))
-        {
-            stderr.push_str(&Mensaje::nuevo(&txt::AVISO_SIN_RELACION).texto(idioma));
-            stderr.push('\n');
+        for (motivo, aviso) in [
+            (inventario::MOTIVO_SIN_RELACION, &txt::AVISO_SIN_RELACION),
+            (inventario::MOTIVO_NO_COMPROBADO, &txt::AVISO_NO_COMPROBADO),
+        ] {
+            if self
+                .acciones
+                .iter()
+                .any(|a| a.motivo.as_deref() == Some(motivo))
+            {
+                stderr.push_str(
+                    &Mensaje::nuevo(aviso)
+                        .con("rama", crate::huella::RAMA_ESTADO)
+                        .texto(idioma),
+                );
+                stderr.push('\n');
+            }
         }
         stderr.push_str(&fin.stderr);
         Salida {

@@ -801,50 +801,109 @@ fn remoto_con_historia_no_es_repo_vacio() {
     }
 }
 
-/// Revision 2, IMP-1: clon con commits propios sin relacion con el `main`
-/// de `origin`. La rama que falta sale de `origin/main` y no se propone
-/// publicar nada (`historia-sin-relacion`, con aviso); `init` no publica
-/// historia ajena en las ramas de codigo. Con un clon de verdad (historia
-/// relacionada), la misma rama si se propone publicar.
+/// Clon con un commit propio (sin relacion con nada) y `origin` apuntando
+/// a `b` por el «ssh» de la fixture.
+fn clon_con_historia_propia(f: &Fixture, nombre: &str) -> PathBuf {
+    f.crudo(&f.raiz, &["init", "-q", "-b", "master", nombre]);
+    let repo = f.raiz.join(nombre);
+    escribir(&repo, "propio.txt", "historia local\n");
+    f.crudo(&repo, &["add", "propio.txt"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "historia local"]);
+    f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
+    repo
+}
+
+/// La rama `develop` del plan.
+fn develop(h: &Hecho) -> &tc2::init::Accion {
+    h.acciones
+        .iter()
+        .find(|a| a.ruta == "refs/heads/develop")
+        .unwrap()
+}
+
+/// Ninguna orden del plan publica una rama de codigo.
+fn sin_push(h: &Hecho) -> bool {
+    !h.acciones
+        .iter()
+        .filter_map(|a| a.orden.as_deref())
+        .any(|o| o.contains("git push"))
+}
+
+/// Revisiones 2 y 3, IMP-1, IMP-2 e IMP-3: clon con commits propios y el
+/// `main` de `origin`.
+/// - Sin traer `origin`, la relacion no se puede comprobar: `no-comprobado`,
+///   sin push, y un aviso que pide `git fetch origin` (no afirma que no la
+///   haya).
+/// - Traido `origin/main`, sin nada en comun: `historia-sin-relacion`, sin
+///   push. El aviso dice lo cierto: no se publica ninguna rama de codigo,
+///   y la de estado si (y en el remoto esta).
+/// - Con un clon de verdad (historia relacionada), la rama si se propone
+///   publicar.
 #[test]
 fn historia_local_sin_relacion_no_propone_publicar() {
     let f = Fixture::nueva("init-imp1-r2");
     let b = bare_con_rama(&f, "main");
     let antes = ramas_de(&f, &b);
-    f.crudo(&f.raiz, &["init", "-q", "-b", "master", "repo"]);
-    let repo = f.raiz.join("repo");
-    escribir(&repo, "propio.txt", "historia local\n");
-    f.crudo(&repo, &["add", "propio.txt"]);
-    f.crudo(&repo, &["commit", "-q", "-m", "historia local"]);
-    f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
-    let h = correr(&repo, &git_con_ssh(&f, &b), false, &sin_token);
+
+    let sin_traer = clon_con_historia_propia(&f, "sin-traer");
+    let h = correr(&sin_traer, &git_con_ssh(&f, &b), true, &sin_token);
     let s = h.salida_en(false, Idioma::Es);
     assert_eq!(s.codigo, 0, "{}", s.stdout);
-    let develop = h
-        .acciones
-        .iter()
-        .find(|a| a.ruta == "refs/heads/develop")
-        .unwrap();
-    assert_eq!(develop.decision, Decision::Persona);
-    assert_eq!(develop.motivo.as_deref(), Some("historia-sin-relacion"));
+    assert_eq!(develop(&h).motivo.as_deref(), Some("no-comprobado"));
     assert_eq!(
-        develop.orden.as_deref(),
+        develop(&h).orden.as_deref(),
         Some("git fetch origin main && git branch develop origin/main")
     );
+    assert!(sin_push(&h), "{}", s.stdout);
     assert!(
-        !h.acciones
-            .iter()
-            .filter_map(|a| a.orden.as_deref())
-            .any(|o| o.contains("git push")),
-        "{}",
-        s.stdout
-    );
-    assert!(
-        s.stderr.contains("nada en comun con la de origin"),
+        s.stderr.contains("no se pudo comprobar")
+            && s.stderr
+                .contains("ejecuta git fetch origin y repite tc2 init"),
         "{}",
         s.stderr
     );
+    assert!(!s.stderr.contains("nada en comun"), "{}", s.stderr);
+
+    let repo = clon_con_historia_propia(&f, "repo");
+    f.crudo(
+        &repo,
+        &[
+            "fetch",
+            "-q",
+            b.to_str().unwrap(),
+            "main:refs/remotes/origin/main",
+        ],
+    );
+    let h = correr(&repo, &git_con_ssh(&f, &b), false, &sin_token);
+    let s = h.salida_en(false, Idioma::Es);
+    assert_eq!(s.codigo, 0, "{}", s.stdout);
+    assert_eq!(develop(&h).decision, Decision::Persona);
+    assert_eq!(develop(&h).motivo.as_deref(), Some("historia-sin-relacion"));
+    assert_eq!(
+        develop(&h).orden.as_deref(),
+        Some("git fetch origin main && git branch develop origin/main")
+    );
+    assert!(sin_push(&h), "{}", s.stdout);
+    assert!(
+        s.stderr.contains("nada en comun con la de origin")
+            && s.stderr.contains("ninguna rama de codigo")
+            && s.stderr
+                .contains("la rama de estado taskcodetwo/tareas, huerfana, si se publica"),
+        "{}",
+        s.stderr
+    );
+    let en = h.salida_en(false, Idioma::En).stderr;
+    assert!(
+        en.contains("any code branch") && en.contains("the state branch taskcodetwo/tareas"),
+        "{en}"
+    );
+    // Lo que dice el aviso es lo que paso: las ramas de codigo del remoto no
+    // cambian y la de estado si se publico.
     assert_eq!(ramas_de(&f, &b), antes);
+    assert!(
+        f.crudo(&b, &["for-each-ref", "--format=%(refname)"])
+            .contains("refs/heads/taskcodetwo/tareas\n")
+    );
 
     // Un clon de verdad: la misma rama, desde `origin/main` y publicada.
     f.crudo(&f.raiz, &["clone", "-q", b.to_str().unwrap(), "clon"]);
@@ -872,6 +931,83 @@ fn historia_local_sin_relacion_no_propone_publicar() {
             .stderr
             .contains("nada en comun")
     );
+}
+
+/// Revision 3, IMP-3: el commit de `origin/main` esta en el clon (traido por
+/// sha) aunque falte `refs/remotes/origin/main`, y la historia local es su
+/// ancestro: esta relacionada, y la rama que falta se propone publicar.
+#[test]
+fn ancestro_traido_por_sha_cuenta_como_relacionada() {
+    let f = Fixture::nueva("init-imp3");
+    let b = bare_con_rama(&f, "main");
+    let a = f.crudo(&f.raiz.join("semilla"), &["rev-parse", "main"]);
+    let a = a.trim();
+    // `main` avanza en el remoto: B, hijo de A.
+    let semilla = f.raiz.join("semilla");
+    escribir(&semilla, "README.md", "proyecto 2\n");
+    f.crudo(&semilla, &["commit", "-q", "-am", "B"]);
+    f.crudo(&semilla, &["push", "-q", b.to_str().unwrap(), "main"]);
+    let b_sha = f.crudo(&semilla, &["rev-parse", "main"]);
+    let b_sha = b_sha.trim();
+
+    f.crudo(&f.raiz, &["init", "-q", "-b", "master", "repo"]);
+    let repo = f.raiz.join("repo");
+    f.crudo(&repo, &["fetch", "-q", b.to_str().unwrap(), b_sha]);
+    f.crudo(&repo, &["reset", "-q", "--hard", a]);
+    f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
+    assert!(
+        f.crudo(&repo, &["for-each-ref", "refs/remotes/"])
+            .is_empty(),
+        "no debe haber refs remotas"
+    );
+    let h = correr(&repo, &git_con_ssh(&f, &b), true, &sin_token);
+    let s = h.salida_en(false, Idioma::Es);
+    assert_eq!(
+        develop(&h).motivo.as_deref(),
+        Some("con-historia"),
+        "{}",
+        s.stdout
+    );
+    assert_eq!(
+        develop(&h).orden.as_deref(),
+        Some("git fetch origin main && git branch develop origin/main && git push origin develop")
+    );
+    assert!(!s.stderr.contains("aviso: "), "{}", s.stderr);
+}
+
+/// Revision 3, MEN-7 y MEN-8: una rama local que no esta en `origin`, con
+/// historia sin relacion, sale `persona` con la orden que trae el remoto y
+/// comprueba si tienen algo en comun; ninguna linea `persona` va sin orden.
+#[test]
+fn rama_local_sin_relacion_lleva_su_orden() {
+    let f = Fixture::nueva("init-men7");
+    let b = bare_con_rama(&f, "main");
+    let repo = clon_con_historia_propia(&f, "repo");
+    f.crudo(&repo, &["branch", "develop"]);
+    f.crudo(
+        &repo,
+        &[
+            "fetch",
+            "-q",
+            b.to_str().unwrap(),
+            "main:refs/remotes/origin/main",
+        ],
+    );
+    let h = correr(&repo, &git_con_ssh(&f, &b), true, &sin_token);
+    assert_eq!(develop(&h).motivo.as_deref(), Some("historia-sin-relacion"));
+    assert_eq!(
+        develop(&h).orden.as_deref(),
+        Some("git fetch origin && git merge-base develop origin/main")
+    );
+    assert!(
+        h.acciones
+            .iter()
+            .filter(|a| a.decision == Decision::Persona)
+            .all(|a| a.orden.is_some()),
+        "{}",
+        stdout(&h)
+    );
+    assert!(sin_push(&h), "{}", stdout(&h));
 }
 
 /// Revision 1, MEN-1 de calidad: con historia, una linea dice que hay que

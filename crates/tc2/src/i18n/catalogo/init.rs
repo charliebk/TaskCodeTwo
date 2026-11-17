@@ -42,8 +42,12 @@ crate::i18n::textos! {
         en: "{ruta} changed after the plan was made",
     }
     AVISO_SIN_RELACION {
-        es: "aviso: la historia de este clon no tiene nada en comun con la de origin; init no propone publicar ninguna rama: decide tu si este clon es de ese remoto",
-        en: "warning: this clone's history has nothing in common with origin's; init does not suggest pushing any branch: decide yourself whether this clone belongs to that remote",
+        es: "aviso: la historia de este clon no tiene nada en comun con la de origin; init no propone publicar ninguna rama de codigo (la rama de estado {rama}, huerfana, si se publica): decide tu si este clon es de ese remoto",
+        en: "warning: this clone's history has nothing in common with origin's; init does not suggest pushing any code branch (the state branch {rama}, an orphan, is pushed): decide yourself whether this clone belongs to that remote",
+    }
+    AVISO_NO_COMPROBADO {
+        es: "aviso: no se pudo comprobar si la historia de este clon tiene algo en comun con la de origin (faltan sus commits en el clon); init no propone publicar ninguna rama de codigo (la rama de estado {rama}, huerfana, si se publica): ejecuta git fetch origin y repite tc2 init",
+        en: "warning: could not check whether this clone's history has anything in common with origin's (its commits are missing from the clone); init does not suggest pushing any code branch (the state branch {rama}, an orphan, is pushed): run git fetch origin and run tc2 init again",
     }
     AVISO_PERSONA {
         es: "{n} acciones las haces tu (decision=persona): cada linea trae la orden",

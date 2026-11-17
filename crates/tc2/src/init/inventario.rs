@@ -276,16 +276,46 @@ fn ramas_remotas(c: &Contexto<'_>, principal: &Path) -> Result<Vec<(String, Stri
         .collect())
 }
 
+/// Como esta la historia local frente a la de `origin`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Historia {
+    /// Tienen algun ancestro comun.
+    Relacionada,
+    /// Se comprobo cada rama de `origin` y ninguna tiene nada en comun.
+    SinRelacion,
+    /// Falta en el clon algun commit de `origin` con el que comparar (y con
+    /// los que hay, ninguno en comun): hace falta `git fetch origin`.
+    NoComprobable,
+}
+
+impl Historia {
+    /// Motivo de las lineas cuando no se propone publicar.
+    fn motivo(self) -> Option<&'static str> {
+        match self {
+            Self::Relacionada => None,
+            Self::SinRelacion => Some(MOTIVO_SIN_RELACION),
+            Self::NoComprobable => Some(MOTIVO_NO_COMPROBADO),
+        }
+    }
+}
+
+/// Motivo de una rama cuya historia no tiene nada en comun con `origin`.
+pub(super) const MOTIVO_SIN_RELACION: &str = "historia-sin-relacion";
+
+/// Motivo de una rama cuya relacion con `origin` no se pudo comprobar.
+pub(super) const MOTIVO_NO_COMPROBADO: &str = "no-comprobado";
+
 /// Si la historia local (HEAD, o la primera rama local) tiene algun ancestro
 /// comun con alguna rama de `origin`. Solo con lo que ya hay en el clon (sin
-/// `fetch`: `--simular` no escribe): la rama remota que se trajo o el sha de
-/// `ls-remote` si ese commit ya esta. Si no se puede saber, `false`: es el
-/// lado prudente (no se propone publicar).
+/// `fetch`: `--simular` no escribe): por cada rama de `origin`, la rama
+/// remota que se trajo y el sha de `ls-remote` si ese commit ya esta (aunque
+/// falte la ref remota, p. ej. traido por sha). Si alguna rama no tiene
+/// commit con el que comparar, no se afirma que no haya relacion.
 fn historia_relacionada(
     c: &Contexto<'_>,
     principal: &Path,
     remotas: &[(&str, &str)],
-) -> Result<bool, Informe> {
+) -> Result<Historia, Informe> {
     let g = c.git;
     let primera_local = exigir(
         g,
@@ -297,8 +327,9 @@ fn historia_relacionada(
     let Some(local) = commit_de(g, principal, NOMBRE, "HEAD")?
         .or_else(|| Some(primera_local.trim().to_owned()).filter(|s| !s.is_empty()))
     else {
-        return Ok(false);
+        return Ok(Historia::NoComprobable);
     };
+    let mut falta_alguna = false;
     for (nombre, sha) in remotas {
         let traida = commit_de(
             g,
@@ -307,6 +338,9 @@ fn historia_relacionada(
             &format!("refs/remotes/{REMOTO}/{nombre}"),
         )?;
         let conocida = commit_de(g, principal, NOMBRE, sha)?;
+        if traida.is_none() && conocida.is_none() {
+            falta_alguna = true;
+        }
         for candidato in [traida, conocida].into_iter().flatten() {
             let s = correr(
                 g,
@@ -316,11 +350,15 @@ fn historia_relacionada(
                 &[&local, &candidato],
             )?;
             if s.exito() && !s.stdout.trim().is_empty() {
-                return Ok(true);
+                return Ok(Historia::Relacionada);
             }
         }
     }
-    Ok(false)
+    Ok(if falta_alguna {
+        Historia::NoComprobable
+    } else {
+        Historia::SinRelacion
+    })
 }
 
 /// Lineas de `main` y `develop` (D3). El repo cuenta como vacio solo si no
@@ -367,10 +405,21 @@ fn ramas(
         .collect();
     let historia_remota: Vec<&str> = con_sha.iter().map(|(n, _)| *n).collect();
     let vacio = !hay_commits && historia_remota.is_empty();
-    // Con historia en los dos lados, que tengan algo en comun.
-    let sin_relacion = hay_commits
-        && !historia_remota.is_empty()
-        && !historia_relacionada(c, principal, &con_sha)?;
+    // Con historia en los dos lados, que tengan algo en comun. Si no la
+    // tienen, o no se pudo comprobar, no se propone publicar nada.
+    let relacion = if hay_commits && !historia_remota.is_empty() {
+        historia_relacionada(c, principal, &con_sha)?
+    } else {
+        Historia::Relacionada
+    };
+    let sin_publicar = relacion.motivo();
+    // Rama de `origin` desde la que partir (la otra rama de codigo, o la
+    // primera que haya).
+    let otra_remota = RAMAS
+        .iter()
+        .copied()
+        .find(|x| historia_remota.contains(x))
+        .or_else(|| historia_remota.first().copied());
     let mut nuevas: Vec<String> = Vec::new();
     let mut lineas = Vec::new();
     for r in RAMAS {
@@ -379,11 +428,15 @@ fn ramas(
         let en_remoto = historia_remota.contains(&r);
         let a = Accion::nueva(ruta, "rama", "proyecto", Decision::Existe);
         lineas.push(if local {
-            if remoto && !en_remoto && sin_relacion {
-                // Publicarla subiria a `origin` una historia ajena a la suya.
-                let mut a = a.motivo("historia-sin-relacion");
-                a.decision = Decision::Persona;
-                a
+            if let (true, false, Some(m)) = (remoto, en_remoto, sin_publicar) {
+                // Publicarla podria subir a `origin` una historia ajena a la
+                // suya: la orden trae el remoto y comprueba si tienen algo en
+                // comun (`merge-base` vacio: nada).
+                let comprobar = match otra_remota {
+                    Some(b) => format!("git fetch {REMOTO} && git merge-base {r} {REMOTO}/{b}"),
+                    None => format!("git fetch {REMOTO}"),
+                };
+                persona(a, m, comprobar)
             } else if remoto && !en_remoto {
                 persona(a, "sin-publicar", format!("git push {REMOTO} {r}"))
             } else {
@@ -396,24 +449,19 @@ fn ramas(
                 format!("git fetch {REMOTO} {r} && git branch {r} {REMOTO}/{r}"),
             )
         } else if !vacio {
-            // Si `origin` tiene historia, desde ella (la otra rama de codigo,
-            // o la primera que haya); si no, desde la otra rama local (HEAD
-            // puede estar sin nacer en esta, tras un `init` cortado a medias)
-            // o desde HEAD.
-            let otra_remota = RAMAS
-                .iter()
-                .find(|x| historia_remota.contains(x))
-                .or_else(|| historia_remota.first());
+            // Si `origin` tiene historia, desde ella; si no, desde la otra
+            // rama local (HEAD puede estar sin nacer en esta, tras un `init`
+            // cortado a medias) o desde HEAD.
             let mut o = match (otra_remota, locales.first()) {
                 (Some(b), _) => format!("git fetch {REMOTO} {b} && git branch {r} {REMOTO}/{b}"),
                 (None, Some(l)) => format!("git branch {r} {l}"),
                 (None, None) => format!("git branch {r} HEAD"),
             };
-            if remoto && !sin_relacion {
+            if remoto && sin_publicar.is_none() {
                 o.push_str(&format!(" && git push {REMOTO} {r}"));
             }
-            let motivo = if sin_relacion {
-                "historia-sin-relacion"
+            let motivo = if let Some(m) = sin_publicar {
+                m
             } else if hay_commits {
                 "con-historia"
             } else {
