@@ -8,7 +8,7 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| 1 | MENOR | abierto | crates/tc2/src/identidad.rs:380-407 (`personas_de_base`) | heredado (TASK-033 y anteriores) |
+| 1 | MENOR | corregido | crates/tc2/src/identidad.rs:380-407 (`personas_de_base`) | heredado (TASK-033 y anteriores) |
 
 ### 1. Desde una subcarpeta del clon o del worktree, `pausa` y `descartar` dan `rechazada motivo=sin-personas`
 

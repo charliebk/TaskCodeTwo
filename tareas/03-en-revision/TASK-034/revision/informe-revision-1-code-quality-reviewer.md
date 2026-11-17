@@ -16,10 +16,10 @@ Criterios: C1, C2, C3, C4, C6, C7, C9, C10 y C11 demostrados; C5 y C8 en parte (
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| 1 | IMPORTANTE | abierto | crates/tc2/src/ciclo/mod.rs (`hay_remoto` en `paso_descartar`) | implementacion |
-| 2 | MENOR | abierto | crates/tc2/tests/ciclo.rs (`c5_...`) | implementacion |
-| 3 | MENOR | abierto | docs/adr/F1-4-operaciones-git-y-contrato-de-salida.md (adenda TASK-034) | implementacion |
-| 4 | MENOR | abierto | crates/tc2/src/ciclo/operacion.rs frente a toma/operacion.rs y grafo.rs:31 | implementacion |
+| 1 | IMPORTANTE | corregido | crates/tc2/src/ciclo/mod.rs (`hay_remoto` en `paso_descartar`) | implementacion |
+| 2 | MENOR | corregido | crates/tc2/tests/ciclo.rs (`c5_...`) | implementacion |
+| 3 | MENOR | corregido | docs/adr/F1-4-operaciones-git-y-contrato-de-salida.md (adenda TASK-034) | implementacion |
+| 4 | MENOR | corregido | crates/tc2/src/ciclo/operacion.rs frente a toma/operacion.rs y grafo.rs:31 | implementacion |
 
 ### 1. IMPORTANTE: el `fetch` previo de `descartar` no tiene test que se ponga rojo al quitarlo
 
