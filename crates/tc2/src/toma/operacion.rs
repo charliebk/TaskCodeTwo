@@ -22,12 +22,12 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion};
+use crate::estado::{Cambio, Estado, Fallo, Operacion, tarea_de};
 use crate::grafo::{Nodo, dependencia_cumplida};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
 use crate::identidad::Quien;
-use crate::tarea::{Asignado, Documento, Transicion};
+use crate::tarea::{Asignado, Transicion};
 
 use super::NOMBRE;
 
@@ -122,21 +122,7 @@ impl Operacion for Tomar {
         self.pendientes.borrow_mut().clear();
         *self.rama.borrow_mut() = None;
         let ruta = format!("{}/tarea.md", self.id);
-        let Some(texto) = estado.leer(&ruta)? else {
-            return Err(self.rechazo("no-existe", Mensaje::nuevo(&txt::NO_EXISTE)));
-        };
-        let (mut t, mut cuerpo) = match crate::tarea::leer(&texto) {
-            Ok(Documento::Formato2(t, c)) => (t, c),
-            Ok(Documento::Formato1(..)) => {
-                return Err(self.rechazo("formato-1", Mensaje::nuevo(&txt::FORMATO_1)));
-            }
-            Err(e) => {
-                return Err(self.rechazo(
-                    "ilegible",
-                    Mensaje::nuevo(&txt::ILEGIBLE).con("error", e.to_string()),
-                ));
-            }
-        };
+        let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
         let rama = t
             .rama
             .clone()
@@ -262,7 +248,7 @@ mod tests {
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
     use crate::roadmap::tests::EnMemoria;
-    use crate::tarea::{Cuerpo, Tarea};
+    use crate::tarea::{Cuerpo, Documento, Tarea};
     use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.

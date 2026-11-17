@@ -4,7 +4,9 @@
 
 use super::lectura::Estado;
 use super::transaccion::Fallo;
-use crate::tarea::{Documento, ErrorTarea};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::comun as txt;
+use crate::tarea::{Cuerpo, Documento, ErrorTarea, Tarea};
 
 /// Prefijo de las carpetas de tarea.
 const PREFIJO: &str = "TASK-";
@@ -40,6 +42,28 @@ pub fn tareas(estado: &dyn Estado, rutas: &[String]) -> Result<Vec<Leida>, Fallo
         .zip(textos)
         .filter_map(|(r, t)| t.map(|t| (r, crate::tarea::leer(&t))))
         .collect())
+}
+
+/// El `tarea.md` de `id` en formato 2, para cambiarlo: la lectura comun de
+/// las operaciones de una tarea (`start`, `descartar`, `pausa`, `reanudar`).
+/// Sin el fichero, `rechazada motivo=no-existe`; en formato 1 de la 0.16,
+/// `formato-1` (se convierte con `tc2 actualizar`); si no se entiende,
+/// `ilegible`. Los diagnosticos llevan el ID.
+pub fn tarea_de(estado: &dyn Estado, id: &str) -> Result<(Tarea, Cuerpo), Fallo> {
+    let rechazo = |motivo: &str, m: Mensaje| Fallo::rechazada(motivo, m.con("id", id));
+    let Some(texto) = estado.leer(&format!("{id}/tarea.md"))? else {
+        return Err(rechazo("no-existe", Mensaje::nuevo(&txt::TAREA_NO_EXISTE)));
+    };
+    match crate::tarea::leer(&texto) {
+        Ok(Documento::Formato2(t, c)) => Ok((t, c)),
+        Ok(Documento::Formato1(..)) => {
+            Err(rechazo("formato-1", Mensaje::nuevo(&txt::TAREA_FORMATO_1)))
+        }
+        Err(e) => Err(rechazo(
+            "ilegible",
+            Mensaje::nuevo(&txt::TAREA_ILEGIBLE).con("error", e.to_string()),
+        )),
+    }
 }
 
 #[cfg(test)]
