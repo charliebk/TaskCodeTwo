@@ -11,7 +11,8 @@
 //!   Sin red, las operaciones que no reservan nada compartido quedan como
 //!   pendientes y se re-ejecutan en la siguiente transaccion con red.
 //! - [`leer`] da una vista del estado (lo ultimo traido del remoto, o la
-//!   rama local en un repo sin remoto).
+//!   rama local en un repo sin remoto) y [`tareas`], sus `tarea.md` de los
+//!   dos formatos con su lectura.
 //!
 //! La correccion no depende de `tareas/`: se lee y se escribe sobre commits;
 //! la carpeta montada solo se adelanta (fast-forward) tras publicar.
@@ -23,12 +24,14 @@ mod cerrojo;
 mod lectura;
 mod montaje;
 mod pendientes;
+mod tareas;
 mod transaccion;
 
 pub use crate::git::Cambio;
 pub use cerrojo::Cerrojo;
 pub use lectura::{Estado, Vista, leer};
 pub use montaje::{Previsto, montar, montar_con, previsto};
+pub use tareas::{Leida, es_tarea_md, tareas};
 pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};
 
 /// Rama huerfana del estado (ADR F1-1; nombre en [`crate::huella`]).
