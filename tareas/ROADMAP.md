@@ -102,7 +102,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-029 | F3-2 tc2 new e import en bloque con dependencias e hito | — | TASK-019, TASK-020 | ✅ terminada |
 | — | TASK-030 | F3-3 tc2 next: lo listo para empezar por dependencias y prioridad | — | TASK-029 | ✅ terminada |
 | — | TASK-031 | F3-4 tc2 roadmap: la vista para todos | — | TASK-018 | ✅ terminada |
-| 1 | TASK-032 | F3-5 board y status | — | TASK-018, TASK-021 | ▶ en diseño |
+| 1 | TASK-032 | F3-5 tc2 board y tc2 status | — | TASK-018, TASK-021 | ▶ en diseño |
 | 2 | TASK-033 | F3-6 start: toma atomica de la tarea, rama y worktree desde develop | — | TASK-017, TASK-018 | lista para empezar |
 | 3 | TASK-034 | F3-7 descartar y pausa | — | TASK-018 | lista para empezar |
 | 4 | TASK-035 | F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks | — | TASK-028 | lista para empezar |
