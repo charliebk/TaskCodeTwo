@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: [distribucion, tests]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-115-seguimiento-de-f2-12-menores-de-actualiz
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-16
-actualizado: 2026-11-16
+actualizado: 2026-11-17
 dependencias: []
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Cerrar los MENORES aceptados en TASK-027 y estabilizar tests/comun/http_mock.rs,
 - [ ] Tests de integracion de redireccion no permitida y de limite de tamano en crates/tc2/tests/actualizar_cli.rs (MEN-5 r1)
 - [ ] tests/comun/http_mock.rs no manda FIN tras una respuesta completa y plataforma_gitlab pasa 10 de 10 seguidas
 - [ ] El doc de bajar_con_un_reintento esta sobre su funcion y sin lineas duplicadas
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-17T03:47:05Z | plan | automatico | persona | 0.16.1 |
