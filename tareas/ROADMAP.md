@@ -40,7 +40,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
 - **En marcha:** ninguna
-- **Listas para empezar:** TASK-032, TASK-033, TASK-034, TASK-035, TASK-080, TASK-083, TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122
+- **Listas para empezar:** TASK-032, TASK-033, TASK-034, TASK-035, TASK-080, TASK-083, TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -203,7 +203,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H0 — H0
 
-2 de 9 terminadas.
+2 de 10 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
@@ -216,3 +216,4 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 61 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
 | 62 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
 | 63 | TASK-122 | tc2 roadmap --grafo: grafo completo de tareas (RF-04) | media | — | lista para empezar |
+| 64 | TASK-123 | Seguimiento de F3-4: menores aceptados de tc2 roadmap | simple | — | lista para empezar |
