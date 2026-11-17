@@ -102,9 +102,10 @@ pub enum Fallo {
         /// Error del cliente.
         error: String,
         /// Si es un fallo de transporte transitorio, antes o despues de las
-        /// cabeceras (no conecta, se corta, tiempo agotado, cuerpo parado):
-        /// lo unico que se reintenta. TLS y una respuesta invalida se
-        /// repetirian igual.
+        /// cabeceras (no resuelve, no conecta, se corta, tiempo de conexion
+        /// agotado): lo unico que se reintenta (ver [`es_transitorio`]). TLS,
+        /// una respuesta invalida y el plazo global agotado no lo son: se
+        /// repetirian igual, y repetir el plazo global doblaria la espera.
         transitorio: bool,
     },
     /// 404: no existe esa release o ese fichero.
@@ -220,6 +221,39 @@ pub fn redireccion_permitida(destino: &str) -> bool {
     HOSTS_PERMITIDOS.contains(&host)
 }
 
+/// Si un error de ureq es un fallo de transporte que puede no repetirse y
+/// merece un reintento:
+///
+/// - si: no resuelve, no conecta, se corta (E/S), el plazo de conexion u
+///   otro plazo parcial, cuerpo parado;
+/// - no: el plazo global (`ESPERA_DESCARGA`) agotado, porque repetirlo
+///   doblaria la espera (TASK-027, MEN-9); TLS, incluido el handshake, que
+///   rustls devuelve como E/S de tipo `InvalidData` (MEN-8); y el resto.
+///
+/// Un cierre de la otra parte a mitad del handshake llega como un fin de
+/// datos (`UnexpectedEof`) que no se distingue de un corte, y se reintenta.
+pub(crate) fn es_transitorio(e: &ureq::Error) -> bool {
+    match e {
+        ureq::Error::Timeout(ureq::Timeout::Global) => false,
+        ureq::Error::Io(io) => es_transitorio_io(io),
+        ureq::Error::HostNotFound
+        | ureq::Error::ConnectionFailed
+        | ureq::Error::Timeout(_)
+        | ureq::Error::BodyStalled => true,
+        _ => false,
+    }
+}
+
+/// Como [`es_transitorio`] para un error de E/S: el de la lectura del cuerpo
+/// (ureq envuelve en el sus propios errores) o el del transporte.
+fn es_transitorio_io(e: &std::io::Error) -> bool {
+    if let Some(u) = e.get_ref().and_then(|x| x.downcast_ref::<ureq::Error>()) {
+        return es_transitorio(u);
+    }
+    // `InvalidData`: rustls rechazo lo recibido (certificado, protocolo).
+    e.kind() != std::io::ErrorKind::InvalidData
+}
+
 /// Quien baja ficheros de la release.
 pub struct Descargador {
     agente: ureq::Agent,
@@ -240,8 +274,14 @@ impl Default for Descargador {
 impl Descargador {
     /// Con el agente de `tc2` y el tiempo de una descarga.
     pub fn nuevo() -> Self {
+        Self::con_espera(ESPERA_DESCARGA)
+    }
+
+    /// Con el agente de `tc2` y `espera` como plazo global de cada descarga
+    /// (los tests lo acortan).
+    pub(crate) fn con_espera(espera: Duration) -> Self {
         Self {
-            agente: http::agente(ESPERA_DESCARGA),
+            agente: http::agente(espera),
         }
     }
 
@@ -273,10 +313,12 @@ impl Descargador {
             let mut r = match self.agente.get(&actual).call() {
                 Ok(r) => r,
                 Err(e) => {
+                    let transitorio = es_transitorio(&e);
                     return Err(match http::clasificar(e) {
                         // DNS, conexion, tiempo agotado, E/S o cuerpo
-                        // parado: transitorio.
-                        FalloHttp::Sinred(e) => sinred(e, true),
+                        // parado; transitorio salvo el plazo global y TLS
+                        // dentro de la E/S.
+                        FalloHttp::Sinred(e) => sinred(e, transitorio),
                         FalloHttp::Tls(e)
                         | FalloHttp::Otro(e)
                         | FalloHttp::RespuestaInvalida(e) => sinred(e, false),
@@ -340,7 +382,7 @@ impl Descargador {
                     Ok(0) => break,
                     Ok(n) => n,
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(e) => return Err(sinred(e.to_string(), true)),
+                    Err(e) => return Err(sinred(e.to_string(), es_transitorio_io(&e))),
                 };
                 total = total.saturating_add(n as u64);
                 if total > limite {
@@ -365,6 +407,119 @@ impl Descargador {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Instant;
+
+    /// Servidor en 127.0.0.1 que atiende cada conexion con `atender` y las
+    /// cuenta.
+    fn servidor(atender: fn(TcpStream)) -> Option<(u16, Arc<AtomicUsize>)> {
+        let l = TcpListener::bind("127.0.0.1:0").ok()?;
+        let puerto = l.local_addr().ok()?.port();
+        let conexiones = Arc::new(AtomicUsize::new(0));
+        let c = conexiones.clone();
+        std::thread::spawn(move || {
+            for s in l.incoming().flatten() {
+                c.fetch_add(1, Ordering::SeqCst);
+                std::thread::spawn(move || atender(s));
+            }
+        });
+        Some((puerto, conexiones))
+    }
+
+    /// Espera a que el cliente cierre (como mucho 10 s), sin mandar FIN.
+    fn esperar_cierre(mut s: TcpStream) {
+        let _ = s.set_read_timeout(Some(Duration::from_secs(10)));
+        let _ = s.read_to_end(&mut Vec::new());
+    }
+
+    /// Fichero de destino de una prueba en la carpeta temporal.
+    struct Temporal(std::path::PathBuf);
+
+    impl Temporal {
+        fn nuevo(nombre: &str) -> Option<(Self, std::fs::File)> {
+            let ruta = std::env::temp_dir()
+                .join(format!("tc2-descarga-{nombre}-{}.tmp", std::process::id()));
+            let f = std::fs::File::create(&ruta).ok()?;
+            Some((Self(ruta), f))
+        }
+    }
+
+    impl Drop for Temporal {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    /// TASK-115 (MEN-8 de TASK-027): un fallo de TLS en el handshake no es
+    /// transitorio y la descarga del binario no lo reintenta. El servidor
+    /// responde en claro a una peticion `https`: rustls lo rechaza.
+    #[test]
+    fn tls_fallido_no_es_transitorio() {
+        let srv = servidor(|mut s| {
+            let _ = s.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            let _ = s.flush();
+            esperar_cierre(s);
+        });
+        let tmp = Temporal::nuevo("tls");
+        assert!(srv.is_some() && tmp.is_some());
+        let (Some((puerto, conexiones)), Some((_t, mut f))) = (srv, tmp) else {
+            return;
+        };
+        let d = Descargador::con_espera(Duration::from_secs(10));
+        let url = format!("https://127.0.0.1:{puerto}/tc2");
+        let r = crate::actualizar_cli::bajar_con_un_reintento(&d, &url, &mut f);
+        assert!(
+            matches!(
+                r,
+                Err(Fallo::Sinred {
+                    transitorio: false,
+                    ..
+                })
+            ),
+            "{r:?}"
+        );
+        assert_eq!(conexiones.load(Ordering::SeqCst), 1, "{r:?}");
+    }
+
+    /// TASK-115 (MEN-9 de TASK-027): el plazo global agotado a mitad del
+    /// cuerpo no es transitorio: la descarga no se repite y la espera no se
+    /// dobla (margen de 1,5 veces el plazo).
+    #[test]
+    fn timeout_global_no_se_dobla() {
+        let srv = servidor(|mut s| {
+            let mut buf = [0u8; 4096];
+            let _ = s.read(&mut buf);
+            // Anuncia 100 bytes, manda 10 y se para.
+            let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n0123456789");
+            let _ = s.flush();
+            esperar_cierre(s);
+        });
+        let tmp = Temporal::nuevo("plazo");
+        assert!(srv.is_some() && tmp.is_some());
+        let (Some((puerto, conexiones)), Some((_t, mut f))) = (srv, tmp) else {
+            return;
+        };
+        let espera = Duration::from_secs(2);
+        let d = Descargador::con_espera(espera);
+        let url = format!("http://127.0.0.1:{puerto}/tc2");
+        let inicio = Instant::now();
+        let r = crate::actualizar_cli::bajar_con_un_reintento(&d, &url, &mut f);
+        let tardo = inicio.elapsed();
+        assert!(
+            matches!(
+                r,
+                Err(Fallo::Sinred {
+                    transitorio: false,
+                    ..
+                })
+            ),
+            "{r:?}"
+        );
+        assert_eq!(conexiones.load(Ordering::SeqCst), 1, "{r:?}");
+        assert!(tardo < espera.mul_f32(1.5), "tardo {tardo:?}");
+    }
 
     #[test]
     fn solo_redirecciones_https_a_github() {

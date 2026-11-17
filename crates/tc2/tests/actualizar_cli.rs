@@ -68,17 +68,44 @@ enum Corte {
 /// La ruta cuya primera peticion se corta, y como.
 type Cortes = Mutex<Option<(String, Corte)>>;
 
+/// Lo que sirve el [`Servidor`]: ficheros por nombre y redirecciones por
+/// ruta (`/<nombre>` → destino).
+struct Ficheros {
+    contenido: BTreeMap<String, Vec<u8>>,
+    redirecciones: BTreeMap<String, String>,
+}
+
 impl Servidor {
     fn nuevo(ficheros: BTreeMap<String, Vec<u8>>) -> Self {
         Self::con_corte(ficheros, None)
     }
 
     fn con_corte(ficheros: BTreeMap<String, Vec<u8>>, corte: Option<(String, Corte)>) -> Self {
+        Self::con(ficheros, corte, BTreeMap::new())
+    }
+
+    /// Como [`Servidor::nuevo`], y `GET /<ruta>` de `redirecciones` responde
+    /// `302` con `Location: <destino>`.
+    fn con_redirecciones(
+        ficheros: BTreeMap<String, Vec<u8>>,
+        redirecciones: BTreeMap<String, String>,
+    ) -> Self {
+        Self::con(ficheros, None, redirecciones)
+    }
+
+    fn con(
+        ficheros: BTreeMap<String, Vec<u8>>,
+        corte: Option<(String, Corte)>,
+        redirecciones: BTreeMap<String, String>,
+    ) -> Self {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let puerto = l.local_addr().unwrap().port();
         let peticiones: Arc<Mutex<Vec<String>>> = Arc::default();
         let p = peticiones.clone();
-        let ficheros = Arc::new(ficheros);
+        let ficheros = Arc::new(Ficheros {
+            contenido: ficheros,
+            redirecciones,
+        });
         let cortes: Arc<Cortes> = Arc::new(Mutex::new(corte));
         std::thread::spawn(move || {
             for s in l.incoming().flatten() {
@@ -100,13 +127,9 @@ impl Servidor {
     }
 }
 
-/// Sirve una peticion: `GET /<nombre>` da el contenido o 404.
-fn atender(
-    s: std::net::TcpStream,
-    p: &Mutex<Vec<String>>,
-    ficheros: &BTreeMap<String, Vec<u8>>,
-    cortes: &Cortes,
-) {
+/// Sirve una peticion: `GET /<nombre>` da el contenido, una redireccion o
+/// 404.
+fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, ficheros: &Ficheros, cortes: &Cortes) {
     let mut lector = BufReader::new(s.try_clone().unwrap());
     let mut primera = String::new();
     if lector.read_line(&mut primera).is_err() {
@@ -120,11 +143,21 @@ fn atender(
     }
     let ruta = primera.split_whitespace().nth(1).unwrap_or("").to_owned();
     p.lock().unwrap().push(ruta.clone());
-    let (estado, cuerpo) = match ficheros.get(ruta.trim_start_matches('/')) {
+    let mut s = s;
+    if let Some(destino) = ficheros.redirecciones.get(&ruta) {
+        let _ = write!(
+            s,
+            "HTTP/1.1 302 Found\r\nLocation: {destino}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        let _ = s.flush();
+        let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
+        let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
+        return;
+    }
+    let (estado, cuerpo) = match ficheros.contenido.get(ruta.trim_start_matches('/')) {
         Some(c) => ("200 OK", c.clone()),
         None => ("404 Not Found", b"no".to_vec()),
     };
-    let mut s = s;
     let corte = {
         let mut c = cortes.lock().unwrap();
         match c.as_ref() {
@@ -598,6 +631,70 @@ fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
             "{corte:?}: {quedan:?}"
         );
     }
+}
+
+/// TASK-115 (MEN-5 de TASK-027): una redireccion del binario a un destino no
+/// permitido no se sigue ni se reintenta: `rechazada` (3), una sola peticion
+/// al binario y la instalacion no cambia.
+#[test]
+fn redireccion_no_permitida_no_se_sigue_ni_reintenta() {
+    let f = Carpeta::nueva("actualizar-redireccion");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let antes = sha256(&exe);
+    let fichero = format!("/{}", target().fichero(VERSION_Y));
+    let srv = Servidor::con_redirecciones(
+        release(VERSION_Y, b"binario-y", None),
+        BTreeMap::from([(fichero.clone(), "https://evil.example/tc2".to_owned())]),
+    );
+    let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
+    assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
+    assert!(
+        texto(&o.stdout).starts_with("actualizar rechazada motivo=redireccion-no-permitida "),
+        "{}",
+        texto(&o.stdout)
+    );
+    assert!(
+        texto(&o.stderr).contains("https://evil.example/tc2"),
+        "{}",
+        texto(&o.stderr)
+    );
+    let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
+    assert_eq!(al_binario, 1, "{:?}", srv.peticiones());
+    assert_eq!(sha256(&exe), antes);
+    let quedan = restos(&dir, &exe);
+    assert!(quedan.is_empty(), "{quedan:?}");
+}
+
+/// TASK-115 (MEN-5 de TASK-027): un binario mayor que el limite se rechaza
+/// sin reintentar: `rechazada` (3) con `descarga-grande`, una sola peticion
+/// al binario y la instalacion no cambia.
+#[test]
+fn binario_mayor_que_el_limite_se_rechaza() {
+    let f = Carpeta::nueva("actualizar-grande");
+    let dir = f.raiz.join("bin");
+    let exe = instalar_vx(&dir);
+    let antes = sha256(&exe);
+    let fichero = format!("/{}", target().fichero(VERSION_Y));
+    let limite = usize::try_from(tc2::descarga::LIMITE_BINARIO).unwrap();
+    // El hash no importa: se rechaza antes de comprobarlo.
+    let srv = Servidor::nuevo(release(
+        VERSION_Y,
+        &vec![0u8; limite + 1],
+        Some(&"0".repeat(64)),
+    ));
+    let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
+    assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
+    assert!(
+        texto(&o.stdout).starts_with("actualizar rechazada motivo=descarga-grande "),
+        "{}",
+        texto(&o.stdout)
+    );
+    let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
+    assert_eq!(al_binario, 1, "{:?}", srv.peticiones());
+    assert_eq!(sha256(&exe), antes);
+    let quedan = restos(&dir, &exe);
+    assert!(quedan.is_empty(), "{quedan:?}");
 }
 
 /// Revision 1, MEN-3: en Windows, el `tc2.exe.old` que deja una

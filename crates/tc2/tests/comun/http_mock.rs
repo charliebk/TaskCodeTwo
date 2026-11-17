@@ -5,8 +5,9 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
+use std::time::Duration;
 
 /// Una respuesta simulada.
 #[derive(Debug, Clone)]
@@ -44,6 +45,26 @@ pub struct Recibida {
 
 type Rutas = BTreeMap<String, VecDeque<Simulada>>;
 
+/// Cerrojo que pone en serie, dentro de un binario de tests, los tests que
+/// hablan con un [`Mock`].
+static SERIE: Mutex<()> = Mutex::new(());
+
+/// Coge el cerrojo de los tests con [`Mock`]; se suelta al soltar la guarda.
+/// Cada test que use el mock la coge al empezar (`let _serie = serie();`).
+///
+/// Por que existe (TASK-115): en la maquina de desarrollo con Windows y un
+/// antivirus que filtra la red, el proceso de tests sufre paradas de unos
+/// 10 s alrededor de la red cuando varios tests hacen peticiones a la vez:
+/// peticiones de tests distintos se quedan paradas y se reanudan en el mismo
+/// milisegundo, sin que el mock tenga que ver (igual con el mock anterior).
+/// Si una llamada acumula mas de 30 s cae con `sinred`. En serie no se han
+/// visto. Solo afecta a estos tests: el resto de la suite sigue en paralelo.
+/// Un test que falla envenena el cerrojo; se recupera para que los demas
+/// sigan y den su propio resultado.
+pub fn serie() -> MutexGuard<'static, ()> {
+    SERIE.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 pub struct Mock {
     pub puerto: u16,
     rutas: Arc<Mutex<Rutas>>,
@@ -60,7 +81,10 @@ impl Mock {
         let (r, v) = (rutas.clone(), recibidas.clone());
         thread::spawn(move || {
             for s in l.incoming().flatten() {
-                atender(s, &r, &v);
+                // Un hilo por conexion: la espera al cierre del cliente de
+                // una no frena las demas.
+                let (r, v) = (r.clone(), v.clone());
+                thread::spawn(move || atender(s, &r, &v));
             }
         });
         Self {
@@ -158,4 +182,62 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
     let _ = s.write_all(texto.as_bytes());
     let _ = s.write_all(respuesta.cuerpo.as_bytes());
     let _ = s.flush();
+    // Cierre: el servidor no manda FIN detras de una respuesta completa.
+    // Con `Content-Length` y `Connection: close` el cliente sabe cuando
+    // acaba y cierra el; aqui se espera a ese cierre (como mucho 30 s) y
+    // despues se suelta el socket. En esta maquina (TASK-027, TASK-115) un
+    // FIN detras de los datos hacia que la red local perdiera a veces el
+    // final de la respuesta y el cliente viera `sinred`.
+    let _ = s.set_read_timeout(Some(Duration::from_secs(30)));
+    let _ = lector.read_to_end(&mut Vec::new());
+}
+
+/// TASK-115: tras una respuesta completa el mock no cierra la conexion. Un
+/// cliente que ya leyo las cabeceras y el `Content-Length` entero no ve el
+/// final (`Ok(0)`) en la lectura siguiente, sino que agota su plazo.
+#[test]
+fn tras_una_respuesta_completa_el_mock_no_manda_fin() {
+    let _serie = serie();
+    let m = Mock::nuevo();
+    m.responder("GET", "/x", Simulada::json(200, "{\"a\":1}"));
+    let mut c = TcpStream::connect(("127.0.0.1", m.puerto)).expect("conectar");
+    c.write_all(b"GET /x HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+        .expect("enviar");
+    c.set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("plazo");
+    // Sin clonar el socket: el plazo se cambia sobre el mismo que se lee.
+    let mut lector = BufReader::new(&c);
+    let mut largo = None;
+    loop {
+        let mut l = String::new();
+        let n = lector.read_line(&mut l).expect("cabecera");
+        assert!(n > 0, "fin antes de acabar las cabeceras");
+        if l.trim().is_empty() {
+            break;
+        }
+        if let Some((k, v)) = l.split_once(':')
+            && k.trim().eq_ignore_ascii_case("content-length")
+        {
+            largo = v.trim().parse::<usize>().ok();
+        }
+    }
+    let mut cuerpo = vec![0u8; largo.expect("sin Content-Length")];
+    lector.read_exact(&mut cuerpo).expect("cuerpo");
+    assert_eq!(cuerpo, b"{\"a\":1}");
+    // La respuesta esta completa: la lectura siguiente agota el plazo.
+    lector
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(300)))
+        .expect("plazo");
+    let mut uno = [0u8; 1];
+    match lector.read(&mut uno) {
+        Err(e) => assert!(
+            matches!(
+                e.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ),
+            "{e:?}"
+        ),
+        Ok(n) => panic!("el mock cerro la conexion (leidos {n} bytes)"),
+    }
 }
