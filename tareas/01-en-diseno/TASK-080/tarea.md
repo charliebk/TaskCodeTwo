@@ -6,10 +6,10 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-080-f3-9-inventario-de-skills-y-agentes-inst
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-17
 dependencias: [TASK-016, TASK-073]
 ---
 ## Objetivo
@@ -34,3 +34,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - [ ] Lista lo instalado
 - [ ] una recomendación a algo inexistente es error con el arreglo
 - [ ] Cumple lo que pide la tarea F3-9 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-17T19:27:49Z | plan | automatico | persona | 0.16.1 |
