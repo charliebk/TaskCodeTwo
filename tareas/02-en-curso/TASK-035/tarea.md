@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-035-f3-8-doctor-entorno-rama-de-estado-permi
 asignado_a: charlie.bk@gmail.com
@@ -47,6 +47,7 @@ Tarea F3-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 |---|---|---|---|---|
 | 2026-11-17T13:23:19Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T13:29:49Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T13:29:50Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
