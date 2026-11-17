@@ -294,6 +294,104 @@ fn sin_red_falla_sin_dejar_nada() {
     assert_eq!(antes, despues, "new sin red dejo refs");
 }
 
+/// TASK-029 C9: `new` acepta los campos de RF-01 (titulo, tipo, objetivo,
+/// criterios, etiquetas, complejidad, sprint y dependencias) y los deja en
+/// el `tarea.md`; un enunciado que no esta listo, un valor fuera de su
+/// lista o una dependencia que no existe dan `uso` (2) sin escribir nada.
+#[test]
+fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
+    let f = Fixture::nueva("alta-rf01");
+    let (bare, a) = f.remoto_y_clon();
+    nueva(&f, &a, "Base");
+    let o = tc2(
+        &f,
+        &a,
+        &[
+            "new",
+            "Arreglar el login",
+            "--tipo",
+            "fix",
+            "--objetivo",
+            "Que la persona entre\ncon su cuenta",
+            "--criterio",
+            "Entra con usuario y clave",
+            "--criterio",
+            "Con clave mala da error",
+            "--etiqueta",
+            "seguridad",
+            "--complejidad",
+            "media",
+            "--sprint",
+            "3",
+            "--dependencia",
+            "TASK-001",
+        ],
+    );
+    let out = texto(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+    assert_eq!(valor(&out, "id"), Some("TASK-002"), "{out}");
+    assert_eq!(
+        valor(&out, "rama"),
+        Some("fix/task-002-arreglar-el-login"),
+        "{out}"
+    );
+    let md = f.crudo(&bare, &["show", &format!("{RAMA}:TASK-002/tarea.md")]);
+    for linea in [
+        "\ntipo: \"fix\"\n",
+        "\nsprint: 3\n",
+        "\netiquetas: [\"seguridad\"]\n",
+        "\ncomplejidad: \"media\"\n",
+        "\nrama: \"fix/task-002-arreglar-el-login\"\n",
+        "\ndependencias: [\"TASK-001\"]\n",
+        "## Objetivo\n\nQue la persona entre\ncon su cuenta\n\n",
+        "- [ ] Entra con usuario y clave\n- [ ] Con clave mala da error\n",
+    ] {
+        assert!(md.contains(linea), "falta {linea:?} en {md}");
+    }
+    assert!(!md.contains("\nlote:"), "{md}");
+
+    let antes = f.crudo(
+        &bare,
+        &["for-each-ref", "--format=%(refname) %(objectname)"],
+    );
+    for (args, motivo) in [
+        (
+            vec!["new", "Sin criterios", "--objetivo", "Algo"],
+            "enunciado-no-listo",
+        ),
+        (
+            vec!["new", "Hueco", "--criterio", "<criterio comprobable>"],
+            "enunciado-no-listo",
+        ),
+        (
+            vec!["new", "Tipo malo", "--tipo", "epica"],
+            "valor-invalido",
+        ),
+        (
+            vec!["new", "Dep mala", "--dependencia", "TASK-099"],
+            "referencia-inexistente",
+        ),
+    ] {
+        let o = tc2(&f, &a, &args);
+        let out = texto(&o.stdout);
+        let err = texto(&o.stderr);
+        assert_eq!(o.status.code(), Some(2), "{args:?}: {out} {err}");
+        assert_eq!(valor(out.trim_end(), "motivo"), Some(motivo), "{out}");
+        assert_eq!(err.lines().count(), 1, "{err}");
+    }
+    let despues = f.crudo(
+        &bare,
+        &["for-each-ref", "--format=%(refname) %(objectname)"],
+    );
+    assert_eq!(antes, despues, "un new rechazado publico algo");
+    let o = tc2(&f, &a, &["new", "Sin criterios", "--objetivo", "Algo"]);
+    assert!(
+        texto(&o.stderr).contains("no esta listo: no tiene ningun criterio de aceptacion"),
+        "{}",
+        texto(&o.stderr)
+    );
+}
+
 /// Pasa una tarea a `terminada` en la rama de estado (por la transaccion,
 /// como lo haria `finish`).
 struct Terminar(&'static str);

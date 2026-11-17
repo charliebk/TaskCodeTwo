@@ -107,6 +107,107 @@ impl Entrada {
     }
 }
 
+/// `uso` de `new` con `motivo` y `diagnostico`.
+fn uso(motivo: &str, diagnostico: impl Into<Mensaje>) -> crate::contrato::Informe {
+    crate::contrato::Informe::nuevo(NOMBRE, crate::contrato::Resultado::Uso)
+        .con("motivo", motivo)
+        .diagnostico(diagnostico)
+}
+
+/// Lee los argumentos de `new` (sin `--json`): el titulo y los campos de
+/// RF-01 (`--tipo`, `--objetivo`, `--criterio`..., `--etiqueta`...,
+/// `--complejidad`, `--sprint`, `--dependencia`...). Rechaza con `uso` un
+/// valor fuera de su lista y un enunciado que no esta listo
+/// ([`Entrada::listo`]).
+pub fn entrada_de_args(args: &[String]) -> Result<Entrada, crate::contrato::Informe> {
+    use crate::i18n::catalogo::cli as tc;
+    use crate::i18n::catalogo::importar as ti;
+    let invalido = |opcion: &str, valor: &str, permitidos: &str| {
+        uso(
+            "valor-invalido",
+            Mensaje::nuevo(&ti::VALOR_INVALIDO)
+                .con("opcion", opcion)
+                .con("valor", valor)
+                .con("permitidos", permitidos),
+        )
+        .con("opcion", opcion.trim_start_matches('-'))
+    };
+    let mut titulos: Vec<&String> = Vec::new();
+    let mut e = Entrada::nueva("");
+    let mut vistas: BTreeSet<&str> = BTreeSet::new();
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        let opcion = a.as_str();
+        if !opcion.starts_with("--") {
+            titulos.push(a);
+            continue;
+        }
+        let repetible = matches!(opcion, "--criterio" | "--etiqueta" | "--dependencia");
+        let conocida = repetible
+            || matches!(
+                opcion,
+                "--tipo" | "--objetivo" | "--complejidad" | "--sprint"
+            );
+        if !conocida || (!repetible && !vistas.insert(opcion)) {
+            return Err(uso("argumentos-de-mas", &ti::USO_NEW_CAMPOS));
+        }
+        let Some(v) = it.next() else {
+            return Err(uso("falta-valor", &ti::USO_NEW_CAMPOS).con("opcion", &opcion[2..]));
+        };
+        match opcion {
+            "--tipo" if crate::tarea::TIPOS.contains(&v.as_str()) => v.clone_into(&mut e.tipo),
+            "--tipo" => return Err(invalido(opcion, v, &crate::tarea::TIPOS.join(", "))),
+            "--complejidad" if crate::tarea::COMPLEJIDADES.contains(&v.as_str()) => {
+                e.complejidad = Some(v.clone());
+            }
+            "--complejidad" => {
+                return Err(invalido(opcion, v, &crate::tarea::COMPLEJIDADES.join(", ")));
+            }
+            "--sprint" => {
+                e.sprint = v
+                    .bytes()
+                    .all(|b| b.is_ascii_digit())
+                    .then(|| v.parse().ok())
+                    .flatten()
+                    .ok_or_else(|| invalido(opcion, v, "0, 1, 2..."))?;
+            }
+            "--objetivo" => v.clone_into(&mut e.objetivo),
+            "--criterio" => e.criterios.push(v.clone()),
+            "--etiqueta" if crate::tarea::login_valido(v) => e.etiquetas.push(v.clone()),
+            "--etiqueta" => {
+                return Err(uso(
+                    "valor-invalido",
+                    Mensaje::nuevo(&ti::ETIQUETA_INVALIDA).con("valor", v.as_str()),
+                )
+                .con("opcion", "etiqueta"));
+            }
+            _ if crate::tarea::id_valido(v) => {
+                if !e.dependencias.contains(v) {
+                    e.dependencias.push(v.clone());
+                }
+            }
+            _ => return Err(invalido(opcion, v, "TASK-NNN")),
+        }
+    }
+    let titulo = match titulos.as_slice() {
+        [t] if titulo_valido(t) => (*t).clone(),
+        [_] => return Err(uso("titulo-invalido", &tc::TITULO_INVALIDO)),
+        [] => return Err(uso("sin-titulo", &tc::USO_NEW)),
+        _ => return Err(uso("argumentos-de-mas", &tc::TITULO_ENTRE_COMILLAS)),
+    };
+    e.titulo = titulo;
+    if let Err(c) = e.listo(false) {
+        return Err(uso(
+            "enunciado-no-listo",
+            Mensaje::nuevo(&ti::NO_LISTO)
+                .con("titulo", e.titulo.as_str())
+                .con_mensaje("causa", c.mensaje()),
+        )
+        .con("causa", c.causa()));
+    }
+    Ok(e)
+}
+
 /// Por que un enunciado no esta listo (RF-01).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoListo {
@@ -222,6 +323,19 @@ impl Operacion for Alta {
     }
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         let rutas = estado.rutas();
+        // Las dependencias tienen que existir en el estado fresco (RF-03).
+        if let Some(d) = self
+            .entrada
+            .dependencias
+            .iter()
+            .find(|d| !rutas.iter().any(|r| *r == format!("{d}/tarea.md")))
+        {
+            return Err(Fallo::rechazada(
+                "referencia-inexistente",
+                Mensaje::nuevo(&crate::i18n::catalogo::importar::DEPENDENCIA_INEXISTENTE)
+                    .con("referencia", d.as_str()),
+            ));
+        }
         let ids = reservar(&rutas, &self.ocupados, 1)?;
         self.id.set(ids.first().copied());
         // Sobre el mismo estado fresco del intento: dos altas a la vez se ven
@@ -650,6 +764,111 @@ mod tests {
             };
             assert_eq!(leida, Some((tipo.to_owned(), Some(rama))));
         }
+    }
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    /// C9 (unitario): `new` acepta los campos de RF-01 y rechaza con `uso`
+    /// un valor fuera de su lista o un enunciado que no esta listo.
+    #[test]
+    fn new_acepta_los_campos_de_rf_01() {
+        let e = entrada_de_args(&args(&[
+            "--tipo",
+            "fix",
+            "Arreglar el login",
+            "--objetivo",
+            "Que entre",
+            "--criterio",
+            "a",
+            "--criterio",
+            "b",
+            "--etiqueta",
+            "rust",
+            "--complejidad",
+            "media",
+            "--sprint",
+            "3",
+            "--dependencia",
+            "TASK-001",
+            "--dependencia",
+            "TASK-001",
+        ]));
+        let mut esperada = Entrada::nueva("Arreglar el login");
+        "fix".clone_into(&mut esperada.tipo);
+        "Que entre".clone_into(&mut esperada.objetivo);
+        esperada.criterios = vec!["a".into(), "b".into()];
+        esperada.etiquetas = vec!["rust".into()];
+        esperada.complejidad = Some("media".into());
+        esperada.sprint = 3;
+        esperada.dependencias = vec!["TASK-001".into()];
+        assert_eq!(e, Ok(esperada));
+        // Solo el titulo sigue valiendo (borrador de la plantilla, F2-4).
+        assert_eq!(entrada_de_args(&args(&["x"])), Ok(Entrada::nueva("x")));
+        let motivo = |a: &[&str]| {
+            entrada_de_args(&args(a)).err().map(|i| {
+                (
+                    i.valor("motivo").unwrap_or_default().to_owned(),
+                    i.valor("causa").unwrap_or_default().to_owned(),
+                )
+            })
+        };
+        let m = |a: &str, b: &str| Some((a.to_owned(), b.to_owned()));
+        for (a, esperado) in [
+            (
+                vec!["x", "--objetivo", "solo"],
+                m("enunciado-no-listo", "sin-criterios"),
+            ),
+            (
+                vec!["x", "--criterio", "<criterio comprobable>"],
+                m("enunciado-no-listo", "plantilla"),
+            ),
+            (
+                vec![
+                    "x",
+                    "--objetivo",
+                    "<que se quiere y por que>",
+                    "--criterio",
+                    "c",
+                ],
+                m("enunciado-no-listo", "plantilla"),
+            ),
+            (
+                vec!["x", "--criterio", "  "],
+                m("enunciado-no-listo", "criterio-vacio"),
+            ),
+            (
+                vec!["x", "--criterio", "Uno", "--criterio", "uno"],
+                m("enunciado-no-listo", "criterio-repetido"),
+            ),
+            (
+                vec!["x", "--criterio", "a\nb"],
+                m("enunciado-no-listo", "caracter-de-control"),
+            ),
+            (vec!["x", "--tipo", "epica"], m("valor-invalido", "")),
+            (
+                vec!["x", "--complejidad", "enorme"],
+                m("valor-invalido", ""),
+            ),
+            (vec!["x", "--sprint", "-2"], m("valor-invalido", "")),
+            (
+                vec!["x", "--etiqueta", "con espacio"],
+                m("valor-invalido", ""),
+            ),
+            (vec!["x", "--dependencia", "F2-4"], m("valor-invalido", "")),
+            (vec!["x", "--tipo"], m("falta-valor", "")),
+            (
+                vec!["x", "--tipo", "fix", "--tipo", "fix"],
+                m("argumentos-de-mas", ""),
+            ),
+            (vec!["x", "--otra", "v"], m("argumentos-de-mas", "")),
+            (vec!["--criterio", "c"], m("sin-titulo", "")),
+        ] {
+            assert_eq!(motivo(&a), esperado, "{a:?}");
+        }
+        // El objetivo admite varias lineas.
+        assert!(entrada_de_args(&args(&["x", "--objetivo", "a\nb", "--criterio", "c"])).is_ok());
     }
 
     #[test]

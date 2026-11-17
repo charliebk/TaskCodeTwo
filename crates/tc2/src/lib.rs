@@ -263,27 +263,15 @@ fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
     alta::desde_anotacion(anotacion)
 }
 
-/// `new "<titulo>"`: alta de una tarea con su ID reservado por el push de la
-/// rama de estado (F2-4). Sale `new ok id=TASK-NNN rama=... [parecidas=...]`;
-/// las tareas abiertas parecidas quedan ademas en `parecidas` para el aviso.
+/// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
+/// por el push de la rama de estado (F2-4). Sale `new ok id=TASK-NNN
+/// rama=... [parecidas=...]`; las tareas abiertas parecidas quedan ademas en
+/// `parecidas` para el aviso. Un enunciado que no esta listo o una
+/// dependencia que no existe es `uso` sin escribir nada (TASK-029).
 fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
-    let titulo = match args {
-        [t] if alta::titulo_valido(t) => t,
-        [_] => {
-            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
-                .con("motivo", "titulo-invalido")
-                .diagnostico(&txt::TITULO_INVALIDO);
-        }
-        [] => {
-            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
-                .con("motivo", "sin-titulo")
-                .diagnostico(&txt::USO_NEW);
-        }
-        _ => {
-            return Informe::nuevo(alta::NOMBRE, Resultado::Uso)
-                .con("motivo", "argumentos-de-mas")
-                .diagnostico(&txt::TITULO_ENTRE_COMILLAS);
-        }
+    let entrada = match alta::entrada_de_args(args) {
+        Ok(e) => e,
+        Err(i) => return i,
     };
     let dir = match std::env::current_dir() {
         Ok(d) => d,
@@ -305,10 +293,14 @@ fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
             return i;
         }
     };
-    let op = alta::Alta::nueva(titulo).con_ocupados(ocupados);
+    let op = alta::Alta::con_entrada(entrada).con_ocupados(ocupados);
     let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
     let mut i = estado::transaccion(&c, &op);
     alta::NOMBRE.clone_into(&mut i.comando);
+    if i.resultado == Resultado::Rechazada && i.valor("motivo") == Some("referencia-inexistente") {
+        // El fallo es de la llamada, no del estado: uso, como en import.
+        i.resultado = Resultado::Uso;
+    }
     if i.resultado == Resultado::Ok
         && let (Some(id), Some(rama)) = (op.id(), op.rama())
     {

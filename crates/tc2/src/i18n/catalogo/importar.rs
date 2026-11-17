@@ -89,6 +89,10 @@ crate::i18n::textos! {
         es: "la dependencia {referencia} de «{clave}» no existe en la rama de estado. No se ha importado nada",
         en: "the dependency {referencia} of «{clave}» does not exist in the state branch. Nothing was imported",
     }
+    DEPENDENCIA_INEXISTENTE {
+        es: "la dependencia {referencia} no existe en la rama de estado. No se ha creado nada",
+        en: "the dependency {referencia} does not exist in the state branch. Nothing was created",
+    }
     CICLO {
         es: "las dependencias forman un ciclo: {ciclo}. No se ha importado nada",
         en: "the dependencies form a cycle: {ciclo}. Nothing was imported",
@@ -96,6 +100,10 @@ crate::i18n::textos! {
     VALOR_INVALIDO {
         es: "{opcion} no vale «{valor}»: {permitidos}",
         en: "{opcion} does not accept «{valor}»: {permitidos}",
+    }
+    ETIQUETA_INVALIDA {
+        es: "--etiqueta no vale «{valor}»: una palabra sin espacios ni caracteres de control",
+        en: "--etiqueta does not accept «{valor}»: one word without spaces or control characters",
     }
     USO_NEW_CAMPOS {
         es: "uso: new [--json] \"<titulo>\" [--tipo <tipo>] [--objetivo \"<texto>\"] [--criterio \"<texto>\"]... [--etiqueta <e>]... [--complejidad <c>] [--sprint <N>] [--dependencia TASK-NNN]...",
