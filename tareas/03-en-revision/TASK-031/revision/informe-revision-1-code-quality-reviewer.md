@@ -2,7 +2,7 @@
 
 - Commit revisado: 8a54049c717b71525d0a180c8e00676686271db0
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-031 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 Propuesta del revisor: **aprobada** (sin CRITICO ni IMPORTANTE; 2 MENOR nuevos y los declarados por la tarea, confirmados).
 

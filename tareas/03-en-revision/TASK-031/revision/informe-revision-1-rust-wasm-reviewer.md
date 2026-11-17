@@ -2,7 +2,7 @@
 
 - Commit revisado: 8a54049c717b71525d0a180c8e00676686271db0 (HEAD de la rama: 9401218, solo anade la peticion)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-031 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 

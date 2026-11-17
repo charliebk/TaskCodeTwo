@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 30477346
-tokens_revision: null
+tokens_revision: 11695419
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-018]
@@ -92,3 +92,5 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T07:34:02Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 16 | 14813 | 4509759 | 2246 | 0 | 4526834 | - | - |
 | 2026-11-17T07:34:02Z | implementacion | agente:aaa954d4d28d87f09 | 242 | 317775 | 25506272 | 126223 | 21 | 25950512 | - | - |
+| 2026-11-17T07:50:35Z | revision | agente:ace2aa3dc468d04ff | 100 | 137119 | 5205970 | 27519 | 6 | 5370708 | 1 | rust-wasm-reviewer |
+| 2026-11-17T07:50:36Z | revision | agente:a1d85b913c26ea9d8 | 102 | 161017 | 6127438 | 36154 | 31 | 6324711 | 1 | code-quality-reviewer |
