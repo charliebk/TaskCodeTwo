@@ -246,6 +246,13 @@ struct Caso {
     /// Checks publicados en la cabeza de `develop`.
     publicados: Vec<&'static str>,
     plan: Plan,
+    /// `null` donde la API da una lista o un numero (H5): GitHub,
+    /// `required_status_checks: null`; GitLab, `approvals_required: null`.
+    nulos: bool,
+    /// GitLab: 403 en las reglas de aprobacion (H4).
+    aprobacion_403: bool,
+    /// 403 en los checks publicados (H3): check-runs o estados.
+    checks_403: bool,
 }
 
 impl Caso {
@@ -266,6 +273,9 @@ impl Caso {
                 },
                 Prov::GitLab => Plan::GitLab("premium"),
             },
+            nulos: false,
+            aprobacion_403: false,
+            checks_403: false,
         }
     }
 }
@@ -320,7 +330,11 @@ fn servir(prov: Prov, caso: &Caso) -> Mock {
                         "require_last_push_approval": true,
                         "required_review_thread_resolution": false}}));
                 }
-                if rama == "develop" && !caso.requeridos.is_empty() {
+                if rama == "develop" && caso.nulos {
+                    reglas.push(j!({"type": "required_status_checks", "parameters": {
+                        "required_status_checks": null,
+                        "strict_required_status_checks_policy": true}}));
+                } else if rama == "develop" && !caso.requeridos.is_empty() {
                     let checks: Vec<serde_json::Value> =
                         caso.requeridos.iter().map(|c| j!({"context": c})).collect();
                     reglas.push(j!({"type": "required_status_checks", "parameters": {
@@ -341,7 +355,11 @@ fn servir(prov: Prov, caso: &Caso) -> Mock {
             m.responder(
                 "GET",
                 &format!("{r}/commits/heads/develop/check-runs"),
-                json(200, &j!({"total_count": runs.len(), "check_runs": runs})),
+                if caso.checks_403 {
+                    json(403, &prohibido)
+                } else {
+                    json(200, &j!({"total_count": runs.len(), "check_runs": runs}))
+                },
             );
             let ci = match caso.ci {
                 Ci::Bien => json(
@@ -401,7 +419,11 @@ fn servir(prov: Prov, caso: &Caso) -> Mock {
             m.responder(
                 "GET",
                 &format!("{p}/approval_rules"),
-                if premium {
+                if caso.aprobacion_403 {
+                    json(403, &j!({"message": "403 Forbidden"}))
+                } else if premium && caso.nulos {
+                    json(200, &j!([{"name": "persona", "approvals_required": null}]))
+                } else if premium {
                     json(200, &j!([{"name": "persona", "approvals_required": 1}]))
                 } else {
                     json(200, &j!([]))
@@ -433,7 +455,11 @@ fn servir(prov: Prov, caso: &Caso) -> Mock {
             m.responder(
                 "GET",
                 &format!("{p}/repository/commits/{SHA}/statuses"),
-                json(200, &j!(estados)),
+                if caso.checks_403 {
+                    json(403, &j!({"message": "403 Forbidden"}))
+                } else {
+                    json(200, &j!(estados))
+                },
             );
             if let Plan::GitLab(plan) = caso.plan {
                 m.responder(
@@ -565,7 +591,102 @@ fn ramas_protegidas_sin_fallos_dan_cero() {
             recibidas.iter().all(|l| l.starts_with("GET ")),
             "{recibidas:?}"
         );
+        // R1-06 de TASK-035: lo comun al repo se lee una vez y los checks
+        // publicados solo en `develop`.
+        let veces = |trozo: &str| recibidas.iter().filter(|l| l.contains(trozo)).count();
+        let una_vez: &[&str] = match prov {
+            Prov::GitHub => &[
+                "/rulesets",
+                "/rules/branches/develop",
+                "/rules/branches/main",
+                "/check-runs",
+            ],
+            Prov::GitLab => &[
+                "/protected_branches",
+                "/approval_rules",
+                "/repository/branches/",
+                "/statuses",
+            ],
+        };
+        for t in una_vez {
+            assert_eq!(veces(t), 1, "{prov:?} {t}: {recibidas:?}");
+        }
+        assert_eq!(veces("heads/main/check-runs"), 0, "{recibidas:?}");
     }
+}
+
+/// H1 (con las respuestas `null` del informe), H3, H4 y H5 de TASK-035:
+/// `required_status_checks: null` y `approvals_required: null` se leen
+/// (como lista vacia y 0) y lo que no esta configurado no sale impuesto; un
+/// 403 en los checks publicados dice su permiso; un 403 en las reglas de
+/// aprobacion de GitLab con plan Premium no es config ausente.
+#[test]
+fn nulos_y_403_parciales_no_dan_nada_por_bueno() {
+    let _serie = serie();
+    let primera = |hs: &[Hallazgo], r: &Resumen| doctor::lineas(hs, r)[0].clone();
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let mut caso = Caso::bien(prov);
+        caso.nulos = true;
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        assert_eq!(r.plataforma, "ok", "{prov:?}");
+        let (cuentas, id) = match prov {
+            Prov::GitHub => (
+                " plan=github-free-publico-usuario impuestas=18 sustituidas=1 no-disponibles=1 ",
+                "G09",
+            ),
+            // G06 ya falta en el caso (sin propietarios de codigo).
+            Prov::GitLab => (
+                " plan=gitlab-premium impuestas=15 sustituidas=3 no-disponibles=2 ",
+                "G03",
+            ),
+        };
+        assert!(
+            primera(&hs, &r).contains(cuentas),
+            "{prov:?}: {}",
+            primera(&hs, &r)
+        );
+        assert!(
+            lineas_de(&hs, "garantia").contains(&format!(
+                "garantia {id} aviso motivo=config capacidad=no-disponible arreglo=tc2-init"
+            )),
+            "{prov:?}: {:?}",
+            lineas_de(&hs, "garantia")
+        );
+        // H3: 403 en los checks publicados.
+        let mut caso = Caso::bien(prov);
+        caso.checks_403 = true;
+        let (hs, _, _) = doctor_contra(prov, &caso);
+        let permiso = match prov {
+            Prov::GitHub => "checks:read",
+            Prov::GitLab => "read_api",
+        };
+        assert_eq!(
+            lineas_de(&hs, "check"),
+            MODELO
+                .iter()
+                .map(|c| format!(
+                    "check {c} no-comprobado motivo=permiso-insuficiente rama=develop permiso={permiso}"
+                ))
+                .collect::<Vec<_>>(),
+            "{prov:?}"
+        );
+    }
+    // H4: GitLab Premium legible y 403 en las reglas de aprobacion.
+    let mut caso = Caso::bien(Prov::GitLab);
+    caso.aprobacion_403 = true;
+    let (hs, r, _) = doctor_contra(Prov::GitLab, &caso);
+    let g = lineas_de(&hs, "garantia");
+    assert!(
+        g.contains(&"garantia G03 no-comprobado motivo=permiso-insuficiente".to_owned()),
+        "{g:?}"
+    );
+    assert!(
+        primera(&hs, &r).contains(
+            " plan=gitlab-premium impuestas=15 sustituidas=3 no-disponibles=1 no-comprobadas=1 "
+        ),
+        "{}",
+        primera(&hs, &r)
+    );
 }
 
 /// C4: un 403 al leer las puertas da `falla motivo=permiso-insuficiente
@@ -600,6 +721,40 @@ fn permisos_insuficientes_y_ci_que_aprueba_fallan() {
             "{prov:?}"
         );
         assert_eq!(codigo(&hs, &r), 3);
+        // H1 de TASK-035: sin puertas leidas, las garantias cuya
+        // configuracion se lee de ellas no salen impuestas.
+        let (cuentas, ids) = match prov {
+            Prov::GitHub => (
+                " plan=github-free-publico-usuario impuestas=13 sustituidas=1 no-disponibles=0 no-comprobadas=6 ",
+                vec!["G01", "G02", "G03", "G04", "G05", "G09"],
+            ),
+            Prov::GitLab => (
+                " plan=gitlab-premium impuestas=14 sustituidas=3 no-disponibles=0 no-comprobadas=3 ",
+                vec!["G02", "G03", "G06"],
+            ),
+        };
+        let primera = doctor::lineas(&hs, &r)[0].clone();
+        assert!(primera.contains(cuentas), "{prov:?}: {primera}");
+        let g = lineas_de(&hs, "garantia");
+        for id in ids {
+            assert!(
+                g.contains(&format!(
+                    "garantia {id} no-comprobado motivo=puertas-no-leidas"
+                )),
+                "{prov:?} {id}: {g:?}"
+            );
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(&doctor::salida(&hs, &r, true, Idioma::Es).stdout).unwrap();
+        let g02 = v["hallazgos"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["area"] == "garantia" && h["id"] == "G02")
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(g02["estado"], "no-comprobado", "{prov:?}: {g02}");
+        assert!(g02.get("capacidad").is_none(), "{prov:?}: {g02}");
     }
     let mut caso = Caso::bien(Prov::GitHub);
     caso.ci = Ci::Prohibido;
@@ -945,11 +1100,18 @@ fn sin_red_sin_credenciales_o_sin_plataforma_no_comprueba() {
                 "proteccion main no-comprobado motivo=sin-red"
             ]
         );
-        assert!(
-            hs.iter()
-                .filter(|h| h.area == "proteccion" || h.area == "permisos")
-                .all(|h| h.estado == Estado::NoComprobado)
-        );
+        // R1-05 de TASK-035: tambien `check` y `garantia`.
+        for area in ["proteccion", "permisos", "check", "garantia"] {
+            let de_area: Vec<&Hallazgo> = hs.iter().filter(|h| h.area == area).collect();
+            assert!(!de_area.is_empty(), "{prov:?} {area}");
+            assert!(
+                de_area
+                    .iter()
+                    .all(|h| h.estado == Estado::NoComprobado
+                        && h.motivo.as_deref() == Some("sin-red")),
+                "{prov:?} {area}: {de_area:?}"
+            );
+        }
     }
     // El binario, con la plataforma de produccion: `origin` es una carpeta,
     // asi que no hay plataforma reconocida.
