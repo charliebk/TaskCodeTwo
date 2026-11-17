@@ -217,6 +217,31 @@ impl Cuerpo {
     }
 }
 
+impl Cuerpo {
+    /// Si la tarea esta en pausa (D1 de TASK-034): de las filas de
+    /// `## Transiciones` con fase [`PAUSA`] o [`REANUDAR`], la ultima es
+    /// `pausa`. Sin ninguna de las dos, no. La pausa no es un estado (F1-9
+    /// cierra la lista): son estas filas, las que F1-17 descuenta.
+    pub fn en_pausa(&self) -> bool {
+        let Some(s) = self.seccion(TRANSICIONES) else {
+            return false;
+        };
+        s.texto
+            .lines()
+            .rev()
+            .filter_map(|l| l.trim().strip_prefix('|')?.split('|').nth(1))
+            .map(str::trim)
+            .find(|fase| *fase == PAUSA || *fase == REANUDAR)
+            == Some(PAUSA)
+    }
+}
+
+/// Fase de la fila que pone una tarea en pausa (`tc2 pausa`).
+pub const PAUSA: &str = "pausa";
+
+/// Fase de la fila que la saca de la pausa (`tc2 reanudar`).
+pub const REANUDAR: &str = "reanudar";
+
 /// Titulo de la seccion de transiciones.
 const TRANSICIONES: &str = "Transiciones";
 
@@ -377,6 +402,31 @@ mod tests {
         );
         // Lo escrito se vuelve a leer igual.
         assert_eq!(Cuerpo::leer(&c.escribir()), c);
+    }
+
+    /// TASK-034 (C9 y C10): en pausa si la ultima fila `pausa`/`reanudar`
+    /// es `pausa`; las demas filas no cuentan, ni una `pausa` fuera de la
+    /// seccion.
+    #[test]
+    fn en_pausa_por_la_ultima_fila_de_pausa_o_reanudar() {
+        let fila = |fase: &'static str| Transicion { fase, ..T };
+        let mut c = Cuerpo::plantilla();
+        assert!(!c.en_pausa());
+        c.anadir_transicion(&fila(PAUSA));
+        assert!(c.en_pausa());
+        // Otra transicion detras no la saca de la pausa.
+        c.anadir_transicion(&fila("start"));
+        assert!(c.en_pausa());
+        c.anadir_transicion(&fila(REANUDAR));
+        assert!(!c.en_pausa());
+        c.anadir_transicion(&fila(PAUSA));
+        assert!(c.en_pausa());
+        // Una «pausa» en otra seccion o fuera de la columna de la fase, no.
+        let c = Cuerpo::leer(
+            "## Objetivo\n| x | pausa | y |\n## Transiciones\n| fecha | fase |\n|---|---|\n| a | reanudar | pausa |\n",
+        );
+        assert!(!c.en_pausa());
+        assert!(!Cuerpo::leer("").en_pausa());
     }
 
     #[test]
