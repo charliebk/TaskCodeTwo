@@ -25,7 +25,7 @@ pub mod texto;
 use std::path::{Path, PathBuf};
 
 use crate::Salida;
-use crate::contrato::{Informe, Resultado, cadena_json, escapar_valor};
+use crate::contrato::{Informe, LineaAccion, Resultado};
 use crate::git::Git;
 use crate::i18n::catalogo::desinstalar as txt;
 use crate::i18n::{Idioma, Mensaje};
@@ -248,47 +248,29 @@ impl Accion {
         self
     }
 
-    /// Linea `accion ruta=... clase=... dueno=... decision=...`.
+    /// Linea `accion ruta=... clase=... dueno=... decision=...` (formato
+    /// comun de [`LineaAccion`]).
     pub fn linea(&self) -> String {
-        let mut s = format!(
-            "accion ruta={} clase={} dueno={} decision={}",
-            escapar_valor(&self.ruta, false),
-            self.clase,
-            self.dueno,
-            self.decision.texto()
-        );
-        for (k, v) in [
-            ("motivo", &self.motivo),
-            ("orden", &self.orden),
-            ("sha", &self.sha),
-        ] {
-            if let Some(v) = v {
-                s.push_str(&format!(" {k}={}", escapar_valor(v, false)));
-            }
-        }
-        s
+        self.comun(|l| l.texto())
     }
 
     /// La misma linea en JSON.
     pub fn json(&self) -> String {
-        let mut s = format!(
-            "{{\"accion\":{{\"ruta\":{},\"clase\":{},\"dueno\":{},\"decision\":{}",
-            cadena_json(&self.ruta),
-            cadena_json(self.clase),
-            cadena_json(self.dueno),
-            cadena_json(self.decision.texto())
-        );
-        for (k, v) in [
-            ("motivo", &self.motivo),
-            ("orden", &self.orden),
-            ("sha", &self.sha),
-        ] {
-            if let Some(v) = v {
-                s.push_str(&format!(",\"{k}\":{}", cadena_json(v)));
-            }
-        }
-        s.push_str("}}");
-        s
+        self.comun(|l| l.json())
+    }
+
+    fn comun(&self, f: impl Fn(&LineaAccion<'_>) -> String) -> String {
+        f(&LineaAccion {
+            ruta: &self.ruta,
+            clase: self.clase,
+            dueno: self.dueno,
+            decision: self.decision.texto(),
+            extra: &[
+                ("motivo", self.motivo.as_deref()),
+                ("orden", self.orden.as_deref()),
+                ("sha", self.sha.as_deref()),
+            ],
+        })
     }
 
     /// Aviso para la persona por stderr (aunque la orden salga bien): la

@@ -56,6 +56,23 @@ pub const FICHERO_IDENTIDAD: &str = "identidad.yml";
 /// Indices temporales de la transaccion, en [`CARPETA_COMUN`].
 pub const CARPETA_TEMPORALES: &str = "estado-tmp";
 
+/// Workflow de CI que deja `tc2 init` (F3-1). Hasta que F5-1 entregue el
+/// reutilizable, `init` solo deja la ranura (`pendiente motivo=sin-plantilla`).
+pub const RUTA_WORKFLOW: &str = concat!(".github/workflows/", nombre!(), ".yml");
+
+/// Lineas que `tc2 init` anade a `.gitignore` (F1-3 encargaba a F3-1 ignorar
+/// la carpeta montada y la propia): versionadas, se anaden y nunca se quitan
+/// solas.
+pub const LINEAS_GITIGNORE: [&str; 2] = ["/tareas/", concat!("/.", nombre!(), "/")];
+
+/// Lineas que la 2.0 escribe en `info/exclude` (`git::rama::excluir`): los
+/// worktrees de tarea y la rama de estado montada.
+pub const LINEAS_EXCLUDE: [&str; 2] = [concat!("/.", nombre!(), "/worktrees/"), "/tareas/"];
+
+/// Prefijo de los rulesets que propone `tc2 init` (F1-12 D1a; F1-5 los
+/// llamaba `taskcode-*`).
+pub const PREFIJO_RULESETS: &str = concat!(nombre!(), "-");
+
 /// Texto del `LEEME.md` del commit raiz de la rama de estado.
 pub(crate) const TEXTO_LEEME: &str = concat!(
     "# Rama de estado de TaskCodeTwo\n\nEsta rama (`",
@@ -87,6 +104,19 @@ mod tests {
         assert_eq!(CARPETA_COMUN, NOMBRE);
         assert_eq!(CARPETA_WORKTREES, format!(".{NOMBRE}/worktrees"));
         assert!(TEXTO_LEEME.contains(&format!("(`{RAMA_ESTADO}`)")));
+        assert_eq!(RUTA_WORKFLOW, format!(".github/workflows/{NOMBRE}.yml"));
+        assert_eq!(PREFIJO_RULESETS, format!("{NOMBRE}-"));
+    }
+
+    /// Las lineas de `exclude` y `.gitignore` nombran las carpetas reales.
+    #[test]
+    fn lineas_de_exclude_y_gitignore() {
+        let tareas = format!("/{}/", crate::estado::CARPETA);
+        assert_eq!(
+            LINEAS_EXCLUDE,
+            [format!("/{CARPETA_WORKTREES}/"), tareas.clone()]
+        );
+        assert_eq!(LINEAS_GITIGNORE, [tareas, format!("/.{NOMBRE}/")]);
     }
 
     /// C5: las refs propias viven bajo `refs/taskcodetwo/`.

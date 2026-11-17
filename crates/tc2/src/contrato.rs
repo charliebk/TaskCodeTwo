@@ -242,6 +242,61 @@ impl From<Informe> for Salida {
     }
 }
 
+/// Una linea del plan de una orden que trabaja con «plan como dato» (F1-12
+/// PL1: `desinstalar`, `init`): `accion ruta=... clase=... dueno=...
+/// decision=...` y las claves opcionales que haya, en el orden dado. Cada
+/// orden tiene su enum de decisiones; aqui llega ya como texto.
+#[derive(Debug, Clone, Copy)]
+pub struct LineaAccion<'a> {
+    /// Ruta, ref o nombre.
+    pub ruta: &'a str,
+    /// Que es.
+    pub clase: &'a str,
+    /// De quien es.
+    pub dueno: &'a str,
+    /// Que se decide.
+    pub decision: &'a str,
+    /// Claves opcionales (`motivo`, `orden`, `sha`...).
+    pub extra: &'a [(&'a str, Option<&'a str>)],
+}
+
+impl LineaAccion<'_> {
+    /// La linea de texto, con los valores escapados como el contrato.
+    pub fn texto(&self) -> String {
+        let mut s = format!(
+            "accion ruta={} clase={} dueno={} decision={}",
+            escapar_valor(self.ruta, false),
+            self.clase,
+            self.dueno,
+            self.decision
+        );
+        for (k, v) in self.extra {
+            if let Some(v) = v {
+                s.push_str(&format!(" {k}={}", escapar_valor(v, false)));
+            }
+        }
+        s
+    }
+
+    /// La misma linea en JSON, en una linea.
+    pub fn json(&self) -> String {
+        let mut s = format!(
+            "{{\"accion\":{{\"ruta\":{},\"clase\":{},\"dueno\":{},\"decision\":{}",
+            cadena_json(self.ruta),
+            cadena_json(self.clase),
+            cadena_json(self.dueno),
+            cadena_json(self.decision)
+        );
+        for (k, v) in self.extra {
+            if let Some(v) = v {
+                s.push_str(&format!(",{}:{}", cadena_json(k), cadena_json(v)));
+            }
+        }
+        s.push_str("}}");
+        s
+    }
+}
+
 /// Hash abreviado a 12 caracteres, como fija el contrato.
 pub fn corto(hash: &str) -> String {
     hash.chars().take(12).collect()

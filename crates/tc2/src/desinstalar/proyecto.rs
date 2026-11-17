@@ -9,7 +9,7 @@ use std::time::Duration;
 use super::texto::hooks_con_tc2;
 use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, leer, t};
 use crate::contrato::{Informe, Resultado};
-use crate::estado::{CARPETA, Cerrojo};
+use crate::estado::Cerrojo;
 use crate::git::estado::dir_comun;
 use crate::git::rama::renombrar;
 use crate::git::{
@@ -19,11 +19,6 @@ use crate::git::{
 use crate::huella::{self, RAMA_ESTADO};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::desinstalar as txt;
-
-/// Lineas que la 2.0 escribe en `info/exclude` (`git::rama::excluir`).
-fn lineas_exclude() -> [String; 2] {
-    [format!("/{CARPETA_WORKTREES}/"), format!("/{CARPETA}/")]
-}
 
 /// Si la carpeta `dir` esta dentro de `ruta` (o es ella).
 fn dentro(dir: &Path, ruta: &Path) -> bool {
@@ -161,10 +156,10 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     if let Some(bytes) = leer(&exclude)?
         && let Ok(texto) = String::from_utf8(bytes.clone())
     {
-        let propias = lineas_exclude();
+        let propias = huella::LINEAS_EXCLUDE;
         let nuevo: String = texto
             .split_inclusive('\n')
-            .filter(|l| !propias.iter().any(|p| l.trim() == p))
+            .filter(|l| !propias.iter().any(|p| l.trim() == *p))
             .collect();
         if nuevo != texto {
             v.push(Accion::borra(

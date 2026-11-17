@@ -251,10 +251,42 @@ impl Personas {
     }
 }
 
+/// Texto de una lista con una sola persona, la de `GET /user` (lo que
+/// escribe `tc2 init`, F3-1). El login va entre comillas dobles; quien lo
+/// escribe lo valida antes con [`Personas::leer`].
+pub fn texto_de(u: &super::Usuario) -> String {
+    format!(
+        "---\npersonas:\n  - {{id: {}, login: \"{}\"}}\n",
+        u.id,
+        u.login.replace('\\', "\\\\").replace('"', "\\\"")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::i18n::Idioma;
+
+    /// Lo que escribe `init` se vuelve a leer igual.
+    #[test]
+    fn texto_de_un_usuario_se_lee() -> Result<(), Informe> {
+        let u = super::super::Usuario {
+            login: "carlos".into(),
+            id: 1001,
+            tipo: "User".into(),
+        };
+        let l = Personas::leer(&texto_de(&u))?;
+        assert_eq!(
+            l.entradas(),
+            [Persona {
+                id: 1001,
+                login: "carlos".into(),
+                nombre: None,
+                correos: Vec::new(),
+            }]
+        );
+        Ok(())
+    }
 
     fn error(texto: &str) -> String {
         Personas::leer(texto)
