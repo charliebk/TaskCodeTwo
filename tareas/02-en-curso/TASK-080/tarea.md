@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-080-f3-9-inventario-de-skills-y-agentes-inst
 asignado_a: charlie.bk@gmail.com
@@ -49,6 +49,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 |---|---|---|---|---|
 | 2026-11-17T19:27:49Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T19:35:53Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T19:35:54Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
