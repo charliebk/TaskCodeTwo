@@ -7,6 +7,7 @@
 
 mod comun;
 
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -97,6 +98,10 @@ fn tarea(id: &str, estado: &str, skills: &[&str]) -> String {
     let mut t = Tarea::nueva(id, &format!("Titulo de {id}"), "2026-01-01");
     t.sprint = 1;
     t.estado = estado.to_owned();
+    // Una descartada sin `motivo` no se lee (y no probaria nada).
+    if estado == "descartada" {
+        t.motivo = Some("ya no hace falta".to_owned());
+    }
     t.roles.revision.skills = skills.iter().map(|s| (*s).to_owned()).collect();
     t.roles.revision.agente = Some("general-purpose".to_owned());
     t.escribir(&Cuerpo::leer(""))
@@ -131,7 +136,22 @@ fn repo(f: &Fixture, config: Option<&str>, tareas: &[(&str, String)]) -> (PathBu
 /// (codigo, stdout, stderr) de `tc2 <args>` en `dir` con la carpeta de
 /// Claude Code `claude`.
 fn tc2(f: &Fixture, dir: &Path, claude: &Path, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    tc2_con_path(f, dir, claude, args, None)
+}
+
+/// Como [`tc2`], con `PATH` dado si es `Some`.
+fn tc2_con_path(
+    f: &Fixture,
+    dir: &Path,
+    claude: &Path,
+    args: &[&str],
+    path: Option<&OsStr>,
+) -> (i32, String, String) {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
+    if let Some(p) = path {
+        c.env("PATH", p);
+    }
+    let o = c
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
@@ -264,7 +284,7 @@ fn recurso_de_la_config_no_instalado_falla() {
 
 /// C3: una tarea abierta con `roles.revision.skills` que nombra algo no
 /// instalado da `falla` con `tarea=` y arreglo; si existe, nada; una
-/// terminada no cuenta.
+/// terminada o descartada no cuenta.
 #[test]
 fn skill_de_una_tarea_abierta_no_instalada_falla() {
     let f = Fixture::nueva("recursos-c3");
@@ -278,6 +298,11 @@ fn skill_de_una_tarea_abierta_no_instalada_falla() {
             (
                 "TASK-004",
                 tarea("TASK-004", "terminada", &["tampoco-esta"]),
+            ),
+            // H5 (ronda 1): una descartada tampoco cuenta.
+            (
+                "TASK-005",
+                tarea("TASK-005", "descartada", &["descartada-no-esta"]),
             ),
         ],
     );
@@ -294,6 +319,8 @@ fn skill_de_una_tarea_abierta_no_instalada_falla() {
         "{hs:?}"
     );
     assert!(!out.contains("tampoco-esta"), "{out}");
+    assert!(!out.contains("descartada-no-esta"), "{out}");
+    assert!(!out.contains("TASK-005"), "{out}");
     let falla = v["hallazgos"]
         .as_array()
         .unwrap()
@@ -525,9 +552,25 @@ fn plugins_ilegibles_no_comprobado() {
     );
 }
 
+/// Nombres con los que `tc2` encontraria un ejecutable `rtk` en una carpeta.
+const RTK: [&str; 5] = ["rtk", "rtk.exe", "rtk.cmd", "rtk.bat", "rtk.com"];
+
+/// El `PATH` del proceso sin las carpetas que tienen `rtk` (git sigue a
+/// mano) y, si se da, con `extra` delante. Asi el resultado de `rtk` no
+/// depende de la maquina (MEN-3 de la ronda 1).
+fn path_sin_rtk(extra: Option<&Path>) -> OsString {
+    let actual = std::env::var_os("PATH").unwrap_or_default();
+    let dirs = extra
+        .map(Path::to_path_buf)
+        .into_iter()
+        .chain(std::env::split_paths(&actual).filter(|d| RTK.iter().all(|n| !d.join(n).is_file())));
+    std::env::join_paths(dirs).unwrap()
+}
+
 /// C9: sin `taskcodetwo`, una sola `falla` (la suya, con el arreglo de
-/// instalarlo); con la 0.16, `aviso` de nivel estorba; sin engram ni
-/// context7, `aviso` de nivel conveniente y, con el plugin, codigo 0.
+/// instalarlo); con la 0.16, `aviso` de nivel estorba; sin engram, context7
+/// ni rtk (PATH controlado), `aviso` de nivel conveniente y, con el plugin,
+/// codigo 0; con un `rtk` en el PATH, `ok`.
 #[test]
 fn suelo_del_manifiesto() {
     let f = Fixture::nueva("recursos-c9");
@@ -540,7 +583,14 @@ fn suelo_del_manifiesto() {
         },
     );
     let (_, clon) = repo(&f, None, &[]);
-    let (c, out, _) = tc2(&f, &clon, &claude, &["doctor", "--recursos", "--json"]);
+    let sin_rtk = path_sin_rtk(None);
+    let (c, out, _) = tc2_con_path(
+        &f,
+        &clon,
+        &claude,
+        &["doctor", "--recursos", "--json"],
+        Some(&sin_rtk),
+    );
     assert_eq!(c, 3, "{out}");
     let v = json(&out);
     let todos = v["hallazgos"].as_array().unwrap();
@@ -551,20 +601,51 @@ fn suelo_del_manifiesto() {
     let de = |id: &str| todos.iter().find(|h| h["id"] == id).unwrap().clone();
     assert_eq!(de("taskcode-plugin")["estado"], "aviso");
     assert_eq!(de("taskcode-plugin")["nivel"], "estorba");
-    for id in ["engram", "context7"] {
+    for id in ["engram", "context7", "rtk"] {
         assert_eq!(de(id)["estado"], "aviso", "{id}");
         assert_eq!(de(id)["nivel"], "conveniente", "{id}");
+        assert_eq!(de(id)["motivo"], "no-instalado", "{id}");
     }
+    assert_eq!(de("rtk")["tipo"], "ejecutable");
     let f = Fixture::nueva("recursos-c9-ok");
     let claude = maquina(&f, NORMAL);
     let (_, clon) = repo(&f, None, &[]);
-    let (c, out, err) = tc2(&f, &clon, &claude, &["doctor", "--recursos"]);
+    let (c, out, err) = tc2_con_path(
+        &f,
+        &clon,
+        &claude,
+        &["doctor", "--recursos"],
+        Some(&sin_rtk),
+    );
     assert_eq!((c, err.as_str()), (0, ""), "{out}");
     assert!(out.starts_with("doctor ok fallos=0 avisos="), "{out}");
     assert!(
         out.contains("recursos engram aviso motivo=no-instalado tipo=mcp nivel=conveniente"),
         "{out}"
     );
+    assert!(
+        out.contains("recursos rtk aviso motivo=no-instalado tipo=ejecutable nivel=conveniente"),
+        "{out}"
+    );
+    // Con un `rtk` falso en el PATH, `ok`.
+    let bin = f.raiz.join("bin");
+    escribir(&bin, if cfg!(windows) { "rtk.exe" } else { "rtk" }, "");
+    let con_rtk = path_sin_rtk(Some(&bin));
+    let (_, out, _) = tc2_con_path(
+        &f,
+        &clon,
+        &claude,
+        &["doctor", "--recursos", "--json"],
+        Some(&con_rtk),
+    );
+    let v = json(&out);
+    let rtk = v["hallazgos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|h| h["id"] == "rtk")
+        .unwrap_or_else(|| panic!("{out}"));
+    assert_eq!(rtk["estado"], "ok", "{out}");
 }
 
 /// C10: dos ejecuciones, y otra con las carpetas creadas en otro orden, dan
