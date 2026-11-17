@@ -27,11 +27,14 @@ dependencias: []
 Cerrar los MENORES aceptados en TASK-027 y estabilizar tests/comun/http_mock.rs, que da sinred intermitente en esta maquina.
 
 ## Criterios de aceptacion
-- [ ] ejecutar_con_limite devuelve la salida ya leida cuando un nieto retiene stdout y su doc dice lo que hace (test con nieto, MEN-7 r3)
-- [ ] Un fallo de TLS no se reintenta y el timeout global no dobla la espera (tests en crates/tc2/src/descarga.rs, MEN-8 y MEN-9 r3)
-- [ ] Tests de integracion de redireccion no permitida y de limite de tamano en crates/tc2/tests/actualizar_cli.rs (MEN-5 r1)
-- [ ] tests/comun/http_mock.rs no manda FIN tras una respuesta completa (test determinista en tests/comun: tras leer el Content-Length la lectura siguiente agota el plazo y no da Ok(0)) y plataforma y plataforma_gitlab pasan 10 de 10 seguidas (evidencia del script en ## Resultado)
+- [x] ejecutar_con_limite devuelve la salida ya leida cuando un nieto retiene stdout y su doc dice lo que hace (test con nieto, MEN-7 r3)
+- [x] Un fallo de TLS no se reintenta y el timeout global no dobla la espera (tests en crates/tc2/src/descarga.rs, MEN-8 y MEN-9 r3)
+- [x] Tests de integracion de redireccion no permitida y de limite de tamano en crates/tc2/tests/actualizar_cli.rs (MEN-5 r1)
+- [x] tests/comun/http_mock.rs no manda FIN tras una respuesta completa (test determinista en tests/comun: tras leer el Content-Length la lectura siguiente agota el plazo y no da Ok(0)) y plataforma y plataforma_gitlab pasan 10 de 10 seguidas (evidencia del script en ## Resultado)
 - [ ] El doc de bajar_con_un_reintento esta sobre su funcion y sin lineas duplicadas (test unitario con include_str! en crates/tc2/src/actualizar_cli.rs)
+
+
+Revision ronda 1 (rust-wasm-reviewer, unica revisora que pide taskctl): aprobada con correcciones; mutacion por criterio en rojo; `plataforma` 3 de 3 a ~3,8 s. MEN-1 (`es_transitorio` publico exponia `ureq::Error`) corregido en a9b821f (pasa a `pub(crate)`). Decision de Carlos via consigna (opcion recomendada): los tests con el mock HTTP van en serie con un cerrojo comun en vez de tocar el antivirus; excluir `target` de Avast queda como decision suya, sin hacer.
 
 ## Resultado
 
