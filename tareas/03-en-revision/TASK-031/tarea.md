@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 31389330
-tokens_revision: 11695419
+tokens_revision: 14889520
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-018]
@@ -29,12 +29,12 @@ dependencias: [TASK-018]
 Tarea F3-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-3.
 
 ## Criterios de aceptacion
-- [ ] C1: dos clones lanzan `tc2 new` a la vez y los dos acaban `ok`; el `ROADMAP.md` final tiene las dos tareas, `git log --merges taskcodetwo/tareas` vacio y `tc2 roadmap --comparar` al dia (ampliando `tests/alta.rs` y `tests/estado_concurrencia.rs`)
-- [ ] C2: editada la zona manual, tras `new`, `import` y `roadmap --escribir` sigue identica byte a byte, tambien con CRLF (tests en `roadmap/zona.rs` y `tests/roadmap.rs`)
-- [ ] C3: `for-each-ref`, `status --porcelain` y el arbol de `HEAD` antes y despues de `new`, `import`, `roadmap` y `roadmap --escribir`: solo cambian `refs/heads/taskcodetwo/tareas` y su ref remota; `roadmap` y `--comparar` no cambian ninguna ref
-- [ ] C4: sobre la instantanea de ToolsaWeb y en un repo de prueba, «Listas para empezar» y «En marcha» del ROADMAP son iguales a `listas=` y `en-marcha=` de `tc2 next`
-- [ ] C5: la salida de referencia cubre cada seccion (con quien, revision, hito con dependencias y Mermaid, terminadas y descartadas) y `--escribir` dos veces seguidas da `sin-cambios` la segunda
-- [ ] C6: con la instantanea de ToolsaWeb (titulos de 60 caracteres) el fichero no pasa de 100 KB y cada bloque Mermaid tiene menos de 500 aristas y menos de 50 000 caracteres
+- [x] C1: dos clones lanzan `tc2 new` a la vez y los dos acaban `ok`; el `ROADMAP.md` final tiene las dos tareas, `git log --merges taskcodetwo/tareas` vacio y `tc2 roadmap --comparar` al dia (ampliando `tests/alta.rs` y `tests/estado_concurrencia.rs`)
+- [x] C2: editada la zona manual, tras `new`, `import` y `roadmap --escribir` sigue identica byte a byte, tambien con CRLF (tests en `roadmap/zona.rs` y `tests/roadmap.rs`)
+- [x] C3: `for-each-ref`, `status --porcelain` y el arbol de `HEAD` antes y despues de `new`, `import`, `roadmap` y `roadmap --escribir`: solo cambian `refs/heads/taskcodetwo/tareas` y su ref remota; `roadmap` y `--comparar` no cambian ninguna ref
+- [x] C4: sobre la instantanea de ToolsaWeb y en un repo de prueba, «Listas para empezar» y «En marcha» del ROADMAP son iguales a `listas=` y `en-marcha=` de `tc2 next`
+- [x] C5: la salida de referencia cubre cada seccion (con quien, revision, hito con dependencias y Mermaid, terminadas y descartadas) y `--escribir` dos veces seguidas da `sin-cambios` la segunda
+- [x] C6: con la instantanea de ToolsaWeb (titulos de 60 caracteres) el fichero no pasa de 100 KB y cada bloque Mermaid tiene menos de 500 aristas y menos de 50 000 caracteres
 
 ## Resultado
 
@@ -72,6 +72,15 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 - MENOR (no corregido): tras publicar, `tareas/ROADMAP.md` se sobrescribe con lo publicado; si la persona lo edita justo en ese momento, ese ultimo cambio se pierde.
 - MENOR (no verificado): con `core.autocrlf=true`, una zona editada con finales mixtos se normaliza al prepararla; los tests usan `autocrlf=false`.
 
+
+Revision (rust-wasm-reviewer y code-quality-reviewer):
+- Ronda 1: calidad aprobada; rust cambios solicitados por IMP-1 (`--escribir` pisaba en silencio una zona manual publicada por otro). Corregido en 48d4390 (`motivo=zona-divergente`, la edicion de la persona se conserva) junto con MEN-1/MEN-2 rust y MEN-1/MEN-3/MEN-6 calidad (154c1e5, e0cc487); fallo nuevo del primer ROADMAP con H0 corregido en `situacion.rs`.
+- Ronda 2 (solo rust; calidad ya habia aprobado): aprobada, IMP-1 verificado con dos clones y mutacion en rojo.
+
+Pendiente para Carlos (D7): pegar `tests/fixtures/roadmap/referencia.md` (o la salida de `tc2 roadmap`) en un repo de prueba de GitHub y comprobar que cada bloque Mermaid se pinta.
+
+MENORES aceptados (a seguimiento, TASK-123): `restaurar_indice` sin test que lo ejercite; ventana de milisegundos al adelantar la carpeta tras publicar (MEN-4 calidad); heredado convertido distinto con `origin/develop` distinto (MEN-5 calidad); zona con CRLF puro o `` sueltos sin probar (MEN-7 calidad); un ROADMAP de la 0.16 con texto dentro de la marca de fin pasa a `roadmap-roto` (consecuencia buscada de MEN-2).
+
 ## Autorrevision
 
 - rust-wasm-reviewer — 3a1dd0f
@@ -96,6 +105,7 @@ Hallazgos de la autorrevision (sin CRITICO ni IMPORTANTE):
 | 2026-11-17T07:50:35Z | revision | agente:ace2aa3dc468d04ff | 100 | 137119 | 5205970 | 27519 | 6 | 5370708 | 1 | rust-wasm-reviewer |
 | 2026-11-17T07:50:36Z | revision | agente:a1d85b913c26ea9d8 | 102 | 161017 | 6127438 | 36154 | 31 | 6324711 | 1 | code-quality-reviewer |
 | 2026-11-17T08:04:46Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1039 | 910619 | 324 | 0 | 911984 | - | - |
+| 2026-11-17T08:13:07Z | revision | agente:a99bbfd808af23319 | 66 | 115814 | 3063597 | 14624 | 3 | 3194101 | 2 | rust-wasm-reviewer |
 
 ## Revisores no relanzados
 
