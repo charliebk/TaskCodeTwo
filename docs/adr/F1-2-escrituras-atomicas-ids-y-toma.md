@@ -507,3 +507,30 @@ Evidencia: `crates/tc2/tests/alta.rs` (`rama_solo_en_el_remoto_ocupa_su_id`,
 `ls_remote_previo_sin_red_o_denegado_no_deja_nada`) y los unitarios de
 `alta.rs` (`siguiente_id_es_el_maximo_mas_uno`) y `git/rama.rs`
 (`id_de_las_ramas_de_tarea`).
+
+## Adenda (F3-7, TASK-034) — descartar exige red; pausa y reanudar no
+
+Se precisa el **punto 5** (decisión D4 de TASK-034, opción recomendada
+aceptada por Carlos para todo el H3).
+
+- **`descartar` exige red**, como `new`, `import`, `start`, `liberar` y
+  `reasignar`: aunque toca solo la tarea propia (o una sin asignar), cambia
+  lo que `next` ofrece y las dependencias de los demás, y un descarte
+  pendiente que otro adelantara empezando la tarea se perdería. Sin red,
+  `descartar sinred pendiente=no` (4) sin commit ni ref pendiente. Antes de
+  la transacción hace `fetch` (también las ramas): con la rama de la tarea
+  al día se decide si su worktree está publicado y se puede quitar.
+- **`pausa` y `reanudar` no exigen red**: son transiciones de una tarea que
+  lleva quien las lanza (o que no lleva nadie), filas `pausa`/`reanudar` de
+  `## Transiciones` sin estado nuevo (D1; F1-9 sigue cerrada). Sin red quedan
+  pendientes con su anotación (`pausa|TASK-NNN|<id>|<login>|<instante>`, con
+  el instante de la pausa para que la fila lo conserve al publicarse: F1-17
+  descuenta las pausas por sus filas) y la siguiente transacción con red las
+  re-ejecuta como cualquier pendiente, con `decidido_por: agente`.
+- **El ID de una descartada no se reutiliza** (punto 3, ya escrito): la
+  carpeta no se borra nunca y `descartar` no toca la rama de código.
+
+Evidencia: `crates/tc2/tests/ciclo.rs`
+(`c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente`,
+`c4_el_id_de_la_descartada_no_se_reutiliza`) y los unitarios de
+`ciclo/operacion.rs` (`anotacion_ida_y_vuelta`).
