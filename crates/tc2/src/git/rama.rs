@@ -206,10 +206,7 @@ pub fn fechas_de_ramas(git: &Git, dir: &Path, op: &str) -> Paso<BTreeMap<String,
         dir,
         op,
         Subcomando::ForEachRef,
-        &[
-            "--format=%(committerdate:unix) %(refname)",
-            &prefijo,
-        ],
+        &["--format=%(committerdate:unix) %(refname)", &prefijo],
     )?;
     Ok(fechas(&s, &prefijo))
 }

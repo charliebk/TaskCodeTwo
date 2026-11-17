@@ -48,12 +48,7 @@ fn revisar(git: &Git, principal: &Path, op: &str, id: &str) -> Paso<Revision> {
     let Some(rama) = w.rama else {
         return Ok(Revision::Pendiente("sin-rama", &txt::WORKTREE_HEAD_SUELTO));
     };
-    let publicada = match commit_de(
-        git,
-        principal,
-        op,
-        &format!("refs/remotes/{REMOTO}/{rama}"),
-    )? {
+    let publicada = match commit_de(git, principal, op, &format!("refs/remotes/{REMOTO}/{rama}"))? {
         Some(remota) => es_ancestro(git, &w.ruta, op, "HEAD", &remota)?,
         None => false,
     };

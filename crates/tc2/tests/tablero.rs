@@ -595,3 +595,133 @@ fn board_con_la_plataforma_de_produccion() {
         "{err}"
     );
 }
+
+/// TASK-081 C9 y C10: con filas de transicion de 2020, la tarea en curso
+/// cuenta en `inactivas=1` y `board` marca su fila; la en revision con un
+/// commit reciente en `origin/<rama>` no, aunque su ultima fila sea igual
+/// de antigua. En un clon con el worktree de una tarea que ahora lleva otra
+/// persona, `status` y `board` avisan `ya-no-tuyas=` con quien la lleva,
+/// codigo 0; sin cache de identidad, no.
+#[test]
+fn c9_c10_inactivas_y_ya_no_tuyas() {
+    let f = Fixture::nueva("tablero-f3-10");
+    let (bare, clon) = f.remoto_y_clon();
+    escribir(&clon, ".taskcode/personas.yml", PERSONAS);
+    f.crudo(&clon, &["add", ".taskcode/personas.yml"]);
+    f.crudo(&clon, &["commit", "-q", "-m", "personas"]);
+    f.crudo(&clon, &["push", "-q", "origin", "develop"]);
+    let vieja = "## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2020-01-01T00:00:00Z | start | manual | persona | 0.1 |\n";
+    let md = |id: &str, estado: &str, rama: &str, quien: Option<Asignado>| {
+        let mut t = Tarea::nueva(id, &format!("Titulo de {id}"), "2026-01-01");
+        t.estado = estado.to_owned();
+        t.rama = Some(rama.to_owned());
+        t.asignado_a = quien;
+        t.escribir(&Cuerpo::leer(vieja))
+    };
+    let dir = f.raiz.join("estado");
+    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
+    for (id, texto) in [
+        (
+            "TASK-002",
+            md(
+                "TASK-002",
+                "en-curso",
+                "feature/task-002-b",
+                Asignado::persona(8, "beto"),
+            ),
+        ),
+        (
+            "TASK-003",
+            md(
+                "TASK-003",
+                "en-revision",
+                "feature/task-003-c",
+                Asignado::persona(7, "ana"),
+            ),
+        ),
+    ] {
+        escribir(&dir, &format!("{id}/tarea.md"), &texto);
+    }
+    f.crudo(&dir, &["add", "-A"]);
+    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
+    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
+    // La rama de TASK-003 con un commit de ahora; la de TASK-002 no esta.
+    f.crudo(
+        &clon,
+        &[
+            "push",
+            "-q",
+            "origin",
+            "develop:refs/heads/feature/task-003-c",
+        ],
+    );
+    f.crudo(&clon, &["fetch", "-q", "origin"]);
+    let (c, out, err) = tc2(&f, &clon, "es", &["status", "--json"], &[]);
+    assert_eq!((c, err.as_str()), (0, ""), "{out}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["claves"]["inactivas"], "1", "{out}");
+    assert!(v["claves"].get("ya-no-tuyas").is_none(), "{out}");
+    let (_, texto, _) = tc2(&f, &clon, "es", &["status"], &[]);
+    assert!(texto.trim_end().ends_with(" · sin actividad 1"), "{texto}");
+    let (c, texto, _) = tc2(&f, &clon, "es", &["board", "--sin-plataforma"], &[]);
+    assert_eq!(c, 0);
+    let fila = |id: &str| {
+        texto
+            .lines()
+            .find(|l| l.starts_with(&format!("  {id}  ")))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    assert!(
+        fila("TASK-002").contains("· sin actividad hace ") && fila("TASK-002").ends_with(" días"),
+        "{texto}"
+    );
+    assert!(!fila("TASK-003").contains("sin actividad"), "{texto}");
+    // C10: ana tiene el worktree de TASK-002, que ahora lleva beto.
+    f.crudo(
+        &clon,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feature/task-002-b",
+            ".taskcodetwo/worktrees/TASK-002",
+        ],
+    );
+    let (c, out, err) = tc2(&f, &clon, "es", &["status", "--json"], &[]);
+    assert_eq!((c, err.as_str()), (0, ""), "sin cache no se avisa: {out}");
+    tc2::identidad::Cache::en(&clon.join(".git"))
+        .guardar(
+            &tc2::identidad::Cuenta {
+                proveedor: tc2::plataforma::Proveedor::GitHub,
+                id: 7,
+                login: "ana".to_owned(),
+            },
+            tc2::identidad::ahora(),
+        )
+        .unwrap();
+    for args in [
+        vec!["status", "--json"],
+        vec!["board", "--json", "--sin-plataforma"],
+    ] {
+        let (c, out, err) = tc2(&f, &clon, "es", &args, &[]);
+        assert_eq!(c, 0, "{args:?}: {out}");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            v["claves"]["ya-no-tuyas"],
+            serde_json::json!(["TASK-002"]),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "aviso: TASK-002 ya no es tuya: la lleva @beto; tu worktree sigue en .taskcodetwo/worktrees/TASK-002 y la rama no se ha tocado\n",
+            "{args:?}"
+        );
+    }
+    let (_, _, en) = tc2(&f, &clon, "en", &["status"], &[]);
+    assert!(
+        en.starts_with("warning: TASK-002 is no longer yours: @beto has it"),
+        "{en}"
+    );
+}
