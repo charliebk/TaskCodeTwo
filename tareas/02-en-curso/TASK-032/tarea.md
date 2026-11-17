@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-032-f3-5-board-y-status
 asignado_a: charlie.bk@gmail.com
@@ -41,3 +41,4 @@ Tarea F3-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 |---|---|---|---|---|
 | 2026-11-17T08:16:40Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T08:21:35Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T08:21:36Z | start | automatico | persona | 0.16.1 |
