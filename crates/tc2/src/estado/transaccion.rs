@@ -354,7 +354,7 @@ fn intento(
     anotaciones.push(anotacion.to_owned());
     if let Some(generar) = c.roadmap {
         let texto = generar(&vista).map_err(de_fallo)?;
-        let roadmap = vec![Cambio::nuevo("ROADMAP.md", texto)];
+        let roadmap = vec![Cambio::nuevo(super::ROADMAP, texto)];
         if let Some(i) = duplicada(&vista.rutas(), &roadmap, op) {
             return Ok(Intento::Hecho(i));
         }

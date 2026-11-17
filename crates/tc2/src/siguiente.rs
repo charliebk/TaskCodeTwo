@@ -2,17 +2,18 @@
 //! prioridad.
 //!
 //! Lee el estado tal como lo conoce este clon ([`estado::leer`]: sin
-//! `fetch` y sin escribir; la lectura fresca es de F3-5b), proyecta cada
-//! `tarea.md` a un [`Nodo`] y calcula el orden con [`grafo`]. El orden de los
-//! hitos sale de los titulos `### Hn — titulo` de la zona manual del
+//! `fetch` y sin escribir; la lectura fresca es de F3-5b) y calcula con
+//! [`crate::situacion`], lo mismo que `roadmap` (TASK-031 C4). El orden de
+//! los hitos sale de los titulos `### Hn — titulo` de la zona manual del
 //! `ROADMAP.md` de la rama de estado (D2 de TASK-030).
 //!
 //! Salida: `next ok listas=... en-marcha=... commit=<sha> [avisos]`, con
 //! `commit=` la foto del estado usada. Avisos, solo si los hay:
 //! `ilegibles=` (`tarea.md` que no se entienden: no se saltan en silencio),
 //! `ciclos=` (las atascadas), `dependencias-inexistentes=`,
-//! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=` y `duplicadas=`
-//! (IDs repetidos: vale el primero). Sin rama de estado, `rechazada`.
+//! `depende-de-descartada=` (`A>B`), `hitos-sin-titulo=`, `duplicadas=`
+//! (IDs repetidos: vale el primero) y `roadmap-roto=` (la zona manual del
+//! ROADMAP, rota: D3 de TASK-031). Sin rama de estado, `rechazada`.
 
 use std::path::Path;
 

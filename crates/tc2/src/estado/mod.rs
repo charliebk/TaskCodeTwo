@@ -40,6 +40,10 @@ pub const RAMA: &str = crate::huella::RAMA_ESTADO;
 /// Carpeta del worktree principal donde se monta (ADR F1-1).
 pub const CARPETA: &str = "tareas";
 
+/// `ROADMAP.md` en la raiz de la rama de estado (ADR F1-1, decision 3): lo
+/// escribe el generador de la transaccion y lo leen `next` y `roadmap`.
+pub const ROADMAP: &str = "ROADMAP.md";
+
 /// Refs de las operaciones pendientes de publicar (sin red, D2b).
 pub const REFS_PENDIENTES: &str = crate::huella::REFS_PENDIENTES;
 

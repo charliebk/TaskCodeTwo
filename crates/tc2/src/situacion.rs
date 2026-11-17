@@ -11,8 +11,7 @@ use crate::grafo::{self, Hitos, Nodo};
 use crate::roadmap::zona::{self, Rota};
 use crate::tarea::{Asignado, Documento};
 
-/// `ROADMAP.md` en la raiz de la rama de estado (ADR F1-1, decision 3).
-pub const ROADMAP: &str = "ROADMAP.md";
+pub use crate::estado::ROADMAP;
 
 /// Lo que se muestra de una tarea legible.
 #[derive(Debug, Clone, PartialEq, Eq)]

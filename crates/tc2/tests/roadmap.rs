@@ -37,7 +37,7 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
 }
 
 /// `tc2 <args>` que tiene que salir con `codigo`; devuelve stdout.
-fn exito(f: &Fixture, dir: &Path, args: &[&str], codigo: i32) -> String {
+fn con_codigo(f: &Fixture, dir: &Path, args: &[&str], codigo: i32) -> String {
     let (c, out, err) = tc2(f, dir, args);
     assert_eq!(c, codigo, "tc2 {args:?}: {out} {err}");
     out
@@ -73,7 +73,7 @@ fn lote(f: &Fixture, nombre: &str) -> PathBuf {
 /// `tareas/`.
 fn con_estado_montado(f: &Fixture) -> (PathBuf, PathBuf) {
     let (bare, clon) = f.remoto_y_clon();
-    exito(f, &clon, &["new", "Primera"], 0);
+    con_codigo(f, &clon, &["new", "Primera"], 0);
     assert!(estado::montar(&f.git(), &clon).resultado.es_exito());
     (bare, clon)
 }
@@ -93,7 +93,7 @@ fn zona_manual_editada_sobrevive_a_new_import_y_escribir() {
     };
     std::fs::write(&fichero, antes.replace(vieja, zona_nueva)).unwrap();
 
-    let out = exito(&f, &clon, &["roadmap", "--escribir"], 0);
+    let out = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(out.contains(" tareas=al-dia"), "{out}");
     let comprobar = |paso: &str| {
         let r = publicado(&f, &bare);
@@ -107,12 +107,12 @@ fn zona_manual_editada_sobrevive_a_new_import_y_escribir() {
     comprobar("roadmap --escribir");
     // La zona manda en el orden de los hitos y en los apartados.
     assert!(publicado(&f, &bare).contains("\n## H0 — Base\n"));
-    exito(&f, &clon, &["new", "Segunda"], 0);
+    con_codigo(&f, &clon, &["new", "Segunda"], 0);
     comprobar("new");
     let ruta = lote(&f, "zona");
-    exito(&f, &clon, &["import", ruta.to_str().unwrap()], 0);
+    con_codigo(&f, &clon, &["import", ruta.to_str().unwrap()], 0);
     comprobar("import");
-    let out = exito(&f, &clon, &["roadmap", "--escribir"], 0);
+    let out = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(out.starts_with("roadmap sin-cambios"), "{out}");
     comprobar("el segundo --escribir");
     assert!(publicado(&f, &bare).contains("\n## H2 — Segundo\n"));
@@ -154,12 +154,12 @@ fn zona_rota_no_bloquea_y_se_avisa() {
     f.crudo(&otro, &["commit", "-q", "-am", "zona rota"]);
     f.crudo(&otro, &["push", "-q", "origin", RAMA]);
     let otro_nuevo = f.otro_clon(&bare, "otro-nuevo");
-    let out = exito(&f, &otro_nuevo, &["new", "Pese a todo"], 0);
+    let out = con_codigo(&f, &otro_nuevo, &["new", "Pese a todo"], 0);
     assert!(out.starts_with("new ok id=TASK-002"), "{out}");
     assert_eq!(publicado(&f, &bare), roto, "se deja el anterior");
-    let out = exito(&f, &otro_nuevo, &["next"], 0);
+    let out = con_codigo(&f, &otro_nuevo, &["next"], 0);
     assert!(out.contains(" roadmap-roto=sin-fin"), "{out}");
-    let out = exito(&f, &otro_nuevo, &["roadmap", "--comparar"], 3);
+    let out = con_codigo(&f, &otro_nuevo, &["roadmap", "--comparar"], 3);
     assert!(
         out.starts_with("roadmap rechazada motivo=roadmap-roto roto=sin-fin"),
         "{out}"
@@ -242,11 +242,11 @@ fn solo_cambia_la_rama_de_estado() {
         if nombre == "roadmap --escribir" {
             desfasar();
             f.crudo(&clon, &["fetch", "-q", "origin"]);
-            let out = exito(&f, &clon, &["roadmap", "--comparar"], 3);
+            let out = con_codigo(&f, &clon, &["roadmap", "--comparar"], 3);
             assert!(out.contains("motivo=desfasado"), "{out}");
         }
         let antes = refs(&f, &bare, &clon);
-        exito(&f, &clon, &args, 0);
+        con_codigo(&f, &clon, &args, 0);
         let despues = refs(&f, &bare, &clon);
         let c = cambiadas(&antes, &despues);
         if escribe {
@@ -263,7 +263,7 @@ fn solo_cambia_la_rama_de_estado() {
             ""
         );
     }
-    exito(&f, &clon, &["roadmap", "--comparar"], 0);
+    con_codigo(&f, &clon, &["roadmap", "--comparar"], 0);
 }
 
 /// Publica en `bare` el juego de tareas de `tests/siguiente.rs` (ilegible,
@@ -339,8 +339,8 @@ fn roadmap_y_next_coinciden_y_escribir_es_idempotente() {
     let (bare, clon) = f.remoto_y_clon();
     publicar_estado(&f, &bare);
     f.crudo(&clon, &["fetch", "-q", "origin"]);
-    let next = exito(&f, &clon, &["next"], 0);
-    let impreso = exito(&f, &clon, &["roadmap"], 0);
+    let next = con_codigo(&f, &clon, &["next"], 0);
+    let impreso = con_codigo(&f, &clon, &["roadmap"], 0);
     assert_eq!(
         ids_de_la_linea(&impreso, "Listas para empezar"),
         Some(lista(&next, "listas"))
@@ -352,21 +352,21 @@ fn roadmap_y_next_coinciden_y_escribir_es_idempotente() {
     assert_eq!(lista(&next, "listas"), ["TASK-006", "TASK-002"]);
     assert_eq!(lista(&next, "en-marcha"), ["TASK-009", "TASK-003"]);
     // Sin `--escribir`, lo publicado (de otra herramienta) no esta al dia.
-    let out = exito(&f, &clon, &["roadmap", "--comparar"], 3);
+    let out = con_codigo(&f, &clon, &["roadmap", "--comparar"], 3);
     assert!(
         out.starts_with("roadmap rechazada motivo=desfasado"),
         "{out}"
     );
 
-    let primera = exito(&f, &clon, &["roadmap", "--escribir"], 0);
+    let primera = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(primera.starts_with("roadmap ok "), "{primera}");
-    let segunda = exito(&f, &clon, &["roadmap", "--escribir"], 0);
+    let segunda = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(segunda.starts_with("roadmap sin-cambios"), "{segunda}");
-    exito(&f, &clon, &["roadmap", "--comparar"], 0);
-    assert_eq!(exito(&f, &clon, &["roadmap"], 0), publicado(&f, &bare));
+    con_codigo(&f, &clon, &["roadmap", "--comparar"], 0);
+    assert_eq!(con_codigo(&f, &clon, &["roadmap"], 0), publicado(&f, &bare));
     assert_eq!(impreso, publicado(&f, &bare));
     // `--json` lleva el texto y el commit.
-    let j = exito(&f, &clon, &["roadmap", "--json"], 0);
+    let j = con_codigo(&f, &clon, &["roadmap", "--json"], 0);
     let v: serde_json::Value = serde_json::from_str(&j).unwrap();
     assert_eq!(v["claves"]["texto"], impreso.as_str());
     assert_eq!(v["claves"]["commit"].as_str().map(str::len), Some(12));
