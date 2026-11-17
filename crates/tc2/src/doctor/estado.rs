@@ -9,32 +9,26 @@
 //!   motivo=sin-token` y los mira [`super::plataforma`]). Cada accion que
 //!   no sale `existe` es un hallazgo, asi `doctor` e `init` no discrepan.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{ARREGLO_INIT, Estado, Hallazgo, NOMBRE};
 use crate::contrato::corto;
-use crate::estado::{self, RAMA};
-use crate::git::estado::hay_remoto;
-use crate::git::{Git, REMOTO, Subcomando, correr, localizar_principal};
+use crate::estado;
+use crate::git::{Git, Subcomando, correr};
 use crate::init::{self, Accion, Decision};
 use crate::plataforma::{Credenciales, CredencialesFijas};
 
-/// La ref de la rama de estado que lee `board`: la remota si hay `origin`.
-fn referencia(g: &Git, dir: &Path) -> Option<String> {
-    let principal = localizar_principal(g, dir).ok()?;
-    let remoto = hay_remoto(g, &principal, NOMBRE).ok()?;
-    Some(if remoto {
-        format!("refs/remotes/{REMOTO}/{RAMA}")
-    } else {
-        format!("refs/heads/{RAMA}")
-    })
+/// La ref de la rama de estado que lee `board` (la misma que
+/// [`estado::leer`]) y la carpeta principal.
+fn referencia(g: &Git, dir: &Path) -> Option<(PathBuf, String)> {
+    estado::referencia_de_lectura(g, dir).ok()
 }
 
 /// Si `r` existe (apunte o no a un commit).
-fn existe_ref(g: &Git, dir: &Path, r: &str) -> bool {
+fn existe_ref(g: &Git, principal: &Path, r: &str) -> bool {
     correr(
         g,
-        dir,
+        principal,
         NOMBRE,
         Subcomando::RevParse,
         &["-q", "--verify", "--end-of-options", r],
@@ -45,11 +39,11 @@ fn existe_ref(g: &Git, dir: &Path, r: &str) -> bool {
 /// Hallazgos de la rama de estado y el commit leido (12).
 pub(super) fn rama(g: &Git, dir: &Path) -> (Vec<Hallazgo>, Option<String>) {
     let h = |e: Estado| Hallazgo::nuevo("estado", "rama", e);
-    let r = referencia(g, dir).unwrap_or_default();
+    let (principal, r) = referencia(g, dir).unwrap_or_else(|| (dir.to_path_buf(), String::new()));
     let vista = match estado::leer(g, dir) {
         Ok(v) => v,
         Err(i) if i.valor("motivo") == Some("sin-rama-de-estado") => {
-            let x = if existe_ref(g, dir, &r) {
+            let x = if existe_ref(g, &principal, &r) {
                 h(Estado::Falla).motivo("ref-ilegible").con("ref", r)
             } else {
                 h(Estado::Falla)

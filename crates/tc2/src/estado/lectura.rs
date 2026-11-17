@@ -139,16 +139,24 @@ impl Estado for Vista<'_> {
     }
 }
 
-/// Vista del estado tal como lo conoce este clon: lo ultimo traido de
-/// `origin/taskcodetwo/tareas` (sin `fetch`: la lectura fresca es de F3-5b) o,
-/// en un repo sin remoto, la rama local. Sin rama de estado → `rechazada`.
-pub fn leer<'a>(git: &'a Git, dir: &Path) -> Result<Vista<'a>, Informe> {
+/// La carpeta principal y la ref de la rama de estado que lee [`leer`]: la
+/// remota si hay `origin`, la local si no. `doctor` (F3-8) decide sobre la
+/// misma ref.
+pub(crate) fn referencia_de_lectura(git: &Git, dir: &Path) -> Result<(PathBuf, String), Informe> {
     let principal = localizar_principal(git, dir)?;
     let referencia = if hay_remoto(git, &principal, OP)? {
         format!("refs/remotes/{REMOTO}/{RAMA}")
     } else {
         format!("refs/heads/{RAMA}")
     };
+    Ok((principal, referencia))
+}
+
+/// Vista del estado tal como lo conoce este clon: lo ultimo traido de
+/// `origin/taskcodetwo/tareas` (sin `fetch`: la lectura fresca es de F3-5b) o,
+/// en un repo sin remoto, la rama local. Sin rama de estado → `rechazada`.
+pub fn leer<'a>(git: &'a Git, dir: &Path) -> Result<Vista<'a>, Informe> {
+    let (principal, referencia) = referencia_de_lectura(git, dir)?;
     match crate::git::commit_de(git, &principal, OP, &referencia)? {
         Some(c) => Vista::nueva(git, &principal, Some(c)),
         None => Err(Informe::nuevo(OP, Resultado::Rechazada)
