@@ -193,9 +193,12 @@ const ENTORNO_QUITADO: [&str; 6] = [
     "GIT_NAMESPACE",
 ];
 
-/// Entorno fijo de cada llamada (F1-4, decision 1).
-const ENTORNO_FIJO: [(&str, &str); 5] = [
+/// Entorno fijo de cada llamada (F1-4, decision 1). `GIT_OPTIONAL_LOCKS=0`
+/// (F2-14): una lectura como `status` no reescribe el indice de paso, asi
+/// que `tc2 desinstalar --simular` no cambia ni un byte del repo.
+const ENTORNO_FIJO: [(&str, &str); 6] = [
     ("LC_ALL", "C"),
+    ("GIT_OPTIONAL_LOCKS", "0"),
     ("LANG", "C"),
     ("GIT_TERMINAL_PROMPT", "0"),
     ("GIT_PAGER", "cat"),
@@ -316,6 +319,31 @@ impl Git {
         Ok(SalidaCruda {
             codigo: salida.status.code().unwrap_or(-1),
             stdout: salida.stdout,
+            stderr: String::from_utf8_lossy(&salida.stderr).into_owned(),
+        })
+    }
+
+    /// Borra la rama local de estado (`refs/heads/taskcodetwo/tareas`) si
+    /// sigue en `viejo`: `git update-ref -d <ref> <viejo>`. Es la unica
+    /// excepcion a «nunca `refs/heads/*`» (F1-4 D3) y solo la usa
+    /// `tc2 desinstalar --borrar-tareas` con el nombre exacto (F2-14, C7): la
+    /// ref la fija esta funcion, no quien llama, y con el valor viejo no se
+    /// borra un commit que no se ha visto.
+    pub fn borrar_rama_de_estado(&self, dir: &Path, viejo: &str) -> Result<SalidaGit, ErrorGit> {
+        if viejo.len() < 40 || !viejo.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::ARGUMENTO_PROHIBIDO)
+                    .con("argumento", format!("update-ref -d {viejo}")),
+            ));
+        }
+        let r = format!("refs/heads/{}", crate::huella::RAMA_ESTADO);
+        let salida = self
+            .comando(dir, Subcomando::UpdateRef, &["-d", &r, viejo], None)
+            .output()
+            .map_err(|e| ErrorGit::Lanzar(e.to_string()))?;
+        Ok(SalidaGit {
+            codigo: salida.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&salida.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&salida.stderr).into_owned(),
         })
     }
