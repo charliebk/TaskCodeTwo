@@ -84,6 +84,52 @@ crate::i18n::textos! {
         en: "could not fast-forward {rama}: {error}",
     }
 
+    // Frescura de la lectura (`frescura.rs`, F3-5b).
+    AVISO_NO_FRESCO {
+        es: "aviso: {porque}; se muestra lo que este clon trajo el {hora} ({hace})",
+        en: "warning: {porque}; showing what this clone fetched at {hora} ({hace})",
+    }
+    AVISO_NUNCA_SINCRONIZADO {
+        es: "aviso: {porque} y este clon no la ha sincronizado nunca; lo que se muestra puede no estar al dia",
+        en: "warning: {porque} and this clone has never synchronised it; what is shown may be out of date",
+    }
+    PORQUE_SIN_RED {
+        es: "sin red, no se pudo traer la rama de estado de origin",
+        en: "no network, the state branch could not be fetched from origin",
+    }
+    PORQUE_DENEGADO {
+        es: "origin no deja leer la rama de estado ({motivo})",
+        en: "origin does not allow reading the state branch ({motivo})",
+    }
+    PORQUE_ERROR_LOCAL {
+        es: "no se pudo traer la rama de estado por un fallo de este clon",
+        en: "the state branch could not be fetched because of a failure in this clone",
+    }
+    PORQUE_SIN_RAMA {
+        es: "origin no tiene la rama de estado",
+        en: "origin does not have the state branch",
+    }
+    SINCRONIZADO {
+        es: "estado sincronizado con origin el {hora} ({hace})",
+        en: "state synchronised with origin at {hora} ({hace})",
+    }
+    HACE_MENOS_DE_UN_MINUTO {
+        es: "hace menos de 1 min",
+        en: "less than 1 min ago",
+    }
+    HACE_MINUTOS {
+        es: "hace {n} min",
+        en: "{n} min ago",
+    }
+    HACE_HORAS {
+        es: "hace {n} h",
+        en: "{n} h ago",
+    }
+    HACE_DIAS {
+        es: "hace {n} dias",
+        en: "{n} days ago",
+    }
+
     // Alta (`alta.rs`).
     SIN_IDS {
         es: "no quedan IDs de tarea",

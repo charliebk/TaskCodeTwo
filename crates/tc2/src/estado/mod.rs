@@ -21,6 +21,7 @@
 //! codigos de la tabla de `contrato.rs`.
 
 mod cerrojo;
+mod frescura;
 mod lectura;
 mod montaje;
 mod pendientes;
@@ -29,6 +30,7 @@ mod transaccion;
 
 pub use crate::git::Cambio;
 pub use cerrojo::Cerrojo;
+pub use frescura::{Frescura, Marca, Remoto, hace, sincronizado_texto};
 pub(crate) use lectura::referencia_de_lectura;
 pub use lectura::{Estado, Vista, leer};
 pub use montaje::{Previsto, montar, montar_con, previsto};
