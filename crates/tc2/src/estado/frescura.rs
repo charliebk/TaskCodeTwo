@@ -348,26 +348,42 @@ mod tests {
             (
                 Remoto::SinRed,
                 "sin-red",
-                Some("aviso: sin red, no se pudo traer la rama de estado de origin; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)"),
-                Some("warning: no network, the state branch could not be fetched from origin; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)"),
+                Some(
+                    "aviso: sin red, no se pudo traer la rama de estado de origin; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)",
+                ),
+                Some(
+                    "warning: no network, the state branch could not be fetched from origin; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)",
+                ),
             ),
             (
                 Remoto::Denegado("credenciales".to_owned()),
                 "denegado",
-                Some("aviso: origin no deja leer la rama de estado (credenciales); se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)"),
-                Some("warning: origin does not allow reading the state branch (credenciales); showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)"),
+                Some(
+                    "aviso: origin no deja leer la rama de estado (credenciales); se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)",
+                ),
+                Some(
+                    "warning: origin does not allow reading the state branch (credenciales); showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)",
+                ),
             ),
             (
                 Remoto::ErrorLocal,
                 "error-local",
-                Some("aviso: no se pudo traer la rama de estado por un fallo de este clon; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)"),
-                Some("warning: the state branch could not be fetched because of a failure in this clone; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)"),
+                Some(
+                    "aviso: no se pudo traer la rama de estado por un fallo de este clon; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)",
+                ),
+                Some(
+                    "warning: the state branch could not be fetched because of a failure in this clone; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)",
+                ),
             ),
             (
                 Remoto::SinRama,
                 "sin-rama",
-                Some("aviso: origin no tiene la rama de estado; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)"),
-                Some("warning: origin does not have the state branch; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)"),
+                Some(
+                    "aviso: origin no tiene la rama de estado; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)",
+                ),
+                Some(
+                    "warning: origin does not have the state branch; showing what this clone fetched at 2026-11-17T16:04:12Z (3 min ago)",
+                ),
             ),
             (Remoto::SinRemoto, "sin-remoto", None, None),
         ];
