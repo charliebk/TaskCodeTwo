@@ -7,6 +7,7 @@ pub mod cli;
 pub mod comun;
 pub mod config;
 pub mod desinstalar;
+pub mod doctor;
 pub mod estado;
 pub mod git;
 pub mod identidad;
@@ -29,6 +30,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         comun::TODOS,
         config::TODOS,
         desinstalar::TODOS,
+        doctor::TODOS,
         estado::TODOS,
         git::TODOS,
         identidad::TODOS,
