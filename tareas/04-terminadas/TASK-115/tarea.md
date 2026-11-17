@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [distribucion, tests]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-115-seguimiento-de-f2-12-menores-de-actualiz
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: 28030245
+tokens_implementacion: 28850699
 tokens_revision: 2741984
 creado: 2026-11-16
 actualizado: 2026-11-17
@@ -128,6 +128,7 @@ determinista y los dos «10 de 10» de arriba.
 | 2026-11-17T03:48:28Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T03:48:29Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T04:42:50Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T04:56:38Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -136,7 +137,15 @@ determinista y los dos «10 de 10» de arriba.
 | 2026-11-17T04:42:50Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 14 | 11853 | 4062700 | 3225 | 0 | 4077792 | - | - |
 | 2026-11-17T04:42:50Z | implementacion | agente:ada497c0c22a4f5e3 | 256 | 270586 | 23580049 | 101562 | 34 | 23952453 | - | - |
 | 2026-11-17T04:52:49Z | revision | agente:a8f82e02ec6d4ece5 | 52 | 127789 | 2595389 | 18754 | 5 | 2741984 | 1 | rust-wasm-reviewer |
+| 2026-11-17T04:53:30Z | implementacion | sesion:dif:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 2 | 1125 | 819211 | 116 | 0 | 820454 | - | - |
 
 ## Verificacion ligera
 
 - 2026-11-17T04:53:21Z: ronda 1; commit revisado 71fb3c554a0f6ab6091d54200bdeb4ba74520ce5; commit verificado 650016ebf7c79207a24a49042ed38819941624e9; ficheros: crates/tc2/src/descarga.rs; corregidos: MEN-1; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 68 min
+- Paso de la hora: 68 min reales frente a 120 estimados
+- Cierre (finish): 188 s, de 2026-11-17T04:53:30Z a 2026-11-17T04:56:38Z

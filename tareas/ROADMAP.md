@@ -39,7 +39,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-115 (en diseño)
+- **En marcha:** ninguna
 - **Listas para empezar:** TASK-029, TASK-031, TASK-032, TASK-033, TASK-034, TASK-035, TASK-080, TASK-041, TASK-046, TASK-047, TASK-056, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
@@ -203,13 +203,13 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H0 — H0
 
-1 de 6 terminadas.
+2 de 6 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
 | 60 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
-| 61 | TASK-115 | Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable | simple | — | ▶ en diseño |
+| — | TASK-115 | Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable | simple | — | ✅ terminada |
 | — | TASK-116 | Nombres de la 2.0 alineados con F1-12 D1a | simple | — | ✅ terminada |
-| 62 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
-| 63 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | lista para empezar |
-| 64 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
+| 61 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
+| 62 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | lista para empezar |
+| 63 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |

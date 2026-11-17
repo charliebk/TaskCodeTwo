@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-115 — Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable · etiquetas: distribucion, tests · rama fix/task-115-seguimiento-de-f2-12-menores-de-actualiz · terminada 2026-11-17 · tareas/04-terminadas/TASK-115/
 - TASK-028 — F3-1 tc2 init · etiquetas: (sin etiquetas) · rama feature/task-028-f3-1-taskctl-init-setup · terminada 2026-11-17 · tareas/04-terminadas/TASK-028/
 - TASK-078 — F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia · etiquetas: (sin etiquetas) · rama feature/task-078-f2-14-taskctl-desinstalar-quitar-taskcod · terminada 2026-11-17 · tareas/04-terminadas/TASK-078/
 - TASK-116 — Nombres de la 2.0 alineados con F1-12 D1a · etiquetas: convivencia, git · rama fix/task-116-nombres-de-la-2-0-alineados-con-f1-12-d1 · terminada 2026-11-16 · tareas/04-terminadas/TASK-116/
