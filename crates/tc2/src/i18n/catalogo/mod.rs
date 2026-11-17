@@ -9,6 +9,7 @@ pub mod desinstalar;
 pub mod estado;
 pub mod git;
 pub mod identidad;
+pub mod init;
 pub mod plataforma;
 
 use super::Texto;
@@ -24,6 +25,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         estado::TODOS,
         git::TODOS,
         identidad::TODOS,
+        init::TODOS,
         plataforma::TODOS,
     ]
     .into_iter()
