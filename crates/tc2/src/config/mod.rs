@@ -508,12 +508,21 @@ fn texto_de_base(git: &Git, dir: &Path) -> Paso<String> {
             .con("motivo", "sin-base")
             .diagnostico(Mensaje::nuevo(&t::SIN_BASE).con("base", BASE)));
     }
+    // `--full-tree`: `RUTA` es desde la raiz del repo, no desde `dir` (que
+    // puede ser una subcarpeta del clon o de un worktree).
     let listado = git::exigir(
         git,
         dir,
         NOMBRE,
         Subcomando::LsTree,
-        &["--name-only", "--end-of-options", BASE, "--", RUTA],
+        &[
+            "--full-tree",
+            "--name-only",
+            "--end-of-options",
+            BASE,
+            "--",
+            RUTA,
+        ],
     )?;
     if listado.trim() != RUTA {
         return Err(Invalida::una(

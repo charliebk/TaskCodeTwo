@@ -26,22 +26,39 @@ pub struct Ficha {
     pub asignado: Option<Asignado>,
     /// Rama de la tarea, si la tiene (la que casa con su PR, F3-5).
     pub rama: Option<String>,
+    /// Por que se descarto (formato 2; el formato 1 no lo lleva).
+    pub motivo: Option<String>,
+    /// En pausa: la ultima fila `pausa`/`reanudar` de sus transiciones es
+    /// `pausa` ([`crate::tarea::Cuerpo::en_pausa`], TASK-034).
+    pub en_pausa: bool,
 }
 
 impl Ficha {
     /// Ficha de un `tarea.md` leido.
     pub fn de(doc: &Documento) -> Self {
-        let (titulo, asignado, rama) = match doc {
-            Documento::Formato1(t, _) => {
-                (t.titulo.clone(), t.asignado_a.clone(), Some(t.rama.clone()))
-            }
-            Documento::Formato2(t, _) => (t.titulo.clone(), t.asignado_a.clone(), t.rama.clone()),
+        let (titulo, asignado, rama, motivo, cuerpo) = match doc {
+            Documento::Formato1(t, c) => (
+                t.titulo.clone(),
+                t.asignado_a.clone(),
+                Some(t.rama.clone()),
+                None,
+                c,
+            ),
+            Documento::Formato2(t, c) => (
+                t.titulo.clone(),
+                t.asignado_a.clone(),
+                t.rama.clone(),
+                t.motivo.clone(),
+                c,
+            ),
         };
         Self {
             nodo: Nodo::de(doc),
             titulo,
             asignado,
             rama: rama.filter(|r| !r.trim().is_empty()),
+            motivo,
+            en_pausa: cuerpo.en_pausa(),
         }
     }
 }
@@ -96,7 +113,7 @@ pub struct Situacion {
     pub hitos: Hitos,
     /// Orden de trabajo, atascadas y avisos.
     pub orden: grafo::Orden,
-    /// Listas para empezar, en el orden de trabajo.
+    /// Listas para empezar, en el orden de trabajo (sin las en pausa).
     pub listas: Vec<String>,
     /// En diseno, en curso o en revision, en el orden de trabajo.
     pub en_marcha: Vec<String>,
@@ -142,8 +159,18 @@ pub fn calcular(estado: &dyn Estado) -> Result<Situacion, Fallo> {
         _ => Hitos::del_roadmap(zona::POR_DEFECTO),
     };
     let orden = grafo::orden_de_trabajo(&nodos, &hitos);
+    // Una en pausa no se ofrece para empezar (TASK-034 C9); sigue en el
+    // orden de trabajo. Con un ID repetido vale su primera ficha, como en el
+    // ROADMAP.
+    let mut listas = grafo::listas(&orden, &nodos);
+    listas.retain(|id| {
+        !fichas
+            .iter()
+            .find(|f| f.nodo.id == *id)
+            .is_some_and(|f| f.en_pausa)
+    });
     Ok(Situacion {
-        listas: grafo::listas(&orden, &nodos),
+        listas,
         en_marcha: grafo::en_marcha(&orden, &nodos),
         fichas,
         nodos,

@@ -113,6 +113,6 @@ Total: 1.
 <details>
 <summary>Ver la lista</summary>
 
-- TASK-006 — Ya no (H2)
+- TASK-006 — Ya no (H2) — motivo: ya no hace falta
 
 </details>

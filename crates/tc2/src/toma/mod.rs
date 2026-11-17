@@ -112,6 +112,7 @@ fn rechazo_de_toma(mut i: Informe, op: &Tomar) -> Informe {
         }
         Some("dependencias-pendientes") => i = i.con_lista("dependencias", op.pendientes()),
         Some("formato-1") => i = i.con("arreglo", "tc2 actualizar"),
+        Some("pausada") => i = i.con("arreglo", "tc2 reanudar"),
         _ => {}
     }
     i

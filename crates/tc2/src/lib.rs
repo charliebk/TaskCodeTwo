@@ -16,12 +16,14 @@
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
-//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6). Las capas
+//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`ciclo`]
+//! (`descartar`, `pausa` y `reanudar`, F3-7). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
 pub mod alta;
 pub mod carril;
+pub mod ciclo;
 pub mod config;
 pub mod contrato;
 pub mod descarga;
@@ -149,7 +151,17 @@ where
         }
         [orden, resto @ ..] if orden == toma::NOMBRE => {
             let (json, resto) = con_json(resto);
-            orden_start(&resto).salida_en(json, idioma)
+            de_una_tarea(toma::NOMBRE, |e| toma::orden(&resto, e)).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == ciclo::DESCARTAR => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(ciclo::DESCARTAR, |e| ciclo::orden_descartar(&resto, e))
+                .salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == ciclo::PAUSA || orden == ciclo::REANUDAR => {
+            let (json, resto) = con_json(resto);
+            let reanudar = orden == ciclo::REANUDAR;
+            de_una_tarea(orden, |e| ciclo::orden_pausa(&resto, reanudar, e)).salida_en(json, idioma)
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -282,14 +294,15 @@ fn orden_identidad(args: &[String]) -> Informe {
     )
 }
 
-/// `start [--json] TASK-NNN` (F3-6) en la carpeta actual: quien la toma sale
-/// de [`identidad::resolver`] con el terminal y los tokens del proceso.
-fn orden_start(args: &[String]) -> Informe {
+/// Una orden sobre una tarea (`start`, F3-6; `descartar`, `pausa` y
+/// `reanudar`, F3-7) en la carpeta actual: quien la lanza sale de
+/// [`identidad::resolver`] con el terminal y los tokens del proceso.
+fn de_una_tarea(nombre: &str, orden: impl FnOnce(&toma::Entorno<'_>) -> Informe) -> Informe {
     use std::io::IsTerminal;
     let dir = match std::env::current_dir() {
         Ok(d) => d,
         Err(e) => {
-            return Informe::nuevo(toma::NOMBRE, Resultado::Error)
+            return Informe::nuevo(nombre, Resultado::Error)
                 .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
         }
     };
@@ -311,7 +324,7 @@ fn orden_start(args: &[String]) -> Informe {
         catalogo: &catalogo,
         ahora,
     };
-    toma::orden(args, &e)
+    orden(&e)
 }
 
 /// `status` o `board` (F3-5) en la carpeta actual.
@@ -340,6 +353,7 @@ fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
     alta::desde_anotacion(anotacion)
         .or_else(|| roadmap::desde_anotacion(anotacion))
         .or_else(|| toma::desde_anotacion(anotacion))
+        .or_else(|| ciclo::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
@@ -517,6 +531,21 @@ mod tests {
         assert!(catalogo("start|TASK-001|7").is_none());
     }
 
+    /// F3-7: el catalogo reconstruye descartar, pausa y reanudar (una pausa
+    /// pendiente sin red se re-ejecuta desde aqui, TASK-034 C8).
+    #[test]
+    fn el_catalogo_reconstruye_descartar_pausa_y_reanudar() {
+        for a in [
+            "descartar|TASK-001|7|ana|ya no | hace falta",
+            "pausa|TASK-001|7|ana|1794910830",
+            "reanudar|TASK-001|7|ana|1794910830",
+        ] {
+            let op = catalogo(a);
+            assert_eq!(op.map(|o| o.anotacion()), Some(a.to_owned()), "{a}");
+        }
+        assert!(catalogo("pausa|TASK-001|7|ana").is_none());
+    }
+
     /// TASK-033 C5: un ID mal formado (o sin ID, o de mas) es `uso` (2) sin
     /// tocar nada, con el diagnostico en los dos idiomas.
     #[test]
@@ -542,6 +571,124 @@ mod tests {
             ejecutar(["start", "TASK-1"]).stdout,
             "start uso motivo=id-invalido\n"
         );
+    }
+
+    /// TASK-034 C11 y C2: `descartar`, `pausa` y `reanudar` con un ID mal
+    /// formado, sin ID o con argumentos de mas son `uso` (2) como `start`;
+    /// `descartar` sin motivo o con uno invalido, tambien. Nada se lee: no
+    /// hay repo en la carpeta de los tests de la biblioteca que importe.
+    #[test]
+    fn descartar_pausa_y_reanudar_mal_llamados_son_uso() {
+        let largo = "m".repeat(ciclo::MOTIVO_MAX + 1);
+        for (args, motivo, es, en) in [
+            (
+                vec!["descartar"],
+                "sin-id",
+                "uso: descartar",
+                "usage: descartar",
+            ),
+            (
+                vec!["descartar", "TASK-1", "m"],
+                "id-invalido",
+                "uso: descartar",
+                "usage: descartar",
+            ),
+            (
+                vec!["descartar", "TASK-001"],
+                "sin-motivo",
+                "uso: descartar",
+                "usage: descartar",
+            ),
+            (
+                vec!["descartar", "TASK-001", ""],
+                "motivo-invalido",
+                "el motivo",
+                "the reason",
+            ),
+            (
+                vec!["descartar", "TASK-001", "  "],
+                "motivo-invalido",
+                "el motivo",
+                "the reason",
+            ),
+            (
+                vec!["descartar", "TASK-001", "a\nb"],
+                "motivo-invalido",
+                "el motivo",
+                "the reason",
+            ),
+            (
+                vec!["descartar", "TASK-001", "a\tb"],
+                "motivo-invalido",
+                "el motivo",
+                "the reason",
+            ),
+            (
+                vec!["descartar", "TASK-001", &largo],
+                "motivo-invalido",
+                "el motivo",
+                "the reason",
+            ),
+            (
+                vec!["descartar", "--json", "TASK-001", "m", "x"],
+                "argumentos-de-mas",
+                "uso: descartar",
+                "usage: descartar",
+            ),
+            (vec!["pausa"], "sin-id", "uso: pausa", "usage: pausa"),
+            (
+                vec!["pausa", "task-001"],
+                "id-invalido",
+                "uso: pausa",
+                "usage: pausa",
+            ),
+            (
+                vec!["pausa", "TASK-001", "x"],
+                "argumentos-de-mas",
+                "uso: pausa",
+                "usage: pausa",
+            ),
+            (
+                vec!["reanudar"],
+                "sin-id",
+                "uso: reanudar",
+                "usage: reanudar",
+            ),
+            (
+                vec!["reanudar", "TASK-001a1"],
+                "id-invalido",
+                "uso: reanudar",
+                "usage: reanudar",
+            ),
+            (
+                vec!["reanudar", "TASK-001", "x"],
+                "argumentos-de-mas",
+                "uso: reanudar",
+                "usage: reanudar",
+            ),
+        ] {
+            let s_es = ejecutar_en(Idioma::Es, &args);
+            let s_en = ejecutar_en(Idioma::En, &args);
+            assert_eq!((s_es.codigo, s_en.codigo), (2, 2), "{args:?}");
+            let json = args.contains(&"--json");
+            if !json {
+                assert_eq!(
+                    s_es.stdout,
+                    format!("{} uso motivo={motivo}\n", args[0]),
+                    "{args:?}"
+                );
+                assert_eq!(s_es.stdout, s_en.stdout);
+                assert!(s_es.stderr.starts_with(es), "{args:?}: {}", s_es.stderr);
+                assert!(s_en.stderr.starts_with(en), "{args:?}: {}", s_en.stderr);
+            } else {
+                assert_eq!(s_es.stdout.lines().count(), 1);
+                assert!(
+                    s_es.stdout.contains(&format!("\"motivo\":\"{motivo}\"")),
+                    "{}",
+                    s_es.stdout
+                );
+            }
+        }
     }
 
     #[test]

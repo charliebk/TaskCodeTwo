@@ -2,6 +2,7 @@
 //! `src/` escribe sus entradas en el suyo y no se pisan.
 
 pub mod actualizar;
+pub mod ciclo;
 pub mod cli;
 pub mod comun;
 pub mod config;
@@ -23,6 +24,7 @@ use super::Texto;
 pub fn todos() -> impl Iterator<Item = &'static Texto> {
     [
         actualizar::TODOS,
+        ciclo::TODOS,
         cli::TODOS,
         comun::TODOS,
         config::TODOS,

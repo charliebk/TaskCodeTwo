@@ -727,6 +727,56 @@ pub(crate) mod tests {
         assert_eq!(de_estado(&otra, &personas()).ok(), Some(r));
     }
 
+    /// TASK-034 (C3 y C9): la descartada sale con su motivo y fuera de los
+    /// hitos; una planificada en pausa sale de las listas y el ROADMAP la
+    /// marca, y una en curso en pausa sigue en marcha marcada. Reanudada,
+    /// los mismos bytes que sin pausa.
+    #[test]
+    fn descartadas_con_motivo_y_pausas_marcadas() {
+        let referencia = de_estado(&estado_de_referencia(), &personas()).unwrap_or_default();
+        assert!(referencia.contains("\n- TASK-006 — Ya no (H2) — motivo: ya no hace falta\n"));
+        assert!(!referencia.contains("| TASK-006 |"), "{referencia}");
+        let fila =
+            |fase: &str| format!("| 2026-11-17T10:00:00Z | {fase} | manual | agente | 0.1 |\n");
+        let con_filas = |fases: &[&str]| {
+            let mut e = estado_de_referencia();
+            for id in ["TASK-005", "TASK-002"] {
+                let ruta = format!("{id}/tarea.md");
+                let mut t = e.0.get(&ruta).cloned().unwrap_or_default();
+                t.push_str("## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n");
+                for f in fases {
+                    t.push_str(&fila(f));
+                }
+                e.0.insert(ruta, t);
+            }
+            e
+        };
+        let e = con_filas(&["start", "pausa"]);
+        let s = situacion::calcular(&e).unwrap_or_default();
+        assert!(s.listas.is_empty(), "{:?}", s.listas);
+        assert_eq!(s.en_marcha.first().map(String::as_str), Some("TASK-008"));
+        let r = de_estado(&e, &personas()).unwrap_or_default();
+        assert!(r.contains("- **Listas para empezar:** ninguna\n"), "{r}");
+        assert!(r.contains("TASK-002 (en curso · en pausa)"), "{r}");
+        assert!(
+            r.contains("| 4 | TASK-005 | Lista | TASK-001 | en pausa | — |\n"),
+            "{r}"
+        );
+        assert!(
+            r.contains("| 5 | TASK-002 | Motor | TASK-001 | en curso · en pausa | @ana |\n"),
+            "{r}"
+        );
+        assert!(r.contains("T005[\"TASK-005 · Lista\"]:::espera"), "{r}");
+        // La linea de «En marcha» se sigue leyendo como la de `next`.
+        assert_eq!(
+            generar::ids_de_la_linea(&r, "En marcha"),
+            Some(s.en_marcha.clone())
+        );
+        // Reanudada: como sin pausa.
+        let e = con_filas(&["pausa", "reanudar"]);
+        assert_eq!(de_estado(&e, &personas()).ok(), Some(referencia));
+    }
+
     /// D3: con la zona rota se devuelve el anterior tal cual.
     #[test]
     fn zona_rota_deja_el_anterior() {

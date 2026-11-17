@@ -22,12 +22,12 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion};
+use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
 use crate::grafo::{Nodo, dependencia_cumplida};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
 use crate::identidad::Quien;
-use crate::tarea::{Asignado, Documento, Transicion};
+use crate::tarea::{Asignado, Transicion};
 
 use super::NOMBRE;
 
@@ -35,8 +35,8 @@ use super::NOMBRE;
 /// la reanuda sin escribir estado (F1-3, decision 2, caso c).
 pub const EMPEZADA: [&str; 2] = ["en-curso", "en-revision"];
 
-/// Estados desde los que se puede empezar (D1 de TASK-033).
-pub const DE_ORIGEN: [&str; 2] = ["planificada", "en-diseno"];
+/// Estados desde los que `start` empieza una tarea (D1 de TASK-033).
+pub const EMPEZABLES: [&str; 2] = ["planificada", "en-diseno"];
 
 /// Estado en el que queda la tarea tomada.
 pub const EN_CURSO: &str = "en-curso";
@@ -122,21 +122,7 @@ impl Operacion for Tomar {
         self.pendientes.borrow_mut().clear();
         *self.rama.borrow_mut() = None;
         let ruta = format!("{}/tarea.md", self.id);
-        let Some(texto) = estado.leer(&ruta)? else {
-            return Err(self.rechazo("no-existe", Mensaje::nuevo(&txt::NO_EXISTE)));
-        };
-        let (mut t, mut cuerpo) = match crate::tarea::leer(&texto) {
-            Ok(Documento::Formato2(t, c)) => (t, c),
-            Ok(Documento::Formato1(..)) => {
-                return Err(self.rechazo("formato-1", Mensaje::nuevo(&txt::FORMATO_1)));
-            }
-            Err(e) => {
-                return Err(self.rechazo(
-                    "ilegible",
-                    Mensaje::nuevo(&txt::ILEGIBLE).con("error", e.to_string()),
-                ));
-            }
-        };
+        let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
         let rama = t
             .rama
             .clone()
@@ -149,36 +135,22 @@ impl Operacion for Tomar {
         if mia && EMPEZADA.contains(&t.estado.as_str()) {
             return Ok(Vec::new());
         }
-        match &t.asignado_a {
-            Some(a) if !mia => {
-                return Err(match (a.login(), a.heredado()) {
-                    (Some(login), _) => {
-                        *self.dueno.borrow_mut() = Some(login.to_owned());
-                        self.rechazo("tomada", Mensaje::nuevo(&txt::TOMADA).con("login", login))
-                    }
-                    (None, texto) => self.rechazo(
-                        "asignado-heredado",
-                        Mensaje::nuevo(&txt::ASIGNADO_HEREDADO)
-                            .con("texto", texto.unwrap_or_default()),
-                    ),
-                });
-            }
-            _ => {}
+        if let Some((fallo, dueno)) = de_otra_persona(
+            &self.id,
+            t.asignado_a.as_ref(),
+            &self.asignado,
+            NOMBRE,
+            ("tomada", &txt::TOMADA),
+        ) {
+            *self.dueno.borrow_mut() = dueno;
+            return Err(fallo);
         }
-        match t.estado.as_str() {
-            e if DE_ORIGEN.contains(&e) => {}
-            "terminada" => {
-                return Err(self.rechazo("terminada", Mensaje::nuevo(&txt::TERMINADA)));
-            }
-            "descartada" => {
-                return Err(self.rechazo("descartada", Mensaje::nuevo(&txt::DESCARTADA)));
-            }
-            otro => {
-                return Err(self.rechazo(
-                    "estado-no-valido",
-                    Mensaje::nuevo(&txt::ESTADO_NO_VALIDO).con("estado", otro),
-                ));
-            }
+        if !EMPEZABLES.contains(&t.estado.as_str()) {
+            return Err(por_estado(&self.id, &t.estado, NOMBRE, &EMPEZABLES));
+        }
+        // En pausa (TASK-034): no se empieza hasta reanudarla.
+        if cuerpo.en_pausa() {
+            return Err(self.rechazo("pausada", Mensaje::nuevo(&txt::PAUSADA)));
         }
         let rutas: Vec<String> = t
             .dependencias
@@ -262,7 +234,7 @@ mod tests {
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
     use crate::roadmap::tests::EnMemoria;
-    use crate::tarea::{Cuerpo, Tarea};
+    use crate::tarea::{Cuerpo, Documento, Tarea};
     use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.
@@ -478,6 +450,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// TASK-034 C9 (unitario): una planificada en pausa no se empieza
+    /// (`pausada`); reanudada, si.
+    #[test]
+    fn en_pausa_no_se_empieza() {
+        let fila =
+            |fase: &str| format!("| 2026-11-17T09:00:00Z | {fase} | manual | agente | 0.1 |\n");
+        let pausada = md("TASK-001", "planificada", &[], None) + &fila("pausa");
+        let s = estado(&[("TASK-001", pausada.clone())]);
+        let r = Tomar::nueva("TASK-001", &ana(), AHORA).aplicar(&s);
+        assert_eq!(motivo(&r), Some("pausada"));
+        let s = estado(&[("TASK-001", pausada + &fila("reanudar"))]);
+        let r = Tomar::nueva("TASK-001", &ana(), AHORA).aplicar(&s);
+        assert_eq!(r.map(|c| c.len()), Ok(1));
     }
 
     #[test]

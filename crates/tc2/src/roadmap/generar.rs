@@ -19,6 +19,9 @@ use crate::tarea::Asignado;
 /// Tercera linea del fichero: lo generado y su formato.
 pub const MARCA: &str = "<!-- generado por tc2; formato 2; no editar fuera de la zona manual -->";
 
+/// Como se marca una tarea en pausa (TASK-034).
+const EN_PAUSA: &str = "en pausa";
+
 /// Lo que se consulta al escribir.
 struct Datos<'a> {
     s: &'a Situacion,
@@ -75,13 +78,25 @@ impl<'a> Datos<'a> {
         v
     }
 
-    /// Texto del estado y clase Mermaid de una tarea viva.
+    /// Texto del estado y clase Mermaid de una tarea viva. Una en pausa
+    /// (TASK-034) lo dice: planificada, `en pausa`; empezada, su estado con
+    /// `· en pausa` (sin coma: la linea de «En marcha» se parte por `, `).
     fn estado(&self, f: &Ficha) -> (String, &'static str) {
         let id = f.nodo.id.as_str();
         let e = f.nodo.estado().unwrap_or_default();
         if self.atascadas.contains(id) {
             return ("atascada (ciclo)".to_owned(), "atascada");
         }
+        let (texto, clase) = self.estado_sin_pausa(f, e);
+        match e {
+            _ if !f.en_pausa || e == TERMINADA => (texto, clase),
+            PLANIFICADA => (EN_PAUSA.to_owned(), "espera"),
+            _ => (format!("{texto} · {EN_PAUSA}"), clase),
+        }
+    }
+
+    fn estado_sin_pausa(&self, f: &Ficha, e: &str) -> (String, &'static str) {
+        let id = f.nodo.id.as_str();
         match e {
             TERMINADA => ("terminada".to_owned(), "terminada"),
             "en-diseno" => ("en diseño".to_owned(), "marcha"),
@@ -175,10 +190,10 @@ pub fn generar(s: &Situacion, zona: &str, personas: &Personas) -> String {
     en_marcha(&d, &mut o, "En curso", &["en-diseno", "en-curso"]);
     en_marcha(&d, &mut o, "En revisión", &["en-revision"]);
     hitos(&d, &mut o);
-    plegadas(&d, &mut o, "Terminadas", |f| {
+    plegadas(&d, &mut o, "Terminadas", false, |f| {
         f.nodo.estado() == Some(TERMINADA)
     });
-    plegadas(&d, &mut o, "Descartadas", |f| {
+    plegadas(&d, &mut o, "Descartadas", true, |f| {
         f.nodo.fase == Fase::Descartada
     });
     o
@@ -339,7 +354,16 @@ fn grafo_del_hito(d: &Datos<'_>, abiertas: &[&Ficha]) -> String {
     mermaid::bloque(&nodos, &aristas)
 }
 
-fn plegadas(d: &Datos<'_>, o: &mut String, titulo: &str, filtro: impl Fn(&Ficha) -> bool) {
+/// Las terminadas o las descartadas, plegadas; con `motivo`, cada linea
+/// lleva el de su descarte (`sin motivo` en una de formato 1, que no lo
+/// guarda: lo trae la migracion de F1-12).
+fn plegadas(
+    d: &Datos<'_>,
+    o: &mut String,
+    titulo: &str,
+    motivo: bool,
+    filtro: impl Fn(&Ficha) -> bool,
+) {
     let mut v: Vec<&Ficha> = d.fichas.values().copied().filter(|f| filtro(f)).collect();
     v.sort_by_key(|f| grafo::numero_y_sufijo(&f.nodo.id));
     let _ = writeln!(o, "\n## {titulo}\n");
@@ -353,13 +377,21 @@ fn plegadas(d: &Datos<'_>, o: &mut String, titulo: &str, filtro: impl Fn(&Ficha)
         v.len()
     );
     for f in v {
-        let _ = writeln!(
+        let _ = write!(
             o,
             "- {} — {} (H{})",
             f.nodo.id,
             celda(&f.titulo),
             f.nodo.sprint
         );
+        if motivo {
+            let m = f
+                .motivo
+                .as_deref()
+                .map_or_else(|| "sin motivo".to_owned(), celda);
+            let _ = write!(o, " — motivo: {m}");
+        }
+        o.push('\n');
     }
     o.push_str("\n</details>\n");
 }

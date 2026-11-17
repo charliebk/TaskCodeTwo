@@ -395,7 +395,11 @@ pub fn personas_de_base(g: &Git, dir: &Path) -> Paso<Personas> {
         dir,
         NOMBRE,
         Subcomando::LsTree,
+        // `--full-tree`: la ruta es desde la raiz del repo y no desde la
+        // carpeta en la que se lanza (una subcarpeta del clon o del
+        // worktree no la encontraria).
         &[
+            "--full-tree",
             "--name-only",
             "--end-of-options",
             config::BASE,
