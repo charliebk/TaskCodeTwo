@@ -198,6 +198,17 @@ pub(crate) fn rama_valida(op: &str, id: &str, tipo: &str, slug: &str) -> Paso<St
     }
 }
 
+/// Inversa de [`nombre_de_rama`]: el `tipo` y el `slug` de `rama` si es la
+/// rama de la tarea `id` (`<tipo>/<task-nnn>-<slug>`) y pasa la validacion
+/// de las operaciones de rama. `start` (F3-6) crea asi la rama que dejo el
+/// alta en `rama:`.
+pub fn partes_de_rama(id: &str, rama: &str) -> Option<(String, String)> {
+    let (tipo, resto) = rama.split_once('/')?;
+    let slug = resto.strip_prefix(&format!("{}-", id.to_lowercase()))?;
+    let valida = rama_valida("partes-de-rama", id, tipo, slug).ok()?;
+    (valida == rama).then(|| (tipo.to_owned(), slug.to_owned()))
+}
+
 fn ruta_texto(op: &str, p: &Path) -> Paso<String> {
     p.to_str().map(str::to_owned).ok_or_else(|| {
         Informe::nuevo(op, Resultado::Error).diagnostico(&txt::RUTA_WORKTREE_NO_UTF8)
@@ -415,7 +426,37 @@ pub(crate) fn renombrar(mut i: Informe, op: &str) -> Informe {
 
 #[cfg(test)]
 mod tests {
-    use super::{id_de_rama, nombres};
+    use super::{id_de_rama, nombre_de_rama, nombres, partes_de_rama};
+
+    /// F3-6: ida y vuelta con `nombre_de_rama`; lo que no es la rama de esa
+    /// tarea o no pasa la validacion, `None`.
+    #[test]
+    fn partes_de_rama_es_la_inversa_de_nombre_de_rama() {
+        for (id, tipo, slug) in [
+            ("TASK-033", "feature", "f3-6-start"),
+            ("TASK-1000", "hotfix", "x"),
+            ("TASK-007", "fix", "a-b-c-1"),
+        ] {
+            let rama = nombre_de_rama(id, tipo, slug);
+            assert_eq!(
+                partes_de_rama(id, &rama),
+                Some((tipo.to_owned(), slug.to_owned())),
+                "{rama}"
+            );
+        }
+        for (id, rama) in [
+            ("TASK-033", "feature/task-034-x"),
+            ("TASK-033", "feature/task-033"),
+            ("TASK-033", "feature/task-033-"),
+            ("TASK-033", "task-033-x"),
+            ("TASK-033", "Feature/task-033-x"),
+            ("TASK-033", "feature/task-033-con espacio"),
+            ("TASK-033", "a/b/task-033-x"),
+            ("TASK-33", "feature/task-33-x"),
+        ] {
+            assert_eq!(partes_de_rama(id, rama), None, "{rama}");
+        }
+    }
 
     /// Lo que devuelve `ls-remote` por sufijo (comprobado con git 2.56):
     /// cuenta un componente `task-<cifras>` que no sea el primero.
