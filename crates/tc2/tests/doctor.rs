@@ -680,6 +680,220 @@ fn checks_sin_publicar_o_no_obligatorios() {
     }
 }
 
+/// C11: `capacidades` con la tabla G01..G20 y el plan observado: con
+/// distintos planes en GitHub y GitLab, `doctor` dice las garantias
+/// sustituidas o no disponibles con motivo y arreglo, y las cuentas en la
+/// primera linea; el mismo caso da la misma linea en las dos plataformas.
+#[test]
+fn capacidades_por_plan_en_las_dos_plataformas() {
+    let _serie = serie();
+    let primera = |hs: &[Hallazgo], r: &Resumen| doctor::lineas(hs, r)[0].clone();
+    // GitHub, repo privado de una cuenta gratuita: rulesets con 403 de plan.
+    let mut caso = Caso::bien(Prov::GitHub);
+    caso.plan = Plan::GitHub {
+        privado: true,
+        org: false,
+        sin_rulesets: true,
+    };
+    let (hs, r, _) = doctor_contra(Prov::GitHub, &caso);
+    assert!(
+        primera(&hs, &r).contains(
+            " plan=github-free-privado-usuario impuestas=9 sustituidas=1 no-disponibles=10 "
+        ),
+        "{}",
+        primera(&hs, &r)
+    );
+    let g = lineas_de(&hs, "garantia");
+    assert!(g.contains(&"garantia G03 aviso motivo=plan capacidad=no-disponible arreglo=repo-publico-o-github-pro".to_owned()), "{g:?}");
+    assert!(g.contains(&"garantia G10 aviso motivo=plan capacidad=sustituida por=al-dia-por-cli arreglo=org-publica-o-enterprise-cloud".to_owned()), "{g:?}");
+    // GitLab Free y Premium (sin propietarios de codigo: G06 por config).
+    let mut caso = Caso::bien(Prov::GitLab);
+    caso.plan = Plan::GitLab("free");
+    let (hs, r, _) = doctor_contra(Prov::GitLab, &caso);
+    assert!(
+        primera(&hs, &r).contains(" plan=gitlab-free impuestas=11 sustituidas=9 no-disponibles=0 "),
+        "{}",
+        primera(&hs, &r)
+    );
+    let g = lineas_de(&hs, "garantia");
+    assert!(g.contains(&"garantia G03 aviso motivo=plan capacidad=sustituida por=merge-solo-persona arreglo=gitlab-premium".to_owned()), "{g:?}");
+    assert!(g.contains(&"garantia G01 aviso motivo=plataforma capacidad=sustituida por=maintainer-solo-persona arreglo=ninguno-limite-de-la-plataforma".to_owned()), "{g:?}");
+    caso.plan = Plan::GitLab("premium");
+    let (hs, r, _) = doctor_contra(Prov::GitLab, &caso);
+    assert!(
+        primera(&hs, &r)
+            .contains(" plan=gitlab-premium impuestas=16 sustituidas=3 no-disponibles=1 "),
+        "{}",
+        primera(&hs, &r)
+    );
+    assert!(lineas_de(&hs, "garantia").contains(
+        &"garantia G06 aviso motivo=config capacidad=no-disponible arreglo=tc2-init".to_owned()
+    ));
+    // El mismo caso, la misma linea: `develop` sin solo-PR en un plan que
+    // lo da; y el plan que no se puede leer.
+    let mismo = |preparar: &dyn Fn(&mut Caso, Prov), buscar: &str| -> Vec<String> {
+        [Prov::GitHub, Prov::GitLab]
+            .into_iter()
+            .map(|prov| {
+                let mut caso = Caso::bien(prov);
+                preparar(&mut caso, prov);
+                let (hs, r, _) = doctor_contra(prov, &caso);
+                let l: Vec<String> = lineas_de(&hs, "garantia")
+                    .into_iter()
+                    .filter(|l| l.starts_with(buscar))
+                    .collect();
+                format!(
+                    "{l:?} {}",
+                    primera(&hs, &r).contains(" plan=no-comprobado ")
+                )
+            })
+            .collect()
+    };
+    let v = mismo(
+        &|c, prov| {
+            c.protegidas = vec!["main"];
+            if prov == Prov::GitLab {
+                c.plan = Plan::GitLab("free");
+            }
+        },
+        "garantia G02 ",
+    );
+    assert_eq!(v[0], v[1]);
+    assert_eq!(
+        v[0],
+        "[\"garantia G02 aviso motivo=config capacidad=no-disponible arreglo=tc2-init\"] false"
+    );
+    let v = mismo(&|c, _| c.plan = Plan::Ilegible, "garantia plan ");
+    assert_eq!(v[0], v[1]);
+    assert_eq!(
+        v[0],
+        "[\"garantia plan no-comprobado motivo=plan-no-comprobado\"] true"
+    );
+}
+
+/// C7: con el binario, como mucho 5 lineas en stdout, la primera fija y
+/// `y N mas: tc2 doctor --json` si no caben; `--json` en una linea con
+/// todos los hallazgos y sin ANSI.
+#[test]
+fn salida_acotada_y_json_con_todo() {
+    let f = Fixture::nueva("doctor-c7");
+    let (_, clon) = con_estado(&f, &[]);
+    let (c, out, err) = tc2(&f, &clon, &["doctor"], &[]);
+    assert!(c == 0 || c == 3, "{out} {err}");
+    let lineas: Vec<&str> = out.lines().collect();
+    assert!(lineas.len() <= 5, "{out}");
+    assert!(lineas[0].starts_with("doctor "), "{out}");
+    assert!(!out.contains('\u{1b}') && !err.contains('\u{1b}'));
+    let (cj, json, _) = tc2(&f, &clon, &["doctor", "--json"], &[]);
+    assert_eq!(cj, c);
+    assert_eq!(json.lines().count(), 1);
+    assert!(!json.contains('\u{1b}'));
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let n = |k: &str| v["claves"][k].as_str().unwrap().parse::<usize>().unwrap();
+    let malos = n("fallos") + n("avisos") + n("no-comprobado");
+    let todos = v["hallazgos"].as_array().unwrap();
+    let oks = todos.iter().filter(|h| h["estado"] == "ok").count();
+    assert_eq!(todos.len(), malos + oks);
+    assert!(malos > 4, "el caso tiene que no caber: {json}");
+    assert_eq!(lineas.len(), 5);
+    assert_eq!(lineas[4], format!("y {} mas: tc2 doctor --json", malos - 3));
+}
+
+/// Lo que `doctor` no puede cambiar: refs, `git worktree list`, el arbol de
+/// trabajo de cada worktree (con ignorados), el indice, `config`,
+/// `info/exclude` y `<git-common-dir>/taskcodetwo/` (rutas y contenido).
+fn foto(f: &Fixture, clon: &Path) -> String {
+    let mut s = f.crudo(clon, &["for-each-ref", "--format=%(refname) %(objectname)"]);
+    let wts = f.crudo(clon, &["worktree", "list", "--porcelain"]);
+    s += &wts;
+    for l in wts.lines() {
+        if let Some(r) = l.strip_prefix("worktree ") {
+            s += &f.crudo(Path::new(r), &["status", "--porcelain", "--ignored"]);
+        }
+    }
+    let git = clon.join(".git");
+    for fichero in ["index", "config", "info/exclude"] {
+        s += &format!("{fichero}:{:?}\n", std::fs::read(git.join(fichero)).ok());
+    }
+    let mut pila = vec![git.join("taskcodetwo")];
+    let mut ficheros = Vec::new();
+    while let Some(d) = pila.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            if e.path().is_dir() {
+                pila.push(e.path());
+            } else {
+                ficheros.push(e.path());
+            }
+        }
+    }
+    ficheros.sort();
+    for p in ficheros {
+        s += &format!("{}:{:?}\n", p.display(), std::fs::read(&p).unwrap());
+    }
+    s
+}
+
+/// C10: `doctor` no escribe nada: la foto del clon es la misma antes y
+/// despues (biblioteca contra la plataforma simulada y binario, texto y
+/// JSON); el mock solo recibe `GET` y git solo lanza lecturas.
+#[test]
+fn doctor_no_escribe_nada() {
+    let _serie = serie();
+    let f = Fixture::nueva("doctor-c10");
+    let (_, clon) = con_estado(&f, &[]);
+    assert!(estado::montar(&f.git(), &clon).resultado.es_exito());
+    escribir(&clon, ".gitignore", "*.log\n");
+    escribir(&clon, "ignorado.log", "x\n");
+    escribir(&clon.join("tareas"), "TASK-001/notas.txt", "sin publicar\n");
+    escribir(&clon, ".git/taskcodetwo/identidad.yml", "x: 1\n");
+    let antes = foto(&f, &clon);
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let m = servir(prov, &Caso::bien(prov));
+        let base = m.base();
+        let conectar = move |p: &Personas| {
+            Ok(Conectada {
+                plataforma: adaptador(prov, &base, p),
+                rol: Rol::Persona,
+            })
+        };
+        let g = f.git();
+        let _ = hallazgos(&g, &clon, &conectar);
+        assert_eq!(foto(&f, &clon), antes, "{prov:?} cambio algo");
+        let recibidas = m.recibidas();
+        assert!(!recibidas.is_empty());
+        assert!(
+            recibidas.iter().all(|r| r.linea.starts_with("GET ")),
+            "{prov:?}: {recibidas:?}"
+        );
+        const LECTURAS: [&str; 11] = [
+            "version",
+            "worktree",
+            "rev-parse",
+            "ls-remote",
+            "for-each-ref",
+            "ls-tree",
+            "cat-file",
+            "show",
+            "status",
+            "merge-base",
+            "show-ref",
+        ];
+        for l in g.registro() {
+            let mut t = l.split(' ').skip(1);
+            let sub = t.next().unwrap_or_default();
+            assert!(LECTURAS.contains(&sub), "git que no es de lectura: {l}");
+            if sub == "worktree" {
+                assert_eq!(t.next(), Some("list"), "{l}");
+            }
+        }
+    }
+    for args in [vec!["doctor"], vec!["doctor", "--json"]] {
+        let (c, out, err) = tc2(&f, &clon, &args, &[]);
+        assert!(c == 0 || c == 3, "{args:?}: {out} {err}");
+        assert_eq!(foto(&f, &clon), antes, "{args:?} cambio algo");
+    }
+}
+
 /// C9: sin plataforma, sin credenciales o sin red, `plataforma=` lo dice y
 /// los hallazgos de plataforma salen `no-comprobado` (ninguno `ok`); el
 /// codigo no cambia por eso.

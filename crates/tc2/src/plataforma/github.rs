@@ -17,7 +17,8 @@ use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{
-    Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, Proveedor, ReglasLeidas, Usuario,
+    Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma, PrAbierto, Proveedor,
+    ReglasLeidas, Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -29,6 +30,7 @@ const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 const PRS_ABIERTOS: &str = "prs-abiertos";
+const LEER_PLAN: &str = "leer-plan";
 
 /// Permiso de `leer-puertas` (lo nombra `doctor` en `permiso=`).
 pub const PERMISO_LEER_PUERTAS: &str = "metadata:read";
@@ -45,6 +47,7 @@ const GARANTIAS_DE_RULESETS: [&str; 10] = [
 /// Endpoints de la API que usa el adaptador (lista cerrada).
 enum Endpoint<'a> {
     Usuario,
+    Repo,
     Pr(u64),
     PrsAbiertos { cabeza: &'a str, base: &'a str },
     TodosLosPrsAbiertos,
@@ -64,6 +67,7 @@ impl Endpoint<'_> {
         let r = format!("/repos/{repo}");
         match self {
             Self::Usuario => (Metodo::Get, "/user".into()),
+            Self::Repo => (Metodo::Get, r),
             Self::Pr(n) => (Metodo::Get, format!("{r}/pulls/{n}")),
             Self::PrsAbiertos { cabeza, base } => (
                 Metodo::Get,
@@ -218,6 +222,21 @@ struct VerificacionApi {
     verified: bool,
     #[serde(default)]
     reason: String,
+}
+
+/// Lo que se lee del repo para el plan (GH-01 de F1-13).
+#[derive(Deserialize)]
+struct RepoPlanApi {
+    private: bool,
+    #[serde(default)]
+    visibility: Option<String>,
+    owner: DuenoApi,
+}
+
+#[derive(Deserialize)]
+struct DuenoApi {
+    #[serde(rename = "type")]
+    tipo: String,
 }
 
 #[derive(Deserialize)]
@@ -716,6 +735,23 @@ impl Plataforma for GitHub {
 
     fn proveedor(&self) -> Option<Proveedor> {
         Some(Proveedor::GitHub)
+    }
+
+    fn leer_plan(&self, rol: Rol) -> Paso<PlanObservado> {
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(LEER_PLAN, rol));
+        }
+        let r: RepoPlanApi = self.con.leer(
+            LEER_PLAN,
+            rol,
+            PERMISO_LEER_PUERTAS,
+            self.ep(&Endpoint::Repo),
+        )?;
+        Ok(PlanObservado::GitHub {
+            // `internal` (Enterprise) cuenta como privado.
+            publico: !r.private && r.visibility.as_deref().is_none_or(|v| v == "public"),
+            organizacion: r.owner.tipo == "Organization",
+        })
     }
 }
 

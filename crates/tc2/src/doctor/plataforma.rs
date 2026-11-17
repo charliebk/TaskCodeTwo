@@ -13,10 +13,11 @@ use crate::plataforma::puertas::{Objetivo, modelo};
 use crate::plataforma::{Paso, Plataforma, Proveedor, ReglasLeidas, github, gitlab};
 
 /// Lo que se comprueba aqui, para decir `no-comprobado` de todo a la vez.
-const COMPROBACIONES: [(&str, &str); 3] = [
+const COMPROBACIONES: [(&str, &str); 4] = [
     ("proteccion", "develop"),
     ("proteccion", "main"),
     ("permisos", "ci"),
+    ("garantia", "plan"),
 ];
 
 /// Las ramas del modelo que solo admiten PR (F1-5 decision 2).
@@ -282,5 +283,14 @@ pub(super) fn comprobar(
         }
     }
     hs.push(permisos_ci(prov, &p.leer_permisos_ci()));
-    (hs, plataforma.to_owned(), None)
+    // `capacidades` con el plan observado y las puertas de `develop`.
+    let observado = p.leer_plan(c.rol).ok();
+    let develop = ramas
+        .iter()
+        .zip(&leidas)
+        .find(|((_, rama), _)| rama == RAMA_CHECKS)
+        .and_then(|(_, r)| r.as_ref().ok());
+    let (h, cuentas) = super::capacidades::de_lo_leido(prov, observado.as_ref(), develop);
+    hs.extend(h);
+    (hs, plataforma.to_owned(), Some(cuentas))
 }

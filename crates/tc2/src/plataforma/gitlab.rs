@@ -18,8 +18,8 @@ use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{
-    Clave, Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, Proveedor, ReglasLeidas,
-    Usuario,
+    Clave, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma, PrAbierto, Proveedor,
+    ReglasLeidas, TierGitLab, Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -32,6 +32,7 @@ const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 const PRS_ABIERTOS: &str = "prs-abiertos";
+const LEER_PLAN: &str = "leer-plan";
 
 /// El scope de lectura en una clave (`doctor`, `permiso=`); el texto
 /// completo, con el rol, es [`PERMISO_LECTURA`].
@@ -73,6 +74,7 @@ enum Endpoint<'a> {
     Commit(&'a str),
     Proyecto,
     Rama(&'a str),
+    Namespace(u64),
 }
 
 impl Endpoint<'_> {
@@ -123,6 +125,9 @@ impl Endpoint<'_> {
             ),
             Self::Commit(sha) => (Metodo::Get, format!("{p}/repository/commits/{sha}")),
             Self::Proyecto => (Metodo::Get, p),
+            // Fuera del proyecto: la ruta la construye el adaptador con el
+            // id numerico que da el propio proyecto.
+            Self::Namespace(id) => (Metodo::Get, format!("/namespaces/{id}")),
             Self::Rama(rama) => (
                 Metodo::Get,
                 format!("{p}/repository/branches/{}", codificar(rama)),
@@ -272,6 +277,19 @@ struct CommitApi {
 struct ProyectoApi {
     #[serde(default)]
     only_allow_merge_if_pipeline_succeeds: Option<bool>,
+    #[serde(default)]
+    namespace: Option<NamespaceRefApi>,
+}
+
+#[derive(Deserialize)]
+struct NamespaceRefApi {
+    id: u64,
+}
+
+#[derive(Deserialize)]
+struct NamespaceApi {
+    #[serde(default)]
+    plan: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -886,6 +904,33 @@ impl Plataforma for GitLab {
 
     fn proveedor(&self) -> Option<Proveedor> {
         Some(Proveedor::GitLab)
+    }
+
+    fn leer_plan(&self, rol: Rol) -> Paso<PlanObservado> {
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(LEER_PLAN, rol));
+        }
+        let p: ProyectoApi = self.con.leer(
+            LEER_PLAN,
+            rol,
+            PERMISO_LECTURA,
+            self.ep(&Endpoint::Proyecto),
+        )?;
+        let Some(ns) = p.namespace else {
+            return Ok(PlanObservado::GitLab(None));
+        };
+        // El `plan` del namespace (API de namespaces; la pagina no dice
+        // quien lo ve): si no se lee o no se reconoce, no se supone ninguno.
+        let r = self
+            .con
+            .pedir(LEER_PLAN, rol, self.ep(&Endpoint::Namespace(ns.id)), None)?;
+        if !r.exito() {
+            return Ok(PlanObservado::GitLab(None));
+        }
+        let n: NamespaceApi = self.con.parsear(LEER_PLAN, &r.cuerpo)?;
+        Ok(PlanObservado::GitLab(
+            n.plan.as_deref().and_then(TierGitLab::de_plan),
+        ))
     }
 }
 

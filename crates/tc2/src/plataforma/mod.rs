@@ -154,6 +154,56 @@ pub struct ReglasLeidas {
     pub checks_publicados: Option<Vec<String>>,
 }
 
+/// Tier de GitLab (F1-13, decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TierGitLab {
+    /// Free.
+    Free,
+    /// Premium.
+    Premium,
+    /// Ultimate.
+    Ultimate,
+}
+
+impl TierGitLab {
+    /// El tier del `plan` de un namespace (`free`, `premium`, `ultimate`);
+    /// cualquier otro valor (`default`, nombres antiguos) no se reconoce.
+    pub fn de_plan(plan: &str) -> Option<Self> {
+        match plan {
+            "free" => Some(Self::Free),
+            "premium" => Some(Self::Premium),
+            "ultimate" => Some(Self::Ultimate),
+            _ => None,
+        }
+    }
+
+    /// Nombre en la linea.
+    pub fn nombre(self) -> &'static str {
+        match self {
+            Self::Free => "free",
+            Self::Premium => "premium",
+            Self::Ultimate => "ultimate",
+        }
+    }
+}
+
+/// Lo que se observa del plan (F1-13 decision 3: «el plan se observa, no se
+/// declara»). En GitHub, la visibilidad y el tipo de cuenta del repo (el
+/// 403 de plan de los rulesets lo aporta `leer-puertas`); en GitLab, el
+/// `plan` del namespace, si se lee y se reconoce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanObservado {
+    /// Repo de GitHub.
+    GitHub {
+        /// Publico (ni privado ni interno).
+        publico: bool,
+        /// De una organizacion.
+        organizacion: bool,
+    },
+    /// Proyecto de GitLab, con el tier si se reconoce.
+    GitLab(Option<TierGitLab>),
+}
+
 /// Un PR (o MR) abierto del propio repo, con lo minimo que necesita `board`
 /// (F3-5, D3 de TASK-032: sin checks ni aprobaciones).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -205,5 +255,14 @@ pub trait Plataforma {
     /// tabla de su plataforma). `None` en los adaptadores de prueba.
     fn proveedor(&self) -> Option<Proveedor> {
         None
+    }
+
+    /// `leer-plan` (agente o persona; F3-8): lo que se observa del plan
+    /// para `capacidades`. Por defecto no se sabe (adaptadores de prueba).
+    fn leer_plan(&self, _rol: Rol) -> Paso<PlanObservado> {
+        Err(
+            Informe::nuevo("leer-plan", crate::contrato::Resultado::Error)
+                .con("motivo", "no-soportada"),
+        )
     }
 }
