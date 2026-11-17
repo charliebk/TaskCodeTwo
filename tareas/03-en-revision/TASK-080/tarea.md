@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1287739
-tokens_implementacion: 47158945
+tokens_implementacion: 56231819
 tokens_revision: 6629490
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -91,3 +91,8 @@ Hallazgos propios:
 | 2026-11-17T21:16:42Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 40 | 26594 | 6629384 | 7561 | 0 | 6663579 | - | - |
 | 2026-11-17T21:26:10Z | revision | agente:a2b7afeeb78cf98df | 50 | 130855 | 2667514 | 20181 | 3 | 2818600 | 1 | rust-wasm-reviewer |
 | 2026-11-17T21:29:53Z | revision | agente:adae8b495ec722499 | 62 | 131104 | 3659147 | 20577 | 4 | 3810890 | 1 | code-quality-reviewer |
+| 2026-11-17T21:44:35Z | implementacion | agente:a201d8ddaa553dfef | 126 | 181332 | 8840140 | 51276 | 27 | 9072874 | - | - |
+
+## Verificacion ligera
+
+- 2026-11-17T21:44:36Z: ronda 1; commit revisado 79c0ce94aa17c4a16e87c010e64ab5ef88e25586; commit verificado c8bb768d4b67a5e972dd86646b7afa49b5b76c08; ficheros: crates/tc2/src/doctor/recursos.rs, crates/tc2/src/inventario.rs, crates/tc2/src/recursos.rs, crates/tc2/tests/recursos.rs, docs/adr/F1-14-distribucion-e-instalacion.md, docs/distribucion/instalar.md; corregidos: MEN-1, MEN-2, MEN-3, MEN-4, MEN-5, MEN-6, H1, H2, H3, H4, H5; pendientes: ninguno
