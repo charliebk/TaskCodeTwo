@@ -205,7 +205,7 @@ pub struct Orden {
 type Clave = (u64, u64, String, String);
 
 /// Numero y sufijo de `TASK-NNNa`; sin cifras, al final.
-fn numero_y_sufijo(id: &str) -> (u64, String) {
+pub(crate) fn numero_y_sufijo(id: &str) -> (u64, String) {
     let resto = id.strip_prefix("TASK-").unwrap_or(id);
     let fin = resto
         .find(|c: char| !c.is_ascii_digit())
