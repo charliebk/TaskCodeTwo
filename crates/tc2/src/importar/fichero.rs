@@ -221,13 +221,7 @@ fn cabecera(lineas: &[&str]) -> Result<(Option<String>, Option<u32>, usize), Err
                 nombre = Some(v.to_owned());
             }
             "sprint" if sprint.is_none() => {
-                let n = v
-                    .bytes()
-                    .all(|b| b.is_ascii_digit())
-                    .then(|| v.parse::<u32>().ok())
-                    .flatten()
-                    .ok_or_else(malo)?;
-                sprint = Some(n);
+                sprint = Some(crate::alta::sprint_de(v).ok_or_else(malo)?);
             }
             _ => return Err(malo()),
         }
@@ -441,7 +435,7 @@ fn referencias(entradas: &[EntradaLote]) -> Result<(), ErrorLote> {
                 None if id_valido(d) => {}
                 None => {
                     return Err(ErrorLote::en(
-                        "referencia-inexistente",
+                        crate::alta::REFERENCIA_INEXISTENTE,
                         e.linea,
                         Mensaje::nuevo(&txt::REFERENCIA_INEXISTENTE).con("referencia", d.as_str()),
                     )

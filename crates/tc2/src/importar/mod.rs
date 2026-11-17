@@ -144,7 +144,7 @@ impl Operacion for Importar {
                     None if rutas.iter().any(|r| *r == format!("{d}/tarea.md")) => d.clone(),
                     None => {
                         return Err(Fallo::rechazada(
-                            "referencia-inexistente",
+                            alta::REFERENCIA_INEXISTENTE,
                             Mensaje::nuevo(&txt::EXTERNA_INEXISTENTE)
                                 .con("referencia", d.as_str())
                                 .con("clave", e.clave.as_str()),
@@ -194,13 +194,7 @@ fn opciones(args: &[String]) -> Result<Opciones, Informe> {
             "--simular" if !simular => simular = true,
             "--sprint" if sprint.is_none() => {
                 let v = it.next().ok_or_else(|| uso("sprint-invalido"))?;
-                let n = v
-                    .bytes()
-                    .all(|b| b.is_ascii_digit())
-                    .then(|| v.parse::<u32>().ok())
-                    .flatten()
-                    .ok_or_else(|| uso("sprint-invalido"))?;
-                sprint = Some(n);
+                sprint = Some(alta::sprint_de(v).ok_or_else(|| uso("sprint-invalido"))?);
             }
             f if !f.starts_with("--") && fichero.is_none() => fichero = Some(f.to_owned()),
             _ => return Err(uso("argumentos")),
@@ -222,8 +216,11 @@ fn de_error(e: ErrorLote) -> Informe {
     i.diagnostico(e.mensaje)
 }
 
-/// Lee el fichero con el tope de bytes antes de cargarlo entero.
+/// Lee el fichero sin cargar mas del tope de bytes: se lee como mucho un
+/// byte de mas, y si llega a leerse el fichero es demasiado grande (sin
+/// carrera entre mirar el tamano y leer).
 fn leer_fichero(ruta: &Path, limites: Limites) -> Result<String, Informe> {
+    use std::io::Read as _;
     let no_se_lee = |e: std::io::Error| {
         Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", "no-se-lee")
@@ -233,11 +230,15 @@ fn leer_fichero(ruta: &Path, limites: Limites) -> Result<String, Informe> {
                     .con("error", e.to_string()),
             )
     };
-    let m = std::fs::metadata(ruta).map_err(no_se_lee)?;
-    if usize::try_from(m.len()).map_or(true, |n| n > limites.bytes) {
+    let f = std::fs::File::open(ruta).map_err(no_se_lee)?;
+    let tope = u64::try_from(limites.bytes).unwrap_or(u64::MAX);
+    let mut bytes = Vec::new();
+    f.take(tope.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(no_se_lee)?;
+    if bytes.len() > limites.bytes {
         return Err(de_error(fichero::grande(limites)));
     }
-    let bytes = std::fs::read(ruta).map_err(no_se_lee)?;
     String::from_utf8(bytes).map_err(|_| {
         Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", "no-utf8")
@@ -318,10 +319,7 @@ fn importar_en(
     let c = estado::Contexto::nuevo(g, dir, catalogo);
     let mut i = estado::transaccion(&c, &op);
     NOMBRE.clone_into(&mut i.comando);
-    if i.resultado == Resultado::Rechazada && i.valor("motivo") == Some("referencia-inexistente") {
-        // El fallo es del fichero, no del estado: uso (C2).
-        i.resultado = Resultado::Uso;
-    }
+    alta::referencia_a_uso(&mut i);
     if i.resultado.es_exito()
         && let Some(p) = op.plan()
     {
@@ -389,15 +387,12 @@ fn simular(g: &git::Git, dir: &Path, op: &Importar, parecidas: &mut Vec<Parecida
             motivo,
             diagnostico,
         }) => {
-            let r = if motivo == "referencia-inexistente" {
-                Resultado::Uso
-            } else {
-                Resultado::Rechazada
-            };
-            Informe::nuevo(NOMBRE, r)
+            let mut i = Informe::nuevo(NOMBRE, Resultado::Rechazada)
                 .con("simular", "si")
                 .con("motivo", motivo)
-                .diagnostico(diagnostico)
+                .diagnostico(diagnostico);
+            alta::referencia_a_uso(&mut i);
+            i
         }
         Err(Fallo::Error(d)) => Informe::nuevo(NOMBRE, Resultado::Error)
             .con("simular", "si")

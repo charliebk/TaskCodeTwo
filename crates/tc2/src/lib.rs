@@ -297,10 +297,7 @@ fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
     let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
     let mut i = estado::transaccion(&c, &op);
     alta::NOMBRE.clone_into(&mut i.comando);
-    if i.resultado == Resultado::Rechazada && i.valor("motivo") == Some("referencia-inexistente") {
-        // El fallo es de la llamada, no del estado: uso, como en import.
-        i.resultado = Resultado::Uso;
-    }
+    alta::referencia_a_uso(&mut i);
     if i.resultado == Resultado::Ok
         && let (Some(id), Some(rama)) = (op.id(), op.rama())
     {

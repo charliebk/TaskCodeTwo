@@ -107,6 +107,27 @@ impl Entrada {
     }
 }
 
+/// `motivo=` de una dependencia que no existe en el estado.
+pub(crate) const REFERENCIA_INEXISTENTE: &str = "referencia-inexistente";
+
+/// Una dependencia que no existe es un fallo de la llamada (el fichero o
+/// los argumentos), no del estado: `uso` (2) en vez de `rechazada` (C2).
+pub(crate) fn referencia_a_uso(i: &mut crate::contrato::Informe) {
+    if i.resultado == crate::contrato::Resultado::Rechazada
+        && i.valor("motivo") == Some(REFERENCIA_INEXISTENTE)
+    {
+        i.resultado = crate::contrato::Resultado::Uso;
+    }
+}
+
+/// Un sprint: entero sin signo, sin espacios ni `+` (`--sprint`, `sprint:`).
+pub(crate) fn sprint_de(v: &str) -> Option<u32> {
+    v.bytes()
+        .all(|b| b.is_ascii_digit())
+        .then(|| v.parse().ok())
+        .flatten()
+}
+
 /// `uso` de `new` con `motivo` y `diagnostico`.
 fn uso(motivo: &str, diagnostico: impl Into<Mensaje>) -> crate::contrato::Informe {
     crate::contrato::Informe::nuevo(NOMBRE, crate::contrato::Resultado::Uso)
@@ -164,14 +185,10 @@ pub fn entrada_de_args(args: &[String]) -> Result<Entrada, crate::contrato::Info
                 return Err(invalido(opcion, v, &crate::tarea::COMPLEJIDADES.join(", ")));
             }
             "--sprint" => {
-                e.sprint = v
-                    .bytes()
-                    .all(|b| b.is_ascii_digit())
-                    .then(|| v.parse().ok())
-                    .flatten()
-                    .ok_or_else(|| invalido(opcion, v, "0, 1, 2..."))?;
+                e.sprint = sprint_de(v).ok_or_else(|| invalido(opcion, v, "0, 1, 2..."))?;
             }
-            "--objetivo" => v.clone_into(&mut e.objetivo),
+            // Un argumento con CRLF (Windows) cuenta como saltos de linea.
+            "--objetivo" => e.objetivo = v.replace("\r\n", "\n"),
             "--criterio" => e.criterios.push(v.clone()),
             "--etiqueta" if crate::tarea::login_valido(v) => e.etiquetas.push(v.clone()),
             "--etiqueta" => {
@@ -331,7 +348,7 @@ impl Operacion for Alta {
             .find(|d| !rutas.iter().any(|r| *r == format!("{d}/tarea.md")))
         {
             return Err(Fallo::rechazada(
-                "referencia-inexistente",
+                REFERENCIA_INEXISTENTE,
                 Mensaje::nuevo(&crate::i18n::catalogo::importar::DEPENDENCIA_INEXISTENTE)
                     .con("referencia", d.as_str()),
             ));
