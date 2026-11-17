@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-033 — F3-6 start: toma atomica de la tarea, rama y worktree desde develop · etiquetas: (sin etiquetas) · rama feature/task-033-f3-6-start-toma-atomica-de-la-tarea-rama · terminada 2026-11-17 · tareas/04-terminadas/TASK-033/
 - TASK-032 — F3-5 tc2 board y tc2 status · etiquetas: (sin etiquetas) · rama feature/task-032-f3-5-board-y-status · terminada 2026-11-17 · tareas/04-terminadas/TASK-032/
 - TASK-031 — F3-4 tc2 roadmap: la vista para todos · etiquetas: (sin etiquetas) · rama feature/task-031-f3-4-roadmap-la-vista-para-todos · terminada 2026-11-17 · tareas/04-terminadas/TASK-031/
 - TASK-030 — F3-3 tc2 next: lo listo para empezar por dependencias y prioridad · etiquetas: (sin etiquetas) · rama feature/task-030-f3-3-next-lo-listo-para-empezar-por-depe · terminada 2026-11-17 · tareas/04-terminadas/TASK-030/

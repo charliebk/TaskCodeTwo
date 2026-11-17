@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-033-f3-6-start-toma-atomica-de-la-tarea-rama
 asignado_a: charlie.bk@gmail.com
@@ -75,6 +75,7 @@ MENORES aceptados (sin seguimiento; casos que hoy no se dan o decisiones ya toma
 | 2026-11-17T09:17:40Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T09:56:25Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T10:24:45Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T10:50:58Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -88,3 +89,10 @@ MENORES aceptados (sin seguimiento; casos que hoy no se dan o decisiones ya toma
 | 2026-11-17T10:43:29Z | revision | agente:a64ca61e74183ba9c | 44 | 158487 | 1416030 | 7524 | 2 | 1582085 | 2 | code-quality-reviewer |
 | 2026-11-17T10:43:30Z | diseno | agente:ab8819b089d7eb5f4 | 50 | 128206 | 2023869 | 21136 | 43 | 2173261 | - | - |
 | 2026-11-17T10:43:31Z | implementacion | agente:a362cdb91f4b6c502 | 60 | 124090 | 2835588 | 15486 | 11 | 2975224 | - | - |
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 93 min
+- Paso de la hora: 93 min reales frente a 300 estimados
+- Cierre (finish): 435 s, de 2026-11-17T10:43:43Z a 2026-11-17T10:50:58Z

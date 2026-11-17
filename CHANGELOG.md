@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-033 (feature) — F3-6 start: toma atomica de la tarea, rama y worktree desde develop (2026-11-17)
 - TASK-032 (feature) — F3-5 tc2 board y tc2 status (2026-11-17)
 - TASK-031 (feature) — F3-4 tc2 roadmap: la vista para todos (2026-11-17)
 - TASK-030 (feature) — F3-3 tc2 next: lo listo para empezar por dependencias y prioridad (2026-11-17)

@@ -7,7 +7,6 @@
 ```text
 ID        Titulo                                                               Asignado
 --------  -------------------------------------------------------------------  -------------
-TASK-033  F3-6 start: toma atomica de la tarea, rama y worktree desde develop  (sin asignar)
 TASK-034  F3-7 descartar y pausa                                               (sin asignar)
 TASK-035  F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks    (sin asignar)
 TASK-036  F4-1 plan con brainstorm de roles                                    (sin asignar)
@@ -70,9 +69,10 @@ TASK-120  Seguimiento de F3-2: menores aceptados de tc2 import                 (
 TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                   (sin asignar)
 TASK-122  tc2 roadmap --grafo: grafo completo de tareas (RF-04)                (sin asignar)
 TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                (sin asignar)
+TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status         (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 43
+## Terminadas (04-terminadas) — 44
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -109,6 +109,7 @@ TASK-029  F3-2 tc2 new e import en bloque con dependencias e hito               
 TASK-030  F3-3 tc2 next: lo listo para empezar por dependencias y prioridad         charlie.bk@gmail.com
 TASK-031  F3-4 tc2 roadmap: la vista para todos                                     charlie.bk@gmail.com
 TASK-032  F3-5 tc2 board y tc2 status                                               charlie.bk@gmail.com
+TASK-033  F3-6 start: toma atomica de la tarea, rama y worktree desde develop       charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com
