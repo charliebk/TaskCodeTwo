@@ -147,6 +147,10 @@ where
             let (json, resto) = con_json(resto);
             init::orden(&resto, json, idioma)
         }
+        [orden, resto @ ..] if orden == toma::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_start(&resto).salida_en(json, idioma)
+        }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_identidad(&resto).salida_en(json, idioma)
@@ -276,6 +280,38 @@ fn orden_identidad(args: &[String]) -> Informe {
             ahora: identidad::ahora(),
         },
     )
+}
+
+/// `start [--json] TASK-NNN` (F3-6) en la carpeta actual: quien la toma sale
+/// de [`identidad::resolver`] con el terminal y los tokens del proceso.
+fn orden_start(args: &[String]) -> Informe {
+    use std::io::IsTerminal;
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(toma::NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+        }
+    };
+    let g = git::Git::nuevo();
+    let ahora = identidad::ahora();
+    let quien = || {
+        identidad::resolver(identidad::Entorno {
+            dir: &dir,
+            git: &g,
+            tty: std::io::stdin().is_terminal(),
+            credenciales: Box::new(plataforma::CredencialesEntorno),
+            ahora,
+        })
+    };
+    let e = toma::Entorno {
+        dir: &dir,
+        git: &g,
+        quien: &quien,
+        catalogo: &catalogo,
+        ahora,
+    };
+    toma::orden(args, &e)
 }
 
 /// `status` o `board` (F3-5) en la carpeta actual.
@@ -479,6 +515,33 @@ mod tests {
             Some(("start".to_owned(), "start|TASK-001|7|ana".to_owned()))
         );
         assert!(catalogo("start|TASK-001|7").is_none());
+    }
+
+    /// TASK-033 C5: un ID mal formado (o sin ID, o de mas) es `uso` (2) sin
+    /// tocar nada, con el diagnostico en los dos idiomas.
+    #[test]
+    fn start_con_id_mal_formado_es_uso() {
+        for (args, motivo) in [
+            (vec!["start"], "sin-id"),
+            (vec!["start", "TASK-1"], "id-invalido"),
+            (vec!["start", "task-001"], "id-invalido"),
+            (vec!["start", "TASK-001a"], "id-invalido"),
+            (
+                vec!["start", "--json", "TASK-001", "x"],
+                "argumentos-de-mas",
+            ),
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!((es.codigo, en.codigo), (2, 2), "{args:?}");
+            assert!(es.stdout.contains(motivo), "{args:?}: {}", es.stdout);
+            assert_eq!(es.stderr, "uso: start [--json] TASK-NNN\n");
+            assert_eq!(en.stderr, "usage: start [--json] TASK-NNN\n");
+        }
+        assert_eq!(
+            ejecutar(["start", "TASK-1"]).stdout,
+            "start uso motivo=id-invalido\n"
+        );
     }
 
     #[test]

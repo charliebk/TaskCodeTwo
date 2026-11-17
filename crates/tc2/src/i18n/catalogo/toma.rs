@@ -1,6 +1,18 @@
 //! Mensajes de `tc2 start` (F3-6).
 
 crate::i18n::textos! {
+    USO_START {
+        es: "uso: start [--json] TASK-NNN",
+        en: "usage: start [--json] TASK-NNN",
+    }
+    RAMA_INVALIDA {
+        es: "la rama {rama} de la tarea {id} no tiene la forma <tipo>/task-nnn-<slug>: corrigela en su tarea.md antes de empezarla",
+        en: "branch {rama} of task {id} is not of the form <tipo>/task-nnn-<slug>: fix it in its tarea.md before starting it",
+    }
+    TIPO_RELEASE {
+        es: "la tarea {id} es de tipo release: una release no se empieza con start, sale de develop con tc2 release (ADR F1-3)",
+        en: "task {id} is of type release: a release is not started with start, it comes from develop with tc2 release (ADR F1-3)",
+    }
     NO_EXISTE {
         es: "la tarea {id} no existe en la rama de estado: comprueba el ID con tc2 status",
         en: "task {id} does not exist in the state branch: check the ID with tc2 status",
