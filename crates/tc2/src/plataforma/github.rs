@@ -30,6 +30,12 @@ const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 const PRS_ABIERTOS: &str = "prs-abiertos";
 
+/// Permiso de `leer-puertas` (lo nombra `doctor` en `permiso=`).
+pub const PERMISO_LEER_PUERTAS: &str = "metadata:read";
+
+/// Permiso de `leer-permisos-ci`.
+pub const PERMISO_PERMISOS_CI: &str = "administration:read";
+
 /// Garantias que en GitHub dan los rulesets (tier «Free publico;
 /// Pro/Team/Enterprise» de la tabla de F1-13): sin ellos, el 403 de plan.
 const GARANTIAS_DE_RULESETS: [&str; 10] = [
@@ -573,7 +579,7 @@ impl Plataforma for GitHub {
         if rol == Rol::Revisor {
             return Err(rol_no_valido(LEER_PUERTAS, rol));
         }
-        let permiso = "metadata:read";
+        let permiso = PERMISO_LEER_PUERTAS;
         let r = self
             .con
             .pedir(LEER_PUERTAS, rol, self.ep(&Endpoint::Rulesets), None)?;
@@ -607,7 +613,7 @@ impl Plataforma for GitHub {
         let p: PermisosApi = match self.con.leer(
             LEER_PERMISOS_CI,
             Rol::Persona,
-            "administration:read",
+            PERMISO_PERMISOS_CI,
             self.ep(&Endpoint::PermisosWorkflow),
         ) {
             Ok(p) => p,
@@ -655,6 +661,10 @@ impl Plataforma for GitHub {
                 )
                 .map(Usuario::from)
         })
+    }
+
+    fn proveedor(&self) -> Option<Proveedor> {
+        Some(Proveedor::GitHub)
     }
 }
 

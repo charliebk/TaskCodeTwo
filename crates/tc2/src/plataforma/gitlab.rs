@@ -33,6 +33,10 @@ const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
 const PRS_ABIERTOS: &str = "prs-abiertos";
 
+/// El scope de lectura en una clave (`doctor`, `permiso=`); el texto
+/// completo, con el rol, es [`PERMISO_LECTURA`].
+pub const PERMISO_LECTURA_CORTO: &str = "read_api";
+
 /// Permiso de lectura que necesita un token de GitLab.
 static PERMISO_LECTURA: &Texto = &t::PERMISO_LECTURA_GITLAB;
 
@@ -810,6 +814,10 @@ impl Plataforma for GitLab {
                 .leer::<UsuarioApi>(IDENTIDAD, rol, PERMISO_LECTURA, self.ep(&Endpoint::Usuario))
                 .map(Usuario::from)
         })
+    }
+
+    fn proveedor(&self) -> Option<Proveedor> {
+        Some(Proveedor::GitLab)
     }
 }
 

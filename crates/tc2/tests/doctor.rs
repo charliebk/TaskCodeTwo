@@ -9,10 +9,13 @@ mod comun;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use comun::http_mock::{Mock, Simulada, serie};
 use comun::{Fixture, escribir};
 use tc2::doctor::{self, Entorno, Estado, Hallazgo, Resumen};
 use tc2::estado;
-use tc2::plataforma::Personas;
+use tc2::i18n::Idioma;
+use tc2::plataforma::http::Base;
+use tc2::plataforma::{CredencialesFijas, GitHub, GitLab, Personas, Plataforma, Rol, Secreto};
 use tc2::tablero::{Conectada, Consulta};
 use tc2::tarea::{Cuerpo, Tarea};
 
@@ -130,7 +133,6 @@ fn rama_de_estado_ausente_o_corrupta_falla() {
         ["estado rama falla motivo=ref-ilegible ref=refs/remotes/origin/taskcodetwo/tareas"]
     );
     assert!(hs.iter().all(|h| h.area != "estado" || h.id != "tareas"));
-    let _ = Estado::Ok;
 }
 
 /// (codigo, stdout, stderr) de `tc2 <args>` en `dir`, sin tokens.
@@ -194,4 +196,495 @@ fn sin_git_falla_y_fuera_de_un_repo_rechaza() {
     assert_eq!(err.lines().count(), 1, "{err}");
     let (c, out, _) = tc2(&f, &vacia, &["doctor", "--recursos"], &[]);
     assert_eq!((c, out.as_str()), (2, "doctor uso motivo=argumentos\n"));
+}
+
+// ---------------------------------------------------------------------
+// Plataforma: el mismo caso neutral servido como GitHub y como GitLab.
+// ---------------------------------------------------------------------
+
+const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const MODELO: [&str; 3] = ["verificacion", "revision-ia", "carril"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Prov {
+    GitHub,
+    GitLab,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Ci {
+    Bien,
+    PuedeAprobar,
+    Prohibido,
+}
+
+/// Plan que sirve el mock: GitHub (`privado`, `org`, rulesets con 403 de
+/// plan) o el `plan` del namespace de GitLab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Plan {
+    GitHub {
+        privado: bool,
+        org: bool,
+        sin_rulesets: bool,
+    },
+    GitLab(&'static str),
+    /// La lectura del plan da 404 (no se sabe).
+    Ilegible,
+}
+
+/// Un caso neutral de plataforma.
+#[derive(Debug, Clone)]
+struct Caso {
+    /// Ramas protegidas (con su ruleset y `pull_request`, o push a nadie).
+    protegidas: Vec<&'static str>,
+    /// 403 de permisos al leer las puertas.
+    puertas_403: bool,
+    ci: Ci,
+    /// Checks requeridos en `develop` (GitLab: «Pipelines must succeed» si
+    /// no esta vacio).
+    requeridos: Vec<&'static str>,
+    /// Checks publicados en la cabeza de `develop`.
+    publicados: Vec<&'static str>,
+    plan: Plan,
+}
+
+impl Caso {
+    /// Todo en orden: las dos ramas protegidas, los tres checks del modelo
+    /// requeridos y publicados.
+    fn bien(prov: Prov) -> Self {
+        Self {
+            protegidas: vec!["develop", "main"],
+            puertas_403: false,
+            ci: Ci::Bien,
+            requeridos: MODELO.to_vec(),
+            publicados: MODELO.to_vec(),
+            plan: match prov {
+                Prov::GitHub => Plan::GitHub {
+                    privado: false,
+                    org: false,
+                    sin_rulesets: false,
+                },
+                Prov::GitLab => Plan::GitLab("premium"),
+            },
+        }
+    }
+}
+
+fn json(estado: u16, v: &serde_json::Value) -> Simulada {
+    Simulada::json(estado, &v.to_string())
+}
+
+/// Sirve `caso` como lo daria `prov`.
+fn servir(prov: Prov, caso: &Caso) -> Mock {
+    use serde_json::json as j;
+    let m = Mock::nuevo();
+    let prohibido = j!({"message": "Resource not accessible by integration"});
+    match prov {
+        Prov::GitHub => {
+            let r = "/repos/o/r";
+            m.responder(
+                "GET",
+                "/user",
+                json(200, &j!({"login": "ana", "id": 1001, "type": "User"})),
+            );
+            if caso.puertas_403 {
+                m.responder("GET", &format!("{r}/rulesets"), json(403, &prohibido));
+            } else {
+                let nombres: Vec<serde_json::Value> = caso
+                    .protegidas
+                    .iter()
+                    .map(|p| j!({"id": 1, "name": format!("taskcodetwo-{p}")}))
+                    .collect();
+                if let Plan::GitHub {
+                    sin_rulesets: true, ..
+                } = caso.plan
+                {
+                    m.responder(
+                        "GET",
+                        &format!("{r}/rulesets"),
+                        json(403, &j!({"message": "Upgrade to GitHub Pro or make this repository public to enable this feature."})),
+                    );
+                } else {
+                    m.responder("GET", &format!("{r}/rulesets"), json(200, &j!(nombres)));
+                }
+            }
+            for rama in ["develop", "main"] {
+                let mut reglas = Vec::new();
+                if caso.protegidas.contains(&rama) {
+                    reglas.push(j!({"type": "deletion"}));
+                    reglas.push(j!({"type": "non_fast_forward"}));
+                    reglas.push(j!({"type": "pull_request", "parameters": {
+                        "required_approving_review_count": 1,
+                        "dismiss_stale_reviews_on_push": true,
+                        "require_code_owner_review": true,
+                        "require_last_push_approval": true,
+                        "required_review_thread_resolution": false}}));
+                }
+                if rama == "develop" && !caso.requeridos.is_empty() {
+                    let checks: Vec<serde_json::Value> =
+                        caso.requeridos.iter().map(|c| j!({"context": c})).collect();
+                    reglas.push(j!({"type": "required_status_checks", "parameters": {
+                        "required_status_checks": checks,
+                        "strict_required_status_checks_policy": true}}));
+                }
+                m.responder(
+                    "GET",
+                    &format!("{r}/rules/branches/{rama}"),
+                    json(200, &j!(reglas)),
+                );
+            }
+            let runs: Vec<serde_json::Value> = caso
+                .publicados
+                .iter()
+                .map(|n| j!({"name": n, "status": "completed", "conclusion": "success", "app": {"id": 1}}))
+                .collect();
+            m.responder(
+                "GET",
+                &format!("{r}/commits/heads/develop/check-runs"),
+                json(200, &j!({"total_count": runs.len(), "check_runs": runs})),
+            );
+            let ci = match caso.ci {
+                Ci::Bien => json(
+                    200,
+                    &j!({"can_approve_pull_request_reviews": false, "default_workflow_permissions": "read"}),
+                ),
+                Ci::PuedeAprobar => json(
+                    200,
+                    &j!({"can_approve_pull_request_reviews": true, "default_workflow_permissions": "write"}),
+                ),
+                Ci::Prohibido => json(403, &prohibido),
+            };
+            m.responder("GET", &format!("{r}/actions/permissions/workflow"), ci);
+            if let Plan::GitHub { privado, org, .. } = caso.plan {
+                m.responder(
+                    "GET",
+                    r,
+                    json(
+                        200,
+                        &j!({"id": 1, "private": privado,
+                             "visibility": if privado { "private" } else { "public" },
+                             "owner": {"login": "o", "type": if org { "Organization" } else { "User" }}}),
+                    ),
+                );
+            }
+        }
+        Prov::GitLab => {
+            let p = "/api/v4/projects/7";
+            m.responder(
+                "GET",
+                "/api/v4/user",
+                json(200, &j!({"username": "ana", "id": 1001, "bot": false})),
+            );
+            if caso.puertas_403 {
+                m.responder(
+                    "GET",
+                    &format!("{p}/protected_branches"),
+                    json(403, &j!({"message": "403 Forbidden"})),
+                );
+            } else {
+                let ramas: Vec<serde_json::Value> = caso
+                    .protegidas
+                    .iter()
+                    .map(|r| {
+                        j!({"name": r, "merge_access_levels": [{"access_level": 40}],
+                            "push_access_levels": [{"access_level": 0}],
+                            "allow_force_push": false, "code_owner_approval_required": false})
+                    })
+                    .collect();
+                m.responder(
+                    "GET",
+                    &format!("{p}/protected_branches"),
+                    json(200, &j!(ramas)),
+                );
+            }
+            let premium = matches!(caso.plan, Plan::GitLab("premium" | "ultimate"));
+            m.responder(
+                "GET",
+                &format!("{p}/approval_rules"),
+                if premium {
+                    json(200, &j!([{"name": "persona", "approvals_required": 1}]))
+                } else {
+                    json(200, &j!([]))
+                },
+            );
+            m.responder(
+                "GET",
+                p,
+                json(
+                    200,
+                    &j!({"id": 7, "visibility": "private",
+                         "only_allow_merge_if_pipeline_succeeds": !caso.requeridos.is_empty(),
+                         "namespace": {"id": 3, "kind": "group", "full_path": "g"}}),
+                ),
+            );
+            m.responder(
+                "GET",
+                &format!("{p}/repository/branches/develop"),
+                json(200, &j!({"name": "develop", "commit": {"id": SHA}})),
+            );
+            let estados: Vec<serde_json::Value> = caso
+                .publicados
+                .iter()
+                .enumerate()
+                .map(
+                    |(i, n)| j!({"id": i + 1, "name": n, "status": "success", "author": {"id": 2}}),
+                )
+                .collect();
+            m.responder(
+                "GET",
+                &format!("{p}/repository/commits/{SHA}/statuses"),
+                json(200, &j!(estados)),
+            );
+            if let Plan::GitLab(plan) = caso.plan {
+                m.responder(
+                    "GET",
+                    "/api/v4/namespaces/3",
+                    json(200, &j!({"id": 3, "plan": plan})),
+                );
+            }
+        }
+    }
+    m
+}
+
+/// El adaptador de `prov` contra `base`, con token de agente y de persona.
+fn adaptador(prov: Prov, base: &str, personas: &Personas) -> Box<dyn Plataforma> {
+    let c = CredencialesFijas::nuevas()
+        .con(Rol::Agente, Secreto::nuevo("tok-agente"))
+        .con(Rol::Persona, Secreto::nuevo("tok-persona"));
+    match prov {
+        Prov::GitHub => Box::new(
+            GitHub::nuevo(
+                Base::nueva(base).unwrap(),
+                "o/r",
+                Box::new(c),
+                personas.clone(),
+            )
+            .unwrap(),
+        ),
+        Prov::GitLab => Box::new(
+            GitLab::nuevo(
+                Base::nueva(&format!("{base}/api/v4")).unwrap(),
+                "7",
+                Box::new(c),
+                personas.clone(),
+            )
+            .unwrap(),
+        ),
+    }
+}
+
+/// `doctor` en un clon con estado contra `caso` servido como `prov`:
+/// hallazgos, resumen y peticiones recibidas.
+fn doctor_contra(prov: Prov, caso: &Caso) -> (Vec<Hallazgo>, Resumen, Vec<String>) {
+    let f = Fixture::nueva("doctor-plataforma");
+    let (_, clon) = con_estado(&f, &[]);
+    let m = servir(prov, caso);
+    let base = m.base();
+    let conectar = move |p: &Personas| {
+        Ok(Conectada {
+            plataforma: adaptador(prov, &base, p),
+            rol: Rol::Persona,
+        })
+    };
+    let g = f.git();
+    let (hs, r) = hallazgos(&g, &clon, &conectar);
+    let recibidas = m.recibidas().into_iter().map(|r| r.linea).collect();
+    (hs, r, recibidas)
+}
+
+fn lineas_de(hs: &[Hallazgo], area: &str) -> Vec<String> {
+    hs.iter()
+        .filter(|h| h.area == area)
+        .map(Hallazgo::linea)
+        .collect()
+}
+
+fn codigo(hs: &[Hallazgo], r: &Resumen) -> u8 {
+    doctor::salida(hs, r, false, Idioma::Es).codigo
+}
+
+/// C1: sin el ruleset `taskcodetwo-develop` (GitHub) o sin `develop`
+/// protegida (GitLab), `doctor rechazada` con `proteccion develop falla
+/// motivo=proteccion-ausente arreglo=tc2-init` y codigo 3; misma linea en
+/// las dos.
+#[test]
+fn develop_sin_proteger_falla() {
+    let _serie = serie();
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let mut caso = Caso::bien(prov);
+        caso.protegidas = vec!["main"];
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        assert_eq!(
+            lineas_de(&hs, "proteccion"),
+            [
+                "proteccion develop falla motivo=proteccion-ausente arreglo=tc2-init",
+                "proteccion main ok"
+            ],
+            "{prov:?}"
+        );
+        let s = doctor::salida(&hs, &r, false, Idioma::Es);
+        assert_eq!(s.codigo, 3, "{prov:?}");
+        assert!(
+            s.stdout.starts_with("doctor rechazada fallos="),
+            "{}",
+            s.stdout
+        );
+        assert!(
+            s.stdout.contains(
+                "\nproteccion develop falla motivo=proteccion-ausente arreglo=tc2-init\n"
+            ),
+            "{prov:?}: {}",
+            s.stdout
+        );
+        assert_eq!(r.plataforma, "ok");
+    }
+}
+
+/// C2: con `develop` y `main` protegidas no hay hallazgo de proteccion que
+/// no sea `ok` y, sin otros fallos, el codigo es 0. Solo `GET`.
+#[test]
+fn ramas_protegidas_sin_fallos_dan_cero() {
+    let _serie = serie();
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let (hs, r, recibidas) = doctor_contra(prov, &Caso::bien(prov));
+        assert_eq!(
+            lineas_de(&hs, "proteccion"),
+            ["proteccion develop ok", "proteccion main ok"],
+            "{prov:?}"
+        );
+        let fallos: Vec<String> = hs
+            .iter()
+            .filter(|h| h.estado == Estado::Falla)
+            .map(Hallazgo::linea)
+            .collect();
+        assert!(fallos.is_empty(), "{prov:?}: {fallos:?}");
+        assert_eq!(codigo(&hs, &r), 0, "{prov:?}");
+        assert!(!recibidas.is_empty());
+        assert!(
+            recibidas.iter().all(|l| l.starts_with("GET ")),
+            "{recibidas:?}"
+        );
+    }
+}
+
+/// C4: un 403 al leer las puertas da `falla motivo=permiso-insuficiente
+/// permiso=...` (y la proteccion `no-comprobado`, no `ok`); en GitHub, un
+/// 403 en los permisos de la CI da su permiso y una CI que puede aprobar,
+/// `falla motivo=ci-puede-aprobar`. GitLab no tiene esa lectura (el job
+/// token es fijo, G16): `ok`.
+#[test]
+fn permisos_insuficientes_y_ci_que_aprueba_fallan() {
+    let _serie = serie();
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let mut caso = Caso::bien(prov);
+        caso.puertas_403 = true;
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        let permiso = match prov {
+            Prov::GitHub => "metadata:read",
+            Prov::GitLab => "read_api",
+        };
+        assert!(
+            lineas_de(&hs, "permisos").contains(&format!(
+                "permisos leer-puertas falla motivo=permiso-insuficiente permiso={permiso} rol=persona"
+            )),
+            "{prov:?}: {:?}",
+            lineas_de(&hs, "permisos")
+        );
+        assert_eq!(
+            lineas_de(&hs, "proteccion"),
+            [
+                "proteccion develop no-comprobado motivo=permiso-insuficiente",
+                "proteccion main no-comprobado motivo=permiso-insuficiente"
+            ],
+            "{prov:?}"
+        );
+        assert_eq!(codigo(&hs, &r), 3);
+    }
+    let mut caso = Caso::bien(Prov::GitHub);
+    caso.ci = Ci::Prohibido;
+    let (hs, _, _) = doctor_contra(Prov::GitHub, &caso);
+    assert_eq!(
+        lineas_de(&hs, "permisos"),
+        ["permisos ci falla motivo=permiso-insuficiente permiso=administration:read rol=persona"]
+    );
+    caso.ci = Ci::PuedeAprobar;
+    let (hs, r, _) = doctor_contra(Prov::GitHub, &caso);
+    assert_eq!(
+        lineas_de(&hs, "permisos"),
+        ["permisos ci falla motivo=ci-puede-aprobar arreglo=desactivar-aprobacion-por-actions"]
+    );
+    assert_eq!(codigo(&hs, &r), 3);
+    let (hs, _, _) = doctor_contra(Prov::GitLab, &Caso::bien(Prov::GitLab));
+    assert_eq!(lineas_de(&hs, "permisos"), ["permisos ci ok"]);
+}
+
+/// C9: sin plataforma, sin credenciales o sin red, `plataforma=` lo dice y
+/// los hallazgos de plataforma salen `no-comprobado` (ninguno `ok`); el
+/// codigo no cambia por eso.
+#[test]
+fn sin_red_sin_credenciales_o_sin_plataforma_no_comprueba() {
+    let _serie = serie();
+    let f = Fixture::nueva("doctor-c9");
+    let (_, clon) = con_estado(&f, &[]);
+    let g = f.git();
+    let fallo = |c: Consulta| move |_: &Personas| -> Result<Conectada, Consulta> { Err(c.clone()) };
+    for (consulta, nombre) in [
+        (Consulta::NoConfigurada, "no-configurada"),
+        (Consulta::SinCredenciales, "sin-credenciales"),
+    ] {
+        let conectar = fallo(consulta);
+        let (hs, r) = hallazgos(&g, &clon, &conectar);
+        assert_eq!(r.plataforma, nombre);
+        let de_plataforma: Vec<&Hallazgo> = hs
+            .iter()
+            .filter(|h| ["proteccion", "permisos", "check", "garantia"].contains(&h.area))
+            .collect();
+        assert!(!de_plataforma.is_empty());
+        assert!(
+            de_plataforma
+                .iter()
+                .all(|h| h.estado == Estado::NoComprobado),
+            "{de_plataforma:?}"
+        );
+        assert!(
+            doctor::lineas(&hs, &r)[0].contains(&format!(" plataforma={nombre}")),
+            "{:?}",
+            doctor::lineas(&hs, &r)
+        );
+    }
+    // Sin red: nadie escucha en el puerto 1, en las dos plataformas.
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let conectar = move |p: &Personas| {
+            Ok(Conectada {
+                plataforma: adaptador(prov, "http://127.0.0.1:1", p),
+                rol: Rol::Persona,
+            })
+        };
+        let (hs, r) = hallazgos(&g, &clon, &conectar);
+        assert_eq!(r.plataforma, "sin-red", "{prov:?}");
+        assert_eq!(
+            lineas_de(&hs, "proteccion"),
+            [
+                "proteccion develop no-comprobado motivo=sin-red",
+                "proteccion main no-comprobado motivo=sin-red"
+            ]
+        );
+        assert!(
+            hs.iter()
+                .filter(|h| h.area == "proteccion" || h.area == "permisos")
+                .all(|h| h.estado == Estado::NoComprobado)
+        );
+    }
+    // El binario, con la plataforma de produccion: `origin` es una carpeta,
+    // asi que no hay plataforma reconocida.
+    let (c, out, err) = tc2(&f, &clon, &["doctor"], &[]);
+    assert!(c == 0 || c == 3, "{out} {err}");
+    assert!(
+        out.lines()
+            .next()
+            .unwrap()
+            .contains(" plataforma=no-configurada"),
+        "{out}"
+    );
 }

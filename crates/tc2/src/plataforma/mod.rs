@@ -184,4 +184,10 @@ pub trait Plataforma {
 
     /// Usuario autenticado con el token de ese rol.
     fn identidad(&self, rol: Rol) -> Paso<Usuario>;
+
+    /// La plataforma del adaptador (F3-8: `doctor` traduce lo leido con la
+    /// tabla de su plataforma). `None` en los adaptadores de prueba.
+    fn proveedor(&self) -> Option<Proveedor> {
+        None
+    }
 }

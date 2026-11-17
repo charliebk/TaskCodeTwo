@@ -18,6 +18,7 @@
 pub mod capacidades;
 mod entorno;
 mod estado;
+pub mod plataforma;
 
 use std::path::Path;
 
@@ -26,7 +27,7 @@ use crate::contrato::{Informe, Resultado, cadena_json, escapar_valor};
 use crate::git::Git;
 use crate::i18n::catalogo::doctor as txt;
 use crate::i18n::{Idioma, Mensaje};
-use crate::tablero::Conectar;
+use crate::identidad::Conectar;
 
 pub use entorno::{hallazgo_git, version_de_git};
 
@@ -311,11 +312,13 @@ pub fn comprobar(e: &Entorno<'_>) -> Result<(Vec<Hallazgo>, Resumen), Informe> {
     let (h, commit) = estado::rama(e.git, e.dir);
     hs.extend(h);
     hs.extend(estado::instalacion(e.git, e.dir));
+    let (h, plataforma, capacidades) = plataforma::comprobar(e);
+    hs.extend(h);
     Ok((
         hs,
         Resumen {
-            plataforma: "no-configurada".to_owned(),
-            capacidades: None,
+            plataforma,
+            capacidades,
             commit,
         },
     ))
