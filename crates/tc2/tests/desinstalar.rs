@@ -321,13 +321,69 @@ fn binario_en_uso_por_otro_queda_pendiente_sin_nada_a_medias() {
     let h = correr(&e, &f.raiz, &f.git(), &m, &["--maquina"]);
     let s = h.salida_en(false, Idioma::Es);
     assert_eq!(s.codigo, 3, "{}", s.stdout);
-    assert!(s.stdout.lines().last().unwrap().contains("motivo=en-uso"));
+    // Revision 1, IMP-1 de calidad: la linea final y el diagnostico nombran
+    // el binario, no el temporal ni el `.old` del grupo.
+    let fin = s.stdout.lines().last().unwrap();
+    assert_eq!(
+        h.informe.valor("ruta"),
+        Some(exe.display().to_string().as_str())
+    );
+    assert!(fin.contains("motivo=en-uso ruta="), "{fin}");
+    assert!(
+        s.stderr.contains(&format!("{} esta en uso", exe.display())),
+        "{}",
+        s.stderr
+    );
     assert!(s.stdout.contains("decision=pendiente motivo=en-uso"));
     assert_eq!(instantanea(&bin), antes);
     assert_eq!(m.path.borrow().as_deref(), Some(path.as_str()));
     assert!(m.borrados.borrow().is_empty());
     // Lo demas si se quito.
     assert!(!bin.parent().unwrap().join("cli").exists());
+    // Revision 1, MEN-1 de calidad: la carpeta raiz no sale `borra` (el
+    // binario sigue ahi; solo su carpeta, pendiente con el grupo) y el
+    // resumen solo cuenta lo que se borra.
+    assert_eq!(decisiones(&h, "carpeta"), vec!["pendiente"]);
+    assert!(fin.contains(" borra=1 "), "{fin}");
+}
+
+/// Revision 1, IMP-2 de calidad (C8): con `TC2_INSTALL_DIR` en uso y el
+/// directorio por defecto, cada uno con su entrada en el PATH, la del en uso
+/// se queda y la otra se quita sobre el PATH real (no sobre uno ya
+/// recortado): sin revertir el PATH del grupo en uso, la aplicacion falla.
+#[test]
+fn dos_directorios_en_el_path_con_uno_en_uso() {
+    let f = Fixture::nueva("desinstalar-dos-dirs");
+    let home = f.raiz.join("home");
+    let defecto = instalacion_windows(&home);
+    let dir_defecto = defecto.parent().unwrap().to_path_buf();
+    let propio = f.raiz.join("mio").join("bin");
+    escribir(&propio, "tc2.exe", "binario");
+    let exe = propio.join("tc2.exe");
+    let mut e = entorno(Sistema::Windows, &home, exe.clone());
+    e.install_dir = Some(propio.clone());
+    let m = MaquinaEnMemoria {
+        path: Some(format!(
+            r"C:\a;{};{};C:\b",
+            propio.display(),
+            dir_defecto.display()
+        ))
+        .into(),
+        en_uso: vec![exe.clone()],
+        ..MaquinaEnMemoria::default()
+    };
+    let h = correr(&e, &f.raiz, &f.git(), &m, &["--maquina"]);
+    assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", stdout(&h));
+    assert_eq!(h.informe.valor("motivo"), Some("en-uso"));
+    assert_eq!(
+        m.path.borrow().clone(),
+        Some(format!(r"C:\a;{};C:\b", propio.display()))
+    );
+    assert!(exe.is_file());
+    assert!(
+        !defecto.exists(),
+        "el del directorio por defecto si se quita"
+    );
 }
 
 /// C3: la status line se quita solo si su `command` es el de la 2.0; la de
@@ -541,12 +597,107 @@ fn config_solo_con_la_opcion() {
     assert!(!clon.join(".taskcode/personas.yml").exists());
     // La de la 0.16 (sin formato 2) se queda aun con --config.
     escribir(&clon, ".taskcode/config.yml", "modo_flujo: automatico\n");
+    // Revision 1, IMP-2 de rust: y con ella `personas.yml`, compartido.
+    escribir(&clon, ".taskcode/personas.yml", "---\npersonas: []\n");
     let h = correr(&e, &clon, &g, &m, &["--proyecto", "--config"]);
-    assert_eq!(h.acciones[0].dueno, "taskcode-016");
+    assert_eq!(decisiones(&h, "config"), vec!["conserva", "conserva"]);
+    assert!(h.acciones.iter().all(|a| a.dueno == "taskcode-016"));
     assert_eq!(
         std::fs::read_to_string(clon.join(".taskcode/config.yml")).unwrap(),
         "modo_flujo: automatico\n"
     );
+    assert!(clon.join(".taskcode/personas.yml").is_file());
+    // Revision 1, MEN-4 de calidad: la reconoce `config::leer`, tambien con
+    // un comentario detras de `formato: 2`.
+    escribir(&clon, ".taskcode/config.yml", "---\nformato: 2 # version\n");
+    let h = correr(&e, &clon, &g, &m, &["--proyecto", "--config", "--simular"]);
+    assert_eq!(decisiones(&h, "config"), vec!["borra", "borra"]);
+}
+
+/// Revision 1, MEN-3: lanzado desde dentro de un worktree que se va a
+/// quitar, o con un worktree bloqueado (`git worktree lock`), `rechazada`
+/// sin tocar nada.
+#[test]
+fn worktree_bloqueado_o_carpeta_actual_dentro_rechaza() {
+    let f = Fixture::nueva("desinstalar-dentro");
+    let (bare, clon) = repo_con_estado(&f);
+    let wt = clon.join(".taskcodetwo").join("worktrees").join("TASK-001");
+    let e = entorno(Sistema::Linux, &f.raiz.join("home"), f.raiz.join("tc2"));
+    let g = f.git();
+    let m = MaquinaEnMemoria::default();
+    let antes = [instantanea(&clon), instantanea(&bare)];
+    let h = correr(&e, &wt, &g, &m, &["--proyecto"]);
+    assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", stdout(&h));
+    assert_eq!(h.informe.valor("motivo"), Some("carpeta-actual-dentro"));
+    assert!(h.acciones.iter().all(|a| a.decision.texto() != "borra"));
+    assert_eq!([instantanea(&clon), instantanea(&bare)], antes);
+    f.crudo(&clon, &["worktree", "lock", wt.to_str().unwrap()]);
+    let antes = [instantanea(&clon), instantanea(&bare)];
+    let h = correr(&e, &clon, &g, &m, &["--proyecto"]);
+    assert_eq!(h.informe.valor("motivo"), Some("worktree-bloqueado"));
+    assert_eq!([instantanea(&clon), instantanea(&bare)], antes);
+    f.crudo(&clon, &["worktree", "unlock", wt.to_str().unwrap()]);
+}
+
+/// Revision 1, MEN-2 de calidad: `--borrar-tareas` con commits locales sin
+/// publicar en la rama de estado avisa y deja el sha para recuperarlos.
+#[test]
+fn rama_de_estado_adelantada_avisa_con_el_sha() {
+    let f = Fixture::nueva("desinstalar-adelantada");
+    let (_bare, clon) = repo_con_estado(&f);
+    let tareas = clon.join("tareas");
+    escribir(&tareas, "local.md", "solo local\n");
+    f.crudo(&tareas, &["add", "local.md"]);
+    f.crudo(&tareas, &["commit", "-q", "-m", "solo local"]);
+    let sha = f.crudo(&tareas, &["rev-parse", "HEAD"]).trim().to_owned();
+    let e = entorno(Sistema::Linux, &f.raiz.join("home"), f.raiz.join("tc2"));
+    let h = correr(
+        &e,
+        &clon,
+        &f.git(),
+        &MaquinaEnMemoria::default(),
+        &[
+            "--proyecto",
+            "--simular",
+            "--borrar-tareas",
+            "taskcodetwo/tareas",
+        ],
+    );
+    let s = h.salida_en(false, Idioma::Es);
+    assert!(
+        s.stdout.contains(&format!(
+            "clase=rama-estado dueno=taskcodetwo decision=borra motivo=adelantada-del-remoto sha={sha}"
+        )),
+        "{}",
+        s.stdout
+    );
+    assert!(
+        s.stderr
+            .contains(&format!("git branch taskcodetwo/tareas {sha}")),
+        "{}",
+        s.stderr
+    );
+}
+
+/// Revision 1, MEN-5 de rust: un `tc2` que no es el nuestro (no responde a
+/// `version --json`) en `~/.local/bin` se queda como `ajeno`.
+#[test]
+fn un_tc2_ajeno_no_se_borra() {
+    let f = Fixture::nueva("desinstalar-ajeno");
+    let home = f.raiz.join("home");
+    let bin = home.join(".local").join("bin");
+    escribir(&bin, "tc2", "#!/bin/sh\necho otro\n");
+    let e = entorno(Sistema::Linux, &home, f.raiz.join("otro").join("tc2"));
+    let h = correr(
+        &e,
+        &f.raiz,
+        &f.git(),
+        &MaquinaEnMemoria::default(),
+        &["--maquina"],
+    );
+    assert!(bin.join("tc2").is_file());
+    assert!(stdout(&h).contains("clase=binario dueno=ajeno decision=conserva motivo=no-es-tc2"));
+    assert_eq!(h.informe.resultado, Resultado::SinCambios);
 }
 
 /// C7: la rama local de estado solo con `--borrar-tareas <nombre exacto>`;
@@ -622,12 +773,12 @@ fn plugin_y_gestor_no_borran_el_binario() {
         "las otras versiones de la cache si"
     );
     assert!(s.stdout.contains(
-        "clase=binario dueno=plugin decision=persona orden=claude%20plugin%20uninstall%20taskcodetwo@taskcodetwo%20--scope%20user"
+        "clase=binario dueno=plugin decision=persona orden=claude%20plugin%20uninstall%20'taskcodetwo@taskcodetwo'%20--scope%20user"
     ), "{}", s.stdout);
     assert!(s.stdout.contains("clase=cache-cli dueno=taskcodetwo decision=persona motivo=en-uso-por-el-plugin orden=rm%20-rf"));
     assert!(
         s.stderr
-            .contains("claude plugin uninstall taskcodetwo@taskcodetwo --scope user")
+            .contains("claude plugin uninstall 'taskcodetwo@taskcodetwo' --scope user")
     );
     // Gestor: cargo.
     let exe = home.join(".cargo").join("bin").join("tc2");

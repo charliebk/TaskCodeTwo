@@ -10,6 +10,22 @@ fn sin_final(l: &str) -> &str {
         .map_or(l, |x| x.strip_suffix('\r').unwrap_or(x))
 }
 
+/// Si `l` es exactamente la linea que escribe `install.sh` entre las
+/// marcas: `case ":$PATH:" in *":DIR:"*) ;; *) export PATH="DIR:$PATH" ;;
+/// esac`, con el mismo `DIR` en los dos sitios.
+fn linea_del_instalador(l: &str) -> bool {
+    let Some(r) = l
+        .strip_prefix(LINEA_PERFIL)
+        .and_then(|r| r.strip_prefix("*\":"))
+    else {
+        return false;
+    };
+    let Some((dir, resto)) = r.split_once(":\"*) ;; *) export PATH=\"") else {
+        return false;
+    };
+    !dir.is_empty() && resto == format!("{dir}:$PATH\" ;; esac")
+}
+
 /// Por que un perfil con marcas no se toca.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarcasRaras {
@@ -32,7 +48,9 @@ impl MarcasRaras {
 /// Inversa de `escribir_bloque` de `install.sh`: quita el bloque entre las
 /// marcas y la linea en blanco que el instalador escribio delante. El resto
 /// queda identico byte a byte. `Ok(None)` si no hay marcas; `Err` si las
-/// marcas no son un bloque entero de tres lineas (no se toca nada).
+/// marcas no son un bloque entero de tres lineas con la linea exacta del
+/// instalador (no se toca nada). Si el perfil no acababa en salto de linea
+/// antes de instalar, `install.sh` le anadio uno y ese no se quita.
 pub fn quitar_bloque(texto: &str) -> Result<Option<String>, MarcasRaras> {
     let lineas: Vec<&str> = texto.split_inclusive('\n').collect();
     let inicios: Vec<usize> = (0..lineas.len())
@@ -45,7 +63,7 @@ pub fn quitar_bloque(texto: &str) -> Result<Option<String>, MarcasRaras> {
         ([], []) => Ok(None),
         ([i], [f]) if i < f => {
             let (i, f) = (*i, *f);
-            if f != i + 2 || !sin_final(lineas[i + 1]).starts_with(LINEA_PERFIL) {
+            if f != i + 2 || !linea_del_instalador(sin_final(lineas[i + 1])) {
                 return Err(MarcasRaras::Tocadas);
             }
             let desde = if i > 0 && sin_final(lineas[i - 1]).is_empty() {
@@ -254,6 +272,16 @@ mod tests {
         assert_eq!(quitar_bloque(&doble), Err(MarcasRaras::Incompletas));
         let otro = "# >>> tc2 (TaskCodeTwo) >>>\nrm -rf ~\n# <<< tc2 (TaskCodeTwo) <<<\n";
         assert_eq!(quitar_bloque(otro), Err(MarcasRaras::Tocadas));
+        // Revision 1, MEN-1: la linea del instalador con algo anadido.
+        let anadido = BLOQUE.replace(
+            " esac
+",
+            " esac; rm -rf ~/x
+",
+        );
+        assert_eq!(quitar_bloque(&anadido), Err(MarcasRaras::Tocadas));
+        let otro_dir = BLOQUE.replacen("/h/.local/bin:$PATH", "/otro:$PATH", 1);
+        assert_eq!(quitar_bloque(&otro_dir), Err(MarcasRaras::Tocadas));
     }
 
     #[test]

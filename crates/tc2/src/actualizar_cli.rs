@@ -514,7 +514,10 @@ fn ultima_linea(bytes: &[u8]) -> Option<String> {
 /// entonces y los hilos acaban solos cuando el nieto cierre las tuberias (o
 /// con el proceso). Al nieto no se le mata: no hay una forma portable de
 /// matar el arbol sin dependencias.
-fn ejecutar_con_limite(mut cmd: Command, limite: Duration) -> std::io::Result<Option<Output>> {
+pub(crate) fn ejecutar_con_limite(
+    mut cmd: Command,
+    limite: Duration,
+) -> std::io::Result<Option<Output>> {
     use std::io::Read;
     use std::sync::mpsc;
     let mut hijo = cmd

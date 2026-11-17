@@ -70,14 +70,23 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
     let mut autoborrado: Option<usize> = None;
     let mut exe_cubierto = false;
 
-    // Plugin y marketplace: de Claude Code, la persona (D3).
-    let plugins = plugins(c)?;
+    // Plugin y marketplace: de Claude Code, la persona (D3). Se lee una vez.
+    let instalados = instalados(c)?;
+    let plugins = plugins(instalados.as_ref());
 
     for dir in e.dirs_de_instalacion() {
         let bin = dir.join(e.sistema.binario());
-        let hay_bin = bin.is_file();
-        let es_exe = hay_bin && misma_ruta(&bin, &e.exe);
+        let es_exe = bin.is_file() && misma_ruta(&bin, &e.exe);
         exe_cubierto |= es_exe;
+        // Solo es nuestro si es este `tc2`, si esta en la carpeta propia de
+        // Windows o si dice ser `tc2` (`version --json`). Un enlace a otra
+        // cosa o una herramienta ajena llamada `tc2` se quedan.
+        let hay_bin = bin.is_file() && (es_exe || e.dir_propio(&dir) || es_tc2(&bin));
+        if bin.is_file() && !hay_bin {
+            v.push(
+                Accion::nueva(t(&bin), "binario", "ajeno", Decision::Conserva).motivo("no-es-tc2"),
+            );
+        }
         let en_uso = hay_bin
             && windows
             && c.maquina
@@ -85,6 +94,8 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                 .map_err(|er| no_se_lee(&bin, &er))?;
         let mut grupo: Vec<Accion> = Vec::new();
         let path_antes = path.clone();
+        // Lo que este grupo quita: solo cuenta para las carpetas si se aplica.
+        let mut del_grupo: BTreeSet<PathBuf> = BTreeSet::new();
         let mut temporales: Vec<PathBuf> = hijos(&dir)
             .into_iter()
             .filter(|p| {
@@ -96,7 +107,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
         temporales.sort();
         for p in temporales {
             grupo.push(Accion::borra(t(&p), "temporal", Efecto::Fichero(p.clone())));
-            quitados.insert(p);
+            del_grupo.insert(p);
         }
         let old = ruta_old(&bin);
         if old.is_file() {
@@ -105,7 +116,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                 "binario-old",
                 Efecto::Fichero(old.clone()),
             ));
-            quitados.insert(old);
+            del_grupo.insert(old);
         }
         if hay_bin {
             if es_exe && windows {
@@ -130,9 +141,14 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                     Efecto::Fichero(bin.clone()),
                 ));
             }
-            quitados.insert(bin.clone());
+            del_grupo.insert(bin.clone());
         }
-        if e.dir_propio(&dir) && dir.is_dir() && hijos(&dir).iter().all(|h| quitados.contains(h)) {
+        if e.dir_propio(&dir)
+            && dir.is_dir()
+            && hijos(&dir)
+                .iter()
+                .all(|h| quitados.contains(h) || del_grupo.contains(h))
+        {
             if let (true, Some(i)) = (es_exe && windows, autoborrado) {
                 if let Some(Accion {
                     efecto: Efecto::Autoborrado { dirs, .. },
@@ -152,7 +168,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                     Efecto::CarpetaSiVacia(dir.clone()),
                 ));
             }
-            quitados.insert(dir.clone());
+            del_grupo.insert(dir.clone());
         }
         // La entrada del PATH de usuario (inversa de `Add-PathUsuario`).
         if let Some(valor) = path.clone()
@@ -180,6 +196,8 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                 autoborrado = None;
             }
             path = path_antes;
+        } else {
+            quitados.extend(del_grupo);
         }
         v.extend(grupo);
     }
@@ -189,7 +207,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
         match e.modo() {
             Modo::Plugin => {
                 let orden = plugins.first().map_or_else(
-                    || "claude plugin uninstall taskcodetwo".to_owned(),
+                    || "claude plugin uninstall 'taskcodetwo'".to_owned(),
                     Clone::clone,
                 );
                 v.push(
@@ -305,50 +323,90 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
         }
     }
 
-    claude(c, v, plugins)
+    claude(c, v, plugins, instalados.as_ref())
+}
+
+/// Tiempo maximo de `<binario> version --json` al comprobar si es `tc2`.
+const ESPERA_VERSION: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Si `bin` es un `tc2`: no es un enlace simbolico y responde a
+/// `version --json` con su version y su protocolo (ADR F1-14, punto 5).
+fn es_tc2(bin: &Path) -> bool {
+    if std::fs::symlink_metadata(bin).is_ok_and(|m| m.file_type().is_symlink()) {
+        return false;
+    }
+    let mut cmd = std::process::Command::new(bin);
+    cmd.args(["version", "--json"]);
+    let Ok(Some(o)) = crate::actualizar_cli::ejecutar_con_limite(cmd, ESPERA_VERSION) else {
+        return false;
+    };
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap_or_default();
+    o.status.success()
+        && v.get("version").is_some_and(serde_json::Value::is_string)
+        && v.get("protocolo").is_some_and(serde_json::Value::is_u64)
+}
+
+/// `plugins/installed_plugins.json` de Claude Code (solo lectura), si esta
+/// y es JSON.
+fn instalados(c: &Contexto<'_>) -> Result<Option<serde_json::Value>, Informe> {
+    let Some(dir) = c.entorno.dir_claude() else {
+        return Ok(None);
+    };
+    let p = dir.join("plugins").join("installed_plugins.json");
+    Ok(leer(&p)?.and_then(|b| serde_json::from_slice(&b).ok()))
+}
+
+/// Un nombre o scope que se puede poner en una orden: letras, digitos, `.`,
+/// `_`, `-` y `@`.
+fn seguro(t: &str) -> bool {
+    !t.is_empty()
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '@'))
 }
 
 /// Ordenes `claude plugin uninstall` del plugin de la 2.0, una por scope en
-/// que este instalado, leidas de `plugins/installed_plugins.json` (solo
-/// lectura: el fichero es de Claude Code).
-fn plugins(c: &Contexto<'_>) -> Result<Vec<String>, Informe> {
-    let Some(dir) = c.entorno.dir_claude() else {
-        return Ok(Vec::new());
-    };
-    let p = dir.join("plugins").join("installed_plugins.json");
-    let Some(bytes) = leer(&p)? else {
-        return Ok(Vec::new());
-    };
-    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+/// que este instalado. Una clave o un scope con otros caracteres no se pone
+/// en una orden; la clave va entre comillas simples.
+fn plugins(instalados: Option<&serde_json::Value>) -> Vec<String> {
     let mut ordenes = Vec::new();
-    if let Some(m) = v.get("plugins").and_then(serde_json::Value::as_object) {
-        for (clave, entradas) in m {
-            if clave.split('@').next() != Some(crate::huella::NOMBRE) {
-                continue;
-            }
-            let scopes: Vec<&str> = entradas
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|x| x.get("scope").and_then(serde_json::Value::as_str))
-                        .collect()
-                })
-                .unwrap_or_default();
-            if scopes.is_empty() {
-                ordenes.push(format!("claude plugin uninstall {clave}"));
-            }
-            for s in scopes {
-                ordenes.push(format!("claude plugin uninstall {clave} --scope {s}"));
-            }
+    let Some(m) = instalados
+        .and_then(|v| v.get("plugins"))
+        .and_then(serde_json::Value::as_object)
+    else {
+        return ordenes;
+    };
+    for (clave, entradas) in m {
+        if clave.split('@').next() != Some(crate::huella::NOMBRE) || !seguro(clave) {
+            continue;
+        }
+        let scopes: Vec<&str> = entradas
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.get("scope").and_then(serde_json::Value::as_str))
+                    .filter(|s| seguro(s))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if scopes.is_empty() {
+            ordenes.push(format!("claude plugin uninstall '{clave}'"));
+        }
+        for s in scopes {
+            ordenes.push(format!("claude plugin uninstall '{clave}' --scope {s}"));
         }
     }
-    Ok(ordenes)
+    ordenes
 }
 
 /// Lo de Claude Code: la status line (solo la de la 2.0, por su `command`
 /// exacto), los hooks que nombran `tc2` (aviso; nunca se editan) y el plugin
 /// (la persona) y el de la 0.16 (se conserva, F9-10).
-fn claude(c: &Contexto<'_>, v: &mut Vec<Accion>, plugins: Vec<String>) -> Result<(), Informe> {
+fn claude(
+    c: &Contexto<'_>,
+    v: &mut Vec<Accion>,
+    plugins: Vec<String>,
+    instalados: Option<&serde_json::Value>,
+) -> Result<(), Informe> {
     let Some(dir) = c.entorno.dir_claude() else {
         return Ok(());
     };
@@ -431,19 +489,18 @@ fn claude(c: &Contexto<'_>, v: &mut Vec<Accion>, plugins: Vec<String>) -> Result
         );
     }
     // El plugin de la 0.16 se nombra y no se toca (D6, F9-10).
-    let instalados = dir.join("plugins").join("installed_plugins.json");
-    if let Some(bytes) = leer(&instalados)? {
-        let val: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
-        if let Some(m) = val.get("plugins").and_then(serde_json::Value::as_object) {
-            for clave in m
-                .keys()
-                .filter(|k| k.split('@').next() == Some("taskcode-plugin"))
-            {
-                v.push(
-                    Accion::nueva(clave.as_str(), "plugin", "taskcode-016", Decision::Conserva)
-                        .motivo("desinstalacion-f9-10"),
-                );
-            }
+    if let Some(m) = instalados
+        .and_then(|v| v.get("plugins"))
+        .and_then(serde_json::Value::as_object)
+    {
+        for clave in m
+            .keys()
+            .filter(|k| k.split('@').next() == Some("taskcode-plugin"))
+        {
+            v.push(
+                Accion::nueva(clave.as_str(), "plugin", "taskcode-016", Decision::Conserva)
+                    .motivo("desinstalacion-f9-10"),
+            );
         }
     }
     Ok(())
