@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
-## Planificadas (00-planificadas) — 62
+## Planificadas (00-planificadas) — 63
 
 ```text
 ID        Titulo                                                               Asignado
 --------  -------------------------------------------------------------------  -------------
-TASK-031  F3-4 roadmap: la vista para todos                                    (sin asignar)
 TASK-032  F3-5 board y status                                                  (sin asignar)
 TASK-033  F3-6 start: toma atomica de la tarea, rama y worktree desde develop  (sin asignar)
 TASK-034  F3-7 descartar y pausa                                               (sin asignar)
@@ -69,9 +68,11 @@ TASK-117  Seguimiento de F2-14: menores aceptados de tc2 desinstalar           (
 TASK-118  Aplicar las puertas (rulesets) desde tc2 init                        (sin asignar)
 TASK-119  Seguimiento de F3-1: menores aceptados de tc2 init                   (sin asignar)
 TASK-120  Seguimiento de F3-2: menores aceptados de tc2 import                 (sin asignar)
+TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                   (sin asignar)
+TASK-122  tc2 roadmap --grafo: grafo completo de tareas (RF-04)                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 41
+## Terminadas (04-terminadas) — 42
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -106,6 +107,7 @@ TASK-027  F2-12 taskctl actualizar --cli y aviso de version nueva               
 TASK-028  F3-1 tc2 init                                                             charlie.bk@gmail.com
 TASK-029  F3-2 tc2 new e import en bloque con dependencias e hito                   charlie.bk@gmail.com
 TASK-030  F3-3 tc2 next: lo listo para empezar por dependencias y prioridad         charlie.bk@gmail.com
+TASK-031  F3-4 tc2 roadmap: la vista para todos                                     charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com

@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-031-f3-4-roadmap-la-vista-para-todos
 asignado_a: charlie.bk@gmail.com
@@ -95,6 +95,7 @@ MENORES aceptados (a seguimiento, TASK-123): `restaurar_indice` sin test que lo 
 | 2026-11-17T06:54:07Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T07:34:02Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T08:04:46Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T08:16:27Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -110,3 +111,10 @@ MENORES aceptados (a seguimiento, TASK-123): `restaurar_indice` sin test que lo 
 ## Revisores no relanzados
 
 - ronda 2: code-quality-reviewer - solo tenia hallazgos MENOR pendientes y la correccion no toca sus ficheros
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 82 min
+- Paso de la hora: 82 min reales frente a 300 estimados
+- Cierre (finish): 199 s, de 2026-11-17T08:13:08Z a 2026-11-17T08:16:27Z
