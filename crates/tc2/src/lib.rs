@@ -11,7 +11,7 @@
 //! [`actualizar_cli`] (`actualizar --cli`, F2-12) e [`identidad`] (quien
 //! ejecuta y `tc2 identidad`, F2-13) y [`huella`] (los nombres que la 2.0
 //! deja en un repo, F1-12 D1a) e [`instalacion`] (donde vive el `tc2` de la
-//! maquina, F2-12 y F2-14). Las capas
+//! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -20,6 +20,7 @@ pub mod carril;
 pub mod config;
 pub mod contrato;
 pub mod descarga;
+pub mod desinstalar;
 pub mod estado;
 pub mod git;
 pub mod huella;
@@ -114,6 +115,10 @@ where
         [orden, resto @ ..] if orden == actualizar_cli::NOMBRE => {
             let (json, resto) = con_json(resto);
             actualizar_cli::orden(&resto).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == desinstalar::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            desinstalar::orden(&resto, json, idioma)
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
