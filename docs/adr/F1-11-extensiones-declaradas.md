@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (carpeta fija, rama de estado huérfana, roadmap con un Mermaid por hito) y [ADR F1-7](F1-7-verificacion-ci-perfiles-cache-runners.md) (un comando con perfiles, huella del árbol y local, runner por perfil, job programado); cierra costuras abiertas por [F1-8](F1-8-seguridad-modelo-de-amenazas.md) (confianza local única, globs extra, `comando_*` como entrada no confiable, rutas de Windows en YAML), [F1-9](F1-9-formato-de-tarea-plan-y-especificacion.md) (claves desconocidas del frontmatter) y [F1-10](F1-10-carriles-y-modo-automatico.md) (configuración que falla cerrada, tope de 12 claves); cambia la lista de checks obligatorios de [F1-5](F1-5-puertas-en-github.md) (ver «Divergencias con F1-5 y F1-7»)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a, D5a y D6a del plan de TASK-012, y las correcciones de la revisión 1), «no trocear», la restricción de que el plugin sea **eficiente y con ventajas medibles** y prefiera **comandos deterministas** a hooks, y la decisión del 2026-11-14: «todo lo que hace funcionar al plugin 2 debe estar en su repo y debe ser generalista; al actualizar a la 2 hay que quitar los parches que se aplicaron para mejorar la 0.16 dentro del repo»
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
+- Adenda (2026-11-17, TASK-081, F3-10): el tope de claves de primer nivel sube a 13 con `dias_sin_actividad`; ver [la adenda del final](#adenda-f3-10-task-081--tope-de-13-claves-y-dias_sin_actividad)
 
 ## Contexto
 
@@ -833,3 +834,28 @@ Este ADR se planificó con un solo rol (arquitectura); quedan sin cubrir:
   hace falta, F5-3 o F2-7.
 - **Criterio 1 del plan**: no se revisaron `docs/` de OpenDockTrading ni
   hooks de Git de los pilotos (en ninguno de los dos se vio uno).
+
+## Adenda (F3-10, TASK-081) — tope de 13 claves y `dias_sin_actividad`
+
+Decisión D1a del plan de TASK-081 (opción recomendada, aceptada por Carlos
+para todo el H3):
+
+- **Clave nueva `dias_sin_actividad`** (entero de 1 a 365, por defecto 7):
+  días sin actividad tras los que otra persona puede `liberar` o `reasignar`
+  una tarea que no es suya, y a partir de los cuales `status` y `board` la
+  cuentan como inactiva. Se lee de la configuración de la base, como el
+  resto; sin configuración o si no vale, 7.
+- **El tope de claves de primer nivel sube de 12 a 13**
+  (`config::TOPE_CLAVES`): la tabla ya tenía 12 y la alternativa (meter el
+  umbral dentro de otra clave) mezclaba conceptos que no tienen que ver.
+  Cada clave sigue citando su ADR de origen.
+- **`liberar` y `reasignar` entran en las fases de los derivados**
+  (`derivados[].fases`): escriben en la rama de estado como `descartar` y
+  `pausa`.
+
+Evidencia: el unitario de `config/claves.rs`
+(`claves_de_primer_nivel_no_pasan_del_tope_y_cada_una_cita_su_adr`),
+`crates/tc2/tests/config.rs` (`esquema_publicado_es_el_generado`, con
+`crates/tc2/esquemas/config.schema.json` regenerado) y el umbral leído de la
+configuración en `crates/tc2/tests/liberar.rs`
+(`c5_c6_c10_tarea_de_otra_persona_por_actividad`, `umbral=3`).

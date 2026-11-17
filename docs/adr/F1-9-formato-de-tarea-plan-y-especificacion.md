@@ -7,6 +7,7 @@
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a y D5a del plan de TASK-010)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 - Adenda (2026-11-17, TASK-029): clave opcional `lote` para el import en bloque; ver [la adenda al final](#adenda-f3-2-task-029--clave-opcional-lote)
+- Adenda (2026-11-17, TASK-081): filas `liberar` y `reasignar`; `reasignar` resuelve los `asignado_a` heredados; ver [la adenda al final](#adenda-f3-10-task-081--filas-liberar-y-reasignar)
 
 ## Contexto
 
@@ -539,3 +540,27 @@ y sin `lote`), `crates/tc2/tests/tarea.rs` (`ida_y_vuelta_byte_a_byte`, sin
 cambios) y `crates/tc2/tests/importar.rs`
 (`c1_c3_importa_37_en_un_commit_y_repetir_no_crea_nada`,
 `c4_dos_entradas_mas_crean_solo_esas_dos`).
+
+## Adenda (F3-10, TASK-081) — filas `liberar` y `reasignar`
+
+Sin claves ni estados nuevos (la lista de estados sigue cerrada):
+
+- **Filas de `## Transiciones`**: `liberar` y `reasignar` añaden su fila con
+  la fase del mismo nombre, como `descartar` o `pausa`, y `actualizado` de
+  hoy; el resto del `tarea.md`, byte a byte.
+- **`liberar`** escribe `asignado_a: null` y, si estaba `en-curso`,
+  `estado: planificada` (lista para empezar); conserva `rama:` y
+  `plan_aprobado`. **`reasignar`** escribe solo `asignado_a` con el objeto
+  `{id, login}` de la persona de `personas.yml` y conserva el estado.
+- **Heredados**: `reasignar` es lo que resuelve un `asignado_a` heredado de
+  la 0.16 que no casa con ningún `correos:` (la nota de TASK-077 de arriba):
+  lo sustituye por el objeto de la persona elegida.
+- **Actividad**: la última fila fechada de `## Transiciones` (también
+  `pausa` y `reanudar`) cuenta como actividad de la tarea para F3-10, junto
+  al último commit de su rama publicada.
+
+Evidencia: `crates/tc2/tests/liberar.rs`
+(`c1_c2_el_dueno_libera_y_otra_persona_la_retoma`,
+`c3_reasignar_y_el_nuevo_sigue_en_la_rama`, `c12_heredado_queda_como_objeto`)
+y los unitarios de `ciclo/liberar.rs` y `tarea/cuerpo.rs`
+(`ultima_fecha_de_las_transiciones`).
