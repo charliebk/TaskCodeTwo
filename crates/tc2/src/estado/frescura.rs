@@ -25,6 +25,19 @@ pub(crate) enum Traida {
     Hecha,
     /// `origin` no tiene la rama de estado.
     SinRama,
+    /// `origin` tiene una rama de estado que no desciende de la que trajo
+    /// este clon (reescrita con force): el `fetch` sin `+` la rechaza
+    /// (`! [rejected] ... (non-fast-forward)`). No es falta de red.
+    Reescrita {
+        /// La linea `[rejected]` de git.
+        detalle: String,
+    },
+    /// La ref remota de este clon esta bloqueada (`cannot lock ref ...: File
+    /// exists`): otro `fetch` del mismo clon a la vez o un `.lock` huerfano.
+    Bloqueada {
+        /// La linea `cannot lock ref` de git.
+        detalle: String,
+    },
     /// No salio: la clasificacion y el stderr de git.
     Fallo {
         /// Por que.
@@ -42,10 +55,13 @@ impl Traida {
         match self {
             Self::Hecha => Remoto::Consultado,
             Self::SinRama => Remoto::SinRama,
+            Self::Reescrita { .. } => Remoto::Rechazado,
+            Self::Bloqueada { detalle } => Remoto::RefBloqueada(detalle.clone()),
+            // `RamaInexistente` no llega aqui: `traer_estado` la da como
+            // `SinRama`.
             Self::Fallo { fallo, .. } => match fallo {
                 FalloRemoto::SinRed => Remoto::SinRed,
                 FalloRemoto::Local => Remoto::ErrorLocal,
-                FalloRemoto::RamaInexistente => Remoto::SinRama,
                 otro => Remoto::Denegado(otro.motivo().to_owned()),
             },
         }
@@ -55,9 +71,14 @@ impl Traida {
 /// Trae solo la rama de estado (`fetch` de `refs/heads/taskcodetwo/tareas` a
 /// `refs/remotes/origin/taskcodetwo/tareas`, sin `+`) y, si sale bien,
 /// registra `ahora` en la marca. Es el `fetch` de cada intento de la
-/// transaccion y el de la lectura fresca: uno solo, sin copias. Un fallo al
-/// escribir la marca no se propaga: la hora se queda la anterior, nunca mas
-/// fresca de lo real. `Err` solo si no se pudo lanzar git.
+/// transaccion, el de la lectura fresca y el de `montar`: uno solo, sin
+/// copias. Un fallo al escribir la marca no se propaga: la hora se queda la
+/// anterior, nunca mas fresca de lo real. `Err` solo si no se pudo lanzar
+/// git.
+///
+/// Sin `-q`: con `-q`, git calla el rechazo non-fast-forward (stderr vacio,
+/// comprobado con git 2.56) y no se podria distinguir de otros fallos. En
+/// exito el stderr no se mira.
 pub(crate) fn traer_estado(
     git: &Git,
     principal: &Path,
@@ -65,25 +86,51 @@ pub(crate) fn traer_estado(
     ahora: u64,
 ) -> Result<Traida, Informe> {
     let refspec = format!("refs/heads/{RAMA}:refs/remotes/{REMOTO}/{RAMA}");
-    let s = correr(
-        git,
-        principal,
-        OP,
-        Subcomando::Fetch,
-        &["-q", REMOTO, &refspec],
-    )?;
+    let s = correr(git, principal, OP, Subcomando::Fetch, &[REMOTO, &refspec])?;
     if s.exito() {
         let _ = marca.registrar(ahora);
         return Ok(Traida::Hecha);
     }
-    Ok(match clasificar_fallo_remoto(&s.stderr) {
+    let primera = s.primera_linea_error();
+    Ok(clasificar_traida(s.stderr, primera))
+}
+
+/// `error` (1) de una escritura (transaccion o `montar`) que encuentra la
+/// rama de estado reescrita en `origin`: no se escribe nada ni queda
+/// pendiente (reintentar no lo arregla, y sin red no es).
+pub(crate) fn rama_reescrita(op: &str, detalle: &str) -> Informe {
+    Informe::nuevo(op, crate::contrato::Resultado::Error)
+        .con("motivo", "rama-reescrita")
+        .diagnostico(Mensaje::nuevo(&txt::RAMA_REESCRITA).con("detalle", detalle))
+}
+
+/// Clasifica el stderr de un `fetch` de la rama de estado que fallo. Antes
+/// que [`clasificar_fallo_remoto`] (que da como `sin-red` lo que no
+/// reconoce), dos fallos que no son de red: el rechazo non-fast-forward (la
+/// rama reescrita en `origin`; manda aunque haya ademas un `.lock`, porque
+/// es la causa) y la ref remota bloqueada por un `.lock`.
+fn clasificar_traida(stderr: String, primera: String) -> Traida {
+    let linea = |pred: &dyn Fn(&str) -> bool| {
+        stderr
+            .lines()
+            .map(str::trim)
+            .find(|l| pred(&l.to_ascii_lowercase()))
+            .map(str::to_owned)
+    };
+    if let Some(detalle) = linea(&|l| l.contains("[rejected]") && l.contains("non-fast-forward")) {
+        return Traida::Reescrita { detalle };
+    }
+    if let Some(detalle) = linea(&|l| l.contains("cannot lock ref") && l.contains("file exists")) {
+        return Traida::Bloqueada { detalle };
+    }
+    match clasificar_fallo_remoto(&stderr) {
         FalloRemoto::RamaInexistente => Traida::SinRama,
         fallo => Traida::Fallo {
             fallo,
-            primera: s.primera_linea_error(),
-            stderr: s.stderr,
+            primera,
+            stderr,
         },
-    })
+    }
 }
 
 /// Bytes como mucho del fichero de la marca (un numero y un salto de linea).
@@ -109,8 +156,19 @@ impl Marca {
     }
 
     /// Segundos desde 1970 del ultimo `fetch` con exito; `None` si no hay
-    /// marca o no se entiende (se trata como «nunca»).
+    /// marca, no se entiende o es posterior a ahora (se trata como «nunca»).
     pub fn leer(&self) -> Option<u64> {
+        self.leer_en(crate::identidad::ahora())
+    }
+
+    /// Como [`Marca::leer`] con `ahora` dado. Una hora posterior a `ahora`
+    /// (un reloj que iba adelantado al escribirla o un fichero tocado a
+    /// mano) es «nunca»: mostrarla haria la lectura mas fresca de lo real.
+    pub fn leer_en(&self, ahora: u64) -> Option<u64> {
+        self.leer_crudo().filter(|s| *s <= ahora)
+    }
+
+    fn leer_crudo(&self) -> Option<u64> {
         use std::io::Read;
         let mut texto = String::new();
         std::fs::File::open(&self.ruta)
@@ -150,6 +208,13 @@ pub enum Remoto {
     Consultado,
     /// Sin red (o un fallo que no se reconoce): se muestra lo ultimo traido.
     SinRed,
+    /// `origin` tiene la rama de estado reescrita (no desciende de la que
+    /// trajo este clon) y el `fetch` sin `+` no la trae.
+    Rechazado,
+    /// La ref remota de este clon esta bloqueada por un `.lock` (otro git a
+    /// la vez o uno huerfano); lleva la linea de git. Sale como
+    /// `error-local`, con su propio aviso.
+    RefBloqueada(String),
     /// `origin` responde pero no deja leer; el motivo es el de
     /// [`crate::git::FalloRemoto::motivo`] (`credenciales`,
     /// `remoto-no-existe`...).
@@ -168,8 +233,9 @@ impl Remoto {
         match self {
             Self::Consultado => "consultado",
             Self::SinRed => "sin-red",
+            Self::Rechazado => "rechazado",
             Self::Denegado(_) => "denegado",
-            Self::ErrorLocal => "error-local",
+            Self::ErrorLocal | Self::RefBloqueada(_) => "error-local",
             Self::SinRama => "sin-rama",
             Self::SinRemoto => "sin-remoto",
         }
@@ -180,8 +246,12 @@ impl Remoto {
         Some(match self {
             Self::Consultado | Self::SinRemoto => return None,
             Self::SinRed => Mensaje::nuevo(&txt::PORQUE_SIN_RED),
+            Self::Rechazado => Mensaje::nuevo(&txt::PORQUE_RECHAZADO),
             Self::Denegado(m) => Mensaje::nuevo(&txt::PORQUE_DENEGADO).con("motivo", m.clone()),
             Self::ErrorLocal => Mensaje::nuevo(&txt::PORQUE_ERROR_LOCAL),
+            Self::RefBloqueada(d) => {
+                Mensaje::nuevo(&txt::PORQUE_REF_BLOQUEADA).con("detalle", d.clone())
+            }
             Self::SinRama => Mensaje::nuevo(&txt::PORQUE_SIN_RAMA),
         })
     }
@@ -323,6 +393,112 @@ mod tests {
         assert_eq!(m.leer(), Some(T), "sin salto final tambien vale");
         let _ = std::fs::remove_dir_all(&comun);
         Ok(())
+    }
+
+    /// H2 (revision 1 de TASK-079): una marca con hora posterior a `ahora`
+    /// es «nunca», tambien sin red: nunca mas fresca de lo real.
+    #[test]
+    fn marca_del_futuro_es_nunca() -> std::io::Result<()> {
+        let comun = carpeta("futuro");
+        let m = Marca::en(&comun);
+        m.registrar(T + 1)?;
+        assert_eq!(m.leer_en(T), None, "un segundo despues de ahora");
+        assert_eq!(m.leer_en(T + 1), Some(T + 1), "igual a ahora vale");
+        assert_eq!(m.leer_en(T + 100), Some(T + 1));
+        m.registrar(99_999_999_999)?;
+        assert_eq!(m.leer(), None, "el caso del informe: ano 5138");
+        let f = Frescura {
+            remoto: Remoto::SinRed,
+            sincronizado: m.leer(),
+        };
+        assert_eq!(f.texto(), "nunca");
+        let _ = std::fs::remove_dir_all(&comun);
+        Ok(())
+    }
+
+    /// H1 (revision 1 de TASK-079): el stderr real de git 2.56 (sin `-q`)
+    /// del rechazo non-fast-forward y del `.lock`, y que lo demas sigue con
+    /// la clasificacion de siempre.
+    #[test]
+    fn clasifica_rechazo_y_ref_bloqueada() {
+        let rechazo = "From ssh://git@github.com/o/r\n ! [rejected]        taskcodetwo/tareas -> origin/taskcodetwo/tareas  (non-fast-forward)\n";
+        let lock = "error: cannot lock ref 'refs/remotes/origin/taskcodetwo/tareas': Unable to create 'C:/x/.git/refs/remotes/origin/taskcodetwo/tareas.lock': File exists.\n\nAnother git process seems to be running in this repository, or the lock file may be stale\nFrom ../remoto\n ! a5d3ff0..95116cd  taskcodetwo/tareas -> origin/taskcodetwo/tareas  (unable to update local ref)\n";
+        let ambos = format!(
+            "{rechazo}error: update_ref failed for ref 'refs/remotes/origin/taskcodetwo/tareas': cannot lock ref 'refs/remotes/origin/taskcodetwo/tareas': Unable to create 'C:/x/tareas.lock': File exists.\n"
+        );
+        let c = |s: &str| clasificar_traida(s.to_owned(), "p".to_owned());
+        assert_eq!(
+            c(rechazo),
+            Traida::Reescrita {
+                detalle: "! [rejected]        taskcodetwo/tareas -> origin/taskcodetwo/tareas  (non-fast-forward)".to_owned()
+            }
+        );
+        assert!(
+            matches!(c(&ambos), Traida::Reescrita { .. }),
+            "manda el rechazo"
+        );
+        let bloqueada = c(lock);
+        assert!(
+            matches!(&bloqueada, Traida::Bloqueada { detalle }
+                if detalle.starts_with("error: cannot lock ref 'refs/remotes/origin/")),
+            "{bloqueada:?}"
+        );
+        assert_eq!(c(lock).remoto().texto(), "error-local");
+        assert_eq!(c(rechazo).remoto().texto(), "rechazado");
+        // Un `cannot lock ref` por permisos no es un `.lock`: sigue `Local`.
+        let permiso = "error: cannot lock ref 'refs/heads/x': Permission denied";
+        assert_eq!(c(permiso).remoto(), Remoto::ErrorLocal);
+        assert_eq!(c("").remoto(), Remoto::SinRed);
+        assert_eq!(
+            c("fatal: couldn't find remote ref refs/heads/taskcodetwo/tareas"),
+            Traida::SinRama
+        );
+        assert_eq!(
+            c("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.").remoto(),
+            Remoto::Denegado("credenciales".to_owned())
+        );
+    }
+
+    /// Los avisos de los dos motivos nuevos, en los dos idiomas.
+    #[test]
+    fn aviso_de_rechazado_y_ref_bloqueada() {
+        let f = |remoto| Frescura {
+            remoto,
+            sincronizado: Some(T),
+        };
+        let textos = |remoto, ahora| {
+            let a = f(remoto).aviso(ahora);
+            (
+                a.as_ref().map(|m| m.texto(Idioma::Es)).unwrap_or_default(),
+                a.map(|m| m.texto(Idioma::En)).unwrap_or_default(),
+            )
+        };
+        let (es, en) = textos(Remoto::Rechazado, T + 180);
+        assert_eq!(
+            es,
+            "aviso: origin tiene la rama de estado reescrita (no sigue a la que trajo este clon) y git no la trae sin forzar; se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace 3 min)"
+        );
+        assert!(
+            en.starts_with("warning: origin has the state branch rewritten"),
+            "{en}"
+        );
+        let (es, en) = textos(
+            Remoto::RefBloqueada("error: cannot lock ref 'x'".to_owned()),
+            T,
+        );
+        assert_eq!(
+            es,
+            "aviso: la ref de la rama de estado de este clon esta bloqueada por otro git a la vez o un .lock huerfano (error: cannot lock ref 'x'); se muestra lo que este clon trajo el 2026-11-17T16:04:12Z (hace menos de 1 min)"
+        );
+        assert!(
+            en.starts_with("warning: this clone's state branch ref is locked"),
+            "{en}"
+        );
+        let base = Informe::nuevo("status", Resultado::Ok);
+        assert_eq!(
+            f(Remoto::Rechazado).anotar(base).linea(),
+            "status ok remoto=rechazado sincronizado=2026-11-17T16:04:12Z"
+        );
     }
 
     #[test]

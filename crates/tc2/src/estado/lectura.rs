@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use super::frescura::{Frescura, Marca, Remoto, traer_estado};
+use super::frescura::{Frescura, Marca, Remoto, Traida, traer_estado};
 use super::transaccion::Fallo;
 use super::{CARPETA, OP, RAMA};
 use crate::contrato::{Informe, Resultado};
@@ -188,15 +188,47 @@ pub fn leer_fresco<'a>(
     let (principal, referencia, remoto) = lectura_de(git, dir)?;
     let marca = Marca::en(&dir_comun(git, &principal, OP)?);
     let remoto = if remoto {
-        traer_estado(git, &principal, &marca, ahora)?.remoto()
+        con_reintento(&ESPERAS_REF_BLOQUEADA, || {
+            traer_estado(git, &principal, &marca, ahora)
+        })?
+        .remoto()
     } else {
         Remoto::SinRemoto
     };
     let frescura = Frescura {
         remoto,
-        sincronizado: marca.leer(),
+        sincronizado: marca.leer_en(ahora),
     };
     Ok((vista_de(git, &principal, &referencia)?, frescura))
+}
+
+/// Esperas antes de repetir el `fetch` de la lectura si la ref remota esta
+/// bloqueada (revision 1 de TASK-079, H4): la lectura no toma el cerrojo de
+/// estado, asi que su `fetch` puede coincidir con el de una transaccion u
+/// otra lectura del mismo clon, que sueltan el `.lock` en milisegundos. Un
+/// `.lock` huerfano sigue ahi tras las esperas y sale `remoto=error-local`.
+/// La transaccion no reintenta: su ref bloqueada es `error` (no hay
+/// reintento de `fetch` que heredar alli).
+const ESPERAS_REF_BLOQUEADA: [std::time::Duration; 2] = [
+    std::time::Duration::from_millis(200),
+    std::time::Duration::from_millis(500),
+];
+
+/// `traer` y, mientras salga [`Traida::Bloqueada`], otra vez tras cada
+/// espera de `esperas`.
+fn con_reintento(
+    esperas: &[std::time::Duration],
+    mut traer: impl FnMut() -> Result<Traida, Informe>,
+) -> Result<Traida, Informe> {
+    let mut t = traer()?;
+    for e in esperas {
+        if !matches!(t, Traida::Bloqueada { .. }) {
+            break;
+        }
+        std::thread::sleep(*e);
+        t = traer()?;
+    }
+    Ok(t)
 }
 
 /// Hora de la ultima sincronizacion del clon de `dir`, sin `fetch` (la de
@@ -262,5 +294,46 @@ fn vista_de<'a>(git: &'a Git, principal: &Path, referencia: &str) -> Result<Vist
                 crate::i18n::Mensaje::nuevo(&crate::i18n::catalogo::estado::MONTA_PRIMERO)
                     .con("carpeta", CARPETA),
             )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Traida, con_reintento};
+    use std::time::Duration;
+
+    fn bloqueada() -> Traida {
+        Traida::Bloqueada {
+            detalle: "error: cannot lock ref 'x'".to_owned(),
+        }
+    }
+
+    /// H4 (revision 1 de TASK-079): la lectura repite el `fetch` mientras la
+    /// ref este bloqueada, como mucho una vez por espera, y para en cuanto
+    /// sale otra cosa.
+    #[test]
+    fn reintenta_solo_la_ref_bloqueada() {
+        let esperas = [Duration::ZERO, Duration::ZERO];
+        // Se suelta el `.lock` al segundo intento.
+        let mut n = 0;
+        let t = con_reintento(&esperas, || {
+            n += 1;
+            Ok(if n < 2 { bloqueada() } else { Traida::Hecha })
+        });
+        assert_eq!((t.ok(), n), (Some(Traida::Hecha), 2));
+        // Un `.lock` huerfano: tres intentos y se queda bloqueada.
+        let mut n = 0;
+        let t = con_reintento(&esperas, || {
+            n += 1;
+            Ok(bloqueada())
+        });
+        assert_eq!((t.ok(), n), (Some(bloqueada()), 3));
+        // Lo demas no se repite.
+        let mut n = 0;
+        let t = con_reintento(&esperas, || {
+            n += 1;
+            Ok(Traida::SinRama)
+        });
+        assert_eq!((t.ok(), n), (Some(Traida::SinRama), 1));
     }
 }

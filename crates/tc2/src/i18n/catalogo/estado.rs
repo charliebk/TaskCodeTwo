@@ -79,6 +79,10 @@ crate::i18n::textos! {
         es: "{detalle}; queda pendiente de publicar: se publicara en la siguiente operacion con red",
         en: "{detalle}; pending publication: it will be published in the next operation with network access",
     }
+    RAMA_REESCRITA {
+        es: "{detalle}; origin tiene la rama de estado reescrita y no sigue a la que trajo este clon: no se ha escrito nada; averigua quien la reescribio antes de seguir",
+        en: "{detalle}; origin has the state branch rewritten and it does not follow the one this clone fetched: nothing was written; find out who rewrote it before going on",
+    }
     NO_SE_PUDO_ADELANTAR {
         es: "no se pudo adelantar {rama}: {error}",
         en: "could not fast-forward {rama}: {error}",
@@ -104,6 +108,14 @@ crate::i18n::textos! {
     PORQUE_ERROR_LOCAL {
         es: "no se pudo traer la rama de estado por un fallo de este clon",
         en: "the state branch could not be fetched because of a failure in this clone",
+    }
+    PORQUE_RECHAZADO {
+        es: "origin tiene la rama de estado reescrita (no sigue a la que trajo este clon) y git no la trae sin forzar",
+        en: "origin has the state branch rewritten (it does not follow the one this clone fetched) and git does not fetch it without forcing",
+    }
+    PORQUE_REF_BLOQUEADA {
+        es: "la ref de la rama de estado de este clon esta bloqueada por otro git a la vez o un .lock huerfano ({detalle})",
+        en: "this clone's state branch ref is locked by another git at the same time or a stale .lock ({detalle})",
     }
     PORQUE_SIN_RAMA {
         es: "origin no tiene la rama de estado",

@@ -13,7 +13,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use super::cerrojo::{Cerrojo, ErrorCerrojo};
-use super::frescura::{Marca, Traida, traer_estado};
+use super::frescura::{Marca, Traida, rama_reescrita, traer_estado};
 use super::lectura::{Estado, Vista};
 use super::pendientes::{self, ANOTACION, Destino};
 use super::{CARPETA, OP, RAMA};
@@ -283,6 +283,14 @@ fn intento(
             // que se monto sin remoto y al que luego se anadio `origin`),
             // se parte de ella para publicar su historia, no de cero.
             Traida::SinRama => commit_de(git, principal, OP, &rama_local())?,
+            // Ni una ni otra es falta de red (revision 1 de TASK-079, H1):
+            // no se guarda como pendiente. La rama reescrita no la arregla
+            // reintentar; la ref bloqueada es un fallo de este clon, como
+            // `FalloRemoto::Local`.
+            Traida::Reescrita { detalle } => return Err(rama_reescrita(OP, &detalle)),
+            Traida::Bloqueada { detalle } => {
+                return Err(crate::git::remoto::error_local(OP, &detalle));
+            }
             Traida::Fallo {
                 fallo,
                 stderr,
