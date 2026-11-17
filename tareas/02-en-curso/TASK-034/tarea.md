@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-034-f3-7-descartar-y-pausa
 asignado_a: charlie.bk@gmail.com
@@ -47,6 +47,7 @@ Tarea F3-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 |---|---|---|---|---|
 | 2026-11-17T10:51:12Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T10:59:25Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T10:59:29Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
