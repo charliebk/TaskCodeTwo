@@ -2,7 +2,7 @@
 
 - Commit revisado: 2c3706b7cb68b2e455377ec33ab0766aae68db39 (HEAD de la rama: 9fff220, solo anade la peticion)
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-028 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 ## Hallazgos
 
