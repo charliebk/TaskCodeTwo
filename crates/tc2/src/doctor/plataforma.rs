@@ -61,9 +61,92 @@ fn permiso(p: Option<Proveedor>, op: &str) -> &'static str {
 
 /// `no-comprobado` de todo lo de la plataforma, con `motivo`.
 fn sin_plataforma(motivo: &str) -> Vec<Hallazgo> {
-    COMPROBACIONES
+    let mut v: Vec<Hallazgo> = COMPROBACIONES
         .iter()
         .map(|(a, id)| Hallazgo::nuevo(a, *id, Estado::NoComprobado).motivo(motivo))
+        .collect();
+    v.extend(checks_del_modelo().into_iter().map(|c| {
+        Hallazgo::nuevo("check", c, Estado::NoComprobado)
+            .motivo(motivo)
+            .con("rama", RAMA_CHECKS)
+    }));
+    v
+}
+
+/// La rama cuyos checks se comprueban (C5): `develop`, la de integracion.
+pub const RAMA_CHECKS: &str = "develop";
+
+/// Los checks que el modelo exige en [`RAMA_CHECKS`].
+pub fn checks_del_modelo() -> Vec<&'static str> {
+    modelo()
+        .into_iter()
+        .find(|p| p.nombre == RAMA_CHECKS)
+        .map(|p| p.checks)
+        .unwrap_or_default()
+}
+
+/// Hallazgos de los checks de `develop` (funcion pura, C5 y D4a): un check
+/// del modelo que la rama no exige, `falla motivo=check-no-obligatorio`;
+/// uno exigido que no esta entre los publicados en su cabeza, `falla
+/// motivo=check-sin-publicar`, o `aviso` si no hay ninguno publicado (repo
+/// recien creado, sin el workflow de F5-1). Solo se mira el nombre: el
+/// origen (`integration_id`) espera a F6-1.
+pub fn checks(p: Option<Proveedor>, leidas: &Paso<ReglasLeidas>) -> Vec<Hallazgo> {
+    let modelo = checks_del_modelo();
+    let h = |c: &str, e: Estado| Hallazgo::nuevo("check", c, e).con("rama", RAMA_CHECKS);
+    let todos_igual = |e: Estado, motivo: &str| -> Vec<Hallazgo> {
+        modelo
+            .iter()
+            .map(|c| {
+                let mut x = h(c, e).motivo(motivo);
+                if motivo == "plan" {
+                    x = x.arreglo("repo-publico-o-github-pro");
+                }
+                x
+            })
+            .collect()
+    };
+    let r = match leidas {
+        Ok(r) => r,
+        Err(i) if es_de_permisos(i) => {
+            return todos_igual(Estado::NoComprobado, "permiso-insuficiente");
+        }
+        Err(i) => {
+            return todos_igual(
+                Estado::NoComprobado,
+                i.valor("motivo").unwrap_or_else(|| i.resultado.texto()),
+            );
+        }
+    };
+    if p == Some(Proveedor::GitHub) && !r.plan_da_reglas {
+        return todos_igual(Estado::Aviso, "plan");
+    }
+    let Some(requeridos) = &r.checks_requeridos else {
+        return todos_igual(Estado::NoComprobado, "checks-no-leidos");
+    };
+    let mut nombres: Vec<&str> = modelo.clone();
+    nombres.extend(
+        requeridos
+            .iter()
+            .map(String::as_str)
+            .filter(|c| !modelo.contains(c)),
+    );
+    nombres
+        .into_iter()
+        .map(|c| {
+            let exigido = r.todos_los_checks || requeridos.iter().any(|x| x == c);
+            if !exigido {
+                return h(c, Estado::Falla)
+                    .motivo("check-no-obligatorio")
+                    .arreglo(ARREGLO_INIT);
+            }
+            match &r.checks_publicados {
+                None => h(c, Estado::NoComprobado).motivo("checks-no-leidos"),
+                Some(v) if v.iter().any(|x| x == c) => h(c, Estado::Ok),
+                Some(v) if v.is_empty() => h(c, Estado::Aviso).motivo("check-sin-publicar"),
+                Some(_) => h(c, Estado::Falla).motivo("check-sin-publicar"),
+            }
+        })
         .collect()
 }
 
@@ -176,6 +259,14 @@ pub(super) fn comprobar(
     let mut plataforma = "ok";
     for ((nombre, rama), r) in ramas.iter().zip(&leidas) {
         hs.push(proteccion(prov, nombre, rama, r));
+    }
+    if let Some(r) = ramas
+        .iter()
+        .zip(&leidas)
+        .find(|((_, rama), _)| rama == RAMA_CHECKS)
+        .map(|(_, r)| r)
+    {
+        hs.extend(checks(prov, r));
     }
     // Un 403 al leer las puertas: una sola falla con su permiso.
     if let Some(i) = leidas.iter().filter_map(|r| r.as_ref().err()).next() {

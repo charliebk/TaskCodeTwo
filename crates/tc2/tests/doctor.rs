@@ -619,6 +619,67 @@ fn permisos_insuficientes_y_ci_que_aprueba_fallan() {
     assert_eq!(lineas_de(&hs, "permisos"), ["permisos ci ok"]);
 }
 
+/// C5: un check requerido que no esta entre los publicados en la cabeza de
+/// `develop` da `falla motivo=check-sin-publicar` (o `aviso` si no hay
+/// ninguno publicado, D4a); un check del modelo que la rama no exige da
+/// `falla motivo=check-no-obligatorio`. Mismas lineas en las dos.
+#[test]
+fn checks_sin_publicar_o_no_obligatorios() {
+    let _serie = serie();
+    for prov in [Prov::GitHub, Prov::GitLab] {
+        let mut caso = Caso::bien(prov);
+        let (hs, _, recibidas) = doctor_contra(prov, &caso);
+        assert_eq!(
+            lineas_de(&hs, "check"),
+            [
+                "check verificacion ok rama=develop",
+                "check revision-ia ok rama=develop",
+                "check carril ok rama=develop"
+            ],
+            "{prov:?}: {recibidas:?}"
+        );
+        caso.publicados = vec!["verificacion", "carril", "otro"];
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        assert_eq!(
+            lineas_de(&hs, "check"),
+            [
+                "check verificacion ok rama=develop",
+                "check revision-ia falla motivo=check-sin-publicar rama=develop",
+                "check carril ok rama=develop"
+            ],
+            "{prov:?}"
+        );
+        assert_eq!(codigo(&hs, &r), 3);
+        caso.publicados = Vec::new();
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        assert!(
+            lineas_de(&hs, "check")
+                .iter()
+                .all(|l| l.contains(" aviso motivo=check-sin-publicar rama=develop")),
+            "{prov:?}: {:?}",
+            lineas_de(&hs, "check")
+        );
+        assert_eq!(codigo(&hs, &r), 0, "{prov:?}");
+        // GitHub: el ruleset no exige `revision-ia`; GitLab: sin «Pipelines
+        // must succeed» no exige ninguno.
+        caso.publicados = MODELO.to_vec();
+        caso.requeridos = match prov {
+            Prov::GitHub => vec!["verificacion", "carril"],
+            Prov::GitLab => Vec::new(),
+        };
+        let (hs, r, _) = doctor_contra(prov, &caso);
+        assert!(
+            lineas_de(&hs, "check").contains(
+                &"check revision-ia falla motivo=check-no-obligatorio rama=develop arreglo=tc2-init"
+                    .to_owned()
+            ),
+            "{prov:?}: {:?}",
+            lineas_de(&hs, "check")
+        );
+        assert_eq!(codigo(&hs, &r), 3);
+    }
+}
+
 /// C9: sin plataforma, sin credenciales o sin red, `plataforma=` lo dice y
 /// los hallazgos de plataforma salen `no-comprobado` (ninguno `ok`); el
 /// codigo no cambia por eso.

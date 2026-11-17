@@ -136,6 +136,22 @@ pub struct ReglasLeidas {
     /// proteccion de la rama (GitLab: `push=N`, `merge=N`, `force-push`,
     /// `code-owner`).
     pub reglas_rama: Vec<String>,
+    /// Aprobaciones que pide la plataforma (F3-8): GitHub, el
+    /// `required_approving_review_count` de la regla `pull_request` de la
+    /// rama; GitLab, el mayor `approvals_required` de las reglas de
+    /// aprobacion. 0 si no pide ninguna.
+    pub aprobaciones: u64,
+    /// Checks que la rama exige por nombre (F3-8; GitHub: los `context` de
+    /// `required_status_checks`). `None` si no se pudo leer.
+    pub checks_requeridos: Option<Vec<String>>,
+    /// GitLab con «Pipelines must succeed»: cuenta todo el pipeline, asi
+    /// que cualquier check publicado en el es obligatorio (sin origen: G09
+    /// sustituido por `autor-del-estado`).
+    pub todos_los_checks: bool,
+    /// Nombres de los checks publicados en la cabeza de la rama (GitHub,
+    /// check-runs; GitLab, estados del commit). `None` si no se pudieron
+    /// leer (rama inexistente, permisos...).
+    pub checks_publicados: Option<Vec<String>>,
 }
 
 /// Un PR (o MR) abierto del propio repo, con lo minimo que necesita `board`

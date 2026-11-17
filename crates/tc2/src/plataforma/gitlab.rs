@@ -71,6 +71,8 @@ enum Endpoint<'a> {
     Aprobaciones(u64),
     Firma(&'a str),
     Commit(&'a str),
+    Proyecto,
+    Rama(&'a str),
 }
 
 impl Endpoint<'_> {
@@ -120,6 +122,11 @@ impl Endpoint<'_> {
                 format!("{p}/repository/commits/{sha}/signature"),
             ),
             Self::Commit(sha) => (Metodo::Get, format!("{p}/repository/commits/{sha}")),
+            Self::Proyecto => (Metodo::Get, p),
+            Self::Rama(rama) => (
+                Metodo::Get,
+                format!("{p}/repository/branches/{}", codificar(rama)),
+            ),
         }
     }
 }
@@ -259,6 +266,19 @@ struct CommitApi {
     id: String,
 }
 
+/// Lo que se lee del proyecto. Los dos campos solo salen con sesion
+/// (GL-01 de F1-13): ausentes, `None`.
+#[derive(Deserialize)]
+struct ProyectoApi {
+    #[serde(default)]
+    only_allow_merge_if_pipeline_succeeds: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct RamaApi {
+    commit: CommitApi,
+}
+
 /// Adaptador de GitLab para un proyecto.
 pub struct GitLab {
     con: Conexion,
@@ -319,6 +339,48 @@ impl GitLab {
             .into_iter()
             .find(|m| m.source_branch == rama && m.target_branch == base && m.state == "opened")
             .map(|m| m.iid))
+    }
+
+    /// Checks requeridos del proyecto (F3-8): GitLab no exige checks por
+    /// nombre; con «Pipelines must succeed» cuenta el pipeline entero
+    /// (`todos`). `None` si el proyecto no se pudo leer o no trae el campo
+    /// (sin sesion no sale, GL-01 de F1-13).
+    fn checks_requeridos(&self, rol: Rol) -> (Option<Vec<String>>, bool) {
+        let p = self.con.leer::<ProyectoApi>(
+            LEER_PUERTAS,
+            rol,
+            PERMISO_LECTURA,
+            self.ep(&Endpoint::Proyecto),
+        );
+        match p.ok().and_then(|p| p.only_allow_merge_if_pipeline_succeeds) {
+            Some(todos) => (Some(Vec::new()), todos),
+            None => (None, false),
+        }
+    }
+
+    /// Nombres de los estados de la cabeza de `rama` (la API de estados
+    /// pide el sha: se lee antes la rama). `None` si algo no se lee.
+    fn checks_publicados(&self, rol: Rol, rama: &str) -> Option<Vec<String>> {
+        let r: RamaApi = self
+            .con
+            .leer(
+                LEER_PUERTAS,
+                rol,
+                PERMISO_LECTURA,
+                self.ep(&Endpoint::Rama(rama)),
+            )
+            .ok()?;
+        if !sha_valido(&r.commit.id) {
+            return None;
+        }
+        let (_, ruta) = self.ep(&Endpoint::Estados(&r.commit.id));
+        let estados: Vec<EstadoApi> = self
+            .con
+            .leer_paginas(LEER_PUERTAS, rol, PERMISO_LECTURA, ruta, |c| {
+                self.con.parsear(LEER_PUERTAS, c)
+            })
+            .ok()?;
+        Some(estados.into_iter().map(|e| e.name).collect())
     }
 
     /// Si `rama` tiene commits que no estan en `base`.
@@ -734,21 +796,27 @@ impl Plataforma for GitLab {
             self.ep(&Endpoint::ReglasAprobacion),
             None,
         )?;
-        if r.estado == 403 {
-            return Ok(ReglasLeidas {
-                plan_da_reglas: false,
-                rulesets: Vec::new(),
-                reglas_rama,
-            });
-        }
-        if !r.exito() {
+        let (plan_da_reglas, reglas) = if r.estado == 403 {
+            (false, Vec::new())
+        } else if r.exito() {
+            let v: Vec<ReglaAprobacionApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
+            (true, v)
+        } else {
             return Err(self.con.traducir(LEER_PUERTAS, rol, PERMISO_LECTURA, &r));
-        }
-        let reglas: Vec<ReglaAprobacionApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
+        };
+        let (requeridos, todos) = self.checks_requeridos(rol);
         Ok(ReglasLeidas {
-            plan_da_reglas: true,
+            plan_da_reglas,
+            aprobaciones: reglas
+                .iter()
+                .map(|r| r.approvals_required)
+                .max()
+                .unwrap_or(0),
             rulesets: reglas.into_iter().map(|r| r.name).collect(),
             reglas_rama,
+            checks_requeridos: requeridos,
+            todos_los_checks: todos,
+            checks_publicados: self.checks_publicados(rol, rama),
         })
     }
 

@@ -53,6 +53,7 @@ enum Endpoint<'a> {
     ReglasRama(&'a str),
     Rulesets,
     CheckRuns(&'a str),
+    CheckRunsDeRama(&'a str),
     Reviews(u64),
     PermisosWorkflow,
     Commit(&'a str),
@@ -82,6 +83,10 @@ impl Endpoint<'_> {
             Self::CheckRuns(sha) => (
                 Metodo::Get,
                 format!("{r}/commits/{sha}/check-runs?per_page=100"),
+            ),
+            Self::CheckRunsDeRama(rama) => (
+                Metodo::Get,
+                format!("{r}/commits/heads/{rama}/check-runs?per_page=100"),
             ),
             Self::Reviews(n) => (Metodo::Get, format!("{r}/pulls/{n}/reviews?per_page=100")),
             Self::PermisosWorkflow => (Metodo::Get, format!("{r}/actions/permissions/workflow")),
@@ -224,6 +229,23 @@ struct RulesetApi {
 struct ReglaApi {
     #[serde(rename = "type")]
     tipo: String,
+    /// Los de `pull_request` y `required_status_checks`; los demas tipos
+    /// traen otros campos (o ninguno) y se ignoran.
+    #[serde(default)]
+    parameters: Option<ParametrosApi>,
+}
+
+#[derive(Deserialize, Default)]
+struct ParametrosApi {
+    #[serde(default)]
+    required_approving_review_count: Option<u64>,
+    #[serde(default)]
+    required_status_checks: Vec<CheckRequeridoApi>,
+}
+
+#[derive(Deserialize)]
+struct CheckRequeridoApi {
+    context: String,
 }
 
 /// Adaptador de GitHub para un repo.
@@ -599,10 +621,39 @@ impl Plataforma for GitHub {
             permiso,
             self.ep(&Endpoint::ReglasRama(rama)),
         )?;
+        let parametros = |tipo: &'static str| {
+            reglas
+                .iter()
+                .filter(move |r| r.tipo == tipo)
+                .filter_map(|r| r.parameters.as_ref())
+        };
+        let aprobaciones = parametros("pull_request")
+            .filter_map(|p| p.required_approving_review_count)
+            .max()
+            .unwrap_or(0);
+        let requeridos: Vec<String> = parametros("required_status_checks")
+            .flat_map(|p| p.required_status_checks.iter().map(|c| c.context.clone()))
+            .collect();
+        // Los check-runs de la cabeza de la rama (`heads/<rama>`, la forma
+        // que documenta la API). Si no se pueden leer, no se supone nada.
+        let (_, ruta) = self.ep(&Endpoint::CheckRunsDeRama(rama));
+        let publicados = self
+            .con
+            .leer_paginas(LEER_PUERTAS, rol, permiso, ruta, |c| {
+                self.con
+                    .parsear::<CheckRunsApi>(LEER_PUERTAS, c)
+                    .map(|x| x.check_runs)
+            })
+            .ok()
+            .map(|v| v.into_iter().map(|r| r.name).collect());
         Ok(ReglasLeidas {
             plan_da_reglas: true,
             rulesets: rulesets.into_iter().map(|r| r.name).collect(),
             reglas_rama: reglas.into_iter().map(|r| r.tipo).collect(),
+            aprobaciones,
+            checks_requeridos: Some(requeridos),
+            todos_los_checks: false,
+            checks_publicados: publicados,
         })
     }
 
