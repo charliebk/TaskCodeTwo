@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-031-f3-4-roadmap-la-vista-para-todos
 asignado_a: charlie.bk@gmail.com
@@ -42,3 +42,4 @@ Tarea F3-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 |---|---|---|---|---|
 | 2026-11-17T06:49:37Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-17T06:54:06Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-17T06:54:07Z | start | automatico | persona | 0.16.1 |
