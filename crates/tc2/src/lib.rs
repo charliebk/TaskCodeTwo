@@ -303,7 +303,9 @@ fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
         }
     };
     let op = alta::Alta::con_entrada(entrada).con_ocupados(ocupados);
-    let c = estado::Contexto::nuevo(&g, &dir, &catalogo);
+    let personas = roadmap::personas(&g, &dir);
+    let generar = roadmap::generador(&personas);
+    let c = estado::Contexto::nuevo(&g, &dir, &catalogo, Some(&generar));
     let mut i = estado::transaccion(&c, &op);
     alta::NOMBRE.clone_into(&mut i.comando);
     alta::referencia_a_uso(&mut i);

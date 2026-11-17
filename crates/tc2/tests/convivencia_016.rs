@@ -171,7 +171,7 @@ fn la_huella_de_la_016_queda_intacta_tras_new_y_start() {
         &clon,
         &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
     );
-    let mut c = Contexto::nuevo(&g, &clon, &catalogo);
+    let mut c = Contexto::nuevo(&g, &clon, &catalogo, None);
     c.politica = Politica {
         intentos: 3,
         base: Duration::from_millis(1),

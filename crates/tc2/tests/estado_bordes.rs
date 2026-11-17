@@ -25,7 +25,7 @@ fn rapida() -> Politica {
 }
 
 fn escribir_estado(g: &Git, dir: &Path, op: &dyn Operacion) -> Informe {
-    let mut c = Contexto::nuevo(g, dir, &catalogo);
+    let mut c = Contexto::nuevo(g, dir, &catalogo, None);
     c.politica = rapida();
     let i = estado::transaccion(&c, op);
     contrato(&i);
@@ -147,7 +147,7 @@ fn cerrojo_ocupado_y_remoto_que_deniega_el_fetch() {
     // Otro proceso tiene el cerrojo: `agotada motivo=cerrojo` al vencer la
     // espera, sin escribir nada.
     let tomado = Cerrojo::tomar(&clon.join(".git"), Duration::from_secs(1)).unwrap();
-    let mut c = Contexto::nuevo(&g, &clon, &catalogo);
+    let mut c = Contexto::nuevo(&g, &clon, &catalogo, None);
     c.politica.espera_cerrojo = Duration::from_millis(300);
     let i = estado::transaccion(&c, &Anotar::nueva("notas/a.md", true));
     contrato(&i);
@@ -224,7 +224,7 @@ fn rutas_que_chocan_por_mayusculas_y_llamadas_mal_formadas() {
         "estado uso operacion=anotar motivo=anotacion-invalida"
     );
     assert_eq!(i.salida(false).codigo, 2);
-    let mut c = Contexto::nuevo(&g, &solo, &catalogo);
+    let mut c = Contexto::nuevo(&g, &solo, &catalogo, None);
     c.politica.intentos = 0;
     let i = estado::transaccion(&c, &Anotar::nueva("notas/a.md", true));
     assert_eq!(i.linea(), "estado uso operacion=anotar motivo=sin-intentos");

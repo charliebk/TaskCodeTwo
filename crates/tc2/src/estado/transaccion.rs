@@ -70,7 +70,8 @@ pub trait Operacion {
 pub type Catalogo<'a> = &'a dyn Fn(&str) -> Option<Box<dyn Operacion>>;
 
 /// Genera `ROADMAP.md` desde el estado ya cambiado (se regenera, nunca se
-/// mergea: ADR F1-1). Lo pone F3-4; hasta entonces, `None`.
+/// mergea: ADR F1-1 y F1-2 D2.4). El de produccion es
+/// [`crate::roadmap::generador`]; el montaje no lleva.
 pub type Roadmap<'a> = &'a dyn Fn(&dyn Estado) -> Result<String, Fallo>;
 
 /// Reintentos y esperas (ADR F1-2, D3a: 5 intentos, base 2 s).
@@ -109,14 +110,20 @@ pub struct Contexto<'a> {
 }
 
 impl<'a> Contexto<'a> {
-    /// Contexto con la politica por defecto y sin generador de roadmap.
-    pub fn nuevo(git: &'a Git, dir: &'a Path, catalogo: Catalogo<'a>) -> Self {
+    /// Contexto con la politica por defecto. El generador de `ROADMAP.md`
+    /// va explicito: quien escribe decide si lo regenera (TASK-031).
+    pub fn nuevo(
+        git: &'a Git,
+        dir: &'a Path,
+        catalogo: Catalogo<'a>,
+        roadmap: Option<Roadmap<'a>>,
+    ) -> Self {
         Self {
             git,
             dir,
             politica: Politica::default(),
             catalogo,
-            roadmap: None,
+            roadmap,
         }
     }
 }

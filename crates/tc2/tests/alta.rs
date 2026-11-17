@@ -462,7 +462,7 @@ fn titulo_duplicado_de_una_abierta_avisa_y_de_una_terminada_no() {
 
     // Terminadas TASK-001..004, nada abierto con ese titulo: no avisa.
     let g = f.git();
-    let c = Contexto::nuevo(&g, &a, &sin_catalogo);
+    let c = Contexto::nuevo(&g, &a, &sin_catalogo, None);
     for id in ["TASK-001", "TASK-002", "TASK-003", "TASK-004"] {
         let i = estado::transaccion(&c, &Terminar(id));
         assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
@@ -483,7 +483,7 @@ fn el_alta_lee_las_tareas_en_un_solo_proceso_por_intento() {
         nueva(&f, &a, t);
     }
     let g = f.git();
-    let c = Contexto::nuevo(&g, &a, &sin_catalogo);
+    let c = Contexto::nuevo(&g, &a, &sin_catalogo, None);
     let op = Alta::nueva("Tres");
     let i = estado::transaccion(&c, &op);
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());

@@ -12,9 +12,23 @@ pub mod generar;
 pub mod mermaid;
 pub mod zona;
 
+use std::path::Path;
+
 use crate::estado::{Estado, Fallo};
+use crate::git::Git;
 use crate::plataforma::Personas;
 use crate::situacion;
+
+/// Lista de personas de la base para convertir los `asignado_a` heredados
+/// (D6); sin lista, ninguna: se muestran tal cual.
+pub fn personas(g: &Git, dir: &Path) -> Personas {
+    crate::identidad::personas_de_base(g, dir).unwrap_or_default()
+}
+
+/// El generador que recibe cada transaccion de estado.
+pub fn generador(personas: &Personas) -> impl Fn(&dyn Estado) -> Result<String, Fallo> + '_ {
+    move |e: &dyn Estado| de_estado(e, personas)
+}
 
 /// El `ROADMAP.md` de `estado`: generado alrededor de su zona manual (o la
 /// de por defecto), o el que hay tal cual si su zona esta rota (D3).

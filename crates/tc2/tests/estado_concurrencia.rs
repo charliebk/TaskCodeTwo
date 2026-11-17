@@ -45,13 +45,12 @@ fn hijo_escritor() {
     // El entorno (configuracion aislada) lo hereda del padre.
     let git = Git::nuevo();
     let dir = Path::new(&dir);
-    let mut c = Contexto::nuevo(&git, dir, &catalogo);
+    let mut c = Contexto::nuevo(&git, dir, &catalogo, Some(&roadmap));
     c.politica = Politica {
         intentos: 40,
         base: Duration::from_millis(15),
         espera_cerrojo: Duration::from_secs(120),
     };
-    c.roadmap = Some(&roadmap);
     for i in 0..k {
         let op = Anotar::nueva(&format!("notas/{etiqueta}-{i}.md"), true);
         let inf = estado::transaccion(&c, &op);
