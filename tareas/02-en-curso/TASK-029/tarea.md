@@ -39,6 +39,11 @@ Tarea F3-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F2-
 - [ ] C8: el fichero de import de formato 0.16 de `docs/plan/AMPLIACION-2026-11-16.md` §5 se importa sin tocarlo
 - [ ] C9: `tc2 new` acepta los campos de RF-01 y rechaza un enunciado que no esta listo (test)
 
+## Autorrevision
+
+- rust-wasm-reviewer — a2232d9
+- code-quality-reviewer — a2232d9
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
