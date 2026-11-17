@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1603906
-tokens_implementacion: null
+tokens_implementacion: 40523512
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-17
@@ -41,6 +41,30 @@ Tarea F3-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 - [ ] C10: no escribe nada: refs, `git worktree list`, arbol de trabajo, `<git-common-dir>/taskcodetwo/` y configuracion identicos antes y despues; el mock solo recibe GET
 - [ ] C11: `capacidades` (F1-13 decision 3) con la tabla G01..G20 y el plan observado: con el mock de distintos planes en GitHub y GitLab, `doctor` dice las garantias sustituidas o ausentes con su motivo y arreglo, y el mismo caso da la misma linea en las dos plataformas
 
+## Autorrevision
+
+- rust-wasm-reviewer — d505e92
+- code-quality-reviewer — d505e92
+
+Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
+
+- MENOR: todo lo de plataforma esta probado contra el mock, no contra
+  GitHub ni GitLab reales; algunos campos (`required_status_checks` de
+  `rules/branches`, `only_allow_merge_if_pipeline_succeeds`, `plan` de
+  namespaces) solo constan en esquemas o ejemplos de la documentacion.
+- MENOR: `enterprise-privado-org` no se distingue de Team con lo
+  observable; sale como Team (lo conservador).
+- MENOR: la construccion del adaptador repetida en `init/inventario.rs`
+  sigue como deuda (doctor no la copia).
+- Desviaciones del plan anotadas en las adendas de F1-13 y F1-4: plan de
+  GitLab por `GET /namespaces/:id`; la linea `doctor puertas` de F1-13 C
+  pasa a la primera linea y a hallazgos `garantia Gnn`; identidad de la
+  persona via `leer-permisos-ci`.
+- Mutaciones comprobadas (6, rojo y restauradas): `solo_pr` en la
+  proteccion, `check-no-obligatorio`, ref ilegible, `NoComprobado` sin
+  plataforma, garantia no disponible por config, codigo 3.
+- Verificacion propia: `--test doctor --test tablero` 16 de 16.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -54,3 +78,4 @@ Tarea F3-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T13:29:48Z | diseno | agente:a1395d1a890a33e28 | 48 | 99388 | 1485737 | 18733 | 40 | 1603906 | - | - |
+| 2026-11-17T14:36:42Z | implementacion | agente:ae9f386d5583740b3 | 234 | 436140 | 39943070 | 144068 | 52 | 40523512 | - | - |
