@@ -18,7 +18,8 @@ use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas};
 use super::{
-    Clave, Firma, ModeloPuertas, Paso, Personas, Plataforma, Proveedor, ReglasLeidas, Usuario,
+    Clave, Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, Proveedor, ReglasLeidas,
+    Usuario,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -30,6 +31,7 @@ const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
+const PRS_ABIERTOS: &str = "prs-abiertos";
 
 /// Permiso de lectura que necesita un token de GitLab.
 static PERMISO_LECTURA: &Texto = &t::PERMISO_LECTURA_GITLAB;
@@ -54,6 +56,7 @@ enum Endpoint<'a> {
     Mr(u64),
     MrConDivergencia(u64),
     MrsAbiertos { rama: &'a str, base: &'a str },
+    TodosLosMrsAbiertos,
     CommitsEntre { base: &'a str, rama: &'a str },
     CrearMr,
     Merge(u64),
@@ -90,6 +93,10 @@ impl Endpoint<'_> {
                     "{p}/repository/commits?ref_name={}&per_page=1",
                     codificar(&format!("{base}..{rama}"))
                 ),
+            ),
+            Self::TodosLosMrsAbiertos => (
+                Metodo::Get,
+                format!("{p}/merge_requests?state=opened&per_page=100"),
             ),
             Self::CrearMr => (Metodo::Post, format!("{p}/merge_requests")),
             Self::Merge(n) => (Metodo::Put, format!("{p}/merge_requests/{n}/merge")),
@@ -140,6 +147,22 @@ struct MrApi {
     sha: Option<String>,
     target_branch: String,
     source_branch: String,
+}
+
+/// Un MR de la lista de abiertos. `draft` desde GitLab 14; antes,
+/// `work_in_progress` (que sigue saliendo, obsoleto).
+#[derive(Deserialize)]
+struct MrListaApi {
+    iid: u64,
+    source_branch: String,
+    #[serde(default)]
+    sha: Option<String>,
+    #[serde(default)]
+    draft: bool,
+    #[serde(default)]
+    work_in_progress: bool,
+    source_project_id: u64,
+    target_project_id: u64,
 }
 
 #[derive(Deserialize)]
@@ -339,6 +362,38 @@ fn estado_check(s: &str) -> EstadoCheck {
 }
 
 impl Plataforma for GitLab {
+    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(PRS_ABIERTOS, rol));
+        }
+        let (_, ruta) = self.ep(&Endpoint::TodosLosMrsAbiertos);
+        let mrs: Vec<MrListaApi> =
+            self.con
+                .leer_paginas(PRS_ABIERTOS, rol, PERMISO_LECTURA, ruta, |c| {
+                    self.con.parsear(PRS_ABIERTOS, c)
+                })?;
+        let mut v = Vec::new();
+        for m in mrs {
+            // Los MR desde un fork no cuentan; una rama que tc2 no habria
+            // creado no casa con ninguna tarea.
+            if m.source_project_id != m.target_project_id || !rama_valida(&m.source_branch) {
+                continue;
+            }
+            let sha = m.sha.unwrap_or_default();
+            if !sha_valido(&sha) {
+                return Err(self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_DESTINO_O_SHA));
+            }
+            v.push(PrAbierto {
+                numero: m.iid,
+                rama: m.source_branch,
+                sha: sha.to_ascii_lowercase(),
+                borrador: m.draft || m.work_in_progress,
+            });
+        }
+        v.sort_by_key(|p| p.numero);
+        Ok(v)
+    }
+
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
         if !rama_valida(rama) || !rama_valida(base) {
             return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);

@@ -534,6 +534,9 @@ mod tests {
     }
 
     impl Plataforma for Falsa {
+        fn prs_abiertos(&self, _: Rol) -> Paso<Vec<crate::plataforma::PrAbierto>> {
+            Err(sin_uso("prs-abiertos"))
+        }
         fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
             sin_uso("abrir-pr")
         }
