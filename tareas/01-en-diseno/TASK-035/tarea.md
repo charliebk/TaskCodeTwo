@@ -6,10 +6,10 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-035-f3-8-doctor-entorno-rama-de-estado-permi
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-17
 dependencias: [TASK-028]
 ---
 ## Objetivo
@@ -31,3 +31,9 @@ Tarea F3-8 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 ## Criterios de aceptacion
 - [ ] Detecta una protección de rama ausente
 - [ ] Cumple lo que pide la tarea F3-8 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-17T13:23:19Z | plan | automatico | persona | 0.16.1 |
