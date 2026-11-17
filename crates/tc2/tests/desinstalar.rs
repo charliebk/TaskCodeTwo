@@ -816,6 +816,13 @@ fn huella_de_la_016_intacta() {
         "identidad.yml",
         "---\n",
     );
+    // La marca de sincronizacion de F3-5b tambien es de la 2.0: se va con
+    // la carpeta propia.
+    escribir(
+        &clon.join(".git").join("taskcodetwo"),
+        tc2::huella::FICHERO_SINCRONIZACION,
+        "1800000000\n",
+    );
     let home = f.raiz.join("home");
     let claude = home.join(".claude");
     escribir(

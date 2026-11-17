@@ -173,7 +173,8 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
             ));
         }
     }
-    // La carpeta propia en la comun: cerrojo, cache de identidad, indices.
+    // La carpeta propia en la comun: cerrojo, cache de identidad, marca de
+    // sincronizacion (F3-5b), indices. Se borra entera.
     let propia = huella::en_comun(&comun);
     if propia.is_dir() {
         v.push(Accion::borra(

@@ -13,6 +13,10 @@
 //! - [`leer`] da una vista del estado (lo ultimo traido del remoto, o la
 //!   rama local en un repo sin remoto) y [`tareas`], sus `tarea.md` de los
 //!   dos formatos con su lectura.
+//! - [`leer_fresco`] (F3-5b) trae antes la rama de estado con el mismo
+//!   `fetch` que la transaccion y dice su [`Frescura`]: la hora del ultimo
+//!   `fetch` con exito ([`Marca`]) y por que no se pudo traer, si no se pudo.
+//!   La usan `status`, `board`, `next` y `roadmap`.
 //!
 //! La correccion no depende de `tareas/`: se lee y se escribe sobre commits;
 //! la carpeta montada solo se adelanta (fast-forward) tras publicar.
@@ -21,6 +25,7 @@
 //! codigos de la tabla de `contrato.rs`.
 
 mod cerrojo;
+mod frescura;
 mod lectura;
 mod montaje;
 mod pendientes;
@@ -29,8 +34,9 @@ mod transaccion;
 
 pub use crate::git::Cambio;
 pub use cerrojo::Cerrojo;
+pub use frescura::{Frescura, Marca, Remoto, hace, sincronizado_texto};
 pub(crate) use lectura::referencia_de_lectura;
-pub use lectura::{Estado, Vista, leer};
+pub use lectura::{Estado, Local, Vista, leer, leer_fresco, local_de, sincronizado_en};
 pub use montaje::{Previsto, montar, montar_con, previsto};
 pub use tareas::{Leida, de_otra_persona, es_tarea_md, por_estado, tarea_de, tareas};
 pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};

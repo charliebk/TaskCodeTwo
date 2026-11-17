@@ -2,11 +2,16 @@
 //! y que espera revision.
 //!
 //! Las dos ordenes solo leen. Salen de la misma [`situacion::calcular`] sobre
-//! [`estado::leer`] que `next` y `roadmap` (misma foto y mismo `commit=`), sin
-//! `fetch` (la frescura es de F3-5b) y sin escribir nada.
+//! [`estado::leer_fresco`] que `next` y `roadmap` (misma foto y mismo
+//! `commit=`): traen antes la rama de estado (F3-5b) y dicen la hora de la
+//! ultima sincronizacion (`remoto=` y `sincronizado=`; sin red, lo ultimo
+//! traido con un aviso en stderr y codigo 0). No escriben nada mas que
+//! `origin/taskcodetwo/tareas` y la marca de sincronizacion.
 //!
-//! - `status [--json]`: una linea de equipo, sin red. Con `--json`, `status
-//!   ok en-diseno=... en-curso=... en-revision=... listas=... commit=...`.
+//! - `status [--json]`: una linea de equipo; no consulta la plataforma. Con
+//!   `--json`, `status ok en-diseno=... en-curso=... en-revision=... listas=...
+//!   commit=... remoto=... sincronizado=... pendientes=N [tareas=...]`. En
+//!   texto, `· pendientes N` al final solo si N > 0.
 //! - `board [--sin-plataforma] [--json]`: la vista completa por grupos (en
 //!   diseno, en curso, en revision y listas para empezar), con ID, titulo,
 //!   quien y PR; terminadas y descartadas solo como recuento.
@@ -21,7 +26,7 @@ use std::path::Path;
 
 use crate::Salida;
 use crate::contrato::{Informe, Resultado, corto};
-use crate::estado::{self, Fallo};
+use crate::estado::{self, Fallo, Frescura, Local};
 use crate::git::Git;
 use crate::grafo::{Fase, TERMINADA};
 use crate::i18n::catalogo::cli as txt_cli;
@@ -75,6 +80,9 @@ pub struct Tablero {
     pub descartadas: usize,
     /// Carpetas con un `tarea.md` que no se entiende.
     pub ilegibles: Vec<String>,
+    /// Hora de la ultima sincronizacion para el texto (`None`: no se
+    /// ensena, sin `origin`).
+    pub sincronizado: Option<String>,
 }
 
 impl Tablero {
@@ -195,6 +203,9 @@ pub fn linea_status(t: &Tablero) -> String {
         partes.push("nada en marcha ni listo para empezar".to_owned());
     }
     partes.push(format!("commit {}", t.commit));
+    if let Some(s) = &t.sincronizado {
+        partes.push(format!("sincronizado {s}"));
+    }
     partes.join(" · ")
 }
 
@@ -202,7 +213,11 @@ pub fn linea_status(t: &Tablero) -> String {
 /// el recuento de terminadas y descartadas. `pr` da la celda del PR de cada
 /// fila (`None`: sin columna).
 pub fn texto_board(t: &Tablero, plataforma: &str, pr: Option<&dyn Fn(&Fila) -> String>) -> String {
-    let mut o = format!("Tablero · commit {} · plataforma {plataforma}\n", t.commit);
+    let mut o = format!("Tablero · commit {} · plataforma {plataforma}", t.commit);
+    if let Some(s) = &t.sincronizado {
+        let _ = write!(o, " · sincronizado {s}");
+    }
+    o.push('\n');
     for (_, titulo, filas) in t.grupos() {
         let _ = writeln!(o, "\n{titulo} ({})", filas.len());
         if filas.is_empty() {
@@ -262,17 +277,37 @@ fn rellenar(t: &str, ancho: usize) -> String {
 /// Aviso: la lista de personas existe y no se pudo leer.
 const PERSONAS_ILEGIBLES: &str = "personas-ilegibles";
 
-/// El tablero del estado que conoce el clon de `dir`, con los avisos de
-/// personas. Sin rama de estado, `rechazada motivo=sin-rama-de-estado`.
-fn tablero_en(
-    g: &Git,
-    dir: &Path,
-    op: &str,
-) -> Result<(Tablero, Vec<&'static str>, Personas), Informe> {
-    let vista = estado::leer(g, dir).map_err(|mut i| {
+/// Lo leido para `status` y `board`.
+struct Leido {
+    /// El tablero, con la hora para el texto.
+    tablero: Tablero,
+    /// Avisos de personas.
+    avisos: Vec<&'static str>,
+    /// La lista de personas de la base.
+    personas: Personas,
+    /// La frescura de la lectura.
+    frescura: Frescura,
+    /// Lo del propio clon, si se pidio (solo `status`).
+    local: Option<Local>,
+    /// Cuando se leyo, para el «hace N».
+    ahora: u64,
+}
+
+/// El tablero del estado que conoce el clon de `dir` tras traer la rama de
+/// estado (F3-5b), con los avisos de personas. Sin rama de estado,
+/// `rechazada motivo=sin-rama-de-estado`.
+fn tablero_en(g: &Git, dir: &Path, op: &str, con_local: bool) -> Result<Leido, Informe> {
+    let renombrar = |mut i: Informe| {
         op.clone_into(&mut i.comando);
         i
-    })?;
+    };
+    let ahora = crate::identidad::ahora();
+    let (vista, frescura) = estado::leer_fresco(g, dir, ahora).map_err(renombrar)?;
+    let local = if con_local {
+        Some(estado::local_de(g, &vista).map_err(renombrar)?)
+    } else {
+        None
+    };
     let commit = vista.commit().map(corto).unwrap_or_default();
     let s = situacion::calcular(&vista).map_err(|f| match f {
         Fallo::Rechazada {
@@ -289,7 +324,16 @@ fn tablero_en(
     } else {
         Vec::new()
     };
-    Ok((tablero(&s, &personas, &commit), avisos, personas))
+    let mut t = tablero(&s, &personas, &commit);
+    t.sincronizado = frescura.en_texto();
+    Ok(Leido {
+        tablero: t,
+        avisos,
+        personas,
+        frescura,
+        local,
+        ahora,
+    })
 }
 
 // La conexion con la plataforma vive en `identidad` desde F3-8 (la usan
@@ -358,19 +402,36 @@ pub fn orden_status(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>
             .salida_en(json, idioma);
     }
     match status_en(e) {
-        Ok((linea, _)) if !json => Salida {
-            codigo: 0,
-            stdout: format!("{linea}\n"),
-            stderr: String::new(),
-        },
-        Ok((_, i)) | Err(i) => i.salida_en(json, idioma),
+        Ok((linea, i, avisos)) => {
+            let mut s = if json {
+                i.salida_en(true, idioma)
+            } else {
+                Salida {
+                    codigo: 0,
+                    stdout: format!("{linea}\n"),
+                    stderr: String::new(),
+                }
+            };
+            s.stderr.push_str(&lineas(&avisos, idioma));
+            s
+        }
+        Err(i) => i.salida_en(json, idioma),
     }
 }
 
-/// `status` sobre el estado que conoce el clon: la linea de texto y el
-/// informe.
-pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe), Informe> {
-    let (t, _, _) = tablero_en(e.git, e.dir, STATUS)?;
+/// Mensajes en lineas para stderr.
+pub fn lineas(avisos: &[Mensaje], idioma: Idioma) -> String {
+    avisos
+        .iter()
+        .map(|m| format!("{}\n", m.texto(idioma)))
+        .collect()
+}
+
+/// `status` sobre el estado recien traido: la linea de texto, el informe y
+/// los avisos para stderr (la frescura si no se pudo traer y `tareas/`).
+pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe, Vec<Mensaje>), Informe> {
+    let l = tablero_en(e.git, e.dir, STATUS, true)?;
+    let t = &l.tablero;
     let mut i = Informe::nuevo(STATUS, Resultado::Ok);
     for (clave, _, filas) in t.grupos() {
         i = i.con_lista(clave, ids(filas));
@@ -379,7 +440,26 @@ pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe), Informe> {
     if !t.ilegibles.is_empty() {
         i = i.con_lista("ilegibles", t.ilegibles.clone());
     }
-    Ok((linea_status(&t), i))
+    i = l.frescura.anotar(i);
+    let mut avisos: Vec<Mensaje> = l.frescura.aviso(l.ahora).into_iter().collect();
+    let mut linea = linea_status(t);
+    if let Some(local) = l.local {
+        i = i.con("pendientes", local.pendientes.to_string());
+        // En texto solo si hay alguna: es lo que falta por publicar.
+        if local.pendientes > 0 {
+            let _ = write!(linea, " · pendientes {}", local.pendientes);
+        }
+        if let Some(tareas) = local.tareas {
+            i = i.con("tareas", tareas);
+            let m = if tareas == "diverge" {
+                Mensaje::nuevo(&txt::AVISO_TAREAS_DIVERGE).con("rama", estado::RAMA)
+            } else {
+                Mensaje::nuevo(&txt::AVISO_TAREAS_CON_CAMBIOS)
+            };
+            avisos.push(m.con("carpeta", estado::CARPETA));
+        }
+    }
+    Ok((linea, i, avisos))
 }
 
 /// Que hace `board` con la plataforma.
@@ -405,8 +485,9 @@ pub fn orden_board(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>)
         }
     };
     match board_en(e, modo) {
-        Ok((texto, i)) => {
-            let avisos = texto_de_avisos(&i, idioma);
+        Ok((texto, i, de_frescura)) => {
+            let mut avisos = texto_de_avisos(&i, idioma);
+            avisos.push_str(&lineas(&de_frescura, idioma));
             let mut s = if json {
                 i.con("texto", texto).salida_en(true, idioma)
             } else {
@@ -423,14 +504,15 @@ pub fn orden_board(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>)
     }
 }
 
-/// `board` sobre el estado que conoce el clon: el texto y el informe (sin
-/// `texto=`).
-pub fn board_en(e: &Entorno<'_>, modo: Modo) -> Result<(String, Informe), Informe> {
+/// `board` sobre el estado recien traido: el texto, el informe (sin
+/// `texto=`, con `remoto=` y `sincronizado=`) y el aviso de frescura para
+/// stderr, si lo hay.
+pub fn board_en(e: &Entorno<'_>, modo: Modo) -> Result<(String, Informe, Vec<Mensaje>), Informe> {
     // El estado primero: si no hay rama de estado, no se habla con nadie.
-    let (t, avisos, personas) = tablero_en(e.git, e.dir, BOARD)?;
+    let l = tablero_en(e.git, e.dir, BOARD, false)?;
     let consulta = match modo {
         Modo::SinPlataforma => Consulta::NoConsultada,
-        Modo::ConPlataforma => match (e.conectar)(&personas) {
+        Modo::ConPlataforma => match (e.conectar)(&l.personas) {
             Ok(c) => match c.plataforma.prs_abiertos(c.rol) {
                 Ok(prs) => Consulta::Hecha(prs),
                 Err(i) => Consulta::de_fallo(&i),
@@ -438,7 +520,12 @@ pub fn board_en(e: &Entorno<'_>, modo: Modo) -> Result<(String, Informe), Inform
             Err(c) => c,
         },
     };
-    Ok(board_de(&t, &consulta, &avisos))
+    let (texto, i) = board_de(&l.tablero, &consulta, &l.avisos);
+    Ok((
+        texto,
+        l.frescura.anotar(i),
+        l.frescura.aviso(l.ahora).into_iter().collect(),
+    ))
 }
 
 /// Texto e informe de `board` para un tablero y lo que se supo de la
@@ -794,7 +881,30 @@ mod tests {
             terminadas: 4,
             descartadas: 1,
             ilegibles: Vec::new(),
+            sincronizado: None,
         }
+    }
+
+    /// C3 (parte pura): la hora va al final de la linea de `status` y de la
+    /// cabecera de `board`; sin hora (sin `origin`), no sale.
+    #[test]
+    fn la_hora_en_la_linea_y_la_cabecera() {
+        let t = Tablero {
+            sincronizado: Some("2026-11-17T16:04:12Z".to_owned()),
+            ..de_prueba()
+        };
+        assert!(
+            linea_status(&t).ends_with(&format!(
+                "commit {COMMIT} · sincronizado 2026-11-17T16:04:12Z"
+            )),
+            "{}",
+            linea_status(&t)
+        );
+        assert!(texto_board(&t, "ok", None).starts_with(
+            "Tablero · commit 0123456789ab · plataforma ok · sincronizado 2026-11-17T16:04:12Z\n"
+        ));
+        assert!(!linea_status(&de_prueba()).contains("sincronizado"));
+        assert!(!texto_board(&de_prueba(), "ok", None).contains("sincronizado"));
     }
 
     /// C3b: `board` lista los cuatro grupos con ID, titulo, quien y PR, y

@@ -5,6 +5,7 @@
 - Requisitos: RR-01, RR-09, RR-12, RN-05, RN-06 de [REQUISITOS-FUNCIONALES](../plan/REQUISITOS-FUNCIONALES.md); H3 de la [auditoría externa](../auditoria/AUDITORIA-EXTERNA-2026-11-13.md); se apoya en RF-02 y RF-07
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (carpeta fija `TASK-NNN/` en la rama huérfana `taskcode/tareas`, montada en `tareas/`)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2b, D3a, D4a del plan de TASK-003)
+- Adenda (2026-11-17, TASK-079, F3-5b): la lectura fresca de los puntos 5 y 6 queda hecha; ver [la adenda del final](#adenda-f3-5b-task-079--lectura-fresca-y-hora-de-sincronización)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
@@ -534,3 +535,71 @@ Evidencia: `crates/tc2/tests/ciclo.rs`
 (`c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente`,
 `c4_el_id_de_la_descartada_no_se_reutiliza`) y los unitarios de
 `ciclo/operacion.rs` (`anotacion_ida_y_vuelta`).
+
+## Adenda (F3-5b, TASK-079) — lectura fresca y hora de sincronización
+
+Cierra lo que los puntos 5 y 6 dejaban a F3-5b (opciones recomendadas
+D1a..D6a del plan de TASK-079, aceptadas por Carlos para todo el H3):
+
+- **Las cuatro órdenes de lectura traen antes de mostrar** (`status`,
+  `board`, `next` y `roadmap`): un `fetch` de la rama de estado por orden,
+  el **mismo** que hace cada intento de la transacción
+  (`estado::frescura::traer_estado`, extraído de `transaccion.rs` sin cambiar
+  su comportamiento). No toman el cerrojo ni escriben nada más que
+  `refs/remotes/origin/taskcodetwo/tareas` y la marca. `estado::leer` sigue
+  sin `fetch` (lo usan `doctor`, `import` y `start`, que ya traen por su
+  cuenta o no deben hablar con el remoto).
+- **Hora de la última sincronización** en `.git/taskcodetwo/sincronizacion`
+  (segundos desde 1970, temporal y `rename`; un fichero que no se entiende
+  es «nunca»). La renueva cualquier `fetch` con éxito de la rama de estado,
+  de una lectura o de una transacción (así un `new` con éxito deja la hora
+  de ese `new`). Un `git fetch` a mano no la renueva: la hora es
+  conservadora, nunca más fresca de lo real. `desinstalar` la borra con la
+  carpeta propia.
+- **Sin red no es un error**: se muestra lo último traído con
+  `remoto=sin-red` y un aviso con la hora y «hace N»; igual con
+  `remoto=denegado` (credenciales o URL), `error-local` o `sin-rama`. Un
+  repo sin remoto no hace `fetch` (`remoto=sin-remoto`), como ya decía el
+  punto 5.
+- **`status` dice cuántas pendientes hay** (`pendientes=N`, las refs de
+  `refs/taskcodetwo/pendientes/`) y avisa, con código 0, lo que la adenda de
+  TASK-018 dejó a F3-5b: `tareas=diverge` (la rama local tiene commits que no
+  están en lo publicado) y `tareas=con-cambios` (`tareas/` está atrasada y
+  tiene cambios sin publicar, que impedirán adelantarla).
+- **Riesgos aceptados**: ~1 s más por orden contra GitHub; sin tiempo límite
+  en el puerto, un host mudo cuelga la lectura lo que tarde TCP (igual que la
+  transacción).
+- **Fallos del `fetch` que no son de red** (revisión 1 de TASK-079, H1 y
+  H4). El `fetch` de la rama de estado va sin `-q`: con `-q`, git 2.56 calla
+  el rechazo non-fast-forward (stderr vacío) y salía `sin-red`. Antes de la
+  clasificación de siempre se reconocen dos casos:
+  - **Rama reescrita en `origin`** (`! [rejected] … (non-fast-forward)`: la
+    rama de estado del remoto no desciende de la que trajo el clon). La
+    lectura sale 0 con `remoto=rechazado` y su aviso; una escritura
+    (transacción o `montar`) sale `error` (1) con `motivo=rama-reescrita` y
+    la línea de git, sin escribir nada ni dejar pendiente (reintentar no lo
+    arregla). Antes la transacción lo tomaba por `sinred` y guardaba la
+    operación como pendiente que nunca se publicaría.
+  - **Ref remota bloqueada** (`cannot lock ref …: File exists`: otro `fetch`
+    del mismo clon a la vez o un `.lock` huérfano). La lectura, que no toma
+    el cerrojo de estado, repite el `fetch` dos veces (a 0,2 s y 0,5 s) y,
+    si sigue bloqueada, sale 0 con `remoto=error-local` y un aviso que dice
+    el `.lock` y la línea de git. Una escritura sale `error` (1) con
+    `motivo=error-local`, como cualquier fallo del propio clon, sin dejar
+    pendiente; no se le añade reintento (no lo tenía). Riesgo aceptado: si
+    una lectura y una escritura del mismo clon traen a la vez, la escritura
+    puede salir `error` y hay que repetirla (estresado en la revisión con 30
+    y 8 procesos: 0 fallos). Un `cannot lock ref` por permisos sigue siendo
+    el `error-local` de siempre.
+- **La hora nunca más fresca de lo real** (H2): una marca con hora
+  posterior a ahora (reloj adelantado al escribirla, fichero tocado a mano)
+  se lee como «nunca».
+- **`montar` trae con el mismo `fetch`** (M3): cuando monta la rama desde
+  `origin` usa `traer_estado`, así que también renueva la marca.
+
+Evidencia: `crates/tc2/tests/frescura.rs` (C1..C9 de TASK-079; C10 y C11 de
+la revisión 1, rama reescrita y `.lock` huérfano), los unitarios de
+`estado/frescura.rs` (`clasifica_rechazo_y_ref_bloqueada`,
+`marca_del_futuro_es_nunca`) y de `estado/lectura.rs`
+(`reintenta_solo_la_ref_bloqueada`), y la suite de la transacción
+(`estado_*`, `alta`, `toma`, `ciclo`, `importar`).

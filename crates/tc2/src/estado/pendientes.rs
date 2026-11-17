@@ -66,6 +66,12 @@ pub(crate) fn anotacion_de(mensaje: &str) -> Option<String> {
         .filter(|a| !a.is_empty())
 }
 
+/// Cuantas pendientes hay (las refs de [`REFS_PENDIENTES`]), sin leer sus
+/// mensajes: lo que dice `status` (F3-5b, F1-2 D5).
+pub(crate) fn contar(git: &Git, dir: &Path) -> Paso<usize> {
+    refs(git, dir, REFS_PENDIENTES).map(|v| v.len())
+}
+
 /// Pendientes en orden de llegada.
 pub(crate) fn listar(git: &Git, dir: &Path) -> Paso<Vec<Pendiente>> {
     let mut v = Vec::new();

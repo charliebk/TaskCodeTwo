@@ -13,6 +13,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use super::cerrojo::{Cerrojo, ErrorCerrojo};
+use super::frescura::{Marca, Traida, rama_reescrita, traer_estado};
 use super::lectura::{Estado, Vista};
 use super::pendientes::{self, ANOTACION, Destino};
 use super::{CARPETA, OP, RAMA};
@@ -20,8 +21,8 @@ use crate::contrato::{Informe, Resultado, corto};
 use crate::git::estado::{construir_commit, dir_comun, hay_remoto};
 use crate::git::remoto::publicar;
 use crate::git::{
-    Cambio, FalloRemoto, Git, REMOTO, Subcomando, clasificar_fallo_remoto, commit_de, correr,
-    es_ancestro, exigir, localizar_principal, worktrees,
+    Cambio, FalloRemoto, Git, REMOTO, Subcomando, commit_de, correr, es_ancestro, exigir,
+    localizar_principal, worktrees,
 };
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::estado as txt;
@@ -191,6 +192,7 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
     let principal = localizar_principal(c.git, c.dir)?;
     let comun = dir_comun(c.git, &principal, OP)?;
     let remoto = hay_remoto(c.git, &principal, OP)?;
+    let marca = Marca::en(&comun);
     let mut n = 0;
     loop {
         n += 1;
@@ -207,7 +209,7 @@ fn ejecutar(c: &Contexto<'_>, op: &dyn Operacion) -> Result<Informe, Informe> {
                 ));
             }
         };
-        let r = intento(c, op, &anotacion, &principal, remoto, n);
+        let r = intento(c, op, &anotacion, &principal, remoto, &marca, n);
         drop(cerrojo);
         match r? {
             Intento::Hecho(i) => return Ok(i),
@@ -268,37 +270,40 @@ fn intento(
     anotacion: &str,
     principal: &Path,
     remoto: bool,
+    marca: &Marca,
     n: u32,
 ) -> Result<Intento, Informe> {
     let git = c.git;
     let base = if remoto {
-        let refspec = format!("refs/heads/{RAMA}:{}", rama_remota());
-        let s = correr(
-            git,
-            principal,
-            OP,
-            Subcomando::Fetch,
-            &["-q", REMOTO, &refspec],
-        )?;
-        if s.exito() {
-            commit_de(git, principal, OP, &rama_remota())?
-        } else {
-            match clasificar_fallo_remoto(&s.stderr) {
-                // El remoto aun no tiene la rama. Si existe la local (un repo
-                // que se monto sin remoto y al que luego se anadio `origin`),
-                // se parte de ella para publicar su historia, no de cero.
-                FalloRemoto::RamaInexistente => commit_de(git, principal, OP, &rama_local())?,
+        // El mismo `fetch` que la lectura fresca (F3-5b): con exito, renueva
+        // la marca de la ultima sincronizacion.
+        match traer_estado(git, principal, marca, crate::identidad::ahora())? {
+            Traida::Hecha => commit_de(git, principal, OP, &rama_remota())?,
+            // El remoto aun no tiene la rama. Si existe la local (un repo
+            // que se monto sin remoto y al que luego se anadio `origin`),
+            // se parte de ella para publicar su historia, no de cero.
+            Traida::SinRama => commit_de(git, principal, OP, &rama_local())?,
+            // Ni una ni otra es falta de red (revision 1 de TASK-079, H1):
+            // no se guarda como pendiente. La rama reescrita no la arregla
+            // reintentar; la ref bloqueada es un fallo de este clon, como
+            // `FalloRemoto::Local`.
+            Traida::Reescrita { detalle } => return Err(rama_reescrita(OP, &detalle)),
+            Traida::Bloqueada { detalle } => {
+                return Err(crate::git::remoto::error_local(OP, &detalle));
+            }
+            Traida::Fallo {
+                fallo,
+                stderr,
+                primera,
+            } => match fallo {
                 FalloRemoto::SinRed => {
-                    return sin_red(c, op, anotacion, principal, &s.primera_linea_error());
+                    return sin_red(c, op, anotacion, principal, &primera);
                 }
                 FalloRemoto::Local => {
-                    return Err(crate::git::remoto::error_local(
-                        OP,
-                        &s.primera_linea_error(),
-                    ));
+                    return Err(crate::git::remoto::error_local(OP, &primera));
                 }
-                otro => return Ok(Intento::Hecho(denegada(op, otro.motivo(), &s.stderr))),
-            }
+                otro => return Ok(Intento::Hecho(denegada(op, otro.motivo(), &stderr))),
+            },
         }
     } else {
         commit_de(git, principal, OP, &rama_local())?
@@ -396,6 +401,11 @@ fn intento(
     let p = publicar(git, principal, OP, &format!("{sha}:refs/heads/{RAMA}"), &[])?;
     match p.resultado {
         Resultado::Ok | Resultado::SinCambios => {
+            // Publicado: lo de `origin` es lo que se acaba de escribir, asi que
+            // el clon esta sincronizado ahora (C5 de TASK-079: tambien el
+            // primer `new` de un remoto sin rama de estado, cuyo `fetch` no
+            // salio). Un fallo al escribir la marca no cambia el resultado.
+            let _ = marca.registrar(crate::identidad::ahora());
             let (publicadas, rechazadas) = pendientes::resolver(git, principal, &destinos)?;
             let t = adelantar(git, principal, &sha)?;
             Ok(Intento::Hecho(ok(op, &sha, n, t, publicadas, rechazadas)))

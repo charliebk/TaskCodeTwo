@@ -8,10 +8,14 @@
 //!   cada transaccion de estado ([`crate::estado::Contexto::nuevo`]): se
 //!   regenera, nunca se mergea (ADR F1-2, D2.4).
 //! - La orden `roadmap [--comparar | --escribir] [--json]` (D2): sin
-//!   opciones imprime el ROADMAP que toca sobre el estado que conoce el clon
-//!   (solo lee); `--comparar` dice si lo publicado esta al dia (`ok`) o no
-//!   (`rechazada motivo=desfasado|roadmap-roto`), sin escribir; `--escribir`
-//!   lo publica como una transaccion mas ([`Regenerar`]).
+//!   opciones imprime el ROADMAP que toca sobre el estado recien traido
+//!   (F3-5b: trae la rama de estado y solo escribe
+//!   `origin/taskcodetwo/tareas` y la marca de sincronizacion); `--comparar`
+//!   dice si lo publicado esta al dia (`ok`) o no (`rechazada
+//!   motivo=desfasado|roadmap-roto`), sin escribir; `--escribir` lo publica
+//!   como una transaccion mas ([`Regenerar`]). La hora de la ultima
+//!   sincronizacion va en `remoto=` y `sincronizado=` y, en el texto, a
+//!   stderr: el stdout sigue siendo el ROADMAP byte a byte.
 //! - La zona manual se edita en `tareas/ROADMAP.md` y se publica con
 //!   `--escribir` (D4): si la zona de la carpeta montada cambio, se valida, se
 //!   prepara (`git add`) y es la que se publica, byte a byte, salvo que la
@@ -28,7 +32,7 @@ use std::path::{Path, PathBuf};
 
 use crate::Salida;
 use crate::contrato::{Informe, Resultado, Valor, corto};
-use crate::estado::{self, CARPETA, Cambio, Catalogo, Estado, Fallo, Operacion, RAMA};
+use crate::estado::{self, CARPETA, Cambio, Catalogo, Estado, Fallo, Frescura, Operacion, RAMA};
 use crate::git::{Git, Subcomando, correr, exigir, localizar_principal, worktrees};
 use crate::i18n::catalogo::cli as txt_cli;
 use crate::i18n::catalogo::roadmap as txt;
@@ -247,19 +251,35 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma, catalogo: Catalogo<'_>
         }
     };
     let g = Git::nuevo();
+    let ahora = crate::identidad::ahora();
+    // La frescura de las dos que leen (F3-5b): en el texto de `roadmap`, la
+    // hora va a stderr (el stdout es el ROADMAP byte a byte, C9).
+    let mut frescura = None;
     let i = match modo {
-        Modo::Imprimir => match imprimir_en(&g, &dir) {
-            Ok((texto, i)) if !json => {
+        Modo::Imprimir => match imprimir(&g, &dir, ahora) {
+            Ok((texto, i, f)) if !json => {
+                let mut stderr = texto_de_avisos(&i, idioma);
+                if let Some(m) = f.linea(ahora) {
+                    stderr.push_str(&m.texto(idioma));
+                    stderr.push('\n');
+                }
                 return Salida {
                     codigo: 0,
                     stdout: texto,
-                    stderr: texto_de_avisos(&i, idioma),
+                    stderr,
                 };
             }
-            Ok((texto, i)) => i.con("texto", texto),
+            Ok((texto, i, f)) => {
+                frescura = Some(f);
+                i.con("texto", texto)
+            }
             Err(i) => i,
         },
-        Modo::Comparar => comparar_en(&g, &dir),
+        Modo::Comparar => {
+            let (i, f) = comparar(&g, &dir, ahora);
+            frescura = f;
+            i
+        }
         Modo::Escribir => escribir_en(&g, &dir, catalogo),
     };
     let mut s = i.salida_en(json, idioma);
@@ -267,6 +287,10 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma, catalogo: Catalogo<'_>
     // si falla, stderr es el diagnostico.
     if s.codigo == 0 {
         s.stderr.push_str(&texto_de_avisos(&i, idioma));
+        if let Some(m) = frescura.and_then(|f| f.aviso(ahora)) {
+            s.stderr.push_str(&m.texto(idioma));
+            s.stderr.push('\n');
+        }
     }
     s
 }
@@ -288,12 +312,12 @@ fn de_fallo(f: Fallo) -> Informe {
     }
 }
 
-/// La situacion del estado que conoce el clon (sin `fetch`) y su commit.
-fn situacion_en(g: &Git, dir: &Path) -> Result<(Situacion, String), Informe> {
-    let vista = estado::leer(g, dir).map_err(renombrado)?;
+/// La situacion del estado recien traido (F3-5b), su commit y su frescura.
+fn situacion_en(g: &Git, dir: &Path, ahora: u64) -> Result<(Situacion, String, Frescura), Informe> {
+    let (vista, frescura) = estado::leer_fresco(g, dir, ahora).map_err(renombrado)?;
     let commit = vista.commit().map(corto).unwrap_or_default();
     let s = situacion::calcular(&vista).map_err(de_fallo)?;
-    Ok((s, commit))
+    Ok((s, commit, frescura))
 }
 
 /// Personas de la base y los avisos que tocan.
@@ -309,20 +333,26 @@ fn personas_con_avisos(g: &Git, dir: &Path) -> (Personas, Vec<&'static str>) {
     )
 }
 
-/// El ROADMAP que toca sobre el estado que conoce el clon, con el informe
-/// `ok` (su `commit=` y sus `avisos=`). Con la zona rota, `rechazada
-/// motivo=roadmap-roto`.
+/// El ROADMAP que toca sobre el estado recien traido, con el informe `ok`
+/// (su `commit=`, sus `avisos=`, `remoto=` y `sincronizado=`). Con la zona
+/// rota, `rechazada motivo=roadmap-roto`.
 pub fn imprimir_en(g: &Git, dir: &Path) -> Result<(String, Informe), Informe> {
-    let (s, commit) = situacion_en(g, dir)?;
+    imprimir(g, dir, crate::identidad::ahora()).map(|(t, i, _)| (t, i))
+}
+
+/// [`imprimir_en`] con su frescura. El texto es solo el ROADMAP: la hora
+/// nunca entra en el (si no, `--comparar` saldria siempre desfasado).
+fn imprimir(g: &Git, dir: &Path, ahora: u64) -> Result<(String, Informe, Frescura), Informe> {
+    let (s, commit, frescura) = situacion_en(g, dir, ahora)?;
     let (personas, avisos) = personas_con_avisos(g, dir);
     match de_situacion(&s, &personas) {
-        Some(t) => Ok((
-            t,
-            con_avisos(
+        Some(t) => {
+            let i = con_avisos(
                 Informe::nuevo(NOMBRE, Resultado::Ok).con("commit", commit),
                 &avisos,
-            ),
-        )),
+            );
+            Ok((t, frescura.anotar(i), frescura))
+        }
         None => Err(zona_rota(&s, &commit)),
     }
 }
@@ -336,14 +366,20 @@ fn zona_rota(s: &Situacion, commit: &str) -> Informe {
 
 /// `--comparar`: `ok` si el `ROADMAP.md` publicado es el que toca;
 /// `rechazada motivo=desfasado` si no; `rechazada motivo=roadmap-roto` si
-/// su zona esta rota (D3). No escribe nada.
+/// su zona esta rota (D3). Trae antes la rama de estado (F3-5b) y no escribe
+/// nada mas.
 pub fn comparar_en(g: &Git, dir: &Path) -> Informe {
-    let (s, commit) = match situacion_en(g, dir) {
+    comparar(g, dir, crate::identidad::ahora()).0
+}
+
+/// [`comparar_en`] con su frescura (`None` si no se llego a leer).
+fn comparar(g: &Git, dir: &Path, ahora: u64) -> (Informe, Option<Frescura>) {
+    let (s, commit, frescura) = match situacion_en(g, dir, ahora) {
         Ok(x) => x,
-        Err(i) => return i,
+        Err(i) => return (i, None),
     };
     let (personas, avisos) = personas_con_avisos(g, dir);
-    match de_situacion(&s, &personas) {
+    let i = match de_situacion(&s, &personas) {
         None => zona_rota(&s, &commit),
         Some(t) if s.roadmap.as_deref() == Some(t.as_str()) => con_avisos(
             Informe::nuevo(NOMBRE, Resultado::Ok).con("commit", commit),
@@ -353,7 +389,8 @@ pub fn comparar_en(g: &Git, dir: &Path) -> Informe {
             .con("motivo", "desfasado")
             .con("commit", commit)
             .diagnostico(&txt::DESFASADO),
-    }
+    };
+    (frescura.anotar(i), Some(frescura))
 }
 
 /// `tareas/` montada (la carpeta del worktree de la rama de estado).

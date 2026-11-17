@@ -12,6 +12,7 @@
 use std::path::{Path, PathBuf};
 
 use super::cerrojo::{Cerrojo, ErrorCerrojo};
+use super::frescura::{Marca, Traida, rama_reescrita, traer_estado};
 use super::lectura::Estado;
 use super::transaccion::{Contexto, Fallo, Operacion, Politica, transaccion};
 use super::{CARPETA, RAMA};
@@ -228,29 +229,26 @@ fn paso(git: &Git, dir: &Path, politica: Politica, puede_crear: bool) -> Result<
 
     let mut crear = previsto == Previsto::Crear;
     if previsto == Previsto::DelRemoto {
-        let refspec = format!("refs/heads/{RAMA}:{remota}");
-        let s = correr(
-            git,
-            &principal,
-            OP,
-            Subcomando::Fetch,
-            &["-q", REMOTO, &refspec],
-        )?;
-        if s.exito() {
-            exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
-        } else {
-            match clasificar_fallo_remoto(&s.stderr) {
-                // Desaparecio del remoto entre la lectura y el fetch.
-                FalloRemoto::RamaInexistente => crear = true,
-                FalloRemoto::SinRed => return Ok(sin_red(&s.primera_linea_error())),
-                FalloRemoto::Local => {
-                    return Err(crate::git::remoto::error_local(
-                        OP,
-                        &s.primera_linea_error(),
-                    ));
-                }
-                otro => return Ok(denegada(otro, &s.primera_linea_error())),
+        // El mismo `fetch` que la transaccion y la lectura fresca: con
+        // exito renueva la marca de la ultima sincronizacion.
+        let marca = Marca::en(&comun);
+        match traer_estado(git, &principal, &marca, crate::identidad::ahora())? {
+            Traida::Hecha => {
+                exigir(git, &principal, OP, Subcomando::Branch, &[RAMA, &remota])?;
             }
+            // Desaparecio del remoto entre la lectura y el fetch.
+            Traida::SinRama => crear = true,
+            Traida::Reescrita { detalle } => return Err(rama_reescrita(OP, &detalle)),
+            Traida::Bloqueada { detalle } => {
+                return Err(crate::git::remoto::error_local(OP, &detalle));
+            }
+            Traida::Fallo { fallo, primera, .. } => match fallo {
+                FalloRemoto::SinRed => return Ok(sin_red(&primera)),
+                FalloRemoto::Local => {
+                    return Err(crate::git::remoto::error_local(OP, &primera));
+                }
+                otro => return Ok(denegada(otro, &primera)),
+            },
         }
     }
     if crear {
@@ -312,4 +310,208 @@ fn denegada(f: FalloRemoto, detalle: &str) -> Informe {
     Informe::nuevo(OP, Resultado::Denegada)
         .con("motivo", f.motivo())
         .diagnostico(Mensaje::nuevo(&txt::MONTAR_DENEGADA).con("error", detalle))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+
+    type R<T> = Result<T, Box<dyn std::error::Error>>;
+
+    fn utf8(p: &Path) -> R<&str> {
+        Ok(p.to_str().ok_or("ruta no UTF-8")?)
+    }
+
+    /// Carpeta temporal propia de cada test (se borra al empezar y al acabar).
+    fn carpeta(nombre: &str) -> PathBuf {
+        let d = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("montaje-{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        d
+    }
+
+    /// git de sistema para preparar el escenario; devuelve stdout recortado.
+    fn sh(dir: &Path, args: &[&str]) -> R<String> {
+        let s = Command::new("git")
+            .current_dir(dir)
+            .args([
+                "-c",
+                "user.name=Prueba",
+                "-c",
+                "user.email=prueba@example.com",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "init.defaultBranch=main",
+            ])
+            .args(args)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()?;
+        if !s.status.success() {
+            return Err(format!("git {args:?}: {}", String::from_utf8_lossy(&s.stderr)).into());
+        }
+        Ok(String::from_utf8_lossy(&s.stdout).trim().to_owned())
+    }
+
+    /// Commit en el bare con un fichero `f` de contenido `texto` y los padres
+    /// dados (ninguno: huerfano).
+    fn commit_en_bare(bare: &Path, texto: &str, padres: &[&str]) -> R<String> {
+        let tmp = bare.join("blob-temporal");
+        std::fs::write(&tmp, texto)?;
+        let blob = sh(bare, &["hash-object", "-w", utf8(&tmp)?])?;
+        std::fs::remove_file(&tmp)?;
+        let mut c = Command::new("git")
+            .current_dir(bare)
+            .arg("mktree")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+        {
+            use std::io::Write as _;
+            let mut e = c.stdin.take().ok_or("sin stdin")?;
+            writeln!(e, "100644 blob {blob}\tf")?;
+        }
+        let s = c.wait_with_output()?;
+        if !s.status.success() {
+            return Err("mktree".into());
+        }
+        let arbol = String::from_utf8_lossy(&s.stdout).trim().to_owned();
+        let mut args = vec!["commit-tree", arbol.as_str(), "-m", texto];
+        for p in padres {
+            args.push("-p");
+            args.push(p);
+        }
+        sh(bare, &args)
+    }
+
+    /// Un bare con `main` y la rama de estado, y un clon que solo tiene
+    /// `refs/remotes/origin/taskcodetwo/tareas` (sin rama local). Devuelve
+    /// (raiz, bare, clon, commit de la rama de estado).
+    fn escenario(nombre: &str) -> R<(PathBuf, PathBuf, PathBuf, String)> {
+        let raiz = carpeta(nombre);
+        let bare = raiz.join("remoto.git");
+        let clon = raiz.join("clon");
+        std::fs::create_dir_all(&bare)?;
+        sh(&bare, &["init", "-q", "--bare"])?;
+        let c_main = commit_en_bare(&bare, "main", &[])?;
+        sh(&bare, &["update-ref", "refs/heads/main", &c_main])?;
+        sh(&bare, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
+        let c_estado = commit_en_bare(&bare, "estado", &[])?;
+        sh(
+            &bare,
+            &["update-ref", &format!("refs/heads/{RAMA}"), &c_estado],
+        )?;
+        sh(&raiz, &["clone", "-q", utf8(&bare)?, utf8(&clon)?])?;
+        assert_eq!(
+            sh(
+                &clon,
+                &["rev-parse", &format!("refs/remotes/{REMOTO}/{RAMA}")]
+            )?,
+            c_estado
+        );
+        assert!(!rama_local(&clon)?, "el clon no tiene la rama local");
+        assert_eq!(
+            previsto(&Git::nuevo(), &clon).map_err(|i| i.linea())?,
+            Previsto::DelRemoto
+        );
+        Ok((raiz, bare, clon, c_estado))
+    }
+
+    fn rama_local(clon: &Path) -> R<bool> {
+        Ok(Command::new("git")
+            .current_dir(clon)
+            .args(["rev-parse", "--verify", "-q", &format!("refs/heads/{RAMA}")])
+            .output()?
+            .status
+            .success())
+    }
+
+    fn politica_rapida() -> Politica {
+        Politica {
+            espera_cerrojo: std::time::Duration::from_millis(200),
+            ..Politica::default()
+        }
+    }
+
+    /// `montar` sale con `error motivo=<motivo>` sin dejar pendiente, sin
+    /// crear la rama local y sin montar `tareas/`. Dos pasadas:
+    ///
+    /// - con `intentos: 0`, la transaccion de crear la rama responderia `uso
+    ///   motivo=sin-intentos` sin hacer `fetch`: asi el error tiene que
+    ///   salir del brazo de `montar` y no del mismo brazo de la transaccion
+    ///   (con la politica normal, si `montar` pasara a crear, la transaccion
+    ///   repetiria el `fetch` y daria el mismo informe: la mutacion
+    ///   `Reescrita/Bloqueada => crear = true` seguiria en verde);
+    /// - con la politica normal, de punta a punta.
+    fn montar_falla(clon: &Path, motivo: &str) -> R<()> {
+        let sin_transaccion = Politica {
+            intentos: 0,
+            ..politica_rapida()
+        };
+        for politica in [sin_transaccion, politica_rapida()] {
+            let i = montar_con(&Git::nuevo(), clon, politica);
+            assert_eq!(i.comando, OP);
+            assert_eq!(i.resultado, Resultado::Error, "{}", i.linea());
+            assert_eq!(i.valor("motivo"), Some(motivo), "{}", i.linea());
+            assert_eq!(i.valor("pendiente"), None, "{}", i.linea());
+            assert!(!rama_local(clon)?, "no crea la rama local");
+            assert!(!clon.join(CARPETA).exists(), "no monta tareas/");
+        }
+        Ok(())
+    }
+
+    /// M5 (revision 2 de TASK-079): la rama de estado reescrita en `origin`
+    /// (un commit huerfano) entre la lectura y el `fetch`: `error
+    /// motivo=rama-reescrita`, sin crear la rama local ni dejar pendiente.
+    #[test]
+    fn montar_con_rama_reescrita_es_error() -> R<()> {
+        let (raiz, bare, clon, _) = escenario("reescrita")?;
+        let huerfano = commit_en_bare(&bare, "reescrita", &[])?;
+        sh(
+            &bare,
+            &["update-ref", &format!("refs/heads/{RAMA}"), &huerfano],
+        )?;
+
+        montar_falla(&clon, "rama-reescrita")?;
+        // El bare sigue con el huerfano: no se ha publicado nada.
+        assert_eq!(
+            sh(&bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
+            huerfano
+        );
+        let _ = std::fs::remove_dir_all(&raiz);
+        Ok(())
+    }
+
+    /// M5 (revision 2 de TASK-079): un `.lock` huerfano en la ref remota del
+    /// clon: `error motivo=error-local`, sin crear la rama local.
+    #[test]
+    fn montar_con_ref_bloqueada_es_error_local() -> R<()> {
+        let (raiz, bare, clon, c_estado) = escenario("bloqueada")?;
+        // El remoto avanza (fast-forward) para que el `fetch` tenga que
+        // escribir la ref remota.
+        let siguiente = commit_en_bare(&bare, "siguiente", &[&c_estado])?;
+        sh(
+            &bare,
+            &["update-ref", &format!("refs/heads/{RAMA}"), &siguiente],
+        )?;
+        let lock = clon
+            .join(".git")
+            .join("refs")
+            .join("remotes")
+            .join(REMOTO)
+            .join(format!("{RAMA}.lock"));
+        std::fs::create_dir_all(lock.parent().ok_or("sin padre")?)?;
+        std::fs::write(&lock, "")?;
+
+        montar_falla(&clon, "error-local")?;
+        assert!(lock.exists(), "el lock ajeno no se toca");
+        assert_eq!(
+            sh(&bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
+            siguiente
+        );
+        let _ = std::fs::remove_dir_all(&raiz);
+        Ok(())
+    }
 }

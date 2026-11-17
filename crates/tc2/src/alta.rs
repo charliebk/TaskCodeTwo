@@ -603,6 +603,20 @@ pub(crate) fn hoy() -> String {
     fecha_de_dias(i64::try_from(segundos / 86_400).unwrap_or(0))
 }
 
+/// Instante UTC `AAAA-MM-DDTHH:MM:SSZ` de unos segundos desde 1970 (F3-5b,
+/// D6a), con la fecha de [`fecha_de_dias`].
+pub(crate) fn instante_utc(segundos: u64) -> String {
+    let dias = i64::try_from(segundos / 86_400).unwrap_or(0);
+    let s = segundos % 86_400;
+    format!(
+        "{}T{:02}:{:02}:{:02}Z",
+        fecha_de_dias(dias),
+        s / 3600,
+        s % 3600 / 60,
+        s % 60
+    )
+}
+
 /// Fecha civil de un numero de dias desde 1970-01-01 (algoritmo de Howard
 /// Hinnant, `civil_from_days`).
 pub(crate) fn fecha_de_dias(dias: i64) -> String {
@@ -964,6 +978,9 @@ mod tests {
         assert_eq!(fecha_de_dias(11_016), "2000-02-29");
         assert_eq!(fecha_de_dias(20_772), "2026-11-15");
         assert_eq!(fecha_de_dias(-1), "1969-12-31");
+        assert_eq!(instante_utc(0), "1970-01-01T00:00:00Z");
+        assert_eq!(instante_utc(951_868_799), "2000-02-29T23:59:59Z");
+        assert_eq!(instante_utc(1_794_931_452), "2026-11-17T16:04:12Z");
     }
 
     #[test]
