@@ -2,7 +2,7 @@
 
 - Commit revisado: b855c2057a8375e142ebdec0a665bce971e0af33
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-078 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 Propuesta del revisor: **aprobada-con-correcciones** (0 CRITICO, 2 IMPORTANTE, 9 MENOR). Dominio unico (Rust, scripts y docs); no llegue por exceso de dominios.
 

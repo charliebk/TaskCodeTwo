@@ -2,7 +2,7 @@
 
 - Commit revisado: b855c2057a8375e142ebdec0a665bce971e0af33 (HEAD de la rama al clonar: 2fa75ca, que solo anade la peticion)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-078 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: cambios-solicitados
 
 Veredicto propuesto por el revisor: cambios-solicitados (IMP-1 incumple C8 en Windows con el proceso auxiliar real).
 

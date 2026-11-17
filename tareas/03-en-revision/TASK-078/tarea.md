@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 23228931
-tokens_revision: null
+tokens_revision: 11341268
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-018, TASK-025, TASK-027, TASK-116]
@@ -63,3 +63,5 @@ Contexto (Carlos, 2026-11-14, RR-16): hace falta un comando para desinstalar de 
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T00:41:30Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 20 | 8855 | 4040024 | 2905 | 0 | 4051804 | - | - |
 | 2026-11-17T00:41:30Z | implementacion | agente:a2bf6b38f49ca3b69 | 172 | 609269 | 18447750 | 119936 | 25 | 19177127 | - | - |
+| 2026-11-17T00:57:25Z | revision | agente:a285245acc158d49c | 80 | 170746 | 4917372 | 39476 | 2 | 5127674 | 1 | rust-wasm-reviewer |
+| 2026-11-17T00:57:26Z | revision | agente:a7fea3660749fafa5 | 82 | 201474 | 5967016 | 45022 | 10 | 6213594 | 1 | code-quality-reviewer |
