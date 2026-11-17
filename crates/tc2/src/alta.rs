@@ -45,6 +45,8 @@ pub struct Entrada {
     pub complejidad: Option<String>,
     /// Dependencias, `TASK-NNN`.
     pub dependencias: Vec<String>,
+    /// `lote/clave` si llega de un import (D1 de TASK-029).
+    pub lote: Option<String>,
 }
 
 impl Entrada {
@@ -59,6 +61,7 @@ impl Entrada {
             etiquetas: Vec::new(),
             complejidad: None,
             dependencias: Vec::new(),
+            lote: None,
         }
     }
 
@@ -456,12 +459,13 @@ fn tarea_de(id: &str, e: &Entrada, fecha: &str) -> String {
     t.etiquetas.clone_from(&e.etiquetas);
     t.complejidad.clone_from(&e.complejidad);
     t.dependencias.clone_from(&e.dependencias);
+    t.lote.clone_from(&e.lote);
     t.rama = Some(rama_de(id, &e.tipo, &e.titulo));
     t.escribir(&Cuerpo::con_enunciado(&e.objetivo, &e.criterios))
 }
 
 /// Fecha de hoy en UTC, `AAAA-MM-DD`, sin dependencias.
-fn hoy() -> String {
+pub(crate) fn hoy() -> String {
     let segundos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -569,6 +573,30 @@ mod tests {
                 "dependencias",
             ]
         );
+        // Adenda de TASK-029 a F1-9: una tarea importada lleva ademas `lote`,
+        // la ultima clave conocida; sin lote no se escribe.
+        let mut e = Entrada::nueva("x");
+        e.lote = Some("hito37/F3-2".to_owned());
+        let importada = tarea_de("TASK-009", &e, "2026-11-17");
+        let ultimas: Vec<&str> = importada
+            .lines()
+            .skip(1)
+            .take_while(|l| *l != "---")
+            .filter_map(|l| l.split(':').next())
+            .collect();
+        assert_eq!(ultimas.len(), claves.len() + 4); // + las 3 de `roles` y `lote`
+        assert_eq!(ultimas.last(), Some(&"lote"));
+        assert!(importada.contains("\ndependencias: []\nlote: \"hito37/F3-2\"\n---\n"));
+        let leida = match crate::tarea::leer(&importada) {
+            Ok(Documento::Formato2(t, _)) => Some((t.claves_desconocidas().len(), t.lote)),
+            _ => None,
+        };
+        assert_eq!(leida, Some((0, Some("hito37/F3-2".to_owned()))));
+        for malo in ["sin-barra", "/clave", "lote/"] {
+            let t = importada.replace("hito37/F3-2", malo);
+            assert!(crate::tarea::leer(&t).is_err(), "{malo}");
+        }
+        assert!(!t.contains("\nlote:"));
         assert!(t.contains("id: \"TASK-008\"\n"));
         assert!(t.contains("creado: \"2026-11-15\"\nactualizado: \"2026-11-15\"\n"));
         assert!(

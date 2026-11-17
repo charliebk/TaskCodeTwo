@@ -57,6 +57,11 @@ pub(crate) const CLAVES: [&str; 21] = [
     "actualizado",
     "dependencias",
 ];
+/// Claves opcionales del formato 2: si faltan valen `null` y solo se
+/// escriben con valor, despues de `dependencias` (adenda de TASK-029 a F1-9:
+/// una tarea de antes se lee y se reescribe byte a byte igual).
+pub(crate) const OPCIONALES: [&str; 1] = ["lote"];
+
 // Sin `zonas` (F1-17) ni `hito` (F1-18) ni el `roles` ampliado de F1-15:
 // hasta que los recoja la tarea que los usa, `zonas` y `hito` se conservan
 // como claves desconocidas.
@@ -325,6 +330,9 @@ pub struct Tarea {
     pub creado: String,
     pub actualizado: String,
     pub dependencias: Vec<String>,
+    /// `lote/clave` de la tarea importada que la creo (F3-2, D1 de TASK-029):
+    /// por ella un import repetido la reconoce. Opcional.
+    pub lote: Option<String>,
     /// Claves desconocidas con su texto crudo, en su orden (F1-9 D4a: se
     /// conservan en la ida y vuelta; `doctor` avisa). Privadas: solo llegan
     /// de una lectura, que las ha validado y comprobado sin duplicadas.
@@ -354,6 +362,7 @@ struct CrudoV2 {
     creado: Option<String>,
     actualizado: Option<String>,
     dependencias: Option<Vec<String>>,
+    lote: Option<String>,
 }
 
 /// Valor obligatorio (presente y no `null`).
@@ -403,6 +412,24 @@ fn id(clave: &str, s: String) -> Result<String, ErrorTarea> {
         Ok(s)
     } else {
         Err(ErrorTarea::en(clave, format!("«{s}» no es un ID TASK-NNN")))
+    }
+}
+
+/// `lote`: `<lote>/<clave>`, sin caracteres de control, o ausente/`null`.
+fn lote(s: Option<String>) -> Result<Option<String>, ErrorTarea> {
+    match s {
+        None => Ok(None),
+        Some(s)
+            if texto_valido(&s)
+                && s.split_once('/')
+                    .is_some_and(|(a, b)| !a.is_empty() && !b.is_empty()) =>
+        {
+            Ok(Some(s))
+        }
+        Some(s) => Err(ErrorTarea::en(
+            "lote",
+            format!("«{s}» no es <lote>/<clave>"),
+        )),
     }
 }
 
@@ -478,6 +505,7 @@ impl Tarea {
             creado: fecha.to_owned(),
             actualizado: fecha.to_owned(),
             dependencias: Vec::new(),
+            lote: None,
             desconocidas: Vec::new(),
         }
     }
@@ -573,7 +601,8 @@ impl Tarea {
                 .into_iter()
                 .map(|d| id("dependencias", d))
                 .collect::<Result<_, _>>()?,
-            desconocidas: desconocidas(partes, &CLAVES),
+            lote: lote(c.lote)?,
+            desconocidas: desconocidas(partes, &[&CLAVES[..], &OPCIONALES[..]].concat()),
         })
     }
 
@@ -652,6 +681,9 @@ impl Tarea {
         linea("creado", yaml::cadena(&self.creado));
         linea("actualizado", yaml::cadena(&self.actualizado));
         linea("dependencias", yaml::lista(&self.dependencias));
+        if let Some(l) = &self.lote {
+            linea("lote", yaml::cadena(l));
+        }
         for (_, crudo) in &self.desconocidas {
             s.push_str(crudo);
         }

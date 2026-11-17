@@ -12,7 +12,8 @@
 //! ejecuta y `tc2 identidad`, F2-13) y [`huella`] (los nombres que la 2.0
 //! deja en un repo, F1-12 D1a) e [`init`] (deja un repo listo, F3-1) e
 //! [`instalacion`] (donde vive el `tc2` de la
-//! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14). Las capas
+//! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14) e
+//! [`importar`] (alta en bloque con dependencias e hito, F3-2). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -96,16 +97,14 @@ where
                 r => (false, r),
             };
             let mut parecidas = Vec::new();
-            let mut s = orden_new(resto, &mut parecidas).salida_en(json, idioma);
-            // El aviso de titulos parecidos va a stderr con codigo 0: es la
-            // unica excepcion a «diagnostico solo si falla» (F2-4b, D1).
-            if s.codigo == 0
-                && let Some(a) = alta::aviso_parecidas(&parecidas, idioma)
-            {
-                s.stderr.push_str(&a);
-                s.stderr.push('\n');
-            }
-            s
+            let s = orden_new(resto, &mut parecidas).salida_en(json, idioma);
+            con_aviso(s, &parecidas, idioma)
+        }
+        [orden, resto @ ..] if orden == importar::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            let mut parecidas = Vec::new();
+            let s = importar::orden(&resto, &catalogo, &mut parecidas).salida_en(json, idioma);
+            con_aviso(s, &parecidas, idioma)
         }
         [orden, resto @ ..] if orden == version::VERSION => {
             let (json, resto) = con_json(resto);
@@ -155,6 +154,18 @@ where
             ),
         },
     }
+}
+
+/// El aviso de titulos parecidos va a stderr con codigo 0: es la unica
+/// excepcion a «diagnostico solo si falla» (F2-4b, D1).
+fn con_aviso(mut s: Salida, parecidas: &[alta::Parecida], idioma: Idioma) -> Salida {
+    if s.codigo == 0
+        && let Some(a) = alta::aviso_parecidas(parecidas, idioma)
+    {
+        s.stderr.push_str(&a);
+        s.stderr.push('\n');
+    }
+    s
 }
 
 /// Quita `--json` de donde este y dice si estaba.
