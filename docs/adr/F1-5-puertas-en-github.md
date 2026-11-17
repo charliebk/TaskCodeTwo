@@ -365,7 +365,7 @@ ha aplicado ningún ruleset):
 
    | Operación | Comando dueño | Idempotencia y resultados |
    |---|---|---|
-   | `aplicar-puertas` | `init` (F3-1), con la identidad de la persona; exige administrar el repo | lee los rulesets `taskcode-*`; igual al modelo → `sin-cambios`; distinto → los actualiza; sin rulesets en el plan (403) → `rechazada` (3) con `motivo=plan`; se niega con un `integration_id` de relleno (no verificado: ninguna escritura en GitHub) |
+   | `aplicar-puertas` | `init` (F3-1), con la identidad de la persona; exige administrar el repo (adenda de TASK-028: F3-1 solo propone; la aplica TASK-118) | lee los rulesets `taskcode-*`; igual al modelo → `sin-cambios`; distinto → los actualiza; sin rulesets en el plan (403) → `rechazada` (3) con `motivo=plan`; se niega con un `integration_id` de relleno (no verificado: ninguna escritura en GitHub) |
    | `leer-puertas` | `doctor` (F3-8), `review` | lectura (`GET /rulesets` y `/rules/branches/{rama}`); compara con el modelo e informa lo que falta o sobra; 403 de plan → «puertas no impuestas por la plataforma» (PoC A) |
 
 2. **Reglas por rama** (cierra lo que dejaron F1-1 y F1-3):
@@ -548,7 +548,7 @@ entre el declarado y el mínimo por ficheros), no el que el agente declara.
   planes de pago.
 - **F2-6** implementa `aplicar-puertas` y `leer-puertas` y prueba en E2E,
   contra un repo de pruebas, todo lo marcado «no verificado».
-- **F3-1** (`init`) aplica las puertas o explica por qué no puede; **F3-8**
+- **F3-1** (`init`) propone las puertas y explica por qué no las aplica todavía (adenda de TASK-028); las aplica **TASK-118**; **F3-8**
   (`doctor`) las compara con el modelo.
 - **F6** implementa el workflow `carril` y el check `revision-ia`.
 - **Este repo no cambia** (RR-14): sin rulesets ni CODEOWNERS hasta el relevo;
