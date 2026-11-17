@@ -10,7 +10,8 @@
 //! F2-8), [`version`] (`version --json` y `compatible`, F2-12) y
 //! [`actualizar_cli`] (`actualizar --cli`, F2-12) e [`identidad`] (quien
 //! ejecuta y `tc2 identidad`, F2-13) y [`huella`] (los nombres que la 2.0
-//! deja en un repo, F1-12 D1a). Las capas
+//! deja en un repo, F1-12 D1a) e [`instalacion`] (donde vive el `tc2` de la
+//! maquina, F2-12 y F2-14). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -24,6 +25,7 @@ pub mod git;
 pub mod huella;
 pub mod i18n;
 pub mod identidad;
+pub mod instalacion;
 pub mod plataforma;
 pub mod tarea;
 pub mod version;

@@ -36,68 +36,7 @@ use crate::i18n::catalogo::actualizar as txt;
 /// Nombre de la orden.
 pub const NOMBRE: &str = "actualizar";
 
-/// Quien gestiona el `tc2` que se esta ejecutando.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Modo {
-    /// Instalado con la linea de instalacion (o copiado a mano): se actualiza.
-    Instalador,
-    /// La cache del plugin (`.../taskcodetwo/cli/<version>/tc2[.exe]`): lo
-    /// gestiona el plugin con `cli.lock`.
-    Plugin,
-    /// Un gestor de paquetes (npm, Homebrew, winget, Scoop, cargo): se
-    /// actualiza con el.
-    Gestor(&'static str),
-}
-
-/// Modo de un ejecutable por su ruta (sin tocar el disco). Reconoce las
-/// rutas de Windows, macOS y Linux sin depender del sistema en que corre.
-pub fn detectar_modo(ruta: &str) -> Modo {
-    let partes: Vec<String> = ruta
-        .split(['/', '\\'])
-        .filter(|p| !p.is_empty())
-        .map(str::to_ascii_lowercase)
-        .collect();
-    let n = partes.len();
-    let es_tc2 = partes.last().is_some_and(|f| f == "tc2" || f == "tc2.exe");
-    if es_tc2
-        && n >= 4
-        && partes.get(n - 4).is_some_and(|p| p == "taskcodetwo")
-        && partes.get(n - 3).is_some_and(|p| p == "cli")
-    {
-        return Modo::Plugin;
-    }
-    // Cada gestor por su propia estructura de carpetas, no por un nombre
-    // suelto: una carpeta `Scoop\bin` o `~/.cargo/otra` de la persona no es
-    // de un gestor. `dir` son las carpetas, sin el fichero.
-    let dir = partes.get(..n.saturating_sub(1)).unwrap_or_default();
-    let seguidas = |a: &str, b: &str| dir.windows(2).any(|w| w[0] == a && w[1] == b);
-    // `<raiz>/node_modules/<paquete>/...`: el binario dentro de un paquete.
-    let npm = dir
-        .iter()
-        .position(|p| p == "node_modules")
-        .is_some_and(|i| i + 1 < dir.len());
-    // `Cellar/<formula>/<version>/...`, o el prefijo de Homebrew.
-    let homebrew = dir
-        .iter()
-        .position(|p| p == "cellar")
-        .is_some_and(|i| i + 2 < dir.len())
-        || dir.starts_with(&["opt".to_owned(), "homebrew".to_owned()])
-        || seguidas("linuxbrew", ".linuxbrew");
-    let gestor = if npm {
-        Some("npm")
-    } else if homebrew {
-        Some("homebrew")
-    } else if seguidas("winget", "packages") || seguidas("winget", "links") {
-        Some("winget")
-    } else if seguidas("scoop", "apps") || seguidas("scoop", "shims") {
-        Some("scoop")
-    } else if dir.len() >= 2 && dir[dir.len() - 2] == ".cargo" && dir[dir.len() - 1] == "bin" {
-        Some("cargo")
-    } else {
-        None
-    };
-    gestor.map_or(Modo::Instalador, Modo::Gestor)
-}
+pub use crate::instalacion::{Modo, detectar_modo, limpiar_old, ruta_old};
 
 /// Compara dos versiones `X.Y.Z[-pre]` con las reglas de semver: el nucleo
 /// por numeros y, a igual nucleo, una prerelease es anterior a la estable;
@@ -809,78 +748,9 @@ pub fn sustituir_con(
     Ok(())
 }
 
-/// `<exe>.old`: donde queda el binario anterior en Windows hasta la
-/// siguiente ejecucion.
-pub fn ruta_old(exe: &Path) -> PathBuf {
-    let mut s = exe.as_os_str().to_owned();
-    s.push(".old");
-    PathBuf::from(s)
-}
-
-/// Borra `<exe>.old` si lo hay (lo deja una actualizacion en Windows, donde
-/// un ejecutable en marcha no se puede borrar). Si sigue en uso, se queda.
-pub fn limpiar_old(exe: &Path) {
-    let _ = std::fs::remove_file(ruta_old(exe));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// TASK-027, criterio 6: la cache del plugin se reconoce en los tres
-    /// sistemas, y no se confunde con una instalacion normal.
-    #[test]
-    fn detectar_modo_con_rutas_de_los_tres_sistemas() {
-        for plugin in [
-            r"C:\Users\ana\AppData\Local\taskcodetwo\cli\2.0.0\tc2.exe",
-            r"c:\users\ana\appdata\local\TaskCodeTwo\CLI\2.0.0-rc.1\TC2.EXE",
-            "/Users/ana/.cache/taskcodetwo/cli/2.0.0/tc2",
-            "/Users/ana/Library/Caches/taskcodetwo/cli/2.0.0/tc2",
-            "/home/ana/.cache/taskcodetwo/cli/2.0.0/tc2",
-        ] {
-            assert_eq!(detectar_modo(plugin), Modo::Plugin, "{plugin}");
-        }
-        for instalador in [
-            r"C:\Users\ana\AppData\Local\taskcodetwo\bin\tc2.exe",
-            "/Users/ana/.local/bin/tc2",
-            "/home/ana/.local/bin/tc2",
-            "/home/ana/taskcodetwo/cli/tc2",
-            "/home/ana/taskcodetwo/cli/2.0.0/otro",
-            "/opt/herramientas/tc2",
-        ] {
-            assert_eq!(detectar_modo(instalador), Modo::Instalador, "{instalador}");
-        }
-        for (ruta, gestor) in [
-            (
-                r"C:\Users\ana\AppData\Roaming\npm\node_modules\taskcodetwo\bin\tc2.exe",
-                "npm",
-            ),
-            ("/opt/homebrew/Cellar/tc2/2.0.0/bin/tc2", "homebrew"),
-            (
-                r"C:\Users\ana\AppData\Local\Microsoft\WinGet\Packages\x\tc2.exe",
-                "winget",
-            ),
-            (r"C:\Users\ana\scoop\apps\tc2\current\tc2.exe", "scoop"),
-            ("/home/ana/.cargo/bin/tc2", "cargo"),
-            ("/home/linuxbrew/.linuxbrew/bin/tc2", "homebrew"),
-            (r"C:\Users\ana\scoop\shims\tc2.exe", "scoop"),
-        ] {
-            assert_eq!(detectar_modo(ruta), Modo::Gestor(gestor), "{ruta}");
-        }
-        // Revision 1, MEN-1: un nombre de gestor suelto en la ruta no basta.
-        for propia in [
-            r"C:\Users\ana\Scoop\bin\tc2.exe",
-            r"C:\herramientas\scoop\tc2.exe",
-            "/home/ana/.cargo/otra/tc2",
-            "/home/ana/.cargo/bin/sub/tc2",
-            "/home/ana/node_modules/tc2",
-            "/home/ana/cellar/tc2",
-            "/home/ana/homebrew/tc2",
-            r"C:\Users\ana\winget\tc2.exe",
-        ] {
-            assert_eq!(detectar_modo(propia), Modo::Instalador, "{propia}");
-        }
-    }
 
     /// Revision 2, MEN-6: el plazo se cumple aunque el hijo deje un nieto
     /// con las tuberias heredadas (aqui, un shell que lanza una espera larga
