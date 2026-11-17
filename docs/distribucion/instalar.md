@@ -159,15 +159,19 @@ tc2 desinstalar --maquina
   ejecutar la persona salen también, legibles, por stderr.
 - **Qué quita `--maquina`** (solo lo que reconoce por su ruta, sus marcas o
   su `command` exactos): el binario de `TC2_INSTALL_DIR` y del directorio por
-  defecto, su `tc2.exe.old` y los temporales `.tc2-*.descarga` y
+  defecto (si es este `tc2`, está en la carpeta propia de Windows o responde
+  a `tc2 version --json`; otro `tc2` queda `dueno=ajeno`), su `tc2.exe.old` y los temporales `.tc2-*.descarga` y
   `.tc2.nuevo.*`; el bloque entre marcas de `~/.profile`, `~/.bashrc`,
   `~/.zshrc` y `~/.bash_profile` (el resto del perfil queda igual byte a
-  byte); en Windows, la entrada del PATH de usuario (la inversa de lo que
+  byte, salvo el salto de línea final que `install.sh` añadió a un perfil que
+  no lo tenía; si la línea entre las marcas no es exactamente la del
+  instalador, no se toca y queda para la persona); en Windows, la entrada del PATH de usuario (la inversa de lo que
   añadió `install.ps1`; las demás entradas, intactas) y la carpeta
-  `%LOCALAPPDATA%	askcodetwo` si queda vacía; la caché del lanzador
+  `%LOCALAPPDATA%\taskcodetwo` si queda vacía; la caché del lanzador
   (`taskcodetwo/cli/`), y la `statusLine` de `~/.claude/settings.json` solo si
-  su `command` es exactamente `tc2 estado --stdin` (sin tocar ningún otro
-  byte del fichero).
+  su `command` es exactamente `tc2 estado --stdin`, sin contar los espacios
+  de los extremos (sin tocar ningún otro byte del fichero). Los ficheros se
+  reescriben de una vez (temporal y renombrado).
 - **En Windows, el `tc2.exe` en marcha** no se puede borrar: lo borra un
   proceso auxiliar en cuanto `tc2` sale (como mucho 10 s; `motivo=al-salir`).
   Si otro proceso está ejecutando ese binario, su grupo (binario, `.old`,
@@ -175,7 +179,7 @@ tc2 desinstalar --maquina
   resto se quita y la orden sale `rechazada` (3).
 - **Qué no toca**: los hooks de un `settings.json` (si uno nombra `tc2`, lo
   avisa); el plugin y el marketplace, que son de Claude Code (imprime
-  `claude plugin uninstall taskcodetwo@<marketplace> --scope <scope>`); un
+  `claude plugin uninstall 'taskcodetwo@<marketplace>' --scope <scope>`); un
   `tc2` de la caché del plugin o de un gestor de paquetes (imprime la orden
   del gestor: `npm uninstall -g taskcodetwo`, `brew uninstall taskcodetwo`,
   `winget uninstall taskcodetwo`, `scoop uninstall taskcodetwo` o `cargo
@@ -185,14 +189,22 @@ tc2 desinstalar --maquina
   los de tarea (`.taskcodetwo/worktrees/<id>`), con sus registros;
   `.git/taskcodetwo/` (cerrojo, caché de identidad, índices temporales) y las
   líneas `/.taskcodetwo/worktrees/` y `/tareas/` de `.git/info/exclude`. Si un
-  worktree tiene cambios sin guardar o commits sin publicar, sale `rechazada`
-  sin tocar nada. Nunca usa la red ni toca el remoto.
-- **Con confirmación**: `.taskcode/config.yml` (solo la de formato 2) y
-  `.taskcode/personas.yml` solo con `--config`; la rama local
+  worktree tiene cambios sin guardar o commits sin publicar, está bloqueado
+  (`git worktree lock`) o contiene la carpeta desde la que se lanza, sale
+  `rechazada` sin tocar nada. Nunca usa la red ni toca el remoto.
+- **Con confirmación**: `.taskcode/config.yml` (solo la de formato 2, la que
+  lee `tc2`) y `.taskcode/personas.yml` solo con `--config`; con la config de
+  la 0.16, las dos se quedan, porque son compartidas; la rama local
   `taskcodetwo/tareas` y las refs `refs/taskcodetwo/*` solo con
   `--borrar-tareas taskcodetwo/tareas` (el nombre exacto). La rama remota
   nunca: imprime `git push origin --delete taskcodetwo/tareas` para que lo
-  decida la persona.
+  decida la persona. Si la rama local tiene commits que el remoto no tiene,
+  la línea lleva `motivo=adelantada-del-remoto sha=<sha>` y stderr dice cómo
+  recuperarlos (`git branch taskcodetwo/tareas <sha>`).
+- **Uso**: `--config` y `--borrar-tareas` sin `--proyecto` dan `uso` (2), y
+  otro nombre de rama en `--borrar-tareas`, también. Con `--maquina
+  --proyecto` fuera de un repo sale `rechazada motivo=no-es-repo` sin hacer
+  nada, tampoco en la máquina.
 
 ## Compatibilidad con el plugin
 
