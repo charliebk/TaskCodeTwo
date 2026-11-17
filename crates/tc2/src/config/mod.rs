@@ -401,6 +401,12 @@ impl Invalida {
     }
 }
 
+/// Texto de la configuracion minima que escribe `tc2 init` (F3-1): solo
+/// `formato: 2`, que [`leer`] da como [`Config::suelo`].
+pub fn texto_minimo() -> &'static str {
+    "---\nformato: 2\n"
+}
+
 /// Lee y valida el texto de `.taskcode/config.yml`. Sin E/S.
 pub fn leer(texto: &str) -> Result<Config, Invalida> {
     let primera = texto.split('\n').next().unwrap_or("");
@@ -530,5 +536,6 @@ mod tests {
     fn config_minima_da_los_valores_por_defecto() {
         assert_eq!(leer("---\nformato: 2\n"), Ok(Config::suelo()));
         assert_eq!(leer("---\r\nformato: 2\r\n"), Ok(Config::suelo()));
+        assert_eq!(leer(texto_minimo()), Ok(Config::suelo()));
     }
 }

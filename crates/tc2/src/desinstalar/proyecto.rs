@@ -9,7 +9,7 @@ use std::time::Duration;
 use super::texto::hooks_con_tc2;
 use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, leer, t};
 use crate::contrato::{Informe, Resultado};
-use crate::estado::{CARPETA, Cerrojo};
+use crate::estado::Cerrojo;
 use crate::git::estado::dir_comun;
 use crate::git::rama::renombrar;
 use crate::git::{
@@ -19,11 +19,6 @@ use crate::git::{
 use crate::huella::{self, RAMA_ESTADO};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::desinstalar as txt;
-
-/// Lineas que la 2.0 escribe en `info/exclude` (`git::rama::excluir`).
-fn lineas_exclude() -> [String; 2] {
-    [format!("/{CARPETA_WORKTREES}/"), format!("/{CARPETA}/")]
-}
 
 /// Si la carpeta `dir` esta dentro de `ruta` (o es ella).
 fn dentro(dir: &Path, ruta: &Path) -> bool {
@@ -161,10 +156,10 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     if let Some(bytes) = leer(&exclude)?
         && let Ok(texto) = String::from_utf8(bytes.clone())
     {
-        let propias = lineas_exclude();
+        let propias = huella::LINEAS_EXCLUDE;
         let nuevo: String = texto
             .split_inclusive('\n')
-            .filter(|l| !propias.iter().any(|p| l.trim() == p))
+            .filter(|l| !propias.iter().any(|p| l.trim() == *p))
             .collect();
         if nuevo != texto {
             v.push(Accion::borra(
@@ -291,6 +286,45 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
             Accion::nueva(t(&personas), "config", "taskcodetwo", Decision::Conserva)
                 .motivo("sin-config")
         });
+    }
+    // Lo versionado que deja `tc2 init` (F3-1): las lineas de `.gitignore` y
+    // el workflow estan en la historia; los quita la persona con un PR.
+    let gitignore = principal.join(".gitignore");
+    if let Some(bytes) = leer(&gitignore)? {
+        let texto = String::from_utf8_lossy(&bytes);
+        if huella::LINEAS_GITIGNORE
+            .iter()
+            .any(|l| texto.lines().any(|x| x.trim() == *l))
+        {
+            v.push(
+                Accion::nueva(t(&gitignore), "gitignore", "taskcodetwo", Decision::Persona)
+                    .motivo("versionado"),
+            );
+        }
+    }
+    let workflow = principal.join(huella::RUTA_WORKFLOW);
+    if workflow.is_file() {
+        let mut a = Accion::nueva(t(&workflow), "workflow", "taskcodetwo", Decision::Conserva)
+            .motivo("versionado")
+            .orden(format!("git rm {}", huella::RUTA_WORKFLOW));
+        a.decision = Decision::Persona;
+        v.push(a);
+    }
+    // Los rulesets que propone `init` estan en la plataforma: desinstalar no
+    // usa la red ni la toca; si existen, los quita la persona.
+    let config_de_la_2 = config.is_file() && !de_la_016;
+    if config_de_la_2 && crate::git::estado::hay_remoto(g, &principal, NOMBRE)? {
+        for p in crate::plataforma::puertas::modelo() {
+            v.push(
+                Accion::nueva(
+                    p.nombre_completo(),
+                    "ruleset",
+                    "taskcodetwo",
+                    Decision::Persona,
+                )
+                .motivo("si-existe"),
+            );
+        }
     }
     // Hooks del proyecto que nombran tc2: aviso, nunca se editan (C4).
     for nombre in ["settings.json", "settings.local.json"] {
