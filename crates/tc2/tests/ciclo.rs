@@ -433,6 +433,68 @@ fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
     assert_eq!(valor(&out, "worktree"), Some("quitado"), "{out}");
 }
 
+/// C5 (ronda 1, hallazgo 1 de calidad): la rama de la tarea la publica otro
+/// clon y este no la ha visto; el `fetch` previo de `descartar` la trae, el
+/// worktree limpio cuenta como publicado y se quita.
+#[test]
+fn c5_rama_publicada_desde_otro_clon_quita_el_worktree() {
+    let f = Fixture::nueva("ciclo-c5-otro-clon");
+    let (bare, a) = preparar(&f, &["Uno"]);
+    let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
+    assert_eq!(c, Some(0), "{out}");
+    let rama = "feature/task-001-uno";
+    // La persona sigue la tarea en otro clon y publica la rama desde alli.
+    let b = otro_clon(&f, &bare, "b");
+    git(&f, &b, &["switch", "-q", "-c", rama, "origin/develop"]);
+    escribir(&b, "seguido.txt", "desde el otro clon\n");
+    git(&f, &b, &["add", "seguido.txt"]);
+    git(&f, &b, &["commit", "-q", "-m", "seguido"]);
+    git(&f, &b, &["push", "-q", "origin", rama]);
+    // El primero no la ha visto.
+    let remota = format!("refs/remotes/origin/{rama}");
+    assert!(git(&f, &a, &["for-each-ref", &remota]).trim().is_empty());
+    let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "no"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert!(out.starts_with("descartar ok id=TASK-001 "), "{out}");
+    assert_eq!(valor(&out, "worktree"), Some("quitado"), "{out}");
+    assert_eq!(valor(&out, "worktree-motivo"), None, "{out}");
+    assert!(!worktree(&a, "TASK-001").exists());
+    f.crudo(
+        &a,
+        &["rev-parse", "--verify", &format!("refs/heads/{rama}")],
+    );
+}
+
+/// C5 (ronda 1, hallazgo 2 de calidad): descartar justo tras `start`, con la
+/// rama sin publicar, publica el descarte y conserva el worktree
+/// (`sin-publicar`); con HEAD suelto en el worktree, `sin-rama`. La carpeta,
+/// intacta en los dos.
+#[test]
+fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
+    let f = Fixture::nueva("ciclo-c5-sin-publicar");
+    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    for id in ["TASK-001", "TASK-002"] {
+        let (c, out) = tc2(&f, &a, &["start", id]);
+        assert_eq!(c, Some(0), "{out}");
+    }
+    let wt2 = worktree(&a, "TASK-002");
+    git(&f, &wt2, &["checkout", "-q", "--detach"]);
+    for (id, motivo) in [("TASK-001", "sin-publicar"), ("TASK-002", "sin-rama")] {
+        let wt = worktree(&a, id);
+        let antes = std::fs::read_to_string(wt.join("README.md")).unwrap();
+        let (c, out) = tc2(&f, &a, &["descartar", id, "no"]);
+        assert_eq!(c, Some(0), "{out}");
+        assert!(out.starts_with(&format!("descartar ok id={id} ")), "{out}");
+        assert_eq!(valor(&out, "worktree"), Some("conservado"), "{out}");
+        assert_eq!(valor(&out, "worktree-motivo"), Some(motivo), "{out}");
+        assert_eq!(
+            std::fs::read_to_string(wt.join("README.md")).unwrap(),
+            antes
+        );
+        assert!(tarea(&f, &bare, id).contains("estado: \"descartada\""));
+    }
+}
+
 /// C6: la tarea de otra persona da 3 `motivo=de-otra-persona asignado=` sin
 /// publicar nada (en las tres ordenes); sin asignado o propia, `ok`.
 #[test]
