@@ -232,7 +232,7 @@ pub fn redireccion_permitida(destino: &str) -> bool {
 ///
 /// Un cierre de la otra parte a mitad del handshake llega como un fin de
 /// datos (`UnexpectedEof`) que no se distingue de un corte, y se reintenta.
-pub fn es_transitorio(e: &ureq::Error) -> bool {
+pub(crate) fn es_transitorio(e: &ureq::Error) -> bool {
     match e {
         ureq::Error::Timeout(ureq::Timeout::Global) => false,
         ureq::Error::Io(io) => es_transitorio_io(io),
