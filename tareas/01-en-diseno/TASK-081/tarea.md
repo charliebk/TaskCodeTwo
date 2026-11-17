@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-081-f3-10-liberar-y-reasignar-tareas-abandon
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2790273
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -49,3 +49,10 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-17T21:53:28Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-17T22:01:41Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-17T22:01:40Z | diseno | agente:a16270a0169d2167e | 66 | 118729 | 2645939 | 25539 | 49 | 2790273 | - | - |
