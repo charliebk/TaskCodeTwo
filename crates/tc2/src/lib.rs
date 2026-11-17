@@ -15,7 +15,8 @@
 //! maquina, F2-12 y F2-14) y [`desinstalar`] (quitar TaskCodeTwo, F2-14) e
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
-//! [`roadmap`] (el calculo comun y `roadmap`, F3-4). Las capas
+//! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
+//! (`board` y `status`, F3-5). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -38,6 +39,7 @@ pub mod plataforma;
 pub mod roadmap;
 pub mod siguiente;
 pub mod situacion;
+pub mod tablero;
 pub mod tarea;
 pub mod version;
 mod yaml;
@@ -119,6 +121,10 @@ where
         [orden, resto @ ..] if orden == roadmap::NOMBRE => {
             let (json, resto) = con_json(resto);
             roadmap::orden(&resto, json, idioma, &catalogo)
+        }
+        [orden, resto @ ..] if orden == tablero::STATUS || orden == tablero::BOARD => {
+            let (json, resto) = con_json(resto);
+            orden_tablero(orden, &resto, json, idioma)
         }
         [orden, resto @ ..] if orden == version::VERSION => {
             let (json, resto) = con_json(resto);
@@ -269,6 +275,21 @@ fn orden_identidad(args: &[String]) -> Informe {
             ahora: identidad::ahora(),
         },
     )
+}
+
+/// `status` o `board` (F3-5) en la carpeta actual.
+fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Salida {
+    let dir = match tablero::carpeta_actual(orden) {
+        Ok(d) => d,
+        Err(i) => return i.salida_en(json, idioma),
+    };
+    let g = git::Git::nuevo();
+    let e = tablero::Entorno { dir: &dir, git: &g };
+    if orden == tablero::STATUS {
+        tablero::orden_status(args, json, idioma, &e)
+    } else {
+        tablero::orden_board(args, json, idioma, &e)
+    }
 }
 
 /// Catalogo de produccion: reconstruye las operaciones de la rama de estado

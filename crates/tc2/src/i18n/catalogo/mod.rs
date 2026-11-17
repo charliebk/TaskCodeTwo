@@ -14,6 +14,7 @@ pub mod init;
 pub mod plataforma;
 pub mod roadmap;
 pub mod siguiente;
+pub mod tablero;
 
 use super::Texto;
 
@@ -33,6 +34,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         plataforma::TODOS,
         roadmap::TODOS,
         siguiente::TODOS,
+        tablero::TODOS,
     ]
     .into_iter()
     .flatten()

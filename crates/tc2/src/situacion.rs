@@ -32,11 +32,9 @@ impl Ficha {
     /// Ficha de un `tarea.md` leido.
     pub fn de(doc: &Documento) -> Self {
         let (titulo, asignado, rama) = match doc {
-            Documento::Formato1(t, _) => (
-                t.titulo.clone(),
-                t.asignado_a.clone(),
-                Some(t.rama.clone()),
-            ),
+            Documento::Formato1(t, _) => {
+                (t.titulo.clone(), t.asignado_a.clone(), Some(t.rama.clone()))
+            }
             Documento::Formato2(t, _) => (t.titulo.clone(), t.asignado_a.clone(), t.rama.clone()),
         };
         Self {
