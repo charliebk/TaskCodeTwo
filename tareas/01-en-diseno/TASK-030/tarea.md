@@ -1,6 +1,6 @@
 ---
 id: TASK-030
-titulo: "F3-3 next: lo listo para empezar por dependencias y prioridad"
+titulo: "F3-3 tc2 next: lo listo para empezar por dependencias y prioridad"
 tipo: feature
 sprint: 3
 etiquetas: []
@@ -29,8 +29,10 @@ dependencias: [TASK-029]
 Tarea F3-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-2.
 
 ## Criterios de aceptacion
-- [ ] Coincide con el orden del ROADMAP actual de ToolsaWeb
-- [ ] Cumple lo que pide la tarea F3-3 del plan y los requisitos que cita
+- [ ] C1: con la instantanea fija de ToolsaWeb (fixture `crates/tc2/tests/fixtures/toolsaweb-<sha>/` con `tareas.tsv`, `hitos.txt` y `esperado.txt` = linea «Listas para empezar» del `ROADMAP.md` generado por `scripts/grafo-tareas.py` en ese SHA), el nucleo de `tc2 next` da exactamente el mismo vector de listas, en el mismo orden, y `en_marcha` coincide
+- [ ] C2: reglas del nucleo `grafo.rs` con un test por regla: dependencia inexistente (no bloquea, avisa), dependencia descartada (bloquea, avisa), ciclo (atascadas, avisa), dependencia terminada de un hito posterior, IDs con sufijo, hito sin titulo
+- [ ] C3: `tc2 next [--json]` imprime `next ok listas=... en_marcha=... commit=<sha>` en es y en, `--json` valido, sin red funciona sobre la copia del clon y sin rama de estado da `rechazada` (`tests/siguiente.rs`)
+- [ ] C4: un `tarea.md` ilegible no se salta en silencio: sale en `ilegibles=`
 
 ## Transiciones
 
