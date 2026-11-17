@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (rama de estado con push directo del CLI), [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (nombres de rama, merge commit, ramas conservadas, tags `vX.Y.Z`) y [ADR F1-4](F1-4-operaciones-git-y-contrato-de-salida.md) (puerto `Plataforma` y su lista cerrada)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a, D5a y D6a del plan de TASK-006)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
+- Adenda (2026-11-17, TASK-028, D1 de su plan): `init` (F3-1) **no aplica** las puertas, aunque la decisión 1 (`aplicar-puertas` en `init`) y las consecuencias de este ADR lo pedían. Las **propone**: imprime una línea por ruleset `taskcodetwo-*` del modelo neutral con `decision=persona` y la orden que lo aplicará (`tc2 init --aplicar-puertas`), y en `--json` el ruleset de GitHub generado. No hace ninguna escritura en la plataforma; solo lee (`GET /user` y `leer-puertas`). Motivo: los rulesets exigen los checks `verificacion`, `revision-ia` y `carril`, que no existen hasta F5-1 y F6, y el `integration_id` real de F6-1. Aplicados hoy, bloquearían todos los PR. La operación `aplicar-puertas` del puerto y su opción en `init` pasan a TASK-118, tras F5-1, F6 y F6-1.
 
 ## Contexto
 
