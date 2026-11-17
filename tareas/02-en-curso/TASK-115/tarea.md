@@ -68,19 +68,33 @@ Suposiciones del plan comprobadas:
   transitorios.
 
 Evidencia del «10 de 10» (bucle bash, `cargo test -p tc2 --test <t> -q`,
-en serie y sin otro cargo; 2026-11-17, commit cf24f2c):
+en serie y sin otro cargo; 2026-11-17, commit 1e81d0e, con el cerrojo
+`comun::http_mock::serie()`):
+
+- `plataforma`: **10 de 10**. Tiempos (s, del bucle; entre parentesis el
+  `finished in` de libtest): 5,9 (5,02) / 5,8 (4,99) / 5,5 (4,78) /
+  5,6 (4,79) / 6,1 (5,20) / 5,3 (4,64) / 5,5 (4,81) / 5,3 (4,58) /
+  5,2 (4,55) / 5,2 (4,53); 55,2 s en total.
+- `plataforma_gitlab`: **10 de 10**. Tiempos (s): 4,6 (3,80) / 6,3 (5,27) /
+  5,6 (4,74) / 4,5 (3,81) / 4,5 (3,85) / 6,9 (5,93) / 8,2 (6,59) /
+  7,2 (5,71) / 5,3 (4,30) / 3,9 (3,28); 57,0 s en total.
+- Ninguna vuelta con paradas de ~10 s.
+
+Serie anterior, sin el cerrojo (commit cf24f2c, mismas condiciones), que
+llevo a ponerlo:
 
 - `plataforma`: **9 de 10**. Tiempos (s): 3,3 / 52,1 (FALLA) / 43,7 / 3,1 /
   13,4 / 3,1 / 13,2 / 13,5 / 43,9 / 74,8. La 2 cae con `sinred` a la vez
   en tres tests (`errores_dirigidos_a_la_persona`,
   `bateria_de_la_poc_m_e_idempotencia`, `el_envoltorio_rechaza_antes_de_la_red`).
-- `plataforma_gitlab`: **10 de 10**. Tiempos (s): 13,0 / 2,3 / 2,3 / 12,6 /
-  42,8 / 2,5 / 2,1 / 12,2 / 2,4 / 12,5 (104,7 s en total).
-- Linea base con el mock anterior (ee0dc13), mismas condiciones,
-  `plataforma`: 10 de 10, pero 9 de 10 vueltas con paradas: 23,4 / 3,0 /
-  23,3 / 13,1 / 23,3 / 23,1 / 13,3 / 33,3 / 13,2 / 23,3 s.
+- `plataforma_gitlab`: 10 de 10, con paradas: 13,0 / 2,3 / 2,3 / 12,6 /
+  42,8 / 2,5 / 2,1 / 12,2 / 2,4 / 12,5 s.
+- Linea base con el mock anterior (ee0dc13), sin cerrojo, `plataforma`:
+  10 de 10, pero 9 de 10 vueltas con paradas: 23,4 / 3,0 / 23,3 / 13,1 /
+  23,3 / 23,1 / 13,3 / 33,3 / 13,2 / 23,3 s.
 
-Causa de las paradas (investigada, no corregida): no es el FIN del mock.
+Causa de las paradas (investigada; en el repo solo se evita, no se corrige):
+no es el FIN del mock.
 Con trazas temporales en el mock y en `Cliente::llamar`, dos peticiones de
 tests distintos se quedan paradas a la vez ~10 s (una ya aceptada por el
 servidor sin que llegue la peticion; otra sin llegar a conectar) y se
@@ -91,13 +105,17 @@ vueltas en ~4 s sin paradas; con clientes Python (`python.exe`) en paralelo,
 en pasivo), coherente con el filtrado de red de un `.exe` sin firma ya visto
 en TASK-027. El adaptador no reintenta: una parada de 10 s solo retrasa, y
 una llamada falla cuando acumula mas de 30 s (`ESPERA_TOTAL`). El arreglo
-del mock (sin FIN) es necesario pero no basta para el «10 de 10» en esta
-maquina; el criterio C4 queda cumplido en su test determinista y NO en la
-parte del «10 de 10» de `plataforma`.
+del mock (sin FIN) es necesario pero no bastaba para el «10 de 10» en esta
+maquina. Decision del coordinador: poner en serie, dentro del repo, los
+tests que usan el mock (`comun::http_mock::serie()`, cogido al principio de
+cada test de `plataforma.rs`, `plataforma_gitlab.rs` y del test del mock),
+sin `--test-threads=1` global ni tocar el antivirus ni la configuracion del
+sistema (eso lo decide Carlos). Con el cerrojo, C4 queda cumplido: test
+determinista y los dos «10 de 10» de arriba.
 
 ## Autorrevision
 
-- rust-wasm-reviewer — c99fb99
+- rust-wasm-reviewer — 1e81d0e
 
 ## Transiciones
 
