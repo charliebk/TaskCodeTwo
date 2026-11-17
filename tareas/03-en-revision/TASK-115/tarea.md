@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
 tokens_implementacion: 28030245
-tokens_revision: null
+tokens_revision: 2741984
 creado: 2026-11-16
 actualizado: 2026-11-17
 dependencias: []
@@ -132,3 +132,4 @@ determinista y los dos «10 de 10» de arriba.
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-17T04:42:50Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 14 | 11853 | 4062700 | 3225 | 0 | 4077792 | - | - |
 | 2026-11-17T04:42:50Z | implementacion | agente:ada497c0c22a4f5e3 | 256 | 270586 | 23580049 | 101562 | 34 | 23952453 | - | - |
+| 2026-11-17T04:52:49Z | revision | agente:a8f82e02ec6d4ece5 | 52 | 127789 | 2595389 | 18754 | 5 | 2741984 | 1 | rust-wasm-reviewer |
