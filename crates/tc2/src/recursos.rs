@@ -304,14 +304,19 @@ pub fn evaluar_recursos(inv: &Inventario, m: &Manifiesto, momento: &Momento) -> 
         return InformeRecursos { recursos: v };
     }
 
-    // Conveniente: avisa y sigue (engram no es obligatorio).
-    for (id, tipo, esta) in [
-        ("engram", "mcp", hay_mcp(inv, m, "engram")),
-        ("context7", "mcp", hay_mcp(inv, m, "context7")),
-        ("rtk", "ejecutable", m.ejecutables.contains("rtk")),
+    // Conveniente: avisa y sigue (engram no es obligatorio). Los MCP salen
+    // de lo leido (settings, `.mcp.json` y plugins): con el inventario
+    // incompleto, no encontrarlos no dice que falten (C8). `rtk` se busca en
+    // el PATH, que no depende del inventario.
+    for (id, tipo, esta, del_inventario) in [
+        ("engram", "mcp", hay_mcp(inv, m, "engram"), true),
+        ("context7", "mcp", hay_mcp(inv, m, "context7"), true),
+        ("rtk", "ejecutable", m.ejecutables.contains("rtk"), false),
     ] {
         v.push(if esta {
             Recurso::nuevo(id, tipo, Nivel::Conveniente, Estado::Ok)
+        } else if del_inventario && !m.completo {
+            Recurso::nuevo(id, tipo, Nivel::Conveniente, Estado::NoComprobado).por(INCOMPLETO)
         } else {
             Recurso::nuevo(id, tipo, Nivel::Conveniente, Estado::Aviso)
                 .por(NO_INSTALADO)
@@ -472,7 +477,7 @@ mod tests {
         assert_eq!(
             i.recursos
                 .iter()
-                .filter(|r| r.comprobacion == Some(INCOMPLETO))
+                .filter(|r| r.nivel == Nivel::Necesario && r.comprobacion == Some(INCOMPLETO))
                 .count(),
             2
         );
@@ -486,5 +491,32 @@ mod tests {
             i.recursos.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
             ["taskcodetwo", "otro:x"]
         );
+    }
+
+    /// MEN-6 (ronda 1): con el inventario incompleto, engram y context7 no
+    /// encontrados salen `no-comprobado inventario-incompleto` (no `aviso
+    /// no-instalado`); rtk, que se busca en el PATH, sigue siendo `aviso`.
+    /// Si estan, `ok` aunque falte algo por leer.
+    #[test]
+    fn convenientes_con_el_inventario_incompleto() {
+        let m = Manifiesto {
+            completo: false,
+            ..manifiesto(Vec::new())
+        };
+        let i = evaluar_recursos(&inventario(&[PLUGIN], &[]), &m, &Momento::Doctor);
+        assert_eq!(
+            lineas(&i)[1..],
+            [
+                "engram mcp conveniente NoComprobado inventario-incompleto -",
+                "context7 mcp conveniente NoComprobado inventario-incompleto -",
+                "rtk ejecutable conveniente Aviso no-instalado instalar-rtk",
+            ]
+        );
+        let m = Manifiesto {
+            mcp: BTreeSet::from(["engram".to_owned()]),
+            ..m
+        };
+        let i = evaluar_recursos(&inventario(&[PLUGIN], &[]), &m, &Momento::Doctor);
+        assert_eq!(i.recursos[1].estado, Estado::Ok);
     }
 }

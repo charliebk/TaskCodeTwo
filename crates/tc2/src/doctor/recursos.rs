@@ -91,6 +91,29 @@ fn sin_leer(id: &str, i: &Informe) -> Hallazgo {
     )
 }
 
+/// Si las recomendaciones de una tarea en `estado` cuentan (D1a): las de
+/// una tarea terminada o descartada no.
+fn cuenta_la_tarea(estado: &str) -> bool {
+    estado != TERMINADA && estado != DESCARTADA
+}
+
+/// Un elemento de `recursos:` de la configuracion como recomendado. Un
+/// `tipo` que este binario no reconoce (p. ej. uno nuevo que ya acepte la
+/// validacion de la configuracion) no se descarta en silencio: sale
+/// `no-comprobado motivo=tipo-desconocido` (C8: nunca `ok` sin mirar).
+fn de_config(id: String, tipo: &str) -> Result<Recomendado, Hallazgo> {
+    match TipoRecurso::de_texto(tipo) {
+        Some(tipo) => Ok(Recomendado {
+            id,
+            tipo,
+            fuente: Fuente::Config,
+        }),
+        None => Err(Hallazgo::nuevo(AREA, id, Estado::NoComprobado)
+            .motivo("tipo-desconocido")
+            .con("tipo", tipo.to_owned())),
+    }
+}
+
 /// Lo que recomiendan `recursos:` de la configuracion y `roles.*` de las
 /// tareas no terminadas (D1a), con lo que no se pudo leer.
 fn recomendados(e: &Entorno<'_>) -> (Vec<Recomendado>, Vec<Hallazgo>) {
@@ -99,12 +122,9 @@ fn recomendados(e: &Entorno<'_>) -> (Vec<Recomendado>, Vec<Hallazgo>) {
     match crate::config::de_base(e.git, e.dir) {
         Ok(c) => {
             for r in c.recursos {
-                if let Some(tipo) = TipoRecurso::de_texto(&r.tipo) {
-                    v.push(Recomendado {
-                        id: r.id,
-                        tipo,
-                        fuente: Fuente::Config,
-                    });
+                match de_config(r.id, &r.tipo) {
+                    Ok(x) => v.push(x),
+                    Err(h) => hs.push(h),
                 }
             }
         }
@@ -134,7 +154,7 @@ fn recomendados(e: &Entorno<'_>) -> (Vec<Recomendado>, Vec<Hallazgo>) {
         let Ok(Documento::Formato2(t, _)) = l else {
             continue;
         };
-        if t.estado == TERMINADA || t.estado == DESCARTADA {
+        if !cuenta_la_tarea(&t.estado) {
             continue;
         }
         let fuente = Fuente::Tarea(t.id.clone());
@@ -289,6 +309,37 @@ mod tests {
         assert_eq!(
             hallazgo(&r).linea(),
             "recursos fantasma aviso motivo=no-instalado tipo=skill tarea=TASK-001 nivel=estorba version=0.16.1 arreglo=instalar-skill-o-quitarla-de-recursos"
+        );
+    }
+
+    /// H5 (ronda 1): las recomendaciones de una tarea terminada o
+    /// descartada no cuentan; las de cualquier otro estado, si.
+    #[test]
+    fn una_tarea_cerrada_no_recomienda() {
+        assert!(!cuenta_la_tarea(TERMINADA));
+        assert!(!cuenta_la_tarea(DESCARTADA));
+        for e in ["planificada", "en-diseno", "en-curso", "en-revision"] {
+            assert!(cuenta_la_tarea(e), "{e}");
+        }
+    }
+
+    /// MEN-5 (ronda 1): un `tipo` de `recursos:` que el binario no reconoce
+    /// sale `no-comprobado` con el tipo, no se descarta (ni sale `ok`).
+    #[test]
+    fn un_tipo_desconocido_no_se_descarta() {
+        let r = de_config("x".to_owned(), "skill");
+        assert!(
+            r.as_ref().is_ok_and(|r| r.tipo == TipoRecurso::Skill
+                && r.id == "x"
+                && r.fuente == Fuente::Config),
+            "{r:?}"
+        );
+        assert_eq!(
+            de_config("mi-plantilla".to_owned(), "plantilla")
+                .map_err(|h| h.linea())
+                .err()
+                .as_deref(),
+            Some("recursos mi-plantilla no-comprobado motivo=tipo-desconocido tipo=plantilla")
         );
     }
 }
