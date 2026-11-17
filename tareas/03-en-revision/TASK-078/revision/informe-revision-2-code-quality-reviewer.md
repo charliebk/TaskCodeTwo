@@ -2,7 +2,7 @@
 
 - Commit revisado: b0f38bd9378c4b8d05c63255a0ec7c3e89f834ab
 - Revisor: code-quality-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-078 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 Propuesta del revisor: **aprobada** (0 hallazgos nuevos; IMP-1 e IMP-2 corregidos).
 

@@ -2,7 +2,7 @@
 
 - Commit revisado: b0f38bd9378c4b8d05c63255a0ec7c3e89f834ab
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-078 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 Veredicto propuesto por el revisor: aprobada (con tres notas MENORES al final, que no abren ronda).
 
