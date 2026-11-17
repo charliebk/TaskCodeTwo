@@ -13,7 +13,12 @@
 //! - Actividad (D2a): la mas reciente de la ultima fila de `## Transiciones`
 //!   (la pausa no exime) y del ultimo commit de `origin/<rama>`, que llega
 //!   de fuera ya traido (la rama no esta en la rama de estado). Sin ninguna
-//!   de las dos no se sabe y no frena.
+//!   de las dos no se sabe y no frena. Es [`actividad_conocida`], la misma
+//!   regla con la que `status` y `board` marcan las inactivas.
+//! - Una fecha de mas de [`MARGEN_FUTURO`] por delante de `ahora` (un reloj
+//!   adelantado) no se sabe: no cuenta, para que no bloquee la tarea hasta
+//!   esa fecha mas el umbral (H2 de la ronda 1). Dentro del margen cuenta
+//!   como de hoy.
 //! - [`Liberar`] (D6a): `en-curso` pasa a `planificada`; `en-diseno` y
 //!   `planificada` se quedan; `asignado_a: null`; `rama` y `plan_aprobado`,
 //!   igual. `en-revision` se rechaza (tiene PR: se reasigna). Una ya libre,
@@ -40,6 +45,25 @@ pub const REASIGNAR: &str = "reasignar";
 
 /// Dias sin actividad por defecto (clave `dias_sin_actividad`, D1a).
 pub const DIAS_POR_DEFECTO: u64 = 7;
+
+/// Cuanto puede ir una fecha por delante de `ahora` (relojes algo
+/// desajustados) y seguir contando como actividad: un dia.
+pub const MARGEN_FUTURO: u64 = 86_400;
+
+/// La actividad de una tarea (F3-10, D2a), la unica regla para `liberar`,
+/// `reasignar`, `status` y `board`: el instante mas reciente entre la
+/// ultima fila de sus transiciones (tambien `pausa` y `reanudar`: la pausa
+/// no exime) y el ultimo commit de `origin/<rama>`, sin las fechas de mas
+/// de [`MARGEN_FUTURO`] por delante de `ahora`. Sin ninguna, `None`: no se
+/// sabe.
+pub fn actividad_conocida(
+    ultima_transicion: Option<u64>,
+    commit_rama: Option<u64>,
+    ahora: u64,
+) -> Option<u64> {
+    let conocida = |x: Option<u64>| x.filter(|&x| x <= ahora.saturating_add(MARGEN_FUTURO));
+    conocida(ultima_transicion).max(conocida(commit_rama))
+}
 
 /// Estado al que vuelve una tarea en curso liberada.
 const PLANIFICADA: &str = "planificada";
@@ -112,8 +136,9 @@ impl Dejar {
         }
         *self.base.dueno.borrow_mut() = a.login().map(str::to_owned);
         if let Some(login) = a.login() {
-            let actividad = cuerpo.ultima_fecha().max(self.actividad_rama);
-            if let Some(k) = actividad.map(|x| dias_sin_actividad(x, self.base.ahora))
+            let ahora = self.base.ahora;
+            let actividad = actividad_conocida(cuerpo.ultima_fecha(), self.actividad_rama, ahora);
+            if let Some(k) = actividad.map(|x| dias_sin_actividad(x, ahora))
                 && k < self.dias
             {
                 *self.activa.borrow_mut() = Some(k);
@@ -525,10 +550,46 @@ mod tests {
             // fila sea vieja.
             let (m, dias, _) = probar(&vieja, reasignar, Some(AHORA - 2 * DIA));
             assert_eq!((m.as_str(), dias), ("activa", Some(2)));
-            // Una actividad del futuro cuenta como de hoy.
-            let (m, dias, _) = probar(&vieja, reasignar, Some(AHORA + 30 * DIA));
+            // Dentro del margen, una fecha por delante cuenta como de hoy.
+            let (m, dias, _) = probar(&vieja, reasignar, Some(AHORA + MARGEN_FUTURO));
             assert_eq!((m.as_str(), dias), ("activa", Some(0)));
+            // Mas alla (reloj adelantado) no se sabe: no bloquea y cuenta
+            // la fila vieja (H2 de la ronda 1).
+            let (m, dias, _) = probar(&vieja, reasignar, Some(AHORA + 30 * DIA));
+            assert_eq!((m.as_str(), dias), ("ok", None));
         }
+    }
+
+    /// H2 de la ronda 1: la regla de actividad, con las fechas de mas de
+    /// [`MARGEN_FUTURO`] por delante de `ahora` como desconocidas.
+    #[test]
+    fn actividad_conocida_sin_fechas_del_futuro() {
+        let (fila, rama) = (AHORA - 9 * DIA, AHORA - 2 * DIA);
+        assert_eq!(actividad_conocida(Some(fila), None, AHORA), Some(fila));
+        assert_eq!(
+            actividad_conocida(Some(fila), Some(rama), AHORA),
+            Some(rama)
+        );
+        assert_eq!(
+            actividad_conocida(Some(rama), Some(fila), AHORA),
+            Some(rama)
+        );
+        assert_eq!(actividad_conocida(None, None, AHORA), None);
+        let borde = AHORA + MARGEN_FUTURO;
+        assert_eq!(
+            actividad_conocida(Some(fila), Some(borde), AHORA),
+            Some(borde)
+        );
+        let lejos = borde + 1;
+        assert_eq!(
+            actividad_conocida(Some(fila), Some(lejos), AHORA),
+            Some(fila)
+        );
+        assert_eq!(
+            actividad_conocida(Some(lejos), Some(rama), AHORA),
+            Some(rama)
+        );
+        assert_eq!(actividad_conocida(Some(lejos), None, AHORA), None);
     }
 
     /// C6 (unitario): el agente no quita a nadie una tarea aunque haya

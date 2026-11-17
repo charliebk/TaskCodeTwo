@@ -159,10 +159,21 @@ fn destino_de(e: &Entorno<'_>, login: &str) -> Result<Asignado, Informe> {
 }
 
 /// Umbral de dias sin actividad (clave `dias_sin_actividad` de la
-/// configuracion de la base); sin configuracion o si no vale, el de por
-/// defecto (D1a).
-pub fn dias_sin_actividad(g: &Git, dir: &Path) -> u64 {
-    crate::config::de_base(g, dir).map_or(DIAS_POR_DEFECTO, |c| u64::from(c.dias_sin_actividad))
+/// configuracion de la base, D1a). Sin base o sin configuracion, el de por
+/// defecto; una configuracion que no vale (o que no se pudo leer) falla con
+/// su informe a nombre de `op`, como `identidad::clave_plataforma`:
+/// no se cae en silencio al de por defecto (M-4 de la ronda 1).
+pub fn umbral_de_inactividad(g: &Git, dir: &Path, op: &str) -> Result<u64, Informe> {
+    match crate::config::de_base(g, dir) {
+        Ok(c) => Ok(u64::from(c.dias_sin_actividad)),
+        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
+            Ok(DIAS_POR_DEFECTO)
+        }
+        Err(mut i) => {
+            op.clone_into(&mut i.comando);
+            Err(i)
+        }
+    }
 }
 
 /// Las dos operaciones, para tratarlas igual.
@@ -212,7 +223,7 @@ fn paso_dejar(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Result<Inform
             .copied(),
         None => None,
     };
-    let dias = dias_sin_actividad(g, e.dir);
+    let dias = umbral_de_inactividad(g, e.dir, nombre)?;
     // Si se la queda quien la lanza, su worktree sigue siendo suyo.
     let para_mi = a
         .as_ref()
@@ -418,4 +429,195 @@ fn de_la_orden(mut i: Informe, nombre: &str, id: &str) -> Informe {
         i = i.con("pendiente", "no");
     }
     i
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identidad::{Cuenta, Quien};
+    use crate::plataforma::Proveedor;
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    type R<T> = Result<T, Box<dyn std::error::Error>>;
+
+    /// Configuracion de git aislada de la del usuario.
+    const CONFIG: &str = "[user]\n\tname = Prueba\n\temail = prueba@example.com\n[core]\n\tautocrlf = false\n[init]\n\tdefaultBranch = develop\n[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n";
+
+    const PERSONAS: &str =
+        "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
+
+    const DIA: u64 = 86_400;
+
+    /// Carpeta temporal propia del test: se borra al acabar.
+    struct Carpeta(PathBuf);
+
+    impl Drop for Carpeta {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn entorno(raiz: &Path) -> Vec<(OsString, OsString)> {
+        vec![
+            ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
+            (
+                "GIT_CONFIG_GLOBAL".into(),
+                raiz.join("gitconfig").into_os_string(),
+            ),
+        ]
+    }
+
+    /// git de sistema para preparar el escenario; devuelve stdout recortado.
+    fn sh(raiz: &Path, dir: &Path, args: &[&str]) -> R<String> {
+        let s = Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .envs(entorno(raiz))
+            .env("LC_ALL", "C")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()?;
+        if !s.status.success() {
+            return Err(format!("git {args:?}: {}", String::from_utf8_lossy(&s.stderr)).into());
+        }
+        Ok(String::from_utf8_lossy(&s.stdout).trim().to_owned())
+    }
+
+    fn persona(id: u64, login: &str) -> Quien {
+        Quien::Persona(Cuenta {
+            proveedor: Proveedor::GitHub,
+            id,
+            login: login.to_owned(),
+        })
+    }
+
+    fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
+        None
+    }
+
+    /// M-2 de la ronda 1: quien se reasigna a si misma la tarea de otra
+    /// persona (inactiva, en un terminal) se la queda con su worktree de
+    /// este clon: no se rechaza `sin-publicar` aunque tenga trabajo sin
+    /// publicar (`&& !para_mi`) ni se intenta quitar (`if para_mi`).
+    #[test]
+    fn reasignarse_a_si_misma_no_toca_su_worktree() -> R<()> {
+        let raiz = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("ciclo-para-mi-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(&raiz)?;
+        let _borrar = Carpeta(raiz.clone());
+        std::fs::write(raiz.join("gitconfig"), CONFIG)?;
+        sh(
+            &raiz,
+            &raiz,
+            &["init", "-q", "--bare", "-b", "develop", "remoto.git"],
+        )?;
+        sh(&raiz, &raiz, &["init", "-q", "-b", "develop", "clon"])?;
+        let (bare, clon) = (raiz.join("remoto.git"), raiz.join("clon"));
+        std::fs::create_dir_all(clon.join(".taskcode"))?;
+        std::fs::write(clon.join(crate::plataforma::personas::RUTA), PERSONAS)?;
+        sh(&raiz, &clon, &["add", "."])?;
+        sh(&raiz, &clon, &["commit", "-q", "-m", "personas"])?;
+        sh(&raiz, &clon, &["branch", "main"])?;
+        let url = bare.to_str().ok_or("ruta no UTF-8")?;
+        sh(&raiz, &clon, &["remote", "add", "origin", url])?;
+        sh(&raiz, &clon, &["push", "-q", "origin", "develop", "main"])?;
+        sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
+        let g = Git::nuevo().con_entorno(entorno(&raiz));
+        // TASK-001, de beto y empezada en este clon.
+        let entrada = crate::alta::entrada_de_args(&["Uno".to_owned()]).map_err(|i| i.linea())?;
+        let alta = crate::alta::Alta::con_entrada(entrada);
+        let c = estado::Contexto::nuevo(&g, &clon, &sin_catalogo, None);
+        let i = estado::transaccion(&c, &alta);
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+        let ahora = crate::identidad::ahora();
+        let beto = || -> Result<Quien, Informe> { Ok(persona(1002, "beto")) };
+        let e = Entorno {
+            dir: &clon,
+            git: &g,
+            quien: &beto,
+            catalogo: &sin_catalogo,
+            ahora,
+        };
+        let i = crate::toma::start_en(&e, "TASK-001");
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+        // Trabajo sin publicar en el worktree.
+        let wt = clon.join(git::CARPETA_WORKTREES).join("TASK-001");
+        std::fs::write(wt.join("a-medias.txt"), "a medias\n")?;
+        // Ana, en un terminal y pasado el umbral, se la reasigna a si misma.
+        let ana = || -> Result<Quien, Informe> { Ok(persona(1001, "ana")) };
+        let e = Entorno {
+            quien: &ana,
+            ahora: ahora + 30 * DIA,
+            ..e
+        };
+        let i = dejar_en(&e, "TASK-001", Some("ana"));
+        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+        assert_eq!(i.valor("asignado"), Some("ana"), "{}", i.linea());
+        assert_eq!(i.valor("asignado-anterior"), Some("beto"), "{}", i.linea());
+        assert_eq!(i.valor("worktree"), None, "{}", i.linea());
+        assert!(wt.join("a-medias.txt").is_file());
+        Ok(())
+    }
+
+    /// M-4 de la ronda 1: sin configuracion, el umbral de por defecto; con
+    /// una que no vale, el rechazo de la configuracion a nombre de la orden
+    /// (no el de por defecto en silencio); con una valida, su valor.
+    #[test]
+    fn umbral_sin_config_invalida_o_valida() -> R<()> {
+        let raiz = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("ciclo-umbral-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(&raiz)?;
+        let _borrar = Carpeta(raiz.clone());
+        std::fs::write(raiz.join("gitconfig"), CONFIG)?;
+        sh(
+            &raiz,
+            &raiz,
+            &["init", "-q", "--bare", "-b", "develop", "remoto.git"],
+        )?;
+        sh(&raiz, &raiz, &["init", "-q", "-b", "develop", "clon"])?;
+        let (bare, clon) = (raiz.join("remoto.git"), raiz.join("clon"));
+        std::fs::write(clon.join("README.md"), "linea 1\n")?;
+        sh(&raiz, &clon, &["add", "."])?;
+        sh(&raiz, &clon, &["commit", "-q", "-m", "inicial"])?;
+        let url = bare.to_str().ok_or("ruta no UTF-8")?;
+        sh(&raiz, &clon, &["remote", "add", "origin", url])?;
+        sh(&raiz, &clon, &["push", "-q", "origin", "develop"])?;
+        sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
+        let g = Git::nuevo().con_entorno(entorno(&raiz));
+        assert_eq!(
+            umbral_de_inactividad(&g, &clon, LIBERAR).map_err(|i| i.linea()),
+            Ok(DIAS_POR_DEFECTO)
+        );
+        let publicar = |texto: &str| -> R<()> {
+            std::fs::create_dir_all(clon.join(".taskcode"))?;
+            std::fs::write(clon.join(crate::config::RUTA), texto)?;
+            sh(&raiz, &clon, &["add", "."])?;
+            sh(&raiz, &clon, &["commit", "-q", "-m", "config"])?;
+            sh(&raiz, &clon, &["push", "-q", "origin", "develop"])?;
+            sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
+            Ok(())
+        };
+        publicar("---\nformato: 2\ndias_sin_actividad: 0\n")?;
+        let i = umbral_de_inactividad(&g, &clon, REASIGNAR)
+            .err()
+            .ok_or("acepto 0")?;
+        assert_eq!(i.comando, REASIGNAR, "{}", i.linea());
+        assert_eq!(i.resultado, Resultado::Rechazada, "{}", i.linea());
+        assert!(
+            !matches!(i.valor("motivo"), None | Some("sin-base" | "sin-config")),
+            "{}",
+            i.linea()
+        );
+        publicar("---\nformato: 2\ndias_sin_actividad: 3\n")?;
+        assert_eq!(
+            umbral_de_inactividad(&g, &clon, LIBERAR).map_err(|i| i.linea()),
+            Ok(3)
+        );
+        Ok(())
+    }
 }

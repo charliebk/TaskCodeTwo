@@ -163,7 +163,8 @@ pub fn tablero(s: &Situacion, personas: &Personas, commit: &str) -> Tablero {
 
 /// Las tareas en curso o en revision de `t` sin actividad desde hace
 /// `umbral` dias o mas en `ahora` (F3-10, D2a): la actividad es la de
-/// [`situacion::actividad`] con el commit de `origin/<rama>` de `fechas`
+/// [`crate::ciclo::liberar::actividad_conocida`] (la misma regla que
+/// `liberar` y `reasignar`) con el commit de `origin/<rama>` de `fechas`
 /// tal como la conoce el clon (sin traer: avisa de mas, nunca de menos).
 /// Una tarea sin ninguna fecha no se marca: no se sabe.
 pub fn inactivas(
@@ -179,7 +180,9 @@ pub fn inactivas(
             continue;
         };
         let rama = ficha.rama.as_ref().and_then(|r| fechas.get(r)).copied();
-        if let Some(a) = situacion::actividad(ficha, rama) {
+        if let Some(a) =
+            crate::ciclo::liberar::actividad_conocida(ficha.ultima_transicion, rama, ahora)
+        {
             let d = situacion::dias_sin_actividad(a, ahora);
             if d >= umbral {
                 v.insert(f.id.clone(), d);
@@ -447,8 +450,11 @@ fn tablero_en(g: &Git, dir: &Path, op: &str, con_local: bool) -> Result<Leido, I
     t.sincronizado = frescura.en_texto();
     // F3-10: sin red y sin escribir nada; un fallo deja sin marcas.
     let fechas = crate::git::fechas_de_ramas(g, dir, op).unwrap_or_default();
-    let umbral = crate::ciclo::dias_sin_actividad(g, dir);
-    t.inactivas = inactivas(&s, &t, &fechas, ahora, umbral);
+    // Una configuracion que no vale tampoco marca (no cae al umbral de por
+    // defecto); `doctor` la senala.
+    if let Ok(umbral) = crate::ciclo::umbral_de_inactividad(g, dir, op) {
+        t.inactivas = inactivas(&s, &t, &fechas, ahora, umbral);
+    }
     let ya_no_tuyas = ya_no_tuyas(g, dir, op, &s, &personas);
     Ok(Leido {
         tablero: t,
@@ -1063,6 +1069,20 @@ mod tests {
             [("TASK-002".to_owned(), 16)]
         );
         assert!(inactivas(&s, &t, &fechas, ahora, 17).is_empty());
+        // M-1 de la ronda 1: justo el umbral ya cuenta (`d >= umbral`).
+        assert_eq!(
+            inactivas(&s, &t, &fechas, ahora, 16)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [("TASK-002".to_owned(), 16)]
+        );
+        // H2: un commit de la rama de mas de un dia por delante no se sabe y
+        // no la hace activa; dentro del margen, si.
+        let mut futuro = fechas.clone();
+        futuro.insert("feature/b".to_owned(), ahora + 30 * 86_400);
+        assert_eq!(inactivas(&s, &t, &futuro, ahora, 7).len(), 1);
+        futuro.insert("feature/b".to_owned(), ahora + 3600);
+        assert!(inactivas(&s, &t, &futuro, ahora, 7).is_empty());
         let t = Tablero {
             inactivas: [("TASK-002".to_owned(), 16)].into(),
             ..de_prueba()
