@@ -508,34 +508,58 @@ fn ultima_linea(bytes: &[u8]) -> Option<String> {
 /// 1 MiB cada uno, para que un hijo que escribe mucho no se bloquee.
 ///
 /// El plazo vale para todo, tambien para leer la salida: si el hijo deja un
-/// nieto con las tuberias heredadas (un `.bat` que lanza otro proceso), los
-/// hilos lectores pueden seguir bloqueados despues de que el hijo acabe o se
-/// mate. No se les espera mas alla del plazo: se devuelve lo leido hasta
-/// entonces y los hilos acaban solos cuando el nieto cierre las tuberias (o
-/// con el proceso). Al nieto no se le mata: no hay una forma portable de
-/// matar el arbol sin dependencias.
+/// nieto con las tuberias heredadas (un `.bat` que lanza otro proceso), las
+/// tuberias no se cierran al acabar el hijo y los hilos lectores siguen
+/// bloqueados. Entonces se espera al cierre hasta que se cumple el plazo (no
+/// mas) y se devuelve lo leido hasta ese momento: la salida del hijo, que
+/// acabo, no se pierde, pero la llamada tarda el plazo entero. Los hilos
+/// acaban solos cuando el nieto cierre las tuberias (o con el proceso). Al
+/// nieto no se le mata: no hay una forma portable de matar el arbol sin
+/// dependencias.
 pub(crate) fn ejecutar_con_limite(
     mut cmd: Command,
     limite: Duration,
 ) -> std::io::Result<Option<Output>> {
     use std::io::Read;
-    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex, PoisonError, mpsc};
+    const MAXIMO: usize = 1024 * 1024;
     let mut hijo = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
+    // Cada hilo va dejando lo leido en un buffer compartido y avisa al ver
+    // el final de la tuberia; quien espera se lleva lo que haya, acabe o no.
     let leer = |p: Option<Box<dyn Read + Send>>| {
-        let (tx, rx) = mpsc::channel();
+        let leido: Arc<Mutex<Vec<u8>>> = Arc::default();
+        let (tx, rx) = mpsc::channel::<()>();
+        let destino = leido.clone();
         std::thread::spawn(move || {
-            let mut v = Vec::new();
-            if let Some(p) = p {
-                let _ = p.take(1024 * 1024).read_to_end(&mut v);
+            if let Some(mut p) = p {
+                let mut trozo = [0u8; 8192];
+                loop {
+                    let n = match p.read(&mut trozo) {
+                        Ok(0) => break,
+                        Ok(n) => n,
+                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                        Err(_) => break,
+                    };
+                    let mut v = destino.lock().unwrap_or_else(PoisonError::into_inner);
+                    let cabe = MAXIMO.saturating_sub(v.len()).min(n);
+                    v.extend_from_slice(trozo.get(..cabe).unwrap_or_default());
+                    if v.len() >= MAXIMO {
+                        break;
+                    }
+                }
             }
             // Si nadie espera ya (plazo cumplido), se descarta.
-            let _ = tx.send(v);
+            let _ = tx.send(());
         });
-        rx
+        (leido, rx)
+    };
+    let recoger = |(leido, rx): (Arc<Mutex<Vec<u8>>>, mpsc::Receiver<()>), espera: Duration| {
+        let _ = rx.recv_timeout(espera);
+        std::mem::take(&mut *leido.lock().unwrap_or_else(PoisonError::into_inner))
     };
     let out = leer(
         hijo.stdout
@@ -572,8 +596,8 @@ pub(crate) fn ejecutar_con_limite(
         fin.saturating_duration_since(Instant::now())
             .max(Duration::from_millis(100))
     };
-    let stdout = out.recv_timeout(restante()).unwrap_or_default();
-    let stderr = err.recv_timeout(restante()).unwrap_or_default();
+    let stdout = recoger(out, restante());
+    let stderr = recoger(err, restante());
     Ok(status.map(|status| Output {
         status,
         stdout,
@@ -597,18 +621,19 @@ fn fallo_de_escritura(ruta: &Path, tipo: std::io::ErrorKind, error: &str) -> Inf
         )
 }
 
-/// Baja el binario a `fichero` y, ante un fallo de transporte transitorio
-/// (no conecta, la conexion se corta antes o despues de las cabeceras,
-/// tiempo agotado), lo vacia y lo intenta una vez mas. Son unos MiB por una
-/// red que puede fallar a medias; y en una maquina de desarrollo con Windows
-/// se ha visto (TASK-027) que la red local corta a veces a los ~19 s las
-/// descargas de mas de ~450 KB. No se reintentan los fallos que se
-/// repetirian igual: 4xx, 5xx, TLS, una redireccion no permitida, el limite
-/// de tamano y una respuesta invalida.
 /// Pausa antes del reintento de la descarga.
 const PAUSA_REINTENTO: Duration = Duration::from_secs(1);
 
-fn bajar_con_un_reintento(
+/// Baja el binario a `fichero` y, ante un fallo de transporte transitorio
+/// (no conecta, la conexion se corta antes o despues de las cabeceras, plazo
+/// de conexion agotado; ver [`descarga::es_transitorio`]), lo vacia y lo
+/// intenta una vez mas. Son unos MiB por una red que puede fallar a medias;
+/// y en una maquina de desarrollo con Windows se ha visto (TASK-027) que la
+/// red local corta a veces a los ~19 s las descargas de mas de ~450 KB. No
+/// se reintentan los fallos que se repetirian igual: 4xx, 5xx, TLS, una
+/// redireccion no permitida, el limite de tamano y una respuesta invalida;
+/// ni el plazo global agotado, que doblaria la espera.
+pub(crate) fn bajar_con_un_reintento(
     d: &Descargador,
     url: &str,
     fichero: &mut std::fs::File,
@@ -792,6 +817,84 @@ mod tests {
         assert_eq!(
             s.map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned()),
             Some("hola".to_owned())
+        );
+    }
+
+    /// TASK-115 (MEN-7 de TASK-027): si el hijo acaba bien pero deja un
+    /// nieto con stdout heredado, la llamada vuelve al cumplirse el plazo con
+    /// la salida que el hijo ya escribio. Antes se perdia (stdout vacio). El
+    /// nieto dura poco (unos 5 s) para no dejarlo huerfano mucho tiempo.
+    #[test]
+    fn ejecutar_con_limite_devuelve_lo_leido_si_un_nieto_retiene_stdout() {
+        let mut cmd = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/c", "start /b ping -n 6 127.0.0.1 & echo hola"]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", "sleep 5 & echo hola"]);
+            c
+        };
+        cmd.env("TC2_PRUEBA", "1");
+        let inicio = Instant::now();
+        let r = ejecutar_con_limite(cmd, Duration::from_secs(2));
+        let tardo = inicio.elapsed();
+        let s = r.ok().flatten();
+        assert_eq!(s.as_ref().map(|o| o.status.success()), Some(true));
+        let stdout = s
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        assert!(
+            stdout.lines().any(|l| l.trim() == "hola"),
+            "stdout: {stdout:?}"
+        );
+        assert!(tardo < Duration::from_secs(4), "tardo {tardo:?}");
+    }
+
+    /// TASK-115: el doc de `bajar_con_un_reintento` esta pegado a su funcion
+    /// (no detras de una `const`, que se lo quedaria) y sin lineas repetidas.
+    #[test]
+    fn el_doc_de_bajar_con_un_reintento_esta_sobre_su_funcion() {
+        let fuente = include_str!("actualizar_cli.rs");
+        let firma = concat!("fn ", "bajar_con_un_reintento(");
+        let lineas: Vec<&str> = fuente.lines().collect();
+        let pos = lineas.iter().position(|l| {
+            let l = l.trim_start();
+            l.strip_prefix("pub(crate) ")
+                .unwrap_or(l)
+                .starts_with(firma)
+        });
+        assert!(pos.is_some(), "no esta la funcion");
+        let pos = pos.unwrap_or_default();
+        let doc: Vec<&str> = lineas
+            .get(..pos)
+            .unwrap_or_default()
+            .iter()
+            .rev()
+            .take_while(|l| l.trim_start().starts_with("///"))
+            .map(|l| l.trim())
+            .collect();
+        assert!(
+            doc.iter()
+                .any(|l| !l.trim_start_matches('/').trim().is_empty()),
+            "sin doc justo encima de la funcion"
+        );
+        let mut vistas = std::collections::BTreeSet::new();
+        for l in &doc {
+            assert!(
+                l.trim_start_matches('/').trim().is_empty() || vistas.insert(*l),
+                "linea repetida: {l}"
+            );
+        }
+        // Lo de encima del bloque no es una `const` con el doc colgando.
+        let encima = lineas
+            .get(..pos.saturating_sub(doc.len()))
+            .and_then(|a| a.last())
+            .map(|l| l.trim())
+            .unwrap_or_default();
+        assert!(
+            !encima.starts_with("const ") && !encima.starts_with("pub const "),
+            "el doc viene detras de: {encima}"
         );
     }
 
