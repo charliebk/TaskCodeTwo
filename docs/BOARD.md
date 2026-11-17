@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
-## Planificadas (00-planificadas) — 62
+## Planificadas (00-planificadas) — 61
 
 ```text
 ID        Titulo                                                               Asignado
 --------  -------------------------------------------------------------------  -------------
-TASK-035  F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks    (sin asignar)
 TASK-036  F4-1 plan con brainstorm de roles                                    (sin asignar)
 TASK-037  F4-2 approve con la identidad de la persona                          (sin asignar)
 TASK-038  F4-3 Aprobacion de un hito en lote                                   (sin asignar)
@@ -71,7 +70,7 @@ TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                (
 TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status         (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 45
+## Terminadas (04-terminadas) — 46
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -110,6 +109,7 @@ TASK-031  F3-4 tc2 roadmap: la vista para todos                                 
 TASK-032  F3-5 tc2 board y tc2 status                                               charlie.bk@gmail.com
 TASK-033  F3-6 start: toma atomica de la tarea, rama y worktree desde develop       charlie.bk@gmail.com
 TASK-034  F3-7 descartar y pausa                                                    charlie.bk@gmail.com
+TASK-035  F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks         charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol           charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                 charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                         charlie.bk@gmail.com

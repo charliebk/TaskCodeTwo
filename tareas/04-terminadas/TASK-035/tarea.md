@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-035-f3-8-doctor-entorno-rama-de-estado-permi
 asignado_a: charlie.bk@gmail.com
@@ -86,6 +86,7 @@ MENORES aceptados (sin seguimiento): `lee_config` y el `match` de `config` lista
 | 2026-11-17T13:29:50Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T14:36:45Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T15:31:57Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T16:03:49Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -99,3 +100,10 @@ MENORES aceptados (sin seguimiento): `lee_config` y el `match` de `config` lista
 | 2026-11-17T15:31:56Z | implementacion | agente:a37c8c9f7b9350566 | 258 | 238746 | 26360780 | 80580 | 54 | 26680364 | - | - |
 | 2026-11-17T15:52:26Z | revision | agente:a9d6cbb705d540520 | 50 | 125464 | 2534782 | 11472 | 4 | 2671768 | 2 | code-quality-reviewer |
 | 2026-11-17T15:53:50Z | revision | agente:a8e658e6ac6eaf7eb | 54 | 124863 | 2788986 | 11000 | 2 | 2924903 | 2 | rust-wasm-reviewer |
+
+## Duracion
+
+- Estimada: 450 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 154 min
+- Paso de la hora: 154 min reales frente a 450 estimados
+- Cierre (finish): 581 s, de 2026-11-17T15:54:08Z a 2026-11-17T16:03:49Z

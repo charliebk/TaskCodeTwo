@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-035 — F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks · etiquetas: (sin etiquetas) · rama feature/task-035-f3-8-doctor-entorno-rama-de-estado-permi · terminada 2026-11-17 · tareas/04-terminadas/TASK-035/
 - TASK-034 — F3-7 descartar y pausa · etiquetas: (sin etiquetas) · rama feature/task-034-f3-7-descartar-y-pausa · terminada 2026-11-17 · tareas/04-terminadas/TASK-034/
 - TASK-033 — F3-6 start: toma atomica de la tarea, rama y worktree desde develop · etiquetas: (sin etiquetas) · rama feature/task-033-f3-6-start-toma-atomica-de-la-tarea-rama · terminada 2026-11-17 · tareas/04-terminadas/TASK-033/
 - TASK-032 — F3-5 tc2 board y tc2 status · etiquetas: (sin etiquetas) · rama feature/task-032-f3-5-board-y-status · terminada 2026-11-17 · tareas/04-terminadas/TASK-032/
