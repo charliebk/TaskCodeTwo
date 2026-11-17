@@ -12,9 +12,79 @@
 
 use std::path::{Path, PathBuf};
 
+use super::{OP, RAMA};
 use crate::contrato::Informe;
+use crate::git::{FalloRemoto, Git, REMOTO, Subcomando, clasificar_fallo_remoto, correr};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::estado as txt;
+
+/// Como fue el `fetch` de la rama de estado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Traida {
+    /// Salio bien: `origin/taskcodetwo/tareas` es lo ultimo publicado.
+    Hecha,
+    /// `origin` no tiene la rama de estado.
+    SinRama,
+    /// No salio: la clasificacion y el stderr de git.
+    Fallo {
+        /// Por que.
+        fallo: FalloRemoto,
+        /// stderr entero.
+        stderr: String,
+        /// Primera linea de error.
+        primera: String,
+    },
+}
+
+impl Traida {
+    /// Lo que dice la lectura de este intento.
+    pub(crate) fn remoto(&self) -> Remoto {
+        match self {
+            Self::Hecha => Remoto::Consultado,
+            Self::SinRama => Remoto::SinRama,
+            Self::Fallo { fallo, .. } => match fallo {
+                FalloRemoto::SinRed => Remoto::SinRed,
+                FalloRemoto::Local => Remoto::ErrorLocal,
+                FalloRemoto::RamaInexistente => Remoto::SinRama,
+                otro => Remoto::Denegado(otro.motivo().to_owned()),
+            },
+        }
+    }
+}
+
+/// Trae solo la rama de estado (`fetch` de `refs/heads/taskcodetwo/tareas` a
+/// `refs/remotes/origin/taskcodetwo/tareas`, sin `+`) y, si sale bien,
+/// registra `ahora` en la marca. Es el `fetch` de cada intento de la
+/// transaccion y el de la lectura fresca: uno solo, sin copias. Un fallo al
+/// escribir la marca no se propaga: la hora se queda la anterior, nunca mas
+/// fresca de lo real. `Err` solo si no se pudo lanzar git.
+pub(crate) fn traer_estado(
+    git: &Git,
+    principal: &Path,
+    marca: &Marca,
+    ahora: u64,
+) -> Result<Traida, Informe> {
+    let refspec = format!("refs/heads/{RAMA}:refs/remotes/{REMOTO}/{RAMA}");
+    let s = correr(
+        git,
+        principal,
+        OP,
+        Subcomando::Fetch,
+        &["-q", REMOTO, &refspec],
+    )?;
+    if s.exito() {
+        let _ = marca.registrar(ahora);
+        return Ok(Traida::Hecha);
+    }
+    Ok(match clasificar_fallo_remoto(&s.stderr) {
+        FalloRemoto::RamaInexistente => Traida::SinRama,
+        fallo => Traida::Fallo {
+            fallo,
+            primera: s.primera_linea_error(),
+            stderr: s.stderr,
+        },
+    })
+}
 
 /// Bytes como mucho del fichero de la marca (un numero y un salto de linea).
 const LIMITE_MARCA: u64 = 64;
