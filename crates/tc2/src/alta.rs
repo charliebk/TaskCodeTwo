@@ -61,6 +61,87 @@ impl Entrada {
             dependencias: Vec::new(),
         }
     }
+
+    /// Si el enunciado esta listo (RF-01). Sin objetivo ni criterios es el
+    /// borrador de la plantilla, que `new` admite como hasta F2-4 salvo que
+    /// `exige_criterios` (el import, como la 0.16, pide al menos uno). Con
+    /// algo escrito, no esta listo si no hay criterios, si uno esta vacio o
+    /// repetido, si queda un hueco de la plantilla (`<...>`) o si hay
+    /// caracteres de control (el objetivo admite saltos de linea).
+    pub fn listo(&self, exige_criterios: bool) -> Result<(), NoListo> {
+        let objetivo = self.objetivo.trim();
+        if objetivo.is_empty() && self.criterios.is_empty() && !exige_criterios {
+            return Ok(());
+        }
+        if self.criterios.is_empty() {
+            return Err(NoListo::SinCriterios);
+        }
+        let control = |s: &str, salto: bool| {
+            s.chars().any(|c| {
+                (c.is_control() && !(salto && c == '\n')) || matches!(c, '\u{2028}' | '\u{2029}')
+            })
+        };
+        if control(objetivo, true) || self.criterios.iter().any(|c| control(c, false)) {
+            return Err(NoListo::Control);
+        }
+        let hueco = |s: &str| s.starts_with('<') && s.ends_with('>');
+        if hueco(objetivo) {
+            return Err(NoListo::Plantilla);
+        }
+        let mut vistos = BTreeSet::new();
+        for c in self.criterios.iter().map(|c| c.trim()) {
+            if c.is_empty() {
+                return Err(NoListo::CriterioVacio);
+            }
+            if hueco(c) {
+                return Err(NoListo::Plantilla);
+            }
+            if !vistos.insert(crate::tarea::texto::plegar(c)) {
+                return Err(NoListo::Repetido);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Por que un enunciado no esta listo (RF-01).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoListo {
+    /// Hay enunciado pero ningun criterio.
+    SinCriterios,
+    /// Un criterio vacio.
+    CriterioVacio,
+    /// Queda un hueco de la plantilla.
+    Plantilla,
+    /// Un criterio repetido.
+    Repetido,
+    /// Caracteres de control.
+    Control,
+}
+
+impl NoListo {
+    /// Valor de `causa=` en la linea de contrato.
+    pub fn causa(self) -> &'static str {
+        match self {
+            Self::SinCriterios => "sin-criterios",
+            Self::CriterioVacio => "criterio-vacio",
+            Self::Plantilla => "plantilla",
+            Self::Repetido => "criterio-repetido",
+            Self::Control => "caracter-de-control",
+        }
+    }
+
+    /// La causa explicada, para el diagnostico.
+    pub fn mensaje(self) -> Mensaje {
+        use crate::i18n::catalogo::importar as t;
+        Mensaje::nuevo(match self {
+            Self::SinCriterios => &t::CAUSA_SIN_CRITERIOS,
+            Self::CriterioVacio => &t::CAUSA_CRITERIO_VACIO,
+            Self::Plantilla => &t::CAUSA_PLANTILLA,
+            Self::Repetido => &t::CAUSA_REPETIDO,
+            Self::Control => &t::CAUSA_CONTROL,
+        })
+    }
 }
 
 /// Alta de una tarea: reserva el siguiente ID y escribe su `tarea.md`.

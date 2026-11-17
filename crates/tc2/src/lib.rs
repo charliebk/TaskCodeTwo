@@ -27,6 +27,7 @@ pub mod git;
 pub mod huella;
 pub mod i18n;
 pub mod identidad;
+pub mod importar;
 pub mod init;
 pub mod instalacion;
 pub mod plataforma;

@@ -9,6 +9,7 @@ pub mod desinstalar;
 pub mod estado;
 pub mod git;
 pub mod identidad;
+pub mod importar;
 pub mod init;
 pub mod plataforma;
 
@@ -25,6 +26,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         estado::TODOS,
         git::TODOS,
         identidad::TODOS,
+        importar::TODOS,
         init::TODOS,
         plataforma::TODOS,
     ]
