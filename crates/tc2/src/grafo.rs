@@ -308,6 +308,13 @@ pub fn orden_de_trabajo(nodos: &[Nodo], hitos: &Hitos) -> Orden {
     }
 }
 
+/// Si una dependencia deja empezar a quien depende de ella: no existe (no
+/// bloquea; se avisa aparte) o esta terminada. Una descartada o ilegible
+/// bloquea. La regla es una sola para `next`, `roadmap` y `start` (F3-6).
+pub fn dependencia_cumplida(dep: Option<&Nodo>) -> bool {
+    dep.is_none_or(|m| m.estado() == Some(TERMINADA))
+}
+
 /// Las listas para empezar, en el orden de trabajo: `planificada` y con
 /// todas sus dependencias existentes terminadas (una descartada bloquea).
 pub fn listas(o: &Orden, nodos: &[Nodo]) -> Vec<String> {
@@ -317,10 +324,9 @@ pub fn listas(o: &Orden, nodos: &[Nodo]) -> Vec<String> {
         .filter(|id| {
             idx.get(id.as_str()).is_some_and(|n| {
                 n.estado() == Some(PLANIFICADA)
-                    && n.dependencias.iter().all(|d| match idx.get(d.as_str()) {
-                        None => true,
-                        Some(m) => m.estado() == Some(TERMINADA),
-                    })
+                    && n.dependencias
+                        .iter()
+                        .all(|d| dependencia_cumplida(idx.get(d.as_str()).copied()))
             })
         })
         .cloned()
@@ -410,6 +416,32 @@ mod tests {
         assert_eq!(o.orden, ids(&["TASK-002", "TASK-003"]));
         assert_eq!(listas(&o, &nodos), ids(&["TASK-003"]));
         assert_eq!(o.avisos.depende_de_descartada, ids(&["TASK-002>TASK-001"]));
+    }
+
+    /// La regla de una dependencia (F3-6): inexistente o terminada deja
+    /// empezar; cualquier otro estado, descartada o ilegible, no.
+    #[test]
+    fn dependencia_cumplida_inexistente_o_terminada() {
+        assert!(dependencia_cumplida(None));
+        assert!(dependencia_cumplida(Some(&n(
+            "TASK-001",
+            0,
+            TERMINADA,
+            &[]
+        ))));
+        for e in [
+            "planificada",
+            "en-diseno",
+            "en-curso",
+            "en-revision",
+            DESCARTADA,
+        ] {
+            assert!(
+                !dependencia_cumplida(Some(&n("TASK-001", 0, e, &[]))),
+                "{e}"
+            );
+        }
+        assert!(!dependencia_cumplida(Some(&Nodo::ilegible("TASK-001"))));
     }
 
     /// Un ID repetido no se ignora en silencio: vale el primero y se avisa.

@@ -30,7 +30,7 @@ use crate::i18n::catalogo::identidad as t;
 use crate::i18n::{Mensaje, Texto};
 use crate::plataforma::personas::RUTA as RUTA_PERSONAS;
 use crate::plataforma::{
-    Credenciales, GitHub, GitLab, Personas, Plataforma, Proveedor, Rol, Usuario, detectar,
+    Credenciales, Destino, GitHub, GitLab, Personas, Plataforma, Proveedor, Rol, Usuario, detectar,
 };
 use crate::tarea::Asignado;
 
@@ -454,54 +454,92 @@ fn orden_paso(e: Entorno<'_>) -> Paso<Informe> {
             .con("rol", "persona")
             .diagnostico(&t::NECESITA_TERMINAL));
     }
+    let (g, dir, ahora) = (e.git, e.dir, e.ahora);
+    let quien = resolver(e)?;
+    let c = quien.cuenta();
+    let comun = git::estado::dir_comun(g, dir, NOMBRE)?;
+    Cache::en(&comun).guardar(c, ahora)?;
+    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
+        .con("rol", "persona")
+        .con("id", c.id.to_string())
+        .con("login", c.login.clone()))
+}
+
+/// A donde habla la plataforma de `origin`: su URL y la clave `plataforma`
+/// de la configuracion de la base (F1-13, decision 7). Sin `origin` o con
+/// una plataforma que no se reconoce, `rechazada motivo=plataforma`. La
+/// comparten `identidad`, `start` y `board`.
+pub fn destino_de(g: &Git, dir: &Path) -> Paso<Destino> {
+    let Some(url) = git::estado::url_origin(g, dir, NOMBRE)? else {
+        return Err(Informe::nuevo(NOMBRE, Resultado::Rechazada)
+            .con("motivo", "plataforma")
+            .diagnostico(&t::SIN_ORIGIN));
+    };
+    destino_de_url(g, dir, &url)
+}
+
+fn destino_de_url(g: &Git, dir: &Path, url: &str) -> Paso<Destino> {
+    let clave = clave_plataforma(g, dir)?;
+    detectar(url, clave.as_ref().map(|(p, a)| (*p, a.as_str()))).map_err(|mut i| {
+        NOMBRE.clone_into(&mut i.comando);
+        i
+    })
+}
+
+/// El adaptador de `destino` con `credenciales` y la lista de `personas`.
+pub fn adaptador(
+    destino: Destino,
+    credenciales: Box<dyn Credenciales>,
+    personas: Personas,
+) -> Paso<Box<dyn Plataforma>> {
+    Ok(match destino.proveedor {
+        Proveedor::GitHub => Box::new(GitHub::nuevo(
+            destino.api,
+            &destino.proyecto,
+            credenciales,
+            personas,
+        )?),
+        Proveedor::GitLab => Box::new(GitLab::nuevo(
+            destino.api,
+            &destino.proyecto,
+            credenciales,
+            personas,
+        )?),
+    })
+}
+
+/// Quien ejecuta en el repo de `e` (D6 de TASK-033): la plataforma de
+/// `origin`, la lista de personas de la base y [`quien_ejecuta`] con el
+/// terminal de `e`. Con terminal trae antes la rama base (hace falta red
+/// para la API); sin terminal no habla con la red. No escribe la cache: eso
+/// solo lo hace `tc2 identidad`.
+pub fn resolver(e: Entorno<'_>) -> Paso<Quien> {
     let comun = git::estado::dir_comun(e.git, e.dir, NOMBRE)?;
     let Some(url) = git::estado::url_origin(e.git, e.dir, NOMBRE)? else {
         return Err(Informe::nuevo(NOMBRE, Resultado::Rechazada)
             .con("motivo", "plataforma")
             .diagnostico(&t::SIN_ORIGIN));
     };
-    // Con terminal ya hace falta red (la API): se trae antes la rama base,
-    // para que la lista de personas y la configuracion sean las de ahora
-    // (quien acaba de entrar en la lista por un PR fusionado). Sin red,
-    // `sinred` y la cache sin tocar.
-    let rama_base = config::BASE.strip_prefix("origin/").unwrap_or(config::BASE);
-    git::remoto::traer_rama(e.git, e.dir, NOMBRE, rama_base)?;
-    let clave = clave_plataforma(e.git, e.dir)?;
-    let destino =
-        detectar(&url, clave.as_ref().map(|(p, a)| (*p, a.as_str()))).map_err(|mut i| {
-            NOMBRE.clone_into(&mut i.comando);
-            i
-        })?;
+    if e.tty {
+        // Con terminal ya hace falta red (la API): se trae antes la rama
+        // base, para que la lista de personas y la configuracion sean las de
+        // ahora (quien acaba de entrar en la lista por un PR fusionado). Sin
+        // red, `sinred` y la cache sin tocar.
+        let rama_base = config::BASE.strip_prefix("origin/").unwrap_or(config::BASE);
+        git::remoto::traer_rama(e.git, e.dir, NOMBRE, rama_base)?;
+    }
+    let destino = destino_de_url(e.git, e.dir, &url)?;
+    let proveedor = destino.proveedor;
     let personas = personas_de_base(e.git, e.dir)?;
-    let plataforma: Box<dyn Plataforma> = match destino.proveedor {
-        Proveedor::GitHub => Box::new(GitHub::nuevo(
-            destino.api,
-            &destino.proyecto,
-            e.credenciales,
-            personas.clone(),
-        )?),
-        Proveedor::GitLab => Box::new(GitLab::nuevo(
-            destino.api,
-            &destino.proyecto,
-            e.credenciales,
-            personas.clone(),
-        )?),
-    };
-    let cache = Cache::en(&comun);
-    let quien = quien_ejecuta(
+    let plataforma = adaptador(destino, e.credenciales, personas.clone())?;
+    quien_ejecuta(
         plataforma.as_ref(),
-        destino.proveedor,
+        proveedor,
         &personas,
-        &cache,
-        true,
+        &Cache::en(&comun),
+        e.tty,
         e.ahora,
-    )?;
-    let c = quien.cuenta();
-    cache.guardar(c, e.ahora)?;
-    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
-        .con("rol", "persona")
-        .con("id", c.id.to_string())
-        .con("login", c.login.clone()))
+    )
 }
 
 #[cfg(test)]

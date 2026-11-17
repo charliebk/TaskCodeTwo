@@ -28,10 +28,7 @@ use crate::i18n::catalogo::cli as txt_cli;
 use crate::i18n::catalogo::roadmap as txt_roadmap;
 use crate::i18n::catalogo::tablero as txt;
 use crate::i18n::{Idioma, Mensaje};
-use crate::plataforma::{
-    Credenciales, CredencialesEntorno, GitHub, GitLab, Personas, Plataforma, PrAbierto, Proveedor,
-    Rol, detectar,
-};
+use crate::plataforma::{Credenciales, CredencialesEntorno, Personas, Plataforma, PrAbierto, Rol};
 use crate::situacion::{self, Ficha, Quien, Situacion};
 
 /// Nombre de `board`.
@@ -369,14 +366,8 @@ pub fn conectar_produccion<'a>(
     dir: &'a Path,
 ) -> impl Fn(&Personas) -> Result<Conectada, Consulta> + 'a {
     move |personas: &Personas| {
-        let url = crate::git::estado::url_origin(g, dir, BOARD)
-            .ok()
-            .flatten()
-            .ok_or(Consulta::NoConfigurada)?;
-        let clave =
-            crate::identidad::clave_plataforma(g, dir).map_err(|_| Consulta::NoConfigurada)?;
-        let destino = detectar(&url, clave.as_ref().map(|(p, a)| (*p, a.as_str())))
-            .map_err(|_| Consulta::NoConfigurada)?;
+        // La misma deteccion que `identidad` y `start` (D6 de TASK-033).
+        let destino = crate::identidad::destino_de(g, dir).map_err(|_| Consulta::NoConfigurada)?;
         let credenciales = CredencialesEntorno;
         let rol = if credenciales.token(Rol::Persona).is_some() {
             Rol::Persona
@@ -385,26 +376,9 @@ pub fn conectar_produccion<'a>(
         } else {
             return Err(Consulta::SinCredenciales);
         };
-        let plataforma: Box<dyn Plataforma> = match destino.proveedor {
-            Proveedor::GitHub => Box::new(
-                GitHub::nuevo(
-                    destino.api,
-                    &destino.proyecto,
-                    Box::new(credenciales),
-                    personas.clone(),
-                )
-                .map_err(|_| Consulta::NoConfigurada)?,
-            ),
-            Proveedor::GitLab => Box::new(
-                GitLab::nuevo(
-                    destino.api,
-                    &destino.proyecto,
-                    Box::new(credenciales),
-                    personas.clone(),
-                )
-                .map_err(|_| Consulta::NoConfigurada)?,
-            ),
-        };
+        let plataforma =
+            crate::identidad::adaptador(destino, Box::new(credenciales), personas.clone())
+                .map_err(|_| Consulta::NoConfigurada)?;
         Ok(Conectada { plataforma, rol })
     }
 }
