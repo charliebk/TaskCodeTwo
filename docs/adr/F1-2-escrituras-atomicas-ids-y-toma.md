@@ -568,10 +568,38 @@ D1a..D6a del plan de TASK-079, aceptadas por Carlos para todo el H3):
   tiene cambios sin publicar, que impedirán adelantarla).
 - **Riesgos aceptados**: ~1 s más por orden contra GitHub; sin tiempo límite
   en el puerto, un host mudo cuelga la lectura lo que tarde TCP (igual que la
-  transacción); dos `fetch` a la vez en el mismo clon pueden dar `cannot lock
-  ref`, que se clasifica como `sin-red` (se muestra lo último traído con
-  aviso; no se escribe nada).
+  transacción).
+- **Fallos del `fetch` que no son de red** (revisión 1 de TASK-079, H1 y
+  H4). El `fetch` de la rama de estado va sin `-q`: con `-q`, git 2.56 calla
+  el rechazo non-fast-forward (stderr vacío) y salía `sin-red`. Antes de la
+  clasificación de siempre se reconocen dos casos:
+  - **Rama reescrita en `origin`** (`! [rejected] … (non-fast-forward)`: la
+    rama de estado del remoto no desciende de la que trajo el clon). La
+    lectura sale 0 con `remoto=rechazado` y su aviso; una escritura
+    (transacción o `montar`) sale `error` (1) con `motivo=rama-reescrita` y
+    la línea de git, sin escribir nada ni dejar pendiente (reintentar no lo
+    arregla). Antes la transacción lo tomaba por `sinred` y guardaba la
+    operación como pendiente que nunca se publicaría.
+  - **Ref remota bloqueada** (`cannot lock ref …: File exists`: otro `fetch`
+    del mismo clon a la vez o un `.lock` huérfano). La lectura, que no toma
+    el cerrojo de estado, repite el `fetch` dos veces (a 0,2 s y 0,5 s) y,
+    si sigue bloqueada, sale 0 con `remoto=error-local` y un aviso que dice
+    el `.lock` y la línea de git. Una escritura sale `error` (1) con
+    `motivo=error-local`, como cualquier fallo del propio clon, sin dejar
+    pendiente; no se le añade reintento (no lo tenía). Riesgo aceptado: si
+    una lectura y una escritura del mismo clon traen a la vez, la escritura
+    puede salir `error` y hay que repetirla (estresado en la revisión con 30
+    y 8 procesos: 0 fallos). Un `cannot lock ref` por permisos sigue siendo
+    el `error-local` de siempre.
+- **La hora nunca más fresca de lo real** (H2): una marca con hora
+  posterior a ahora (reloj adelantado al escribirla, fichero tocado a mano)
+  se lee como «nunca».
+- **`montar` trae con el mismo `fetch`** (M3): cuando monta la rama desde
+  `origin` usa `traer_estado`, así que también renueva la marca.
 
-Evidencia: `crates/tc2/tests/frescura.rs` (C1..C9 de TASK-079), los
-unitarios de `estado/frescura.rs` y la suite de la transacción sin cambios
+Evidencia: `crates/tc2/tests/frescura.rs` (C1..C9 de TASK-079; C10 y C11 de
+la revisión 1, rama reescrita y `.lock` huérfano), los unitarios de
+`estado/frescura.rs` (`clasifica_rechazo_y_ref_bloqueada`,
+`marca_del_futuro_es_nunca`) y de `estado/lectura.rs`
+(`reintenta_solo_la_ref_bloqueada`), y la suite de la transacción
 (`estado_*`, `alta`, `toma`, `ciclo`, `importar`).
