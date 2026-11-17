@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-034-f3-7-descartar-y-pausa
 asignado_a: charlie.bk@gmail.com
@@ -78,6 +78,7 @@ MENORES aceptados (sin seguimiento): el unitario comun no ejercita el texto de `
 | 2026-11-17T10:59:29Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T11:48:13Z | review | automatico | persona | 0.16.1 |
 | 2026-11-17T12:36:36Z | review | automatico | persona | 0.16.1 |
+| 2026-11-17T13:23:04Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -91,3 +92,10 @@ MENORES aceptados (sin seguimiento): el unitario comun no ejercita el texto de `
 | 2026-11-17T12:36:36Z | implementacion | agente:aea032866151172ae | 138 | 176462 | 8953528 | 43793 | 21 | 9173921 | - | - |
 | 2026-11-17T12:45:50Z | revision | agente:ac6c12a140af2e17f | 160 | 122715 | 7887379 | 19801 | 19 | 8030055 | 2 | code-quality-reviewer |
 | 2026-11-17T13:13:48Z | revision | agente:a3d57c8359552e047 | 84 | 224418 | 3821419 | 12479 | 9 | 4058400 | 2 | rust-wasm-reviewer |
+
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 144 min
+- Paso de la hora: 144 min reales frente a 210 estimados
+- Cierre (finish): 534 s, de 2026-11-17T13:14:10Z a 2026-11-17T13:23:04Z
