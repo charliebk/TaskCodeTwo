@@ -99,7 +99,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
 | — | TASK-028 | F3-1 tc2 init | — | TASK-018, TASK-021 | ✅ terminada |
-| 1 | TASK-029 | F3-2 new e import en bloque con dependencias e hito | — | TASK-019, TASK-020 | ▶ en diseño |
+| 1 | TASK-029 | F3-2 tc2 new e import en bloque con dependencias e hito | — | TASK-019, TASK-020 | ▶ en diseño |
 | 2 | TASK-030 | F3-3 next: lo listo para empezar por dependencias y prioridad | — | TASK-029 | espera a TASK-029 |
 | 3 | TASK-031 | F3-4 roadmap: la vista para todos | — | TASK-018 | lista para empezar |
 | 4 | TASK-032 | F3-5 board y status | — | TASK-018, TASK-021 | lista para empezar |
