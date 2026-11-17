@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1276709
 tokens_implementacion: 49102203
-tokens_revision: 6098143
+tokens_revision: 11782150
 creado: 2026-11-14
 actualizado: 2026-11-17
 dependencias: [TASK-032]
@@ -84,3 +84,9 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
 | 2026-11-17T17:19:18Z | revision | agente:a48175601d602934b | 52 | 112447 | 2870766 | 16595 | 5 | 2999860 | 1 | rust-wasm-reviewer |
 | 2026-11-17T17:23:31Z | revision | agente:af58a9d4b7038777f | 52 | 143557 | 2940900 | 13774 | 3 | 3098283 | 1 | code-quality-reviewer |
 | 2026-11-17T18:03:19Z | implementacion | agente:a6bb8a234a42dd73d | 194 | 406862 | 15809473 | 64809 | 49 | 16281338 | - | - |
+| 2026-11-17T18:18:10Z | revision | agente:acb7cce17ed5d00b4 | 70 | 117127 | 3150037 | 12787 | 8 | 3280021 | 2 | code-quality-reviewer |
+| 2026-11-17T18:26:48Z | revision | agente:ace8b66b51d6dfc7d | 48 | 112711 | 2279518 | 11709 | 4 | 2403986 | 2 | rust-wasm-reviewer |
+
+## Verificacion ligera
+
+- 2026-11-17T18:38:21Z: ronda 2; commit revisado ef977f1ce8994e9da5faa4b817fb815f24af56ef; commit verificado e0d4b2180dd2f66bce5248e68cd55e547074d7d6; ficheros: crates/tc2/src/estado/montaje.rs; corregidos: M5; pendientes: ninguno
