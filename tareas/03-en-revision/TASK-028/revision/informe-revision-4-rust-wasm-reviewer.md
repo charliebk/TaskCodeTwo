@@ -2,7 +2,7 @@
 
 - Commit revisado: c9b549c33536f3809efaa1417675c5750db90d33 (codigo; el HEAD 8b09d62 solo añade ficheros de tareas/ y la peticion, el codigo es el mismo)
 - Revisor: rust-wasm-reviewer
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-028 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada
 
 ## Hallazgos
 
