@@ -235,6 +235,16 @@ impl Git {
         }
     }
 
+    /// Puerto con otro binario en lugar de `git` (solo tests: un git falso
+    /// que provoca salidas que el real no da).
+    #[cfg(test)]
+    pub(crate) fn con_binario(binario: impl Into<OsString>) -> Self {
+        Self {
+            binario: binario.into(),
+            ..Self::nuevo()
+        }
+    }
+
     /// Anade variables de entorno a cada llamada (los tests aislan asi la
     /// configuracion del usuario sin tocar el entorno del proceso).
     #[must_use]

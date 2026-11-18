@@ -537,6 +537,62 @@ mod tests_stdin {
         let _ = std::fs::remove_dir_all(&d);
     }
 
+    /// Git falso que delega en el real salvo `hash-object`, al que responde
+    /// con un unico sha sea cual sea el numero de rutas. El subcomando es el
+    /// quinto argumento (`-c color.ui=never -c core.quotepath=false <sub>`).
+    fn git_que_pierde_shas(d: &Path) -> Git {
+        let sha = "0123456789012345678901234567890123456789";
+        if cfg!(windows) {
+            let f = d.join("git-falso.cmd");
+            let guion = format!(
+                "@echo off\r\nif \"%5\"==\"hash-object\" (\r\n  echo {sha}\r\n  exit /b 0\r\n)\r\ngit %*\r\n"
+            );
+            std::fs::write(&f, guion).unwrap();
+            Git::con_binario(f)
+        } else {
+            let f = d.join("git-falso.sh");
+            let guion = format!(
+                "#!/bin/sh\nif [ \"$5\" = hash-object ]; then cat >/dev/null; echo {sha}; exit 0; fi\nexec git \"$@\"\n"
+            );
+            std::fs::write(&f, guion).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            Git::con_binario(f)
+        }
+    }
+
+    /// TASK-127: si `hash-object` devuelve menos shas que ficheros,
+    /// `construir_commit` falla con `HASH_OBJECT_INCOMPLETO` y no construye
+    /// ningun commit (emparejar por orden daria a cada ruta otro contenido).
+    #[test]
+    fn construir_commit_rechaza_shas_incompletos() {
+        let d = repo("shas-incompletos");
+        let git = git_que_pierde_shas(&d);
+        let cambios = [Cambio::nuevo("a.md", "a\n"), Cambio::nuevo("b.md", "b\n")];
+        let i = construir_commit(&git, &d, "prueba", None, &cambios, "m")
+            .expect_err("dos ficheros y un solo sha");
+        assert_eq!(i.resultado, Resultado::Error);
+        let incompleto =
+            Informe::nuevo("prueba", Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO);
+        assert_eq!(
+            i.diagnostico_en(Idioma::Es),
+            incompleto.diagnostico_en(Idioma::Es),
+            "{}",
+            i.linea()
+        );
+        assert!(
+            !git.registro()
+                .iter()
+                .any(|l| l.starts_with("git commit-tree")),
+            "{:?}",
+            git.registro()
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     /// TASK-127: si git falla con la entrada por stdin, `con_entrada` da
     /// `error` con el subcomando, no `Ok`; con datos buenos, un sha por ruta.
     #[test]
