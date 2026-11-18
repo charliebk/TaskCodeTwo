@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 408633
 tokens_implementacion: 5806770
-tokens_revision: null
+tokens_revision: 3085646
 creado: 2026-11-18
 actualizado: 2026-11-18
 dependencias: []
@@ -45,8 +45,12 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-18T13:23:28Z | diseno | agente:aab8c8c2056b15be3 | 24 | 44265 | 356739 | 7605 | 18 | 408633 | - | - |
 | 2026-11-18T14:10:54Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 70 | 56201 | 5734068 | 16431 | 5 | 5806770 | - | - |
+| 2026-11-18T14:21:31Z | revision | agente:a324a0b1d78124359 | 20 | 103964 | 860702 | 5539 | 2 | 970225 | 1 | rust-wasm-reviewer |
+| 2026-11-18T14:21:31Z | revision | agente:a4b729769f42ff4bd | 38 | 131669 | 1967278 | 16436 | 4 | 2115421 | 1 | code-quality-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 22ffc96
 - code-quality-reviewer — 22ffc96
+- rust-wasm-reviewer — 4589b99
+- code-quality-reviewer — 4589b99
