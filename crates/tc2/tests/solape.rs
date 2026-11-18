@@ -22,6 +22,7 @@ use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta, Quien};
 use tc2::plataforma::Proveedor;
 use tc2::solape::{self, EnCurso};
+use tc2::tarea::Asignado;
 
 const ORIGIN: &str = "ssh://git@github.com/o/r.git";
 const PERSONAS: &str =
@@ -315,6 +316,26 @@ fn c2_misma_carpeta_avisa_de_modulo() {
     assert!(avisos[0].contains("TASK-001") && avisos[0].contains("src/x"));
 }
 
+/// TASK-128 C1: una misma persona con dos tareas en curso que tocan el
+/// mismo fichero, las dos publicadas: ni el primer `start` de la segunda
+/// (sin nota) ni el siguiente (con cruce) avisan ni llevan claves del
+/// solape, y stderr queda vacio. La otra persona si ve las dos.
+#[test]
+fn misma_persona_no_se_avisa_contra_si_misma() {
+    let e = escena("solape-propia", &["src/x/a.rs"], &["src/x/a.rs"], |f, a| {
+        let (out, err) = start(f, a, "TASK-003");
+        assert!(claves_solape(&out).is_empty(), "{out}");
+        assert!(err.is_empty(), "{err}");
+        tocar(f, a, "TASK-003", RAMA_3, &["src/x/a.rs"], true);
+        let (out, err) = start(f, a, "TASK-003");
+        assert!(out.starts_with("start sin-cambios id=TASK-003 "), "{out}");
+        assert!(claves_solape(&out).is_empty(), "{out}");
+        assert!(err.is_empty(), "{err}");
+    });
+    let (out, _) = &e.ultima;
+    assert_eq!(valor(out, "solape"), Some("TASK-001,TASK-003"), "{out}");
+}
+
 /// C3 y C4: sin nada en comun no hay aviso ni claves `solape*`; con solape
 /// y sin el, `start` da el mismo resultado, codigo y linea (salvo las
 /// claves del solape), no publica nada al reanudar y deja la misma rama y
@@ -462,19 +483,25 @@ fn c9_primer_start_nota_con_lo_que_tocan_las_demas() {
     assert_eq!(valor(out, "en-curso-modulos"), None, "{out}");
 }
 
+/// La cuenta de luis, como la escribe su toma.
+fn cuenta_de_luis() -> Asignado {
+    Asignado::persona(1002, "luis").unwrap()
+}
+
 /// Las tareas de la escena: TASK-001 (ana, publicada), TASK-003 (ana,
 /// publicada en C10) y una en curso sin rama en el remoto.
 fn en_curso() -> Vec<EnCurso> {
-    let t = |id: &str, quien: &str, rama: &str| EnCurso {
+    let t = |id: &str, quien: &str, cuenta: u64, rama: &str| EnCurso {
         id: id.to_owned(),
         quien: quien.to_owned(),
         rama: Some(rama.to_owned()),
+        asignado: Asignado::persona(cuenta, &quien[1..]),
     };
     vec![
-        t("TASK-001", "@ana", RAMA_1),
-        t("TASK-002", "@luis", RAMA_2),
-        t("TASK-003", "@ana", RAMA_3),
-        t("TASK-009", "@beto", "feature/task-009-no-publicada"),
+        t("TASK-001", "@ana", 1001, RAMA_1),
+        t("TASK-002", "@luis", 1002, RAMA_2),
+        t("TASK-003", "@ana", 1001, RAMA_3),
+        t("TASK-009", "@beto", 1003, "feature/task-009-no-publicada"),
     ]
 }
 
@@ -505,8 +532,9 @@ fn start_de_luis(
 
 /// C10 (R1-03 de la ronda 1), medido sobre el `start` completo: luis toma
 /// TASK-003 (la transaccion, con las tareas en curso que leyo la toma) y
-/// el solape son exactamente los 1 + k + 1 ultimos procesos de git (k = 2:
-/// TASK-001 de ana y TASK-002 de luis, publicadas): un `for-each-ref` de
+/// el solape son exactamente los 1 + k + 1 ultimos procesos de git (k = 1:
+/// TASK-001 de ana, publicada; TASK-002 es del propio luis y no cuenta,
+/// TASK-128): un `for-each-ref` de
 /// las ramas de `origin`, el `diff` de la propia y uno por cada publicada;
 /// en todo el `start` no hay otro `diff`. Sin otra tarea en curso, ninguno.
 #[test]
@@ -515,7 +543,7 @@ fn c10_uno_mas_k_mas_uno_procesos() {
     let (i, s, r) = start_de_luis(&e, "TASK-003");
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     let s = s.expect("el solape del start");
-    let k = 2;
+    let k = 1;
     let desde = r
         .iter()
         .rposition(|l| l.starts_with("git for-each-ref ") && l.ends_with(" refs/remotes/origin/"))
@@ -532,7 +560,7 @@ fn c10_uno_mas_k_mas_uno_procesos() {
         solape[1].ends_with(&format!("...refs/heads/{RAMA_3} --")),
         "{r:#?}"
     );
-    for (l, rama) in solape[2..].iter().zip([RAMA_1, RAMA_2]) {
+    for (l, rama) in solape[2..].iter().zip([RAMA_1]) {
         assert!(
             l.ends_with(&format!("...refs/remotes/origin/{rama} --")),
             "{r:#?}"
@@ -540,28 +568,27 @@ fn c10_uno_mas_k_mas_uno_procesos() {
     }
     let diffs = r.iter().filter(|l| l.starts_with("git diff ")).count();
     assert_eq!(diffs, k + 1, "{r:#?}");
-    // Primer `start`: rama propia vacia, la nota con las dos publicadas.
+    // Primer `start`: rama propia vacia, la nota solo con la de ana.
     assert!(s.propia_vacia);
     assert_eq!(
         s.publicadas
             .iter()
             .map(|p| p.id.as_str())
             .collect::<Vec<_>>(),
-        ["TASK-001", "TASK-002"]
+        ["TASK-001"]
     );
     let l = i.linea();
-    assert_eq!(
-        valor(&l, "en-curso-modulos"),
-        Some("TASK-001:src/x,TASK-002:src/x"),
-        "{l}"
-    );
+    assert_eq!(valor(&l, "en-curso-modulos"), Some("TASK-001:src/x"), "{l}");
     // Sin otra tarea en curso, ningun proceso.
     let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
     let solo: Vec<EnCurso> = en_curso()
         .into_iter()
         .filter(|t| t.id == "TASK-002")
         .collect();
-    assert_eq!(solape::calcular(&g, &e.b, "TASK-002", RAMA_2, &solo), None);
+    assert_eq!(
+        solape::calcular(&g, &e.b, "TASK-002", RAMA_2, &cuenta_de_luis(), &solo),
+        None
+    );
     assert!(g.registro().is_empty(), "{:#?}", g.registro());
 }
 
@@ -615,7 +642,7 @@ fn c5_sin_red_y_sin_origin_sin_claves() {
     e.f.crudo(&c, &["remote", "remove", "origin"]);
     let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
     assert_eq!(
-        solape::calcular(&g, &c, "TASK-002", RAMA_2, &en_curso()),
+        solape::calcular(&g, &c, "TASK-002", RAMA_2, &cuenta_de_luis(), &en_curso()),
         None
     );
     let r = g.registro();
@@ -723,10 +750,11 @@ fn h3_tope_de_diffs() {
             id: format!("TASK-{:03}", 100 + i),
             quien: "@ana".to_owned(),
             rama: Some(r.clone()),
+            asignado: Asignado::persona(1001, "ana"),
         })
         .collect();
     let g = tc2::git::Git::nuevo().con_entorno(f.entorno());
-    let s = solape::calcular(&g, &c, "TASK-002", RAMA_2, &lista).unwrap();
+    let s = solape::calcular(&g, &c, "TASK-002", RAMA_2, &cuenta_de_luis(), &lista).unwrap();
     let r = g.registro();
     assert_eq!(r.len(), 1 + 1 + solape::MAX_DIFFS, "{r:#?}");
     assert!(s.truncado);

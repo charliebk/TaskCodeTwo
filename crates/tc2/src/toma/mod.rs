@@ -190,7 +190,7 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
     if empezada {
         // 5c. Ya es suya y esta empezada: crear solo lo que falte.
         let i = destino.crear(None, &quien);
-        return Ok(destino.con_solape(i, || en_curso_de(&vista), s));
+        return Ok(destino.con_solape(i, &quien, || en_curso_de(&vista), s));
     }
     // 5. El ID no tiene rama de nadie mas. La suya propia (la de `rama:`)
     // no cuenta: tras `liberar` o `reasignar` (F3-10) la siguiente persona
@@ -232,12 +232,12 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
                 i = i.con(crate::progreso::CLAVE, crate::progreso::NO_ESCRITO);
             }
             // El solape (F3-11) con las tareas en curso que leyo la toma.
-            Ok(destino.con_solape(i, || op.en_curso(), s))
+            Ok(destino.con_solape(i, &quien, || op.en_curso(), s))
         }
         // Entre la lectura y el push paso a ser suya y empezada.
         Resultado::SinCambios => {
             let i = destino.crear(None, &quien);
-            Ok(destino.con_solape(i, || en_curso_de(&vista), s))
+            Ok(destino.con_solape(i, &quien, || en_curso_de(&vista), s))
         }
         Resultado::Rechazada => Err(rechazo_de_toma(t, &op)),
         _ => Err(t),
@@ -370,10 +370,12 @@ impl Destino<'_> {
 
     /// Anade a `i` las claves del solape (F3-11) y lo deja en `salida`, solo
     /// si `i` es un exito: la rama propia ya existe en local. `en_curso` se
-    /// evalua solo entonces. Nunca cambia el resultado de `i`.
+    /// evalua solo entonces. Las tareas de `quien` no cuentan (TASK-128).
+    /// Nunca cambia el resultado de `i`.
     fn con_solape(
         &self,
         i: Informe,
+        quien: &Quien,
         en_curso: impl FnOnce() -> Option<Vec<EnCurso>>,
         salida: &mut Option<Solape>,
     ) -> Informe {
@@ -383,7 +385,9 @@ impl Destino<'_> {
         let Some(lista) = en_curso() else {
             return i;
         };
-        let Some(s) = solape::calcular(self.g, self.principal, self.id, self.rama, &lista) else {
+        let propio = quien.asignado();
+        let Some(s) = solape::calcular(self.g, self.principal, self.id, self.rama, &propio, &lista)
+        else {
             return i;
         };
         let i = s.con_claves(i);
