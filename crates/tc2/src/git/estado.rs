@@ -297,12 +297,21 @@ fn con_entrada(
     }
 }
 
-/// Un sha por linea de la salida de `hash-object --stdin-paths`, solo si hay
-/// exactamente uno por fichero: si faltara alguno, emparejar por orden daria
-/// a cada ruta el contenido de otra.
-fn shas_completos(salida: &str, n: usize) -> Option<Vec<&str>> {
-    let shas: Vec<&str> = salida.lines().map(str::trim).collect();
-    (shas.len() == n).then_some(shas)
+/// Escribe en el almacen de objetos los ficheros de `rutas` (una ruta por
+/// linea, `n` en total) con un solo `hash-object --stdin-paths` y devuelve
+/// su sha en el mismo orden. Error si no hay exactamente uno por fichero:
+/// emparejar por orden daria a cada ruta el contenido de otra.
+fn hashear(git: &Git, dir: &Path, op: &str, rutas: &str, n: usize) -> Paso<Vec<String>> {
+    let salida = con_entrada(git, dir, op, Subcomando::HashObject, None, rutas.as_bytes())?;
+    let shas: Vec<String> = String::from_utf8_lossy(&salida)
+        .lines()
+        .map(|l| l.trim().to_owned())
+        .collect();
+    if shas.len() == n {
+        Ok(shas)
+    } else {
+        Err(Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO))
+    }
 }
 
 /// Construye un commit con el arbol de `base` mas `cambios` y `base` como
@@ -343,11 +352,7 @@ pub(crate) fn construir_commit(
             rutas.push_str(&texto(op, &f)?);
             rutas.push('\n');
         }
-        let shas = con_entrada(git, dir, op, Subcomando::HashObject, None, rutas.as_bytes())?;
-        let shas = String::from_utf8_lossy(&shas);
-        let shas = shas_completos(&shas, cambios.len()).ok_or_else(|| {
-            Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO)
-        })?;
+        let shas = hashear(git, dir, op, &rutas, cambios.len())?;
         let mut entradas = String::new();
         for (c, sha) in cambios.iter().zip(&shas) {
             entradas.push_str(&format!("100644 {sha}\t{}\0", c.ruta));
@@ -486,6 +491,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests_stdin {
     use super::*;
+    use crate::i18n::Idioma;
 
     /// Repo vacio de verdad en una carpeta temporal propia.
     fn repo(nombre: &str) -> PathBuf {
@@ -502,12 +508,33 @@ mod tests_stdin {
         d
     }
 
+    /// TASK-127: `hashear` da un sha por fichero y, si `hash-object` no
+    /// devuelve exactamente uno por fichero, `error` con
+    /// `HASH_OBJECT_INCOMPLETO` en vez de emparejar mal rutas y contenidos.
     #[test]
-    fn shas_completos_exige_uno_por_fichero() {
-        assert_eq!(shas_completos("a\nb\n", 2), Some(vec!["a", "b"]));
-        assert_eq!(shas_completos("a\n", 2), None);
-        assert_eq!(shas_completos("a\nb\nc\n", 2), None);
-        assert_eq!(shas_completos("", 0), Some(vec![]));
+    fn hashear_exige_un_sha_por_fichero() {
+        let d = repo("hashear");
+        let git = Git::nuevo();
+        let f = d.join("blob");
+        std::fs::write(&f, "hola\n").unwrap();
+        let rutas = format!("{}\n", f.display());
+
+        let shas = hashear(&git, &d, "prueba", &rutas, 1).expect("un fichero, un sha");
+        assert_eq!(shas.len(), 1);
+        assert_eq!(shas[0].len(), 40, "{shas:?}");
+
+        for n in [0, 2] {
+            let i = hashear(&git, &d, "prueba", &rutas, n).expect_err("cuenta distinta");
+            assert_eq!(i.resultado, Resultado::Error);
+            let incompleto = Informe::nuevo("prueba", Resultado::Error)
+                .diagnostico(&txt::HASH_OBJECT_INCOMPLETO);
+            assert_eq!(
+                i.diagnostico_en(Idioma::Es),
+                incompleto.diagnostico_en(Idioma::Es),
+                "n={n}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// TASK-127: si git falla con la entrada por stdin, `con_entrada` da
@@ -553,7 +580,7 @@ mod tests_stdin {
             entrada.as_bytes(),
         );
         let shas = String::from_utf8(r.expect("hash-object de un fichero que existe")).unwrap();
-        assert_eq!(shas_completos(&shas, 1).map(|v| v[0].len()), Some(40));
+        assert_eq!(shas.trim().len(), 40, "{shas}");
         let _ = std::fs::remove_dir_all(&d);
     }
 }
