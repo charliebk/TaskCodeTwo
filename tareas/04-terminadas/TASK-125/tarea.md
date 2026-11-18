@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [tablero]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-125-seguimiento-de-f3-10-quitar-la-copia-vie
 asignado_a: charlie.bk@gmail.com
@@ -44,6 +44,7 @@ Revision ronda 1: aprobada sin hallazgos (rust-wasm-reviewer; la asercion nueva 
 | 2026-11-18T20:42:59Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-18T20:43:01Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T21:11:12Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T23:15:00Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -57,3 +58,10 @@ Revision ronda 1: aprobada sin hallazgos (rust-wasm-reviewer; la asercion nueva 
 
 - rust-wasm-reviewer — d52d640
 - code-quality-reviewer — d52d640
+
+## Duracion
+
+- Estimada: 15 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 152 min
+- Paso de la hora: 152 min reales frente a 15 estimados
+- Cierre (finish): 1432 s, de 2026-11-18T22:51:08Z a 2026-11-18T23:15:00Z

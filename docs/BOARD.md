@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-18. No editar a mano.
 
-## Planificadas (00-planificadas) — 65
+## Planificadas (00-planificadas) — 64
 
 ```text
 ID        Titulo                                                                                           Asignado
@@ -62,7 +62,6 @@ TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                    
 TASK-122  tc2 roadmap --grafo: grafo completo de tareas (RF-04)                                            (sin asignar)
 TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                                            (sin asignar)
 TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status                                     (sin asignar)
-TASK-125  Seguimiento de F3-10: quitar la copia vieja de la regla de actividad                             (sin asignar)
 TASK-126  Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad                 (sin asignar)
 TASK-129  F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos            (sin asignar)
 TASK-130  F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas  (sin asignar)
@@ -74,7 +73,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 54
+## Terminadas (04-terminadas) — 55
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -131,6 +130,7 @@ TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busque
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                                                              charlie.bk@gmail.com
 TASK-115  Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable                                               charlie.bk@gmail.com
 TASK-116  Nombres de la 2.0 alineados con F1-12 D1a                                                                           charlie.bk@gmail.com
+TASK-125  Seguimiento de F3-10: quitar la copia vieja de la regla de actividad                                                charlie.bk@gmail.com
 TASK-127  Escrituras de estado con muchos ficheros fallan en Windows (git hash-object)                                        charlie.bk@gmail.com
 TASK-128  Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso  charlie.bk@gmail.com
 ```
