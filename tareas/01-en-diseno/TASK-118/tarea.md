@@ -7,7 +7,7 @@ etiquetas: [plataforma, puertas]
 complejidad: media
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-118-aplicar-las-puertas-rulesets-desde-tc2-i
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1769062
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-17
@@ -35,3 +35,11 @@ TASK-028 (F3-1) solo propone los rulesets taskcodetwo-*. Aplicarlos exige los ch
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-18T23:15:26Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-18T23:23:36Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-18T23:21:41Z | diseno | agente:a796a41beee33a64f,aadccfc80a35137de | 64 | 143574 | 1522090 | 28166 | 54 | 1693894 | - | - |
+| 2026-11-18T23:23:25Z | diseno | agente:a5e8dec083c520ba2 | 6 | 30359 | 36713 | 8090 | 4 | 75168 | - | - |
