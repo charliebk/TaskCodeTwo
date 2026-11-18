@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-084-f3-12-progreso-en-vivo-fases-que-faltan
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1559802
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -48,3 +48,10 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-18T02:49:02Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-18T02:55:29Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-18T02:55:28Z | diseno | agente:a0d38b427619c51cc | 46 | 106136 | 1429509 | 24111 | 39 | 1559802 | - | - |
