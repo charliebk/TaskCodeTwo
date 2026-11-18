@@ -166,6 +166,38 @@ fn carpeta(dir: &Path) -> PathBuf {
     dir.join(".git").join("taskcodetwo").join("progreso")
 }
 
+/// TASK-128 (MEN-1 de la ronda 1): si el progreso que habia no pasa a
+/// `.anterior.json`, la transicion sale igual (codigo 0, stderr vacio) y su
+/// linea lo dice con `progreso=sin-anterior`: en `start`, sobre un progreso
+/// a medias; en `pausa`, con una carpeta ocupando la ruta del anterior.
+#[test]
+fn sin_anterior_en_start_y_en_una_transicion() {
+    let f = Fixture::nueva("progreso-sin-anterior");
+    let (_bare, a) = preparar(&f);
+    poner(&f, &a, &seis());
+    let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    let p = carpeta(&a);
+    std::fs::create_dir_all(&p).unwrap();
+    std::fs::write(p.join("TASK-007.json"), "a medias").unwrap();
+    let (c, out, err) = tc2(&f, &a, &["start", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert!(out.starts_with("start ok id=TASK-007 "), "{out}");
+    assert!(out.contains(" progreso=sin-anterior"), "{out}");
+    assert!(err.is_empty(), "{err}");
+    let anterior = p.join("TASK-007.anterior.json");
+    let _ = std::fs::remove_file(&anterior);
+    std::fs::create_dir_all(anterior.join("ocupada")).unwrap();
+    let (c, out, err) = tc2(&f, &a, &["pausa", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert!(
+        out.starts_with("pausa ok id=TASK-007 ")
+            && out.trim_end().ends_with(" progreso=sin-anterior"),
+        "{out}"
+    );
+    assert!(err.is_empty(), "{err}");
+}
+
 fn worktree(dir: &Path, id: &str) -> PathBuf {
     dir.join(".taskcodetwo").join("worktrees").join(id)
 }
