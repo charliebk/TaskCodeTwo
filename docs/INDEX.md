@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-083 — F3-13 Estimacion por fase de cada tarea al planificar · etiquetas: (sin etiquetas) · rama feature/task-083-f3-13-estimacion-por-fase-de-cada-tarea · terminada 2026-11-18 · tareas/04-terminadas/TASK-083/
 - TASK-081 — F3-10 Liberar y reasignar tareas abandonadas · etiquetas: (sin etiquetas) · rama feature/task-081-f3-10-liberar-y-reasignar-tareas-abandon · terminada 2026-11-17 · tareas/04-terminadas/TASK-081/
 - TASK-080 — F3-9 Inventario de skills y agentes instalados · etiquetas: (sin etiquetas) · rama feature/task-080-f3-9-inventario-de-skills-y-agentes-inst · terminada 2026-11-17 · tareas/04-terminadas/TASK-080/
 - TASK-079 — F3-5b status y roadmap siempre frescos · etiquetas: (sin etiquetas) · rama feature/task-079-f3-5b-status-y-roadmap-siempre-frescos · terminada 2026-11-17 · tareas/04-terminadas/TASK-079/

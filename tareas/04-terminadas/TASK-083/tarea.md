@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-083-f3-13-estimacion-por-fase-de-cada-tarea
 asignado_a: charlie.bk@gmail.com
@@ -86,6 +86,7 @@ Limites: la clave `historia=sin-log` no sale todavia en `new` ni en `import` (su
 | 2026-11-18T00:17:17Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-18T00:17:19Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T01:38:25Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T02:48:48Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -101,3 +102,10 @@ Limites: la clave `historia=sin-log` no sale todavia en `new` ni en `import` (su
 ## Verificacion ligera
 
 - 2026-11-18T02:37:04Z: ronda 1; commit revisado 2792c7e1f3c33f6fd9ab426df543f15c6fee3c6f; commit verificado 7be07671158a539b67174516eba5f425e97d2efd; ficheros: crates/tc2/src/estimacion/estimar.rs, crates/tc2/src/estimacion/historico.rs, crates/tc2/src/estimacion/mod.rs, crates/tc2/src/inventario.rs, crates/tc2/src/toma/mod.rs, crates/tc2/tests/estimacion.rs; corregidos: R1-02, R1-03, R1-04, R1-05, R1-06, H1, H2, H3; pendientes: R1-01
+
+## Duracion
+
+- Estimada: 420 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 151 min
+- Paso de la hora: 151 min reales frente a 420 estimados
+- Cierre (finish): 678 s, de 2026-11-18T02:37:30Z a 2026-11-18T02:48:48Z
