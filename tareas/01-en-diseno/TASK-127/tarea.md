@@ -7,7 +7,7 @@ etiquetas: [estado]
 complejidad: simple
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-127-escrituras-de-estado-con-muchos-ficheros
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 408633
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-18
@@ -35,3 +35,10 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-18T13:17:32Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-18T13:23:44Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-18T13:23:28Z | diseno | agente:aab8c8c2056b15be3 | 24 | 44265 | 356739 | 7605 | 18 | 408633 | - | - |
