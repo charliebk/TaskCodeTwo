@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 408633
 tokens_implementacion: 5806770
-tokens_revision: 9947241
+tokens_revision: 13287688
 creado: 2026-11-18
 actualizado: 2026-11-18
 dependencias: []
@@ -51,6 +51,8 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 | 2026-11-18T14:21:31Z | revision | agente:a4b729769f42ff4bd | 38 | 131669 | 1967278 | 16436 | 4 | 2115421 | 1 | code-quality-reviewer |
 | 2026-11-18T15:25:46Z | revision | agente:a372d86c1374fda45 | 90 | 156613 | 5380027 | 30622 | 11 | 5567352 | 2 | code-quality-reviewer |
 | 2026-11-18T15:25:46Z | revision | agente:af057479711085659 | 24 | 122452 | 1160516 | 11251 | 9 | 1294243 | 2 | rust-wasm-reviewer |
+| 2026-11-18T16:15:14Z | revision | agente:a51eefe48fd5d0834 | 44 | 117529 | 2011899 | 16121 | 3 | 2145593 | 3 | code-quality-reviewer |
+| 2026-11-18T16:15:14Z | revision | agente:abf3fdeea1c184444 | 24 | 107868 | 1076440 | 10522 | 3 | 1194854 | 3 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -60,8 +62,11 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 - code-quality-reviewer — 4589b99
 - rust-wasm-reviewer — eb0eb3d
 - code-quality-reviewer — eb0eb3d
+- rust-wasm-reviewer — cdbd5ba
+- code-quality-reviewer — cdbd5ba
 
 
 ## Rondas extra
 
 - Ronda 3: Carlos (consigna del 2026-11-18: opcion recomendada en las cuatro tareas del H0). IMP-1 seguia abierto solo por el cableado de HASH_OBJECT_INCOMPLETO en construir_commit; la correccion es barata (hashear con test de git real), asi que se verifica en una ronda mas en vez de aceptarlo.
+- Ronda 4: Carlos (misma consigna). IMP-1 seguia abierto por el cableado de hashear en construir_commit, sin red con git real; se cierra con un test con git falso (construir_commit_rechaza_shas_incompletos) y el mutante W en rojo.
