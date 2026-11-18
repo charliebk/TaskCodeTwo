@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-128 (en diseño)
-- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-125, TASK-126, TASK-129
+- **En marcha:** ninguna
+- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-125, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -221,7 +221,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H0 — H0
 
-3 de 15 terminadas.
+4 de 15 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
@@ -239,4 +239,4 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 64 | TASK-125 | Seguimiento de F3-10: quitar la copia vieja de la regla de actividad | simple | — | lista para empezar |
 | 65 | TASK-126 | Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad | simple | — | lista para empezar |
 | — | TASK-127 | Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) | simple | — | ✅ terminada |
-| 66 | TASK-128 | Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso | simple | — | ▶ en diseño |
+| — | TASK-128 | Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso | simple | — | ✅ terminada |

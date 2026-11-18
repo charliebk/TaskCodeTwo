@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-128 — Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso · etiquetas: solape, progreso · rama fix/task-128-seguimiento-de-f3-11-y-f3-12-aviso-de-so · terminada 2026-11-18 · tareas/04-terminadas/TASK-128/
 - TASK-127 — Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) · etiquetas: estado · rama fix/task-127-escrituras-de-estado-con-muchos-ficheros · terminada 2026-11-18 · tareas/04-terminadas/TASK-127/
 - TASK-082 — F3-11 Aviso de solape entre tareas en curso · etiquetas: (sin etiquetas) · rama feature/task-082-f3-11-aviso-de-solape-entre-tareas-en-cu · terminada 2026-11-18 · tareas/04-terminadas/TASK-082/
 - TASK-084 — F3-12 Progreso en vivo: fases que faltan y tiempo restante · etiquetas: (sin etiquetas) · rama feature/task-084-f3-12-progreso-en-vivo-fases-que-faltan · terminada 2026-11-18 · tareas/04-terminadas/TASK-084/

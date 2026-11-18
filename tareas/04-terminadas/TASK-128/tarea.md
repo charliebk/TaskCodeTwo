@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [solape, progreso]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-128-seguimiento-de-f3-11-y-f3-12-aviso-de-so
 asignado_a: charlie.bk@gmail.com
@@ -52,6 +52,7 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 | 2026-11-18T18:00:59Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-18T18:01:00Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T19:33:18Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T20:40:34Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -70,3 +71,10 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 ## Verificacion ligera
 
 - 2026-11-18T19:57:26Z: ronda 1; commit revisado 6fdb49100d3066da1c76a255b171cb8ed232d052; commit verificado 5bd30202122bcc294ee819e46da6da2421c304c8; ficheros: crates/tc2/tests/progreso.rs; corregidos: ninguno; pendientes: MEN-1, MEN-1
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 160 min
+- Paso de la hora: 160 min reales frente a 150 estimados
+- Cierre (finish): 1037 s, de 2026-11-18T20:23:17Z a 2026-11-18T20:40:34Z
