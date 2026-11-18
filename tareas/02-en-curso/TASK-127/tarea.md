@@ -43,3 +43,8 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-18T13:23:28Z | diseno | agente:aab8c8c2056b15be3 | 24 | 44265 | 356739 | 7605 | 18 | 408633 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 22ffc96
+- code-quality-reviewer — 22ffc96
