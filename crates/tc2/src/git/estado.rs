@@ -8,6 +8,7 @@
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use super::puerto::{HASH_OBJECT_STDIN, UPDATE_INDEX_STDIN};
 use super::rama::error_de_fichero;
 use super::{Git, Paso, Subcomando, correr, exigir, git_fallo};
 use crate::contrato::{Informe, Resultado};
@@ -263,6 +264,44 @@ fn con_indice(
     }
 }
 
+/// `hash-object` (sin indice) o `update-index` (con `indice`) en su unica
+/// forma con entrada por stdin; un codigo distinto de 0 es `error`.
+fn con_entrada(
+    git: &Git,
+    dir: &Path,
+    op: &str,
+    sub: Subcomando,
+    indice: Option<&Path>,
+    entrada: &[u8],
+) -> Paso<Vec<u8>> {
+    let r = match indice {
+        None => git.ejecutar_con_entrada(dir, sub, HASH_OBJECT_STDIN, entrada),
+        Some(i) => git.ejecutar_con_indice_y_entrada(dir, sub, UPDATE_INDEX_STDIN, i, entrada),
+    };
+    let s = r.map_err(|e| {
+        Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(e.mensaje())
+    })?;
+    if s.codigo == 0 {
+        Ok(s.stdout)
+    } else {
+        Err(Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(
+                Mensaje::nuevo(&txt::GIT_FALLO)
+                    .con("subcomando", sub.nombre())
+                    .con(
+                        "error",
+                        s.stderr
+                            .lines()
+                            .find(|l| !l.trim().is_empty())
+                            .unwrap_or_default(),
+                    ),
+            ))
+    }
+}
+
 /// Construye un commit con el arbol de `base` mas `cambios` y `base` como
 /// padre (sin padre si `base` es `None`: la raiz de la rama huerfana). No
 /// mueve ninguna rama. `None` si el arbol queda igual que el de `base`.
@@ -288,34 +327,39 @@ pub(crate) fn construir_commit(
         con_indice(git, dir, op, Subcomando::ReadTree, &[b], &indice)?;
     }
     if !cambios.is_empty() {
-        let mut ficheros = Vec::with_capacity(cambios.len());
+        // Rutas y entradas van por stdin, no por argumentos: con muchos
+        // ficheros la linea de ordenes pasaria del tope de Windows (unos
+        // 32 K caracteres) y los procesos no crecen con el numero de cambios
+        // (TASK-127).
+        let mut rutas = String::new();
         for (i, c) in cambios.iter().enumerate() {
             let f = tmp.0.join(format!("blob-{i}"));
             std::fs::write(&f, c.contenido.as_bytes()).map_err(|e| {
                 Informe::nuevo(op, Resultado::Error).diagnostico(error_de_fichero(&f, &e))
             })?;
-            ficheros.push(texto(op, &f)?);
+            rutas.push_str(&texto(op, &f)?);
+            rutas.push('\n');
         }
-        let mut args = vec!["-w", "--no-filters", "--"];
-        args.extend(ficheros.iter().map(String::as_str));
-        let shas = exigir(git, dir, op, Subcomando::HashObject, &args)?;
+        let shas = con_entrada(git, dir, op, Subcomando::HashObject, None, rutas.as_bytes())?;
+        let shas = String::from_utf8_lossy(&shas);
         let shas: Vec<&str> = shas.lines().map(str::trim).collect();
         if shas.len() != cambios.len() {
             return Err(
                 Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO)
             );
         }
-        let entradas: Vec<String> = cambios
-            .iter()
-            .zip(&shas)
-            .map(|(c, sha)| format!("100644,{sha},{}", c.ruta))
-            .collect();
-        let mut args = vec!["--add"];
-        for e in &entradas {
-            args.push("--cacheinfo");
-            args.push(e);
+        let mut entradas = String::new();
+        for (c, sha) in cambios.iter().zip(&shas) {
+            entradas.push_str(&format!("100644 {sha}\t{}\0", c.ruta));
         }
-        con_indice(git, dir, op, Subcomando::UpdateIndex, &args, &indice)?;
+        con_entrada(
+            git,
+            dir,
+            op,
+            Subcomando::UpdateIndex,
+            Some(&indice),
+            entradas.as_bytes(),
+        )?;
     }
     let arbol = con_indice(git, dir, op, Subcomando::WriteTree, &[], &indice)?;
     let arbol = arbol.trim();

@@ -7,8 +7,8 @@ crate::i18n::textos! {
         en: "argument not allowed for the layer: {argumento}",
     }
     SIN_ENTRADA {
-        es: "argumento prohibido para la capa: {sub} con entrada por stdin (solo cat-file)",
-        en: "argument not allowed for the layer: {sub} with stdin input (only cat-file)",
+        es: "argumento prohibido para la capa: {sub} con entrada por stdin (solo cat-file, hash-object -w --no-filters --stdin-paths y update-index --add -z --index-info con indice temporal)",
+        en: "argument not allowed for the layer: {sub} with stdin input (only cat-file, hash-object -w --no-filters --stdin-paths and update-index --add -z --index-info with a temporary index)",
     }
     CAT_FILE_INCOMPLETO {
         es: "git cat-file --batch devolvio una salida que no se entiende",
