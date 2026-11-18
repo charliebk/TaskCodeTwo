@@ -40,6 +40,8 @@ pub enum Subcomando {
     HashObject,
     /// `git ls-remote`
     LsRemote,
+    /// `git log` (lectura; el historico de la estimacion, F3-13)
+    Log,
     /// `git ls-tree`
     LsTree,
     /// `git merge`
@@ -88,6 +90,7 @@ impl Subcomando {
             Self::ForEachRef => "for-each-ref",
             Self::HashObject => "hash-object",
             Self::LsRemote => "ls-remote",
+            Self::Log => "log",
             Self::LsTree => "ls-tree",
             Self::Merge => "merge",
             Self::MergeBase => "merge-base",
