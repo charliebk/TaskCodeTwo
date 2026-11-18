@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1559802
 tokens_implementacion: 49928300
-tokens_revision: null
+tokens_revision: 8084753
 creado: 2026-11-14
 actualizado: 2026-11-18
 dependencias: [TASK-018, TASK-083]
@@ -89,3 +89,5 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE de esta tarea):
 | 2026-11-18T02:55:28Z | diseno | agente:a0d38b427619c51cc | 46 | 106136 | 1429509 | 24111 | 39 | 1559802 | - | - |
 | 2026-11-18T03:58:31Z | implementacion | agente:abf6bb12d06fab0e2 | 310 | 445019 | 46720462 | 134065 | 76 | 47299856 | - | - |
 | 2026-11-18T03:58:33Z | implementacion | sesion:f1858935-5859-4139-a2e3-cdd4f3fa7d06 | 8 | 633875 | 1990572 | 3989 | 0 | 2628444 | - | - |
+| 2026-11-18T04:11:31Z | revision | agente:ab4ba9ab6dcade8d3 | 48 | 133889 | 2696334 | 19300 | 5 | 2849571 | 1 | rust-wasm-reviewer |
+| 2026-11-18T04:13:40Z | revision | agente:a16c9ebcc7a604819 | 82 | 168175 | 5047820 | 19105 | 10 | 5235182 | 1 | code-quality-reviewer |
