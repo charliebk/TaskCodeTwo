@@ -31,17 +31,17 @@ Tarea F3-12 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3
 Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo importante no es un porcentaje sino qué fases faltan y el tiempo estimado de cada tarea, como información para el programador, visible en el terminal de trabajo (status line de Claude Code y `taskctl status --seguir`), escrito por el CLI sin gastar tokens; en un lote, además, tareas que faltan y hora estimada de fin. Al cerrar, métricas finales: estimado frente a real por fase, tokens, rondas y hallazgos, con la calibración de la estimación en el informe por versión. Base en la 0.16: `taskctl estado [--seguir]`, la status line (fase, paso, x/N, minutos) y la «Duración estimada» del plan. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 quater.
 
 ## Criterios de aceptacion
-- [ ] C1: `tc2 estado --stdin` con `{"workspace":{"current_dir":<worktree>}}` no lanza procesos ni abre red (su firma no recibe `Git`); con 10 y con 1000 tareas en la rama de estado da la misma salida leyendo los mismos ficheros; tiempo medido en Windows anotado en el Resultado y el test falla por encima de 200 ms
-- [ ] C2: una tarea en curso con muestras sinteticas conocidas y 20 min transcurridos da exactamente la linea esperada (fase, fases que faltan, ≈mediana, p80, n y nivel)
-- [ ] C3: en un E2E con remoto local, tras `start`, `pausa` y `reanudar` el fichero se reescribe, la linea cambia y el anterior queda en `.anterior.json`; tras `descartar` o `liberar` la linea dice «sin tarea en curso»
-- [ ] C4: `calcular` sobre una tarea `en-revision` da la fase rondas con solo «cierre» por delante
-- [ ] C5: sin tareas parecidas la linea dice `sin estimacion (n=N)`
-- [ ] C6: pasado lo de todas las parecidas la linea dice `≥X min (fase en curso por encima de sus parecidas)`
-- [ ] C7: sin tarea en curso o fuera de un repo sale `tc2 · sin tarea en curso` con codigo 0 y stderr vacio
-- [ ] C8: un fichero corrupto o a medias da el ultimo valor bueno con su antiguedad
-- [ ] C9: `tc2 status --seguir` imprime la linea inicial, vuelve a imprimir al reescribirse el fichero y termina cuando `parar()` es verdadero (test de biblioteca con reloj inyectado); en el test de proceso, la salida contiene las dos lineas
-- [ ] C10: avisos con caracteres de control o bidi salen saneados y con longitud acotada
-- [ ] C11: ninguna orden nueva usa modelos ni red; `init` propone la status line y deja `settings.json` igual byte a byte
+- [x] C1: `tc2 estado --stdin` con `{"workspace":{"current_dir":<worktree>}}` no lanza procesos ni abre red (su firma no recibe `Git`); con 10 y con 1000 tareas en la rama de estado da la misma salida leyendo los mismos ficheros; tiempo medido en Windows anotado en el Resultado y el test falla por encima de 200 ms
+- [x] C2: una tarea en curso con muestras sinteticas conocidas y 20 min transcurridos da exactamente la linea esperada (fase, fases que faltan, ≈mediana, p80, n y nivel)
+- [x] C3: en un E2E con remoto local, tras `start`, `pausa` y `reanudar` el fichero se reescribe, la linea cambia y el anterior queda en `.anterior.json`; tras `descartar` o `liberar` la linea dice «sin tarea en curso»
+- [x] C4: `calcular` sobre una tarea `en-revision` da la fase rondas con solo «cierre» por delante
+- [x] C5: sin tareas parecidas la linea dice `sin estimacion (n=N)`
+- [x] C6: pasado lo de todas las parecidas la linea dice `≥X min (fase en curso por encima de sus parecidas)`
+- [x] C7: sin tarea en curso o fuera de un repo sale `tc2 · sin tarea en curso` con codigo 0 y stderr vacio
+- [x] C8: un fichero corrupto o a medias da el ultimo valor bueno con su antiguedad
+- [x] C9: `tc2 status --seguir` imprime la linea inicial, vuelve a imprimir al reescribirse el fichero y termina cuando `parar()` es verdadero (test de biblioteca con reloj inyectado); en el test de proceso, la salida contiene las dos lineas
+- [x] C10: avisos con caracteres de control o bidi salen saneados y con longitud acotada
+- [x] C11: ninguna orden nueva usa modelos ni red; `init` propone la status line y deja `settings.json` igual byte a byte
 
 ## Autorrevision
 
@@ -72,6 +72,16 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE de esta tarea):
   refresco que cambia la transicion, `commondir`, rama desbordada, pausa que
   congela.
 - Verificacion propia: `--test progreso --test estimacion` 19 de 19.
+
+## Resultado
+
+Hecho: modulo `progreso/` (F1-17 para F3-12). Las transiciones (start, descartar, pausa, reanudar, liberar, reasignar) escriben `.git/taskcodetwo/progreso/TASK-NNN.json` (anterior en `.anterior.json`) con fase, fases que faltan y una tabla de lo que falta sacada de `estimacion::restante` (sin segunda formula); un fallo al escribirlo nunca cambia la transicion (`progreso=no-escrito`). `tc2 estado --stdin` (la orden de status line ya fijada en `distribucion::STATUS_LINE`) lee ese fichero sin red ni subprocesos (su firma no recibe `Git`) y da una linea con el formato L5 de F1-17: `TASK-NNN · <fase> · fases que faltan: ... · faltan ≈X min (p80 Y) · n=N <nivel>`, con variantes desbordada, sin estimacion, pausada, sin actividad, saturada (mas de 480 min) y sin tarea; siempre codigo 0, tambien con stdout cerrado. Medido en Windows: ~17 ms en caliente (83 ms en frio), igual con 10 que con 1000 tareas. `tc2 status --seguir` repinta cada 2 s y, sin terminal, repite la linea cada 4 s para enterarse del cierre de stdout y terminar. `init` propone la `statusLine` sin tocar ningun `settings.json`; `instalar.md` lo documenta con las citas oficiales (status line y ajustes, donde se lee `settings.local.json`, version v2.1.211 y excepciones, incluida Windows). `huella::escribir_local` (temporal + rename con reintento) lo usan progreso, frescura e identidad. Adenda de F1-17 (fichero en `.git/taskcodetwo/progreso/` en vez del gitdir del worktree; tope de 45 min en el hueco abierto; repeticion de `--seguir`; saturada). D1A-D4A. `cargo xtask verificar --perfil rapida` en verde.
+
+No verificado: durante una tarea real (las tareas se hacen con la 0.16 y faltan `review` y `finish` en la 2.0): queda para F9-7; la fase de rondas solo con datos de prueba. Ctrl+C en `--seguir` no sale con 0. Liberar/reasignar desde otro clon no borran el fichero del clon anterior hasta su siguiente transicion. `desinstalar` no quita la status line de `.claude/settings.local.json` (documentado).
+
+Revision ronda 1: rust-wasm-reviewer cambios-solicitados (R1-01 IMPORTANTE: `--seguir` no terminaba al cerrarse stdout con la linea fija; R1-02 a R1-05 MENORES: saneado bidi, `estado --stdin` con stdout cerrado, fallo del anterior que impedia escribir, saturacion sin aviso); code-quality-reviewer aprobada (M1 a M4: tramo a mitad, frontera de 45 min, cita de `settings.local.json`, test de `reasignar` y carpeta administrativa del worktree). Corregidos en 8d43627 y f44ce49. Ronda 2: aprobada por los dos (573 tests del workspace en verde; R1-01 reproducido con el binario: termina en 4 s); N1 (cita y version de donde se lee `settings.local.json`) corregido en ed42bd0 y verificado con `verificar-menores`.
+
+Hallazgo fuera de esta tarea: `estado::transaccion` con 1000 ficheros en una operacion falla con `git=hash-object` en Windows (probable longitud de linea de ordenes); pasa a una tarea nueva.
 
 ## Transiciones
 
