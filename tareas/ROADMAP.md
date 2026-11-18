@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
+- **En marcha:** TASK-118 (en diseño)
+- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -229,7 +229,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-115 | Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable | simple | — | ✅ terminada |
 | — | TASK-116 | Nombres de la 2.0 alineados con F1-12 D1a | simple | — | ✅ terminada |
 | 53 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
-| 54 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | lista para empezar |
+| 54 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | ▶ en diseño |
 | 55 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
 | 56 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
 | 57 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
