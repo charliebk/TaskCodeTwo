@@ -9,6 +9,35 @@ use crate::i18n::{Mensaje, Texto};
 /// Nombre de la operacion.
 pub const ESTADO_PUERTAS: &str = "estado-puertas";
 
+/// Nombre de la operacion de escritura de puertas (TASK-118).
+pub const APLICAR_PUERTAS: &str = "aplicar-puertas";
+
+/// `aplicar-puertas` rechazada porque los checks `faltan` no se han visto
+/// publicados por su origen en la cabeza de `develop` (TASK-118 D2):
+/// exigirlos bloquearia `develop` para todos.
+pub fn sin_origen_visto(faltan: Vec<String>) -> Informe {
+    let diag = Mensaje::nuevo(&t::CHECKS_SIN_ORIGEN_VISTO).con("faltan", faltan.join(", "));
+    Informe::nuevo(APLICAR_PUERTAS, Resultado::Rechazada)
+        .con("motivo", "puertas-sin-origen")
+        .con_lista("faltan", faltan)
+        .diagnostico(diag)
+}
+
+/// Los checks de `o` que no estan en `vistos` (`(nombre, origen)` de los
+/// publicados en la cabeza de `develop`): los de origen fijo tienen que
+/// estar publicados por ese origen; los del pipeline, por cualquiera. En el
+/// orden del modelo.
+pub fn no_vistos(o: &Origenes, vistos: &[(String, u64)]) -> Vec<String> {
+    checks_del_modelo()
+        .into_iter()
+        .filter(|c| match o.de(c) {
+            Some(id) => !vistos.iter().any(|(n, x)| n == c && *x == id),
+            None => !vistos.iter().any(|(n, _)| n == c),
+        })
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Estado de un check obligatorio, contado solo si lo publico su origen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EstadoCheck {
@@ -154,7 +183,7 @@ pub struct Puerta {
     pub solo_pr: Option<SoloPr>,
     /// Rama al dia con la base antes del merge (`strict`).
     pub al_dia: bool,
-    /// Checks obligatorios. Su origen (`integration_id`) llega con F6-1.
+    /// Checks obligatorios. Su origen, en [`Origenes`].
     pub checks: Vec<&'static str>,
 }
 
@@ -209,10 +238,87 @@ pub fn modelo() -> Vec<Puerta> {
     ]
 }
 
+/// `integration_id` de GitHub Actions (F1-5, PoC A): el origen de
+/// `verificacion` y `carril` en GitHub.
+pub const ID_ACTIONS: u64 = 15368;
+
+/// Checks del modelo que publica el revisor IA (su origen es
+/// `plataforma.revisor_id`).
+const CHECKS_DEL_REVISOR: [&str; 1] = ["revision-ia"];
+
+/// De donde sale cada check obligatorio del modelo (TASK-118, D-id del
+/// plan): sin el, una puerta con checks no se aplica.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Origenes {
+    /// `(nombre, origen)`: en GitHub, el `integration_id` de la App que lo
+    /// publica (`app.id` del check-run); en GitLab, el `author.id` del
+    /// estado del commit (F1-13, decision 6).
+    pub checks: Vec<(String, u64)>,
+    /// Checks sin origen fijo (GitLab: los jobs del pipeline, que impone
+    /// «Pipelines must succeed» entero; su autor es quien lanzo el
+    /// pipeline, F1-13 G09). Cuentan con que se hayan visto publicados.
+    pub del_pipeline: Vec<String>,
+}
+
+impl Origenes {
+    /// El origen de `check`, si tiene uno fijo.
+    pub fn de(&self, check: &str) -> Option<u64> {
+        self.checks
+            .iter()
+            .find(|(n, _)| n == check)
+            .map(|(_, id)| *id)
+    }
+}
+
+/// Los checks obligatorios del modelo, sin repetir, en orden de aparicion.
+pub fn checks_del_modelo() -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = Vec::new();
+    for p in modelo() {
+        for c in p.checks {
+            if !v.contains(&c) {
+                v.push(c);
+            }
+        }
+    }
+    v
+}
+
+/// Los origenes de los checks del modelo en `proveedor`, con `revisor_id`
+/// de la configuracion (`plataforma.revisor_id`; 0 cuenta como ausente).
+/// Pura. `Err` con los checks que se quedan sin origen.
+///
+/// GitHub: `verificacion` y `carril` los publica Actions ([`ID_ACTIONS`]) y
+/// `revision-ia` la App del revisor. GitLab: `revision-ia` es un estado del
+/// revisor (`author.id`) y `verificacion` y `carril` son del pipeline.
+pub fn origenes(
+    proveedor: super::Proveedor,
+    revisor_id: Option<u64>,
+) -> Result<Origenes, Vec<&'static str>> {
+    let revisor = revisor_id.filter(|id| *id != 0);
+    let mut o = Origenes::default();
+    let mut faltan = Vec::new();
+    for c in checks_del_modelo() {
+        let del_revisor = CHECKS_DEL_REVISOR.contains(&c);
+        match (del_revisor, proveedor, revisor) {
+            (true, _, Some(id)) => o.checks.push((c.to_owned(), id)),
+            (true, _, None) => faltan.push(c),
+            (false, super::Proveedor::GitHub, _) => o.checks.push((c.to_owned(), ID_ACTIONS)),
+            (false, super::Proveedor::GitLab, _) => o.del_pipeline.push(c.to_owned()),
+        }
+    }
+    if faltan.is_empty() {
+        Ok(o)
+    } else {
+        Err(faltan)
+    }
+}
+
 /// La puerta traducida a un ruleset de GitHub (la forma de los JSON de la
-/// PoC C de F1-5). Solo genera la propuesta: aplicarla es de TASK-118, y
-/// los checks van sin `integration_id` hasta que F6-1 de el real.
-pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
+/// PoC C de F1-5). Sin `origenes` es la propuesta de `init` (checks sin
+/// `integration_id` y la clave `_nota`, que GitHub no admite); con ellos,
+/// el cuerpo que `aplicar-puertas` envia (TASK-118), con el
+/// `integration_id` de cada check.
+pub fn ruleset_github(p: &Puerta, origenes: Option<&Origenes>) -> serde_json::Value {
     use serde_json::json;
     let (target, include) = match &p.objetivo {
         Objetivo::Ramas(r) => ("branch", r),
@@ -239,9 +345,20 @@ pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
             }
         }));
     }
+    // Checks sin origen conocido: con origenes no deberia quedar ninguno.
+    let mut sin_origen = false;
     if !p.checks.is_empty() {
-        let checks: Vec<serde_json::Value> =
-            p.checks.iter().map(|c| json!({"context": c})).collect();
+        let checks: Vec<serde_json::Value> = p
+            .checks
+            .iter()
+            .map(|c| match origenes.and_then(|o| o.de(c)) {
+                Some(id) => json!({"context": c, "integration_id": id}),
+                None => {
+                    sin_origen = true;
+                    json!({"context": c})
+                }
+            })
+            .collect();
         reglas.push(json!({
             "type": "required_status_checks",
             "parameters": {
@@ -253,7 +370,7 @@ pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
     // Sin `integration_id` cualquier identidad con permiso de escribir checks
     // los daria por buenos (F1-5 lo descarta): la propuesta lleva una clave
     // que GitHub no admite, asi que no se puede aplicar tal cual.
-    let nota = (!p.checks.is_empty()).then_some(NOTA_SIN_ORIGEN);
+    let nota = sin_origen.then_some(NOTA_SIN_ORIGEN);
     let mut v = json!({
         "name": p.nombre_completo(),
         "target": target,
@@ -269,8 +386,7 @@ pub fn ruleset_github(p: &Puerta) -> serde_json::Value {
 }
 
 /// Nota de una propuesta con checks sin origen: no es aplicable.
-pub const NOTA_SIN_ORIGEN: &str =
-    "no aplicable: checks sin integration_id hasta F6-1; la aplica TASK-118";
+pub const NOTA_SIN_ORIGEN: &str = "no aplicable: checks sin integration_id; la aplica tc2 init --aplicar-puertas con plataforma.revisor_id y los checks ya publicados en develop";
 
 #[cfg(test)]
 mod tests {
@@ -302,7 +418,7 @@ mod tests {
                 })
                 .unwrap_or_default()
         };
-        let develop = ruleset_github(&m[0]);
+        let develop = ruleset_github(&m[0], None);
         assert_eq!(develop["name"], "taskcodetwo-develop");
         assert_eq!(develop["target"], "branch");
         assert_eq!(
@@ -318,7 +434,7 @@ mod tests {
             develop["rules"][3]["parameters"]["strict_required_status_checks_policy"],
             true
         );
-        let main = ruleset_github(&m[1]);
+        let main = ruleset_github(&m[1], None);
         assert_eq!(
             main["rules"][3]["parameters"]["strict_required_status_checks_policy"],
             false
@@ -329,16 +445,70 @@ mod tests {
             develop["rules"][3]["parameters"]["required_status_checks"][0]["integration_id"]
                 .is_null()
         );
-        let tareas = ruleset_github(&m[3]);
+        let tareas = ruleset_github(&m[3], None);
         assert!(tareas.get("_nota").is_none());
         assert_eq!(
             tareas["conditions"]["ref_name"]["include"][0],
             "refs/heads/taskcodetwo/tareas"
         );
         assert_eq!(tipos(&tareas), ["deletion", "non_fast_forward"]);
-        let tags = ruleset_github(&m[4]);
+        let tags = ruleset_github(&m[4], None);
         assert_eq!(tags["target"], "tag");
         assert_eq!(tipos(&tags), ["deletion", "update"]);
+    }
+
+    /// TASK-118, criterio 2 (unitario): sin `revisor_id` (o con 0),
+    /// `revision-ia` se queda sin origen en las dos plataformas; con el, en
+    /// GitHub `verificacion` y `carril` son de Actions y en GitLab del
+    /// pipeline.
+    #[test]
+    fn origenes_de_los_checks() {
+        use super::super::Proveedor;
+        for p in [Proveedor::GitHub, Proveedor::GitLab] {
+            assert_eq!(origenes(p, None), Err(vec!["revision-ia"]), "{p:?}");
+            assert_eq!(origenes(p, Some(0)), Err(vec!["revision-ia"]), "{p:?}");
+        }
+        let gh = origenes(Proveedor::GitHub, Some(99001)).unwrap_or_default();
+        assert_eq!(
+            gh.checks,
+            [
+                ("verificacion".to_owned(), ID_ACTIONS),
+                ("revision-ia".to_owned(), 99001),
+                ("carril".to_owned(), ID_ACTIONS)
+            ]
+        );
+        assert!(gh.del_pipeline.is_empty());
+        let gl = origenes(Proveedor::GitLab, Some(2002)).unwrap_or_default();
+        assert_eq!(gl.checks, [("revision-ia".to_owned(), 2002)]);
+        assert_eq!(gl.del_pipeline, ["verificacion", "carril"]);
+    }
+
+    /// Con origenes, el ruleset lleva el `integration_id` de cada check y no
+    /// la `_nota`: es el cuerpo que se envia.
+    #[test]
+    fn ruleset_con_origenes_es_aplicable() {
+        let o = origenes(super::super::Proveedor::GitHub, Some(99001)).unwrap_or_default();
+        let m = modelo();
+        let develop = ruleset_github(&m[0], Some(&o));
+        assert!(develop.get("_nota").is_none(), "{develop}");
+        let checks = &develop["rules"][3]["parameters"]["required_status_checks"];
+        assert_eq!(
+            checks,
+            &serde_json::json!([
+                {"context": "verificacion", "integration_id": ID_ACTIONS},
+                {"context": "revision-ia", "integration_id": 99001},
+                {"context": "carril", "integration_id": ID_ACTIONS}
+            ])
+        );
+        // Un origen que falta deja la nota: nunca se envia sin el.
+        let parcial = Origenes {
+            checks: vec![("verificacion".into(), ID_ACTIONS)],
+            del_pipeline: Vec::new(),
+        };
+        assert_eq!(
+            ruleset_github(&m[1], Some(&parcial))["_nota"],
+            NOTA_SIN_ORIGEN
+        );
     }
 
     fn l(checks: &[(&str, EstadoCheck)], aprob: usize, al_dia: bool) -> Lecturas {

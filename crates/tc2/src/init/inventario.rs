@@ -18,12 +18,12 @@ use crate::i18n::Mensaje;
 use crate::i18n::catalogo::init as txt;
 use crate::plataforma::personas::{self, Personas};
 use crate::plataforma::puertas::{modelo, ruleset_github};
-use crate::plataforma::{GitHub, GitLab, Plataforma, Proveedor, Rol, detectar};
+use crate::plataforma::{EstadoPuerta, GitHub, GitLab, Plataforma, Proveedor, Rol, detectar};
 
 /// El adaptador de la plataforma y su proveedor, o el motivo por el que no
 /// lo hay (`sin-remoto`, `sin-token` o el motivo de `detectar`, como
 /// `plataforma-contradice`).
-type Conexion = Result<(Box<dyn Plataforma>, Proveedor), String>;
+pub(super) type Conexion = Result<(Box<dyn Plataforma>, Proveedor), String>;
 
 /// Ramas de codigo que `init` deja (F1-3).
 const RAMAS: [&str; 2] = ["main", "develop"];
@@ -72,7 +72,7 @@ fn denegada(f: FalloRemoto, detalle: &str) -> Informe {
         )
 }
 
-pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
+pub(super) fn plan(c: &Contexto<'_>, aplicar: bool) -> Result<(Vec<Accion>, Conexion), Informe> {
     let g = c.git;
     let principal = localizar_principal(g, c.dir).map_err(|i| renombrar(i, NOMBRE))?;
     let mut v = Vec::new();
@@ -80,6 +80,8 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
     // Configuracion: la 0.16 o una que no vale no se pisan (C4).
     let ruta_config = principal.join(config::RUTA);
     let mut clave: Option<(&'static str, String)> = None;
+    // `plataforma.revisor_id` (TASK-118): el origen de `revision-ia`.
+    let mut revisor: Option<u64> = None;
     match leer(&ruta_config)? {
         None => v.push(Accion::crea(
             t(&ruta_config),
@@ -91,6 +93,7 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
         )),
         Some(bytes) => match config::leer(&String::from_utf8_lossy(&bytes)) {
             Ok(cfg) => {
+                revisor = cfg.plataforma.as_ref().and_then(|p| p.revisor_id);
                 clave = cfg.plataforma.map(|p| (p.proveedor.nombre(), p.api));
                 v.push(Accion::nueva(
                     t(&ruta_config),
@@ -234,9 +237,184 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
     // `init` nunca lee ni escribe un `settings.json`.
     v.push(status_line(&principal));
 
-    // Rulesets: solo propuesta (D1); los aplica TASK-118.
-    puertas(&plataforma, &mut v);
-    Ok(v)
+    // Rulesets: solo propuesta (D1); con `--aplicar-puertas`, los que
+    // faltan se crean (TASK-118), tras comprobar todo lo que exigen.
+    if aplicar {
+        let previo = Previo {
+            principal: &principal,
+            remotas: &remotas,
+            revisor,
+        };
+        puertas_a_aplicar(c, &previo, &plataforma, &mut v)?;
+    } else {
+        puertas(&plataforma, &mut v);
+    }
+    Ok((v, plataforma))
+}
+
+/// Lo que `--aplicar-puertas` comprueba antes de leer la plataforma.
+struct Previo<'a> {
+    principal: &'a Path,
+    /// Ramas de `origin`, `(nombre, sha)`.
+    remotas: &'a [(String, String)],
+    /// `plataforma.revisor_id`.
+    revisor: Option<u64>,
+}
+
+/// Motivo de la linea `init rechazada` cuando lo que bloquea es la persona.
+const SIN_PERSONA: &str = "sin-persona";
+
+/// Las lineas `ruleset` con `--aplicar-puertas` (TASK-118). Antes de
+/// escribir nada, ni en el disco ni en la plataforma, se exige: la
+/// plataforma con el token de la persona, `personas.yml` ya existente,
+/// `develop` y `main` en `origin` sin commits locales por delante (D5), el
+/// origen de cada check (D-id) y, en la plataforma, la persona de la lista
+/// y cada check ya visto publicado por su origen en `develop` (D2). Si algo
+/// falla, las cinco lineas salen `rechaza` con el motivo (D1: se rechaza la
+/// orden entera). Si pasa: `crea` las que faltan (con la propuesta en
+/// JSON), `existe` las que ya estan y `existe motivo=difiere` las que estan
+/// distintas, que no se tocan (D3/D4).
+fn puertas_a_aplicar(
+    c: &Contexto<'_>,
+    previo: &Previo<'_>,
+    plataforma: &Conexion,
+    v: &mut Vec<Accion>,
+) -> Result<(), Informe> {
+    let modelo = modelo();
+    let lineas = |decision: Decision| -> Vec<Accion> {
+        modelo
+            .iter()
+            .map(|p| Accion::nueva(p.nombre_completo(), "ruleset", "taskcodetwo", decision))
+            .collect()
+    };
+    // Rechazo de las cinco lineas; la primera lleva el diagnostico.
+    let rechazo = |motivo: String, faltan: Vec<String>, diag: Mensaje| -> Vec<Accion> {
+        let mut ls = lineas(Decision::Rechaza);
+        for a in &mut ls {
+            a.motivo = Some(motivo.clone());
+        }
+        if let Some(a) = ls.first_mut() {
+            a.faltan = faltan;
+            a.diagnostico = Some(diag);
+        }
+        ls
+    };
+    let (p, prov) = match plataforma {
+        Ok((p, prov)) => (p, *prov),
+        Err(m) => {
+            v.extend(rechazo(
+                m.clone(),
+                Vec::new(),
+                Mensaje::nuevo(&txt::PUERTAS_SIN_PLATAFORMA).con("motivo", m.clone()),
+            ));
+            return Ok(());
+        }
+    };
+    let personas_existe = v
+        .iter()
+        .any(|a| a.clase == "personas" && a.decision == Decision::Existe);
+    if !personas_existe {
+        v.extend(rechazo(
+            "sin-personas".to_owned(),
+            Vec::new(),
+            Mensaje::nuevo(&txt::PUERTAS_SIN_PERSONAS).con("ruta", personas::RUTA),
+        ));
+        return Ok(());
+    }
+    // D5: `develop` y `main` en `origin`, y nada local por delante.
+    let mut sin_remoto = Vec::new();
+    let mut por_delante = Vec::new();
+    for r in RAMAS {
+        let Some((_, remota)) = previo.remotas.iter().find(|(n, _)| n == r) else {
+            sin_remoto.push(r.to_owned());
+            continue;
+        };
+        if let Some(local) = commit_de(c.git, previo.principal, NOMBRE, &format!("refs/heads/{r}"))?
+            && !local.eq_ignore_ascii_case(remota)
+        {
+            let s = correr(
+                c.git,
+                previo.principal,
+                NOMBRE,
+                Subcomando::MergeBase,
+                &["--is-ancestor", &local, remota],
+            )?;
+            if !s.exito() {
+                por_delante.push(r.to_owned());
+            }
+        }
+    }
+    if !sin_remoto.is_empty() {
+        let diag =
+            Mensaje::nuevo(&txt::PUERTAS_RAMAS_SIN_REMOTO).con("ramas", sin_remoto.join(", "));
+        v.extend(rechazo("ramas-sin-remoto".to_owned(), sin_remoto, diag));
+        return Ok(());
+    }
+    if !por_delante.is_empty() {
+        let diag =
+            Mensaje::nuevo(&txt::PUERTAS_RAMAS_POR_DELANTE).con("ramas", por_delante.join(", "));
+        v.extend(rechazo("ramas-por-delante".to_owned(), por_delante, diag));
+        return Ok(());
+    }
+    // D-id: el origen de cada check, de la configuracion.
+    let origenes = match crate::plataforma::puertas::origenes(prov, previo.revisor) {
+        Ok(o) => o,
+        Err(faltan) => {
+            let faltan: Vec<String> = faltan.into_iter().map(str::to_owned).collect();
+            let diag = Mensaje::nuevo(&txt::PUERTAS_SIN_REVISOR_ID)
+                .con("faltan", faltan.join(", "))
+                .con("ruta", config::RUTA);
+            v.extend(rechazo("puertas-sin-origen".to_owned(), faltan, diag));
+            return Ok(());
+        }
+    };
+    // En la plataforma: la persona de la lista, el plan y D2.
+    let leidas = match p.preparar_puertas(&modelo, &origenes) {
+        Ok(l) => l,
+        Err(i) => {
+            let motivo = match motivo_de(&i).as_str() {
+                "identidad" => SIN_PERSONA.to_owned(),
+                m => m.to_owned(),
+            };
+            let faltan = super::lista(&i, "faltan");
+            let diag = i.diagnostico.clone().unwrap_or_else(|| {
+                Mensaje::nuevo(&txt::PUERTAS_SIN_PLATAFORMA).con("motivo", motivo.clone())
+            });
+            v.extend(rechazo(motivo, faltan, diag));
+            return Ok(());
+        }
+    };
+    let mut efecto = Some(Efecto::AplicarPuertas {
+        origenes: origenes.clone(),
+        notas: leidas.notas.clone(),
+    });
+    for puerta in &modelo {
+        let nombre = puerta.nombre_completo();
+        let estado = leidas
+            .puertas
+            .iter()
+            .find(|(n, _)| *n == nombre)
+            .map_or(EstadoPuerta::Falta, |(_, e)| *e);
+        let nueva = |d: Decision| Accion::nueva(nombre.clone(), "ruleset", "taskcodetwo", d);
+        v.push(match estado {
+            EstadoPuerta::Existe => nueva(Decision::Existe),
+            EstadoPuerta::Difiere => nueva(Decision::Existe).motivo("difiere"),
+            EstadoPuerta::Falta => {
+                // El efecto en lote va en la primera que se crea; las demas
+                // las hace esa misma linea.
+                let mut a = Accion::crea(
+                    nombre.clone(),
+                    "ruleset",
+                    efecto.take().unwrap_or(Efecto::Ninguno),
+                );
+                if prov == Proveedor::GitHub {
+                    a.propuesta = Some(ruleset_github(puerta, Some(&origenes)));
+                }
+                a
+            }
+        });
+    }
+    Ok(())
 }
 
 /// Donde se recomienda pegar la status line: el `settings.local.json` del
@@ -586,21 +764,17 @@ fn plataforma(
     if credenciales.token(Rol::Persona).is_none() {
         return Ok(Err("sin-token".to_owned()));
     }
+    // La lista de personas, si ya existe y vale: `aplicar-puertas` exige
+    // que la identidad de persona este en ella (TASK-118). Sin ella, vacia
+    // (las lecturas de `init` no la miran).
+    let lista = leer(&principal.join(personas::RUTA))?
+        .and_then(|b| Personas::leer(&String::from_utf8_lossy(&b)).ok())
+        .unwrap_or_default();
     let p: Result<Box<dyn Plataforma>, Informe> = match destino.proveedor {
-        Proveedor::GitHub => GitHub::nuevo(
-            destino.api,
-            &destino.proyecto,
-            credenciales,
-            Personas::default(),
-        )
-        .map(|x| Box::new(x) as Box<dyn Plataforma>),
-        Proveedor::GitLab => GitLab::nuevo(
-            destino.api,
-            &destino.proyecto,
-            credenciales,
-            Personas::default(),
-        )
-        .map(|x| Box::new(x) as Box<dyn Plataforma>),
+        Proveedor::GitHub => GitHub::nuevo(destino.api, &destino.proyecto, credenciales, lista)
+            .map(|x| Box::new(x) as Box<dyn Plataforma>),
+        Proveedor::GitLab => GitLab::nuevo(destino.api, &destino.proyecto, credenciales, lista)
+            .map(|x| Box::new(x) as Box<dyn Plataforma>),
     };
     Ok(p.map(|p| (p, destino.proveedor)).map_err(|i| motivo_de(&i)))
 }
@@ -687,7 +861,7 @@ fn puertas(plataforma: &Conexion, v: &mut Vec<Accion>) {
                     .motivo("aplicar-con-task-118")
                     .orden(ORDEN_PUERTAS);
                 if *prov == Proveedor::GitHub {
-                    a.propuesta = Some(ruleset_github(&puerta));
+                    a.propuesta = Some(ruleset_github(&puerta, None));
                 }
                 a
             }

@@ -441,6 +441,11 @@ pub(crate) fn tabla() -> Vec<Campo> {
                     "plataforma del remoto",
                 ),
                 Campo::obligatorio("api", texto(Regla::Url), "URL de la API"),
+                Campo::opcional(
+                    "revisor_id",
+                    Nodo::Entero { min: 0, max: None },
+                    "origen de revision-ia: el app_id de la App del revisor en GitHub o su user.id en GitLab; 0 o ausente, no hay y tc2 init --aplicar-puertas se rechaza (TASK-118)",
+                ),
             ]),
             "plataforma de un host que no es github.com ni gitlab.com",
         )

@@ -281,8 +281,101 @@ pub struct PrAbierto {
     pub borrador: bool,
 }
 
+/// Como esta una puerta del modelo en la plataforma (`aplicar-puertas`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EstadoPuerta {
+    /// No esta: se crea.
+    Falta,
+    /// Ya esta: no se toca.
+    Existe,
+    /// Ya esta, distinta del modelo: no se toca y se informa (TASK-118 D3/D4:
+    /// lo existente nunca se reescribe ni se borra).
+    Difiere,
+}
+
+/// Lo leido antes de aplicar las puertas: el estado de cada una, en el orden
+/// del modelo, y notas para la linea (`sin-aprobaciones=si`...).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PuertasLeidas {
+    /// `(nombre completo, estado)`.
+    pub puertas: Vec<(String, EstadoPuerta)>,
+    /// Claves que se anaden a la linea.
+    pub notas: Vec<(&'static str, String)>,
+}
+
+impl PuertasLeidas {
+    /// Nombres con ese estado.
+    pub fn con_estado(&self, e: EstadoPuerta) -> Vec<String> {
+        self.puertas
+            .iter()
+            .filter(|(_, x)| *x == e)
+            .map(|(n, _)| n.clone())
+            .collect()
+    }
+}
+
+/// Lo que dio la creacion de una puerta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Creada {
+    /// Creada ahora.
+    Nueva,
+    /// Otro llego antes (422 de GitHub, 409 de GitLab): ya existe.
+    YaExistia,
+}
+
+/// Escribe las puertas que faltan de `leidas`, una a una, con `crear`. Un
+/// fallo corta: la linea dice `aplicadas=` y `faltan=`, y repetirla
+/// converge (lo creado sale como existente). Nunca reescribe ni borra.
+pub(crate) fn aplicar_en_lote(
+    puertas: &[puertas::Puerta],
+    leidas: &PuertasLeidas,
+    mut crear: impl FnMut(&puertas::Puerta) -> Paso<Creada>,
+) -> Informe {
+    let mut aplicadas = Vec::new();
+    let mut existentes = leidas.con_estado(EstadoPuerta::Existe);
+    let difieren = leidas.con_estado(EstadoPuerta::Difiere);
+    let faltan: Vec<&puertas::Puerta> = puertas
+        .iter()
+        .filter(|p| {
+            leidas
+                .puertas
+                .iter()
+                .any(|(n, e)| *n == p.nombre_completo() && *e == EstadoPuerta::Falta)
+        })
+        .collect();
+    for (k, p) in faltan.iter().enumerate() {
+        match crear(p) {
+            Ok(Creada::Nueva) => aplicadas.push(p.nombre_completo()),
+            Ok(Creada::YaExistia) => existentes.push(p.nombre_completo()),
+            Err(mut i) => {
+                puertas::APLICAR_PUERTAS.clone_into(&mut i.comando);
+                let resto = faltan[k..].iter().map(|p| p.nombre_completo()).collect();
+                return i
+                    .con_lista("aplicadas", aplicadas)
+                    .con_lista("faltan", resto);
+            }
+        }
+    }
+    let r = if aplicadas.is_empty() {
+        crate::contrato::Resultado::SinCambios
+    } else {
+        crate::contrato::Resultado::Ok
+    };
+    let mut i = Informe::nuevo(puertas::APLICAR_PUERTAS, r)
+        .con_lista("aplicadas", aplicadas)
+        .con_lista("existentes", existentes);
+    if !difieren.is_empty() {
+        i = i.con_lista("difieren", difieren);
+    }
+    for (k, v) in &leidas.notas {
+        i = i.con(k, v.clone());
+    }
+    i
+}
+
 /// Puerto `Plataforma`: lista cerrada de operaciones (F1-4, F1-5, F1-6,
-/// F1-13). Las escrituras de puertas (`aplicar-puertas`) son de F3-1.
+/// F1-13). La unica escritura de puertas es `aplicar-puertas` (TASK-118),
+/// que lanza la persona con `tc2 init --aplicar-puertas`.
 pub trait Plataforma {
     /// `prs-abiertos` (agente o persona; adenda de TASK-032 a F1-4 y F1-13):
     /// los PR abiertos cuya rama de origen es del propio repo (los de forks
@@ -342,4 +435,39 @@ pub trait Plataforma {
                 .con("motivo", "no-soportada"),
         )
     }
+
+    /// Lecturas de `aplicar-puertas` (persona; TASK-118): comprueba todo lo
+    /// que la escritura exige (la persona de la lista, el plan y que cada
+    /// check del modelo ya se haya visto publicado por su origen en la
+    /// cabeza de `develop`) y dice como esta cada puerta. No escribe nada.
+    /// Por defecto, no soportada.
+    fn preparar_puertas(
+        &self,
+        _puertas: &[puertas::Puerta],
+        _origenes: &puertas::Origenes,
+    ) -> Paso<PuertasLeidas> {
+        Err(no_soportada())
+    }
+
+    /// `aplicar-puertas` (persona; F1-5, TASK-118): primero
+    /// [`Plataforma::preparar_puertas`] y, solo si pasa, crea las puertas
+    /// que faltan. Lo que ya existe no se toca (nunca `PUT` de un ruleset
+    /// ni `DELETE`). Por defecto, `rechazada motivo=no-soportada`.
+    fn aplicar_puertas(
+        &self,
+        _puertas: &[puertas::Puerta],
+        _origenes: &puertas::Origenes,
+    ) -> Informe {
+        no_soportada()
+    }
+}
+
+/// `aplicar-puertas rechazada motivo=no-soportada` (adaptadores de prueba).
+fn no_soportada() -> Informe {
+    Informe::nuevo(
+        puertas::APLICAR_PUERTAS,
+        crate::contrato::Resultado::Rechazada,
+    )
+    .con("motivo", "no-soportada")
+    .diagnostico(&crate::i18n::catalogo::plataforma::APLICAR_NO_SOPORTADA)
 }

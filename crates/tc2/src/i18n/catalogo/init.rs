@@ -2,8 +2,28 @@
 
 crate::i18n::textos! {
     USO_INIT {
-        es: "uso: init [--simular] [--json]",
-        en: "usage: init [--simular] [--json]",
+        es: "uso: init [--simular] [--aplicar-puertas] [--json]",
+        en: "usage: init [--simular] [--aplicar-puertas] [--json]",
+    }
+    PUERTAS_SIN_PLATAFORMA {
+        es: "--aplicar-puertas necesita hablar con la plataforma como persona y no puede ({motivo}). No se ha tocado nada: resuelvelo (remoto origin, TC2_TOKEN_PERSONA en un terminal, la clave plataforma) y repite tc2 init --aplicar-puertas",
+        en: "--aplicar-puertas needs to talk to the platform as the person and cannot ({motivo}). Nothing was touched: fix it (origin remote, TC2_TOKEN_PERSONA in a terminal, the plataforma key) and run tc2 init --aplicar-puertas again",
+    }
+    PUERTAS_SIN_PERSONAS {
+        es: "--aplicar-puertas exige que {ruta} ya exista y este versionado con tu cuenta. No se ha tocado nada: ejecuta tc2 init sin la opcion, versiona {ruta} y repite tc2 init --aplicar-puertas",
+        en: "--aplicar-puertas requires {ruta} to exist already and be committed with your account. Nothing was touched: run tc2 init without the option, commit {ruta} and run tc2 init --aplicar-puertas again",
+    }
+    PUERTAS_RAMAS_SIN_REMOTO {
+        es: "--aplicar-puertas exige que {ramas} ya esten en origin: con las puertas puestas ya no se podrian subir con un push. No se ha tocado nada: publicalas (git push origin develop main) y repite tc2 init --aplicar-puertas",
+        en: "--aplicar-puertas requires {ramas} to be on origin already: once the gates are in place they could no longer be pushed. Nothing was touched: publish them (git push origin develop main) and run tc2 init --aplicar-puertas again",
+    }
+    PUERTAS_RAMAS_POR_DELANTE {
+        es: "{ramas} tienen en este clon commits que origin no tiene (o falta traerlos): con las puertas puestas ese push se rechazaria. No se ha tocado nada: ejecuta git fetch origin, sube lo que falte y repite tc2 init --aplicar-puertas",
+        en: "{ramas} have commits in this clone that origin does not have (or they still need fetching): once the gates are in place that push would be rejected. Nothing was touched: run git fetch origin, push what is missing and run tc2 init --aplicar-puertas again",
+    }
+    PUERTAS_SIN_REVISOR_ID {
+        es: "los checks {faltan} no tienen origen: sin el, cualquiera con permiso de escribir checks los daria por buenos. No se ha tocado nada: anade plataforma.revisor_id en {ruta} (el app_id de la App del revisor en GitHub o su user.id en GitLab) y repite tc2 init --aplicar-puertas",
+        en: "the checks {faltan} have no origin: without it, anyone allowed to write checks could pass them. Nothing was touched: add plataforma.revisor_id to {ruta} (the app_id of the reviewer App on GitHub or its user.id on GitLab) and run tc2 init --aplicar-puertas again",
     }
     PROYECTO_016 {
         es: "{ruta} es de TaskCode 0.16: init no lo pisa. No se ha tocado nada; para pasar el proyecto a la 2.0: {arreglo}",

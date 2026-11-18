@@ -151,6 +151,11 @@
             "gitlab"
           ],
           "type": "string"
+        },
+        "revisor_id": {
+          "description": "origen de revision-ia: el app_id de la App del revisor en GitHub o su user.id en GitLab; 0 o ausente, no hay y tc2 init --aplicar-puertas se rechaza (TASK-118)",
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [

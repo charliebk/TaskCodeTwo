@@ -195,6 +195,10 @@ pub struct PlataformaConfig {
     pub proveedor: Proveedor,
     /// URL de la API.
     pub api: String,
+    /// Origen de `revision-ia` (TASK-118): el `app_id` de la App del revisor
+    /// (GitHub) o su `user.id` (GitLab). 0 o ausente: no hay.
+    #[serde(default)]
+    pub revisor_id: Option<u64>,
 }
 
 fn de_proveedor<'de, D: Deserializer<'de>>(d: D) -> Result<Proveedor, D::Error> {

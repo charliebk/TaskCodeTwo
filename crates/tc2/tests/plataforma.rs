@@ -898,3 +898,90 @@ fn protecciones_y_bordes() {
         .count();
     assert_eq!(paginas, 10);
 }
+
+/// TASK-118: `aplicar-puertas` en el adaptador. Un 422 al crear es «otro
+/// llego antes» (se relee y cuenta como existente), un fallo a mitad corta
+/// con `aplicadas=` y `faltan=`, y repetirla converge sin reescribir lo ya
+/// creado. Sin rulesets en el plan, `rechazada motivo=plan` sin escribir.
+#[test]
+fn aplicar_puertas_carrera_corte_y_plan() {
+    use tc2::plataforma::Proveedor;
+    use tc2::plataforma::puertas::{modelo as puertas, origenes};
+    let _serie = serie();
+    let o = origenes(Proveedor::GitHub, Some(99001)).unwrap();
+    let checks = r#"{"total_count":3,"check_runs":[
+        {"name":"verificacion","status":"completed","conclusion":"success","app":{"id":15368}},
+        {"name":"carril","status":"completed","conclusion":"success","app":{"id":15368}},
+        {"name":"revision-ia","status":"completed","conclusion":"success","app":{"id":99001}}]}"#;
+    let mock = Mock::nuevo();
+    persona_en(&mock, PERSONA);
+    mock.responder(
+        "GET",
+        "/repos/o/r/commits/heads/develop/check-runs",
+        Simulada::json(200, checks),
+    );
+    // Lectura previa (vacia) y la relectura tras el 422 (otro creo develop).
+    mock.responder("GET", "/repos/o/r/rulesets", Simulada::json(200, "[]"));
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(200, r#"[{"id":1,"name":"taskcodetwo-develop"}]"#),
+    );
+    for estado in [422, 201, 500] {
+        mock.responder(
+            "POST",
+            "/repos/o/r/rulesets",
+            Simulada::json(estado, r#"{"message":"x"}"#),
+        );
+    }
+    let gh = adaptador(&mock, &[Rol::Persona]);
+    let i = gh.aplicar_puertas(&puertas(), &o);
+    assert_eq!(
+        i.linea(),
+        "aplicar-puertas error motivo=http estado=500 aplicadas=taskcodetwo-main faltan=taskcodetwo-ramas-de-tarea,taskcodetwo-tareas,taskcodetwo-tags-version"
+    );
+    assert!(i.diagnostico.is_some());
+
+    // Repetirla: lo creado sale como existente y solo se crea lo que falta.
+    let mock = Mock::nuevo();
+    persona_en(&mock, PERSONA);
+    mock.responder(
+        "GET",
+        "/repos/o/r/commits/heads/develop/check-runs",
+        Simulada::json(200, checks),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(
+            200,
+            r#"[{"id":1,"name":"taskcodetwo-develop"},{"id":2,"name":"taskcodetwo-main"}]"#,
+        ),
+    );
+    mock.responder("POST", "/repos/o/r/rulesets", Simulada::json(201, "{}"));
+    let gh = adaptador(&mock, &[Rol::Persona]);
+    let i = gh.aplicar_puertas(&puertas(), &o);
+    assert_eq!(
+        i.linea(),
+        "aplicar-puertas ok aplicadas=taskcodetwo-ramas-de-tarea,taskcodetwo-tareas,taskcodetwo-tags-version existentes=taskcodetwo-develop,taskcodetwo-main"
+    );
+    let escrituras: Vec<String> = gh
+        .registro()
+        .into_iter()
+        .filter(|l| !l.starts_with("GET "))
+        .collect();
+    assert_eq!(escrituras, vec!["POST /repos/o/r/rulesets".to_owned(); 3]);
+
+    // Sin rulesets en el plan: rechazada antes de escribir.
+    let mock = Mock::nuevo();
+    persona_en(&mock, PERSONA);
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(403, r#"{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature."}"#),
+    );
+    let gh = adaptador(&mock, &[Rol::Persona]);
+    let i = gh.aplicar_puertas(&puertas(), &o);
+    assert_eq!(i.linea(), "aplicar-puertas rechazada motivo=plan");
+    assert!(gh.registro().iter().all(|l| l.starts_with("GET ")));
+}

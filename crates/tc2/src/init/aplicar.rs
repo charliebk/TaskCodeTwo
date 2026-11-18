@@ -1,10 +1,12 @@
 //! Aplicacion de las acciones `crea` del plan de `tc2 init`. Cada efecto
 //! vuelve a comprobar lo que lee: si algo cambio desde el plan, falla sin
-//! pisarlo.
+//! pisarlo (las puertas, con `aplicar-puertas`, igual: solo crean lo que
+//! falta en ese momento).
 
 use std::io::Write;
 use std::path::Path;
 
+use super::inventario::Conexion;
 use super::{Contexto, Efecto, NOMBRE};
 use crate::contrato::{Informe, Resultado};
 use crate::git::estado::construir_commit;
@@ -14,6 +16,7 @@ use crate::huella::LINEAS_EXCLUDE;
 use crate::i18n::Idioma;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::init as txt;
+use crate::plataforma::puertas::{APLICAR_PUERTAS, Origenes, modelo};
 
 /// Mensaje del commit raiz de `main` y `develop`.
 const MENSAJE_RAIZ: &str = "chore: inicia TaskCodeTwo (tc2 init)";
@@ -50,6 +53,17 @@ pub(super) fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
                 Err(texto(&i))
             }
         }
+        // Necesita la plataforma: lo aplica [`puertas`] desde `init`.
+        Efecto::AplicarPuertas { .. } => Err("aplicar-puertas sin plataforma".to_owned()),
+    }
+}
+
+/// `aplicar-puertas` con el adaptador del plan: el adaptador vuelve a
+/// comprobar todo antes de escribir y solo crea lo que falta.
+pub(super) fn puertas(conexion: &Conexion, origenes: &Origenes) -> Informe {
+    match conexion {
+        Ok((p, _)) => p.aplicar_puertas(&modelo(), origenes),
+        Err(m) => Informe::nuevo(APLICAR_PUERTAS, Resultado::Rechazada).con("motivo", m.clone()),
     }
 }
 
