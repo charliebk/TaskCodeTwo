@@ -617,3 +617,60 @@ riesgos sin prueba:
   `verified` exige la clave de esa cuenta. No verificado.
 - **Pilotos privados**: ToolsaWeb y OpenDockTrading quedarían sin puertas
   impuestas en una cuenta gratuita (D2a); su plan real no se ha comprobado.
+
+## Adenda (TASK-118) — `aplicar-puertas` desde `tc2 init --aplicar-puertas`
+
+**La operación.** El puerto `Plataforma` gana `preparar_puertas` (solo
+lecturas) y `aplicar_puertas` (en lote), con implementación por defecto
+`aplicar-puertas rechazada motivo=no-soportada`. `aplicar_puertas` primero
+repite todas las comprobaciones de `preparar_puertas` y solo después
+escribe; crea las puertas que faltan, una a una, y si un fallo corta a mitad
+la línea dice `aplicadas=` y `faltan=`. Repetirla converge: lo ya creado
+sale como existente. Un 422 de GitHub o un 409 de GitLab al crear es «otro
+llegó antes» y cuenta como existente. GitHub: `POST /repos/{r}/rulesets`
+con el JSON de la PoC C, `integration_id` por check y sin `_nota`; el 403 de
+plan da `rechazada motivo=plan`. GitLab: `POST /protected_branches` y
+`POST /protected_tags` con niveles explícitos (nunca el valor por defecto
+de la API), `PUT /projects/:id` con `merge_method=merge` y
+`only_allow_merge_if_pipeline_succeeds=true` cuando se crea `develop` o
+`main`, y en Premium una regla de aprobación `taskcodetwo-aprobacion` si no
+hay ninguna que pida al menos una; en Free, la línea lleva
+`sin-aprobaciones=si`. Nunca `DELETE` ni `PATCH` (el cliente HTTP no los
+tiene).
+
+**El origen de cada check.** Clave nueva `plataforma.revisor_id` (entero; 0
+o ausente, no hay): el `app_id` de la App del revisor en GitHub o su
+`user.id` en GitLab, origen de `revision-ia`. En GitHub, `verificacion` y
+`carril` son de Actions (15368, PoC A). En GitLab no tienen origen fijo: son
+jobs del pipeline, que «Pipelines must succeed» impone entero y cuyo autor
+es quien lanzó el pipeline (F1-13, G09); solo se exige haberlos visto
+publicados.
+
+**La precondición** (todo antes de escribir nada, ni en el disco ni en la
+plataforma; si falla, `init rechazada motivo=… [faltan=…]` y las cinco
+líneas `ruleset` salen `rechaza`): la plataforma con el token de la persona;
+`personas.yml` ya existente (`sin-personas`) y la identidad de persona en
+él (`sin-persona`); `develop` y `main` en `origin` (`ramas-sin-remoto`) sin
+commits locales por delante (`ramas-por-delante`); el origen de cada check
+en la configuración (`puertas-sin-origen faltan=revision-ia`); y cada check
+ya visto publicado por su origen en la cabeza de `develop` (GitHub:
+check-runs con `app.id`; GitLab: estados del commit con `author.id`;
+`puertas-sin-origen faltan=…`). En la práctica la opción se rechaza hasta
+que F5-1 y F6-1 publiquen los checks.
+
+**Divergencias con esta ADR.**
+- La tabla de la decisión 1 decía que un ruleset existente y distinto «los
+  actualiza». TASK-118 no lo hace: lo existente nunca se reescribe ni se
+  borra. En GitHub lo existente se reconoce por el nombre y no se compara;
+  en GitLab una rama o un tag protegido distinto del modelo sale
+  `existe motivo=difiere` (p. ej. `main`, que GitLab protege al crear el
+  proyecto con push de Maintainer). Actualizarlos queda fuera de alcance.
+- En GitLab, `develop` y `main` quedan con push «nadie» y merge de
+  Maintainer (G01 de `estado-puertas`, F1-13 D6), no de Developer; las ramas
+  de tarea (`feature/*`, `fix/*`, `hotfix/*`) y `taskcodetwo/tareas`, con push
+  y merge de Developer y sin force-push; el tag `v*`, creación de Developer.
+
+**No verificado:** que GitHub acepte el `POST /rulesets` de la PoC C con
+`integration_id`, que dé 422 con un nombre repetido; en GitLab, que el `*`
+de `feature/*` abarque nombres con `/`, el 409 de una protección repetida y
+el cuerpo de la regla `any_approver`. Todo, contra el doble HTTP.
