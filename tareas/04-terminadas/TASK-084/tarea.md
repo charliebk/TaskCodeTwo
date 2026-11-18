@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-084-f3-12-progreso-en-vivo-fases-que-faltan
 asignado_a: charlie.bk@gmail.com
@@ -92,6 +92,7 @@ Hallazgo fuera de esta tarea: `estado::transaccion` con 1000 ficheros en una ope
 | 2026-11-18T02:55:30Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T03:58:33Z | review | automatico | persona | 0.16.1 |
 | 2026-11-18T04:39:39Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T05:18:44Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -109,3 +110,10 @@ Hallazgo fuera de esta tarea: `estado::transaccion` con 1000 ficheros en una ope
 ## Verificacion ligera
 
 - 2026-11-18T05:07:22Z: ronda 2; commit revisado f44ce49bb8f74f58264b879674eb039a7a5492f6; commit verificado 6e85a671a4a66e41c37d20ac524b554bb8478b05; ficheros: docs/distribucion/instalar.md; corregidos: N1; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 143 min
+- Paso de la hora: 143 min reales frente a 300 estimados
+- Cierre (finish): 663 s, de 2026-11-18T05:07:41Z a 2026-11-18T05:18:44Z
