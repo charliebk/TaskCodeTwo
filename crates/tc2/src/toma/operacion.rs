@@ -3,7 +3,8 @@
 //!
 //! [`Tomar`] pasa por el punto unico de escritura ([`crate::estado::transaccion`])
 //! y se re-ejecuta en cada intento: decide solo con el estado que recibe.
-//! Lee unicamente el `tarea.md` de la tarea y los de sus dependencias.
+//! Lee el `tarea.md` de la tarea y los de sus dependencias para decidir y,
+//! si la toma procede, todos para el historico de la estimacion (F3-13).
 //!
 //! - Ya la lleva quien la toma y esta en curso o en revision: no cambia
 //!   nada (`sin-cambios`, sin commit).
@@ -14,8 +15,9 @@
 //! - Dependencias (D3): con la regla de [`crate::grafo::dependencia_cumplida`];
 //!   alguna sin cumplir, `rechazada motivo=dependencias-pendientes`.
 //! - Si procede escribe `estado: en-curso`, `asignado_a`, `actualizado`,
-//!   `rama` si faltaba y una fila nueva en `## Transiciones`; el resto del
-//!   `tarea.md`, byte a byte.
+//!   `rama` si faltaba, la `estimacion` recalculada (F3-13: lee entonces
+//!   todos los `tarea.md` para el historico) y una fila nueva en
+//!   `## Transiciones`; el resto del `tarea.md`, byte a byte.
 //!
 //! Crear la rama y el worktree no es cosa de la operacion: lo hace `start`
 //! fuera de la transaccion y solo con la toma publicada.
@@ -23,6 +25,7 @@
 use std::cell::RefCell;
 
 use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estimacion::{Commits, Estimacion};
 use crate::grafo::{Nodo, dependencia_cumplida};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
@@ -52,9 +55,11 @@ pub struct Tomar {
     asignado: Asignado,
     decidido_por: &'static str,
     ahora: u64,
+    commits: Commits,
     dueno: RefCell<Option<String>>,
     pendientes: RefCell<Vec<String>>,
     rama: RefCell<Option<String>>,
+    estimacion: RefCell<Option<Estimacion>>,
 }
 
 impl Tomar {
@@ -70,10 +75,25 @@ impl Tomar {
             asignado,
             decidido_por,
             ahora,
+            commits: Commits::vacios(),
             dueno: RefCell::new(None),
             pendientes: RefCell::new(Vec::new()),
             rama: RefCell::new(None),
+            estimacion: RefCell::new(None),
         }
+    }
+
+    /// Los commits de `develop` para el historico de la estimacion (un
+    /// `git log` leido antes de la transaccion, F3-13).
+    #[must_use]
+    pub fn con_commits(mut self, commits: Commits) -> Self {
+        self.commits = commits;
+        self
+    }
+
+    /// La estimacion escrita en el ultimo intento (F3-13).
+    pub fn estimacion(&self) -> Option<Estimacion> {
+        self.estimacion.borrow().clone()
     }
 
     /// Login de quien la llevaba si el ultimo intento la rechazo por
@@ -121,6 +141,7 @@ impl Operacion for Tomar {
         *self.dueno.borrow_mut() = None;
         self.pendientes.borrow_mut().clear();
         *self.rama.borrow_mut() = None;
+        *self.estimacion.borrow_mut() = None;
         let ruta = format!("{}/tarea.md", self.id);
         let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
         let rama = t
@@ -176,6 +197,12 @@ impl Operacion for Tomar {
             *self.pendientes.borrow_mut() = pendientes;
             return Err(self.rechazo("dependencias-pendientes", m));
         }
+        // La estimacion, recalculada con las terminadas del estado fresco
+        // (F3-13, D2a): `calculada` es la hora del `start`.
+        let leidas = crate::estado::tareas(estado, &estado.rutas())?;
+        let h = crate::estimacion::historico(&leidas, &self.commits);
+        let e = crate::estimacion::recalcular(&mut t, &cuerpo, &h, self.ahora);
+        *self.estimacion.borrow_mut() = Some(e);
         let instante = instante(self.ahora);
         EN_CURSO.clone_into(&mut t.estado);
         t.asignado_a = Some(self.asignado.clone());
@@ -240,6 +267,10 @@ mod tests {
     /// 2026-11-17T10:20:30Z.
     const AHORA: u64 = 1_794_910_830;
 
+    /// La estimacion que pone la toma sin ninguna terminada en el estado
+    /// (F3-13): `sin-datos`, calculada a la hora del `start`.
+    const SIN_DATOS: &str = "estimacion:\n  calculada: \"2026-11-17T10:20:30Z\"\n  nivel: \"sin-datos\"\n  n: 0\n  por_fase: null\n  total: null\n  agente: null\n";
+
     fn ana() -> Quien {
         Quien::Agente(Cuenta {
             proveedor: Proveedor::GitHub,
@@ -300,6 +331,7 @@ mod tests {
             .replace("estado: \"planificada\"", "estado: \"en-curso\"")
             .replace("asignado_a: null", "asignado_a: {id: 7, login: \"ana\"}")
             .replace("actualizado: \"2026-11-01\"", "actualizado: \"2026-11-17\"")
+            .replace("estimacion: null\n", SIN_DATOS)
             + &format!(
                 "| 2026-11-17T10:20:30Z | start | manual | agente | {} |\n",
                 crate::VERSION
@@ -344,6 +376,7 @@ mod tests {
             .replace("estado: \"en-diseno\"", "estado: \"en-curso\"")
             .replace("asignado_a: null", "asignado_a: {id: 7, login: \"ana\"}")
             .replace("actualizado: \"2026-11-01\"", "actualizado: \"2026-11-17\"")
+            .replace("estimacion: null\n", SIN_DATOS)
             + &format!(
                 "| 2026-11-17T10:20:30Z | start | manual | agente | {} |\n",
                 crate::VERSION

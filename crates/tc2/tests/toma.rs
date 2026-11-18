@@ -616,7 +616,14 @@ fn c7_lo_publicado_la_rama_y_el_worktree() {
             &format!("actualizado: {creado}"),
             &format!("actualizado: \"{}\"", &hoy[..10]),
             1,
-        );
+        )
+        // F3-13: la toma recalcula la estimacion (sin terminadas, sin-datos);
+        // el resto, byte a byte.
+        .replacen(&estimacion(&antes), &estimacion(&despues), 1);
+    assert!(
+        estimacion(&despues).contains("\n  nivel: \"sin-datos\"\n  n: 0\n"),
+        "{despues}"
+    );
     let fila = despues.lines().last().unwrap();
     assert_eq!(despues, format!("{esperado}{fila}\n"));
     assert!(fila.starts_with(&format!("| {}T", &hoy[..10])), "{fila}");
@@ -653,6 +660,13 @@ fn c7_lo_publicado_la_rama_y_el_worktree() {
     );
     assert_eq!(f.crudo(&a, &["status", "--porcelain"]), "");
     assert_eq!(f.crudo(&wt, &["status", "--porcelain"]), "");
+}
+
+/// El bloque `estimacion:` de un `tarea.md` (F3-13).
+fn estimacion(md: &str) -> String {
+    let i = md.find("\nestimacion:").unwrap() + 1;
+    let fin = md[i..].find("\ntokens_diseno:").unwrap() + i + 1;
+    md[i..fin].to_owned()
 }
 
 /// C8: sin terminal y sin cache de identidad que valga (no hay, o caducada)

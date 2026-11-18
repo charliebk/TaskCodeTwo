@@ -132,6 +132,23 @@ pub(crate) fn rama_actual(git: &Git, dir: &Path, op: &str) -> Paso<Option<String
     Ok(s.trim().strip_prefix("refs/heads/").map(str::to_owned))
 }
 
+/// Formato de [`historia`]: SHA, padres, instante del commit y asunto,
+/// separados por U+001F.
+pub const FORMATO_HISTORIA: &str = "--format=%H%x1f%P%x1f%ct%x1f%s";
+
+/// La historia de `develop` para la estimacion (F3-13; ADR F1-17, punto 1):
+/// un solo `git log` de `origin/develop` o, sin el, de `develop`, con
+/// [`FORMATO_HISTORIA`]. Sin ninguna de las dos, vacia (no hay commits que
+/// contar).
+pub fn historia(git: &Git, dir: &Path, op: &str) -> Paso<String> {
+    for r in ["refs/remotes/origin/develop", "refs/heads/develop"] {
+        if commit_de(git, dir, op, r)?.is_some() {
+            return exigir(git, dir, op, Subcomando::Log, &[FORMATO_HISTORIA, r, "--"]);
+        }
+    }
+    Ok(String::new())
+}
+
 /// `develop` y `main` no se tocan desde una operacion de tarea.
 pub(crate) fn es_protegida(rama: &str) -> bool {
     rama == "develop" || rama == "main"

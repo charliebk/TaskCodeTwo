@@ -31,6 +31,7 @@ pub mod descarga;
 pub mod desinstalar;
 pub mod doctor;
 pub mod estado;
+pub mod estimacion;
 pub mod git;
 pub mod grafo;
 pub mod huella;
@@ -180,6 +181,10 @@ where
             let (json, resto) = con_json(resto);
             de_una_tarea(ciclo::REASIGNAR, |e| ciclo::orden_reasignar(&resto, e))
                 .salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == estimacion::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_estimar(&resto, json, idioma)
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -346,6 +351,34 @@ fn de_una_tarea(nombre: &str, orden: impl FnOnce(&toma::Entorno<'_>) -> Informe)
     orden(&e)
 }
 
+/// `estimar [--json] [TASK-NNN | --error TASK-NNN]` (F3-13) en la carpeta
+/// actual. Sin `--json` y con exito, la linea para la persona va detras de
+/// la de contrato (como mucho 5 lineas, F1-4 decision 4).
+fn orden_estimar(args: &[String], json: bool, idioma: Idioma) -> Salida {
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(estimacion::NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()))
+                .salida_en(json, idioma);
+        }
+    };
+    let g = git::Git::nuevo();
+    let e = estimacion::Entorno {
+        dir: &dir,
+        git: &g,
+        catalogo: &catalogo,
+        ahora: identidad::ahora(),
+    };
+    let (i, linea) = estimacion::orden(args, &e);
+    let mut s = i.salida_en(json, idioma);
+    if let (false, true, Some(l)) = (json, i.resultado.es_exito(), linea) {
+        s.stdout.push_str(&l);
+        s.stdout.push('\n');
+    }
+    s
+}
+
 /// `status` o `board` (F3-5) en la carpeta actual.
 fn orden_tablero(orden: &str, args: &[String], json: bool, idioma: Idioma) -> Salida {
     let dir = match tablero::carpeta_actual(orden) {
@@ -432,7 +465,10 @@ fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
             return i;
         }
     };
-    let op = alta::Alta::con_entrada(entrada).con_ocupados(ocupados);
+    // La historia de `develop` para la estimacion (F3-13), tambien antes.
+    let op = alta::Alta::con_entrada(entrada)
+        .con_ocupados(ocupados)
+        .con_commits(estimacion::commits_de(&g, &dir));
     let personas = roadmap::personas(&g, &dir);
     let generar = roadmap::generador(&personas);
     let c = estado::Contexto::nuevo(&g, &dir, &catalogo, Some(&generar));
@@ -452,6 +488,7 @@ fn orden_new(args: &[String], parecidas: &mut Vec<alta::Parecida>) -> Informe {
             i.claves
                 .insert(2, ("parecidas".to_owned(), contrato::Valor::Lista(ids)));
         }
+        i = estimacion::con_claves(i, op.estimacion().as_ref());
     }
     i
 }

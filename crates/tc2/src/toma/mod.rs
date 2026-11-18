@@ -29,7 +29,7 @@ pub mod operacion;
 use std::path::Path;
 
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Catalogo, Fallo, Operacion};
+use crate::estado::{self, Catalogo, Estado, Fallo, Operacion};
 use crate::git::{self, Git, Subcomando};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
@@ -133,16 +133,18 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 2. Quien la toma.
     let quien = (e.quien)()?;
     // 3. La toma en seco sobre lo leido: los rechazos, sin esperar al push.
-    let op = Tomar::nueva(id, &quien, e.ahora);
-    let empezada = match op.aplicar(&vista) {
+    // Sin el historico de la estimacion (R1-06): se calcula una sola vez, en
+    // la transaccion.
+    let sondeo = Tomar::nueva(id, &quien, e.ahora);
+    let empezada = match sondeo.aplicar(&SinHistorico(&vista)) {
         Ok(c) => c.is_empty(),
         Err(Fallo::Rechazada {
             motivo,
             diagnostico,
-        }) => return Err(rechazo_de_toma(rechazada(&motivo, diagnostico), &op)),
+        }) => return Err(rechazo_de_toma(rechazada(&motivo, diagnostico), &sondeo)),
         Err(Fallo::Error(d)) => return Err(Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d)),
     };
-    let rama = op.rama().unwrap_or_default();
+    let rama = sondeo.rama().unwrap_or_default();
     let Some((tipo, slug)) = git::partes_de_rama(id, &rama) else {
         return Err(rechazada(
             "rama-invalida",
@@ -181,7 +183,12 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 5b. La carpeta del worktree, libre: si no, la toma quedaria publicada
     // sin poder crear el worktree.
     carpeta_libre(g, &principal, id, &rama)?;
-    // 6. La toma, por el punto unico de escritura.
+    // 6. La toma, por el punto unico de escritura. La historia de `develop`
+    // para la estimacion (F3-13), un solo `git log` antes de la transaccion;
+    // cada intento recalcula con el estado fresco.
+    let commits = crate::estimacion::commits_de(g, &principal);
+    let leido = commits.leido();
+    let op = Tomar::nueva(id, &quien, e.ahora).con_commits(commits);
     let personas = crate::roadmap::personas(g, e.dir);
     let generar = crate::roadmap::generador(&personas);
     let ctx = estado::Contexto::nuevo(g, e.dir, e.catalogo, Some(&generar));
@@ -189,12 +196,37 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     match t.resultado {
         Resultado::Ok => {
             let commit = t.valor("commit").map(str::to_owned);
-            Ok(destino.crear(commit, &quien))
+            let mut i = destino.crear(commit, &quien);
+            // Las claves de la estimacion publicada (F3-13) y, si el `git
+            // log` fallo, `historia=sin-log` (R1-04).
+            i = crate::estimacion::con_claves(i, op.estimacion().as_ref());
+            if !leido {
+                i = i.con("historia", crate::estimacion::SIN_LOG);
+            }
+            Ok(i)
         }
         // Entre la lectura y el push paso a ser suya y empezada.
         Resultado::SinCambios => Ok(destino.crear(None, &quien)),
         Resultado::Rechazada => Err(rechazo_de_toma(t, &op)),
         _ => Err(t),
+    }
+}
+
+/// El estado leido sin su lista de rutas, para el sondeo de [`paso`]: la
+/// toma decide igual (lee su `tarea.md` y los de sus dependencias por ruta)
+/// pero no lee todos los `tarea.md` ni calcula el historico de la
+/// estimacion, que se calcula una sola vez en la transaccion (R1-06).
+struct SinHistorico<'a>(&'a dyn Estado);
+
+impl Estado for SinHistorico<'_> {
+    fn rutas(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn leer(&self, ruta: &str) -> Result<Option<String>, Fallo> {
+        self.0.leer(ruta)
+    }
+    fn leer_varios(&self, rutas: &[String]) -> Result<Vec<Option<String>>, Fallo> {
+        self.0.leer_varios(rutas)
     }
 }
 

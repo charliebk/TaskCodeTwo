@@ -11,7 +11,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion};
+use crate::estado::{Cambio, Estado, Fallo, Leida, Operacion};
+use crate::estimacion::{Commits, Estimacion, Historico, historico};
 use crate::i18n::catalogo::estado as txt;
 use crate::i18n::{Idioma, Mensaje};
 use crate::tarea::texto::{Parecido, parecido, slug};
@@ -265,7 +266,8 @@ impl NoListo {
     }
 }
 
-/// Alta de una tarea: reserva el siguiente ID y escribe su `tarea.md`.
+/// Alta de una tarea: reserva el siguiente ID y escribe su `tarea.md`, con
+/// su estimacion (F3-13).
 #[derive(Debug)]
 pub struct Alta {
     entrada: Entrada,
@@ -273,6 +275,9 @@ pub struct Alta {
     ocupados: BTreeSet<u32>,
     id: Cell<Option<u32>>,
     parecidas: RefCell<Vec<Parecida>>,
+    ahora: u64,
+    commits: Commits,
+    estimacion: RefCell<Option<Estimacion>>,
 }
 
 impl Alta {
@@ -298,6 +303,9 @@ impl Alta {
             ocupados: BTreeSet::new(),
             id: Cell::new(None),
             parecidas: RefCell::new(Vec::new()),
+            ahora: crate::identidad::ahora(),
+            commits: Commits::vacios(),
+            estimacion: RefCell::new(None),
         }
     }
 
@@ -307,6 +315,19 @@ impl Alta {
     pub fn con_ocupados(mut self, ocupados: BTreeSet<u32>) -> Self {
         self.ocupados = ocupados;
         self
+    }
+
+    /// Los commits de `develop` para el historico de la estimacion (un
+    /// `git log` leido antes de la transaccion, F3-13).
+    #[must_use]
+    pub fn con_commits(mut self, commits: Commits) -> Self {
+        self.commits = commits;
+        self
+    }
+
+    /// La estimacion escrita en el ultimo intento.
+    pub fn estimacion(&self) -> Option<Estimacion> {
+        self.estimacion.borrow().clone()
     }
 
     /// Rama derivada del ID del ultimo intento (F2-4b).
@@ -356,15 +377,22 @@ impl Operacion for Alta {
         let ids = reservar(&rutas, &self.ocupados, 1)?;
         self.id.set(ids.first().copied());
         // Sobre el mismo estado fresco del intento: dos altas a la vez se ven
-        // (la segunda en publicar avisa de la primera, TASK-076 C1).
-        let tareas = tareas(estado, &rutas)?;
+        // (la segunda en publicar avisa de la primera, TASK-076 C1). Una sola
+        // lectura de los `tarea.md` para las parecidas y el historico.
+        let leidas = leidas(estado, &rutas)?;
+        let h = historico(&leidas, &self.commits);
         let a = altas(
-            &tareas,
+            &de_formato2(&leidas),
             &ids,
             std::slice::from_ref(&self.entrada),
             &self.fecha,
+            &Calculo {
+                historico: &h,
+                ahora: self.ahora,
+            },
         )?;
         *self.parecidas.borrow_mut() = a.parecidas;
+        *self.estimacion.borrow_mut() = a.estimaciones.into_iter().next();
         Ok(a.cambios)
     }
 }
@@ -377,18 +405,33 @@ pub(crate) struct Altas {
     pub cambios: Vec<Cambio>,
     /// Tareas abiertas parecidas a alguna entrada, sin repetir, por ID.
     pub parecidas: Vec<Parecida>,
+    /// La estimacion de cada entrada, en su orden (F3-13).
+    pub estimaciones: Vec<Estimacion>,
+}
+
+/// Con que se estima cada tarea nueva (F3-13): el historico, calculado una
+/// vez por intento aunque el lote traiga muchas, y la hora del calculo.
+#[derive(Debug)]
+pub(crate) struct Calculo<'a> {
+    /// Muestras de las terminadas.
+    pub historico: &'a Historico,
+    /// Segundos desde 1970 (UTC).
+    pub ahora: u64,
 }
 
 /// Nucleo puro del alta (F2-4 y F3-2): `entradas[i]` nace con el ID
-/// `ids[i]`. Comprueba la rama derivada de cada una y busca las tareas
-/// abiertas de `tareas` con un titulo parecido.
+/// `ids[i]`. Comprueba la rama derivada de cada una, busca las tareas
+/// abiertas de `tareas` con un titulo parecido y le pone su estimacion
+/// (F3-13, aunque sea `sin-datos`).
 pub(crate) fn altas(
     tareas: &[Tarea],
     ids: &[u32],
     entradas: &[Entrada],
     fecha: &str,
+    calculo: &Calculo<'_>,
 ) -> Result<Altas, Fallo> {
     let mut cambios = Vec::with_capacity(entradas.len());
+    let mut estimaciones = Vec::with_capacity(entradas.len());
     let mut vistas = BTreeSet::new();
     let mut parecidas = Vec::new();
     for (i, e) in entradas.iter().enumerate() {
@@ -398,10 +441,14 @@ pub(crate) fn altas(
                 .ok_or_else(|| Fallo::Error((&crate::i18n::catalogo::estado::SIN_IDS).into()))?,
         );
         comprobar_rama(&id, &e.tipo, &e.titulo)?;
-        cambios.push(Cambio::nuevo(
-            format!("{id}/tarea.md"),
-            tarea_de(&id, e, fecha),
+        let (mut t, cuerpo) = tarea_y_cuerpo(&id, e, fecha);
+        estimaciones.push(crate::estimacion::recalcular(
+            &mut t,
+            &cuerpo,
+            calculo.historico,
+            calculo.ahora,
         ));
+        cambios.push(Cambio::nuevo(format!("{id}/tarea.md"), t.escribir(&cuerpo)));
         for p in parecidas_a(tareas, &e.titulo) {
             if vistas.insert(p.id.clone()) {
                 parecidas.push(p);
@@ -409,7 +456,11 @@ pub(crate) fn altas(
         }
     }
     parecidas.sort_by(|a: &Parecida, b| a.id.cmp(&b.id));
-    Ok(Altas { cambios, parecidas })
+    Ok(Altas {
+        cambios,
+        parecidas,
+        estimaciones,
+    })
 }
 
 /// `n` IDs consecutivos desde [`siguiente_id`]: los de un lote no dejan
@@ -449,19 +500,26 @@ fn es_tarea_md(ruta: &str) -> bool {
     numero(ruta).is_some() && ruta.split_once('/').is_some_and(|(_, r)| r == "tarea.md")
 }
 
-/// Las tareas de formato 2 del estado, en orden de ruta, leidas en un solo
-/// proceso (F2-4b) con [`crate::estado::tareas`]. Los `tarea.md` que no se
-/// leen o son de formato 1 se saltan sin fallar, y las carpetas con sufijo
-/// no cuentan aqui (filtro de siempre del alta).
-pub(crate) fn tareas(estado: &dyn Estado, rutas: &[String]) -> Result<Vec<Tarea>, Fallo> {
-    let mds: Vec<String> = rutas.iter().filter(|r| es_tarea_md(r)).cloned().collect();
-    Ok(crate::estado::tareas(estado, &mds)?
-        .into_iter()
+/// Todos los `tarea.md` del estado, de los dos formatos, en orden de ruta y
+/// leidos en un solo proceso (F2-4b) con [`crate::estado::tareas`]: los
+/// mismos sirven para las parecidas ([`de_formato2`]) y para el historico de
+/// la estimacion (F3-13).
+pub(crate) fn leidas(estado: &dyn Estado, rutas: &[String]) -> Result<Vec<Leida>, Fallo> {
+    crate::estado::tareas(estado, rutas)
+}
+
+/// Las tareas de formato 2 de `leidas`. Los `tarea.md` que no se leen o son
+/// de formato 1 se saltan sin fallar, y las carpetas con sufijo no cuentan
+/// aqui (filtro de siempre del alta).
+pub(crate) fn de_formato2(leidas: &[Leida]) -> Vec<Tarea> {
+    leidas
+        .iter()
+        .filter(|(r, _)| es_tarea_md(r))
         .filter_map(|(_, d)| match d {
-            Ok(Documento::Formato2(t, _)) => Some(t),
+            Ok(Documento::Formato2(t, _)) => Some(t.clone()),
             _ => None,
         })
-        .collect())
+        .collect()
 }
 
 /// Tareas abiertas de `tareas` cuyo titulo se parece a `titulo`.
@@ -583,6 +641,13 @@ pub fn tarea_md(id: &str, titulo: &str, fecha: &str) -> String {
 /// resto en el frontmatter. El tipo y la rama salen del mismo campo: no
 /// pueden divergir.
 fn tarea_de(id: &str, e: &Entrada, fecha: &str) -> String {
+    let (t, cuerpo) = tarea_y_cuerpo(id, e, fecha);
+    t.escribir(&cuerpo)
+}
+
+/// El modelo y el cuerpo de [`tarea_de`], sin escribir (el alta les pone la
+/// estimacion antes, F3-13).
+fn tarea_y_cuerpo(id: &str, e: &Entrada, fecha: &str) -> (Tarea, Cuerpo) {
     let mut t = Tarea::nueva(id, &e.titulo, fecha);
     e.tipo.clone_into(&mut t.tipo);
     t.sprint = e.sprint;
@@ -591,7 +656,7 @@ fn tarea_de(id: &str, e: &Entrada, fecha: &str) -> String {
     t.dependencias.clone_from(&e.dependencias);
     t.lote.clone_from(&e.lote);
     t.rama = Some(rama_de(id, &e.tipo, &e.titulo));
-    t.escribir(&Cuerpo::con_enunciado(&e.objetivo, &e.criterios))
+    (t, Cuerpo::con_enunciado(&e.objetivo, &e.criterios))
 }
 
 /// Fecha de hoy en UTC, `AAAA-MM-DD`, sin dependencias.

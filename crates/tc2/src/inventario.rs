@@ -600,6 +600,16 @@ fn dias_desde_epoca(anio: i64, mes: i64, dia: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
+/// Dias del mes `mes` (1-12) del ano `anio` (gregoriano proleptico).
+fn dias_del_mes(anio: i64, mes: i64) -> i64 {
+    match mes {
+        2 if anio % 4 == 0 && (anio % 100 != 0 || anio % 400 == 0) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
 /// Milisegundos desde la epoca de un texto ISO 8601 / RFC 3339
 /// (`AAAA-MM-DD`, opcionalmente `THH:MM[:SS[.fff]]` y `Z` o `+HH:MM`);
 /// `None` si no tiene esa forma o algun campo esta fuera de rango.
@@ -612,7 +622,10 @@ pub(crate) fn ms_de_iso(s: &str) -> Option<i64> {
     let (fecha, resto) = s.split_at_checked(10)?;
     let mut f = fecha.split('-');
     let (anio, mes, dia) = (num(f.next()?)?, num(f.next()?)?, num(f.next()?)?);
-    if f.next().is_some() || !(1..=12).contains(&mes) || !(1..=31).contains(&dia) {
+    if f.next().is_some()
+        || !(1..=12).contains(&mes)
+        || !(1..=dias_del_mes(anio, mes)).contains(&dia)
+    {
         return None;
     }
     let mut ms = dias_desde_epoca(anio, mes, dia) * 86_400_000;
@@ -642,7 +655,8 @@ pub(crate) fn ms_de_iso(s: &str) -> Option<i64> {
     let h = num(p.next()?)?;
     let mi = num(p.next()?)?;
     let se = p.next().map_or(Some(0), num)?;
-    if p.next().is_some() || h > 23 || mi > 59 || se > 60 {
+    // Sin segundo intercalar (como `strptime` de la PoC de F1-17).
+    if p.next().is_some() || h > 23 || mi > 59 || se > 59 {
         return None;
     }
     let fr = if frac.is_empty() {
@@ -1514,6 +1528,36 @@ mod tests {
             assert_eq!(f(malo.clone()), None, "{malo}");
         }
         assert_eq!(orden_de_fecha(None), None);
+        // Dias que no existen en su mes y segundo 60 (H2 de TASK-083, ronda
+        // 1): ninguna fecha, como `strptime`.
+        for malo in [
+            "2026-02-29T10:00:00Z",
+            "2026-02-31T10:00:00Z",
+            "2026-04-31T10:00:00Z",
+            "2026-06-31",
+            "2026-09-31",
+            "2026-11-31",
+            "1900-02-29",
+            "2026-01-01T10:00:60Z",
+            "2026-01-32",
+            "2026-01-00",
+        ] {
+            assert_eq!(ms_de_iso(malo), None, "{malo}");
+        }
+        for bueno in [
+            "2024-02-29T10:00:00Z",
+            "2000-02-29",
+            "2026-02-28T23:59:59Z",
+            "2026-04-30",
+            "2026-12-31T00:00:00Z",
+            "2026-01-31",
+        ] {
+            assert!(ms_de_iso(bueno).is_some(), "{bueno}");
+        }
+        assert_eq!(
+            ms_de_iso("2024-02-29"),
+            ms_de_iso("2024-03-01").map(|x| x - 86_400_000)
+        );
         // Numero mas reciente contra texto ISO mas antiguo (y contra uno
         // invalido que, por texto, ordenaria despues): gana el numero.
         let m = Tmp::nueva("h4");
