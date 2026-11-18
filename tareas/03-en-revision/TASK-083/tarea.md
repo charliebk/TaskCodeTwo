@@ -31,13 +31,13 @@ Tarea F3-13 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1
 Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo importante no es un porcentaje sino qué fases faltan y el tiempo estimado de cada tarea, como información para el programador, visible en el terminal de trabajo (status line de Claude Code y `taskctl status --seguir`), escrito por el CLI sin gastar tokens; en un lote, además, tareas que faltan y hora estimada de fin. Al cerrar, métricas finales: estimado frente a real por fase, tokens, rondas y hallazgos, con la calibración de la estimación en el informe por versión. Base en la 0.16: `taskctl estado [--seguir]`, la status line (fase, paso, x/N, minutos) y la «Duración estimada» del plan. Detalle completo: docs/plan/AMPLIACION-2026-11-14.md §5 quater.
 
 ## Criterios de aceptacion
-- [ ] C1: real por fase determinista: con `start` 10:00, commit 10:20, `pausa` 10:30, `reanudar` 11:30, commit 11:40, `review` 13:00, `review` 13:30 y `finish` 13:40 sale implementacion 85 (20 + 10 + 10 + 45; el 75 del plan era un error de suma que olvidaba los 10 min antes de la pausa), rondas 30 y cierre 10; una duracion negativa descarta la tarea con `duracion-negativa`
-- [ ] C2: con 6 tareas falsas terminadas del mismo carril, complejidad y tamano (implementacion 10..60) la mediana y el p80 de `implementacion` coinciden exactamente con `poc-f1-17.py` sobre el mismo corpus, con `nivel=carril+complejidad+tamano` y `n=6`; con 4 en ese nivel y 5 del mismo carril baja a `carril`
-- [ ] C3: con menos de 5 muestras en todos los niveles `estimacion` queda con `nivel: sin-datos`, `n`, `por_fase: null` y `total: null`, y la salida dice «sin tareas parecidas (n=k<5)»; nunca un numero inventado
-- [ ] C4: tras `tc2 new` y `tc2 import` cada `tarea.md` creado tiene `estimacion` no nula (aunque sea `sin-datos`) y se relee sin error; tras `tc2 estimar` ninguna abierta queda con `estimacion: null`; las terminadas quedan byte a byte
-- [ ] C5: tras terminar una muestra mas, `start` recalcula: `calculada` a la hora del `start` y `n` sube en 1, con el resto del `tarea.md` byte a byte; `pausa`, `reanudar`, `liberar` y `reasignar` no cambian `estimacion`
-- [ ] C6: con `por_fase.implementacion: [30, 52]` guardado y real 75, `tc2 estimar --error` da error absoluto 45 min, relativo 0,60 y razon estimado/real 0,40 por fase y en total; sin estimacion guardada dice «sin estimacion guardada» sin cifras
-- [ ] C7: la estimacion de una tarea nunca la usa como muestra; todo sale de funciones puras, del estado y de un `git log`, sin llamar a ningun modelo
+- [x] C1: real por fase determinista: con `start` 10:00, commit 10:20, `pausa` 10:30, `reanudar` 11:30, commit 11:40, `review` 13:00, `review` 13:30 y `finish` 13:40 sale implementacion 85 (20 + 10 + 10 + 45; el 75 del plan era un error de suma que olvidaba los 10 min antes de la pausa), rondas 30 y cierre 10; una duracion negativa descarta la tarea con `duracion-negativa`
+- [x] C2: con 6 tareas falsas terminadas del mismo carril, complejidad y tamano (implementacion 10..60) la mediana y el p80 de `implementacion` coinciden exactamente con `poc-f1-17.py` sobre el mismo corpus, con `nivel=carril+complejidad+tamano` y `n=6`; con 4 en ese nivel y 5 del mismo carril baja a `carril`
+- [x] C3: con menos de 5 muestras en todos los niveles `estimacion` queda con `nivel: sin-datos`, `n`, `por_fase: null` y `total: null`, y la salida dice «sin tareas parecidas (n=k<5)»; nunca un numero inventado
+- [x] C4: tras `tc2 new` y `tc2 import` cada `tarea.md` creado tiene `estimacion` no nula (aunque sea `sin-datos`) y se relee sin error; tras `tc2 estimar` ninguna abierta queda con `estimacion: null`; las terminadas quedan byte a byte
+- [x] C5: tras terminar una muestra mas, `start` recalcula: `calculada` a la hora del `start` y `n` sube en 1, con el resto del `tarea.md` byte a byte; `pausa`, `reanudar`, `liberar` y `reasignar` no cambian `estimacion`
+- [x] C6: con `por_fase.implementacion: [30, 52]` guardado y real 75, `tc2 estimar --error` da error absoluto 45 min, relativo 0,60 y razon estimado/real 0,40 por fase y en total; sin estimacion guardada dice «sin estimacion guardada» sin cifras
+- [x] C7: la estimacion de una tarea nunca la usa como muestra; todo sale de funciones puras, del estado y de un `git log`, sin llamar a ningun modelo
 
 ## Autorrevision
 
@@ -65,6 +65,18 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE):
   filtrar terminadas, `start` sin escribir, tarea sin carril en niveles de
   carril, rango `M^1..M^2` ignorado.
 - Verificacion propia: `--test estimacion --test toma` 22 de 22.
+
+## Resultado
+
+Hecho: modulo `estimacion/` (F1-17 «Consecuencias»): `real` (real por fase de una tarea terminada desde transiciones, filas de `## Coste` y commits de `develop`, sin pausas y con huecos de mas de 45 min contados como 45), `estimar` (cascada carril+complejidad+tamano → carril+complejidad → carril → repo con al menos 5 muestras, mediana y p80 por fase y total), `restante`, `error`, `forma` (campo `estimacion` con la forma del punto 7) e `historico` (un solo `git log` de `develop`, commits por ID en el asunto o M^1..M^2 del merge, troceo agrupado). `new`, `import` y `start` escriben la estimacion (claves `estimacion=`, `estimacion-p80=`, `estimacion-n=`, `estimacion-nivel=`); `tc2 estimar` rellena las abiertas con `estimacion: null`, `tc2 estimar TASK-NNN` la muestra y `tc2 estimar --error TASK-NNN` da estimado frente a real por fase (solo lectura); `doctor` cuenta el historico. Sin datos sale `sin-datos`, nunca una cifra inventada. Paridad exacta con `poc-f1-17.py` en cuatro corpus. Adendas en F1-17 (D2a, D3a, C1 = 85) y F1-4. `cargo xtask verificar --perfil rapida` en verde.
+
+Correccion del criterio C1: el plan sumaba 75 y olvidaba 10 min; la regla de F1-17 y la PoC dan 85 (corregido el enunciado, no la regla).
+
+No verificado: con historiales reales grandes (la medida de H1 es sintetica: 31 046 commits y 300 merges en 0,31 s); el script que genero el fixture de paridad (`t083-paridad.py`) quedo fuera del repo, asi que el fixture no se puede regenerar desde el repo.
+
+Revision ronda 1: aprobada por los dos, sin CRITICOS ni IMPORTANTES. Nueve MENORES corregidos en 0caad7f, 5b7dfe4, 53f890d, ddf7d4f y 7be0767 y verificados con `verificar-menores`: H1 historico sin recorrer todo `develop` por merge; H2 `ms_de_iso` rechaza dias inexistentes y el segundo 60; H3/R1-02 `recalcular` conserva `agente`; R1-01 E2E con un commit real de `develop` (lo deja en `menores-pendientes.md` porque el fichero citado no cambio; esta corregido por test); R1-03 `restante` desbordada da la mediana de las fases siguientes; R1-04 un `git log` que falla deja `historia=sin-log`; R1-05 un solo `git log` en `new`, `import` y `start`; R1-06 `start` no calcula el historico dos veces.
+
+Limites: la clave `historia=sin-log` no sale todavia en `new` ni en `import` (su informe se monta en `lib.rs` e `importar/mod.rs`, fuera de los ficheros citados): pasa a una tarea de seguimiento. Si la estimacion anterior es ilegible, `recalcular` no recupera `agente`.
 
 ## Transiciones
 
