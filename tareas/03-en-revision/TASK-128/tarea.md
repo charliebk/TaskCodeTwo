@@ -27,9 +27,22 @@ dependencias: []
 Cerrar lo que quedo fuera de los ficheros citados en la revision de TASK-082 y el test intermitente que aparecio en ella.
 
 ## Criterios de aceptacion
-- [ ] start no avisa de solape entre dos tareas de la misma persona (la propia lleva su quien hasta solape::calcular en la toma nueva); el test de liberar c5_c6_c10 pasa a exigir stderr vacio (test)
-- [ ] AVISO_Y_MAS y NOTA_Y_MAS viven en i18n/catalogo/toma.rs y los recorre el test del catalogo
-- [ ] progreso::c3_transiciones_reales_reescriben_el_progreso pasa 10 de 10 bajo carga: la rotacion de .anterior.json no se ignora en silencio o el test no depende de ella
+- [x] start no avisa de solape entre dos tareas de la misma persona (la propia lleva su quien hasta solape::calcular en la toma nueva); el test de liberar c5_c6_c10 pasa a exigir stderr vacio (test)
+- [x] AVISO_Y_MAS y NOTA_Y_MAS viven en i18n/catalogo/toma.rs y los recorre el test del catalogo
+- [x] progreso::c3_transiciones_reales_reescriben_el_progreso pasa 10 de 10 bajo carga: la rotacion de .anterior.json no se ignora en silencio o el test no depende de ella
+
+## Resultado
+
+Hecho:
+- C1: `solape::calcular` recibe la cuenta de quien toma la tarea y quita las tareas en curso o en revision que lleva la misma persona (`otras`, por id de cuenta con `Asignado::misma_persona`; `EnCurso` gana `asignado`). No salen en el aviso, ni en la `nota:`, ni en `en-curso-modulos`, ni en `solape-sin-rama`. `liberar::c5_c6_c10` exige stderr vacio; `solape::c10` pasa a k = 1 (TASK-002 es del propio luis); test E2E nuevo `misma_persona_no_se_avisa_contra_si_misma`.
+- C2: `AVISO_Y_MAS` y `NOTA_Y_MAS` en `i18n/catalogo/toma.rs` (los recorre `catalogo_completo`).
+- C3: la causa del `progreso::c3` intermitente no era la que suponia el plan (un `rename` bloqueado en Windows), sino que la rotacion de `.anterior.json` escribia el progreso leido y vuelto a serializar. `serde_json` sin `float_roundtrip` no devuelve igual un `f64` en un 13 % de los valores de una sonda (26 481 de 199 999), y `transcurrido` podia cambiar en la ultima cifra. Ahora se copian los bytes del fichero si son un progreso valido (test `el_anterior_es_el_fichero_que_habia_byte_a_byte`, rojo con la re-serializacion). Ademas, lo que decidio el plan (D1a, D2a): si el anterior no se escribe, la linea de la transicion lleva `progreso=sin-anterior` sin stderr. Diagnostico bajo carga (c3 diez veces con la suite de solape en paralelo): 9 de 10 con solo `sin-anterior`, 10 de 10 tras copiar los bytes.
+- Adenda en el ADR F1-17 (D5a) con la regla de C1, `progreso=sin-anterior` y la divergencia de C3. D1a a D5a por la consigna de Carlos; sin trocear (150 min estimados) por su decision.
+- `cargo xtask verificar --perfil rapida` en verde.
+
+No verificado: la mutacion del filtro de C1 contra `liberar::c5_c6_c10` por E2E (al revisor le fallo el enlazado de `tc2.exe`); la cubren el unitario de `otras` y el E2E de solape.
+
+Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTANTES. MEN-1 de rust-wasm-reviewer (`toma/mod.rs:234`) y MEN-1 de code-quality-reviewer (`progreso/mod.rs:266`): `progreso=sin-anterior` sin test que lo fuerce en `start` ni en una transicion. Corregidos en 5bd3020 con el E2E `sin_anterior_en_start_y_en_una_transicion` (los dos mutantes lo ponen rojo); `verificar-menores` los deja en `menores-pendientes.md` porque el arreglo es un test y no cambia el fichero citado.
 
 ## Transiciones
 
