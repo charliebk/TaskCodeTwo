@@ -746,6 +746,127 @@ fn c7_un_git_log_y_nunca_ella_misma() {
     }
 }
 
+/// `git` directo con el «ssh» del remoto y variables de mas.
+fn git_ssh(f: &Fixture, dir: &Path, args: &[&str], vars: &[(&str, &str)]) {
+    let o = Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .envs(entorno_ssh(f))
+        .envs(vars.iter().copied())
+        .env("LC_ALL", "C")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
+}
+
+/// R1-01: `git::historia` con commits reales. Un commit `TASK-001` en el
+/// `develop` del remoto a las 11:40 parte la pausa de C1: el real de
+/// implementacion pasa de 75 a 85 y el error frente a los 30 guardados, de
+/// 45 a 55. Con otro formato de `git log` no se leeria y seguiria en 45.
+#[test]
+fn r1_01_un_commit_de_develop_cambia_el_real() {
+    let f = Fixture::nueva("estimacion-r1-01");
+    let (bare, a) = preparar(&f);
+    poner(&f, &a, &[tarea_c6("TASK-001", true)]);
+    let error = |f: &Fixture| {
+        let (c, out, err) = correr(f, &a, &["estimar", "--error", "TASK-001"]);
+        assert_eq!(c, Some(0), "{out} {err}");
+        assert_eq!(valor(&out, "historia"), None, "{out}");
+        valor(&out, "error-implementacion").map(str::to_owned)
+    };
+    assert_eq!(error(&f).as_deref(), Some("45"));
+    // El commit, en el `develop` del remoto desde otro clon.
+    let p = clon(&f, &bare, "p");
+    let fecha = "2026-11-17T11:40:00Z";
+    git_ssh(
+        &f,
+        &p,
+        &[
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "feat(TASK-001): a medias",
+        ],
+        &[("GIT_COMMITTER_DATE", fecha), ("GIT_AUTHOR_DATE", fecha)],
+    );
+    git_ssh(&f, &p, &["push", "-q", "origin", "develop"], &[]);
+    // Sin `fetch`, `estimar` no lo ve; tras el `fetch`, si.
+    assert_eq!(error(&f).as_deref(), Some("45"));
+    git_ssh(&f, &a, &["fetch", "-q", "origin"], &[]);
+    assert_eq!(error(&f).as_deref(), Some("55"));
+}
+
+/// Las llamadas `git <sub>` de `tc2 <args>` (por `GIT_TRACE`), con el
+/// subcomando y sus argumentos.
+fn llamadas(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Vec<String>) {
+    let traza = f.raiz.join(format!("traza-{}.txt", args[0]));
+    let _ = std::fs::remove_file(&traza);
+    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .current_dir(dir)
+        .args(args)
+        .envs(entorno_ssh(f))
+        .env("GIT_TRACE", &traza)
+        .env("LC_ALL", "C")
+        .env("TC2_IDIOMA", "es")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env_remove("TC2_TOKEN_PERSONA")
+        .env_remove("TC2_TOKEN_AGENTE")
+        .output()
+        .unwrap();
+    let t = std::fs::read_to_string(&traza).unwrap_or_default();
+    let subs = t
+        .lines()
+        .filter_map(|l| l.split_once("trace: built-in: git ").map(|(_, r)| r))
+        .map(|r| {
+            let mut p: Vec<&str> = r.split_whitespace().collect();
+            while p.first() == Some(&"-c") {
+                p.drain(..2.min(p.len()));
+            }
+            p.join(" ")
+        })
+        .collect();
+    (o.status.code(), texto(&o.stdout), subs)
+}
+
+fn cuantas(subs: &[String], prefijo: &str) -> usize {
+    subs.iter().filter(|s| s.starts_with(prefijo)).count()
+}
+
+/// R1-05: `new`, `import` (un lote de tres) y `start` leen la historia con
+/// un solo `git log` (C7 en las cuatro ordenes). R1-06: `start` lee todos
+/// los `tarea.md` (para el historico) una sola vez: en la transaccion, no
+/// en el sondeo.
+#[test]
+fn r1_05_un_git_log_en_new_import_y_start() {
+    let f = Fixture::nueva("estimacion-r1-05");
+    let (_, a) = preparar(&f);
+    let seis: Vec<(String, String)> = (1..=6)
+        .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
+        .collect();
+    poner(&f, &a, &seis);
+    let (c, out, subs) = llamadas(&f, &a, &["new", "Nueva", "--criterio", "uno"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert_eq!(valor(&out, "estimacion-n"), Some("6"), "{out}");
+    assert_eq!(cuantas(&subs, "log "), 1, "new: {subs:?}");
+    let lote = "---\nlote: r105\nsprint: 1\n---\n# Plan\n\n### A Uno\n> Objetivo uno\n- Criterio a\n\n### B Dos\n> Objetivo dos\n- Criterio b\n\n### C Tres\n> Objetivo tres\n- Criterio c\n";
+    let ruta = f.raiz.join("r105.md");
+    std::fs::write(&ruta, lote).unwrap();
+    let (c, out, subs) = llamadas(&f, &a, &["import", ruta.to_str().unwrap()]);
+    assert_eq!(c, Some(0), "{out}");
+    assert_eq!(valor(&out, "creadas"), Some("3"), "{out}");
+    assert_eq!(cuantas(&subs, "log "), 1, "import: {subs:?}");
+    let (c, out, subs) = llamadas(&f, &a, &["start", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert_eq!(valor(&out, "estimacion-n"), Some("6"), "{out}");
+    assert_eq!(cuantas(&subs, "log "), 1, "start: {subs:?}");
+    // Dos `cat-file --batch` con todos los `tarea.md`, los dos en la
+    // transaccion: el del historico y el del `ROADMAP.md`. El sondeo solo
+    // lee la tarea (`show`); si calculara el historico, serian tres.
+    assert_eq!(cuantas(&subs, "cat-file --batch"), 2, "start: {subs:?}");
+}
+
 /// `doctor` cuenta el historico: `estado historico ok usables=N
 /// descartadas=M`.
 #[test]
