@@ -14,15 +14,16 @@
 //!
 //! [`calcular`] corre tras el `fetch` de `start` y sin red: un
 //! `for-each-ref` de `refs/remotes/origin/`, el `diff` de la rama propia y
-//! uno por cada otra tarea con rama publicada (1 + k + 1 procesos de git).
+//! uno por cada otra tarea con rama publicada (1 + k + 1 procesos de git,
+//! con k como mucho [`MAX_DIFFS`]).
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::contrato::Informe;
 use crate::git::{self, Git};
-use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
+use crate::i18n::{Mensaje, Texto};
 use crate::plataforma::Personas;
 use crate::situacion::{self, Ficha};
 use crate::tarea::Documento;
@@ -138,6 +139,35 @@ pub const MAX_LISTA: usize = 20;
 /// Modulos como mucho por tarea en `en-curso-modulos` y en la nota (D3b).
 pub const MAX_MODULOS_NOTA: usize = 5;
 
+/// Otras tareas como mucho cuyo `diff` se lee (H3 de la ronda 1): las
+/// publicadas de mas (por ID) no lanzan `git diff` y la linea lleva
+/// `solape-truncado=si`. Asi el solape son como mucho 1 + 20 + 1 procesos.
+pub const MAX_DIFFS: usize = 20;
+
+/// Lineas `aviso:` como mucho en stderr; el resto, una linea final «y N
+/// mas» (H3). La linea de `start` las lleva todas, hasta [`MAX_LISTA`].
+pub const MAX_AVISOS: usize = 5;
+
+/// Tareas como mucho en la nota del primer `start`; el resto, «y N mas».
+pub const MAX_TAREAS_NOTA: usize = 5;
+
+/// La linea final de los avisos que no caben en [`MAX_AVISOS`]. Vive aqui
+/// y no en el catalogo de `toma` porque la correccion de H3 solo podia
+/// tocar este modulo.
+pub static AVISO_Y_MAS: Texto = Texto {
+    clave: "tc2::solape::AVISO_Y_MAS",
+    es: "aviso: y {n} tareas mas tocan lo mismo (todas en la clave solape)",
+    en: "warning: and {n} more tasks touch the same (all of them in the solape key)",
+};
+
+/// La cola de la nota cuando no caben todas las tareas
+/// ([`MAX_TAREAS_NOTA`]).
+pub static NOTA_Y_MAS: Texto = Texto {
+    clave: "tc2::solape::NOTA_Y_MAS",
+    es: "{tareas}; y {n} mas",
+    en: "{tareas}; and {n} more",
+};
+
 /// Lo que sale del solape de una tarea.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Solape {
@@ -154,6 +184,9 @@ pub struct Solape {
     /// La rama propia aun no cambia nada (primer `start`, D3b): en vez de
     /// cruces, la nota con lo que tocan las demas.
     pub propia_vacia: bool,
+    /// Habia mas de [`MAX_DIFFS`] tareas con la rama publicada: las de mas
+    /// no se leyeron (sin `diff`) y la linea lleva `solape-truncado=si`.
+    pub truncado: bool,
 }
 
 /// El solape de la tarea `id` (rama `rama`, ya creada en local) con las
@@ -188,11 +221,17 @@ pub fn calcular(g: &Git, dir: &Path, id: &str, rama: &str, en_curso: &[EnCurso])
     if propia.is_none() {
         s.incompletas.push(id.to_owned());
     }
+    let mut diffs = 0;
     for t in otras {
         let Some(r) = t.rama.as_deref().filter(|r| remotas.contains_key(*r)) else {
             s.sin_rama.push(t.id.clone());
             continue;
         };
+        if diffs == MAX_DIFFS {
+            s.truncado = true;
+            continue;
+        }
+        diffs += 1;
         let remota = format!("refs/remotes/{}/{r}", git::REMOTO);
         match git::ficheros_de_rama(g, dir, OP, git::base_de_rama(r), &remota) {
             Ok(ficheros) => s.publicadas.push(Toca {
@@ -277,18 +316,24 @@ impl Solape {
         }
         i = lista(i, "solape-sin-rama", self.sin_rama.clone(), &mut t);
         i = lista(i, "solape-incompleto", self.incompletas.clone(), &mut t);
-        if t { i.con("solape-truncado", "si") } else { i }
+        if t || self.truncado {
+            i.con("solape-truncado", "si")
+        } else {
+            i
+        }
     }
 
     /// Lo que se dice a la persona por stderr (D3b y D4a de TASK-082): una
-    /// linea `aviso:` por tarea que cruza y, en el primer `start`, una
-    /// `nota:` con las tareas en curso con rama publicada, su @ y sus
-    /// modulos. Login, rutas e IDs son texto ajeno: van saneados (F1-17,
-    /// punto 8). Sin nada que decir, vacio.
+    /// linea `aviso:` por tarea que cruza (como mucho [`MAX_AVISOS`] y una
+    /// final «y N mas») y, en el primer `start`, una `nota:` con las tareas
+    /// en curso con rama publicada (como mucho [`MAX_TAREAS_NOTA`] y «y N
+    /// mas»), su @ y sus modulos. Login, rutas e IDs son texto ajeno: van
+    /// saneados (F1-17, punto 8). Sin nada que decir, vacio.
     pub fn avisos(&self) -> Vec<Mensaje> {
         let mut v: Vec<Mensaje> = self
             .cruces
             .iter()
+            .take(MAX_AVISOS)
             .map(|c| {
                 let ficheros = resumen(c.ficheros.iter().map(String::as_str));
                 let modulos = resumen(c.modulos.iter().map(String::as_str));
@@ -307,10 +352,15 @@ impl Solape {
                     .con_mensaje("que", que)
             })
             .collect();
+        match self.cruces.len().saturating_sub(MAX_AVISOS) {
+            0 => {}
+            n => v.push(Mensaje::nuevo(&AVISO_Y_MAS).con("n", n.to_string())),
+        }
         if self.propia_vacia && !self.publicadas.is_empty() {
             let tareas: Vec<String> = self
                 .publicadas
                 .iter()
+                .take(MAX_TAREAS_NOTA)
                 .map(|p| {
                     let id = sanear(&p.id, MAX_ID);
                     let quien = sanear(&p.quien, MAX_QUIEN);
@@ -320,7 +370,19 @@ impl Solape {
                     }
                 })
                 .collect();
-            v.push(Mensaje::nuevo(&txt::NOTA_EN_CURSO).con("tareas", tareas.join("; ")));
+            let tareas = tareas.join("; ");
+            let nota = Mensaje::nuevo(&txt::NOTA_EN_CURSO);
+            v.push(
+                match self.publicadas.len().saturating_sub(MAX_TAREAS_NOTA) {
+                    0 => nota.con("tareas", tareas),
+                    n => nota.con_mensaje(
+                        "tareas",
+                        Mensaje::nuevo(&NOTA_Y_MAS)
+                            .con("tareas", tareas)
+                            .con("n", n.to_string()),
+                    ),
+                },
+            );
         }
         v
     }
@@ -530,6 +592,76 @@ mod tests {
             a.contains("(f00.rs, f01.rs, f02.rs, f03.rs, f04.rs, +20)"),
             "{a}"
         );
+    }
+
+    /// H3: con muchas tareas, stderr no crece sin limite: 5 lineas `aviso:`
+    /// y una final «y N mas»; la nota, 5 tareas y «y N mas». La linea sigue
+    /// cortada a 20 y `truncado` (diffs no lanzados) da `solape-truncado`.
+    #[test]
+    fn avisos_y_nota_con_tope() {
+        let ids: Vec<String> = (1..=25).map(|n| format!("TASK-{n:03}")).collect();
+        let s = Solape {
+            cruces: ids
+                .iter()
+                .map(|id| cruce(id, "@ana", &["src/x/a.rs"], &[]))
+                .collect(),
+            ..Solape::default()
+        };
+        let a = s.avisos();
+        assert_eq!(a.len(), MAX_AVISOS + 1);
+        assert!(
+            a[..MAX_AVISOS]
+                .iter()
+                .all(|m| m.clave().ends_with("AVISO_SOLAPE"))
+        );
+        assert_eq!(
+            a[MAX_AVISOS].texto(crate::i18n::Idioma::Es),
+            "aviso: y 20 tareas mas tocan lo mismo (todas en la clave solape)"
+        );
+        assert_eq!(
+            a[MAX_AVISOS].texto(crate::i18n::Idioma::En),
+            "warning: and 20 more tasks touch the same (all of them in the solape key)"
+        );
+        // Justo en el tope, sin la linea final.
+        let justo = Solape {
+            cruces: s.cruces[..MAX_AVISOS].to_vec(),
+            ..Solape::default()
+        };
+        assert_eq!(justo.avisos().len(), MAX_AVISOS);
+        // La nota del primer `start`.
+        let nota = Solape {
+            publicadas: ids.iter().map(|id| toca(id, &["m/a.rs"])).collect(),
+            propia_vacia: true,
+            ..Solape::default()
+        };
+        let n = nota.avisos();
+        assert_eq!(n.len(), 1);
+        assert_eq!(
+            n[0].texto(crate::i18n::Idioma::Es),
+            "nota: tu rama aun no cambia nada; en curso con rama publicada: \
+             TASK-001 (@task-001: m); TASK-002 (@task-002: m); TASK-003 (@task-003: m); \
+             TASK-004 (@task-004: m); TASK-005 (@task-005: m); y 20 mas"
+        );
+        assert!(
+            n[0].texto(crate::i18n::Idioma::En)
+                .ends_with("; and 20 more")
+        );
+        let pocas = Solape {
+            publicadas: nota.publicadas[..MAX_TAREAS_NOTA].to_vec(),
+            propia_vacia: true,
+            ..Solape::default()
+        };
+        assert!(
+            pocas.avisos()[0]
+                .texto(crate::i18n::Idioma::Es)
+                .ends_with("(@task-005: m)")
+        );
+        // Diffs no lanzados: `solape-truncado=si` aunque ninguna lista se corte.
+        let t = Solape {
+            truncado: true,
+            ..Solape::default()
+        };
+        assert_eq!(linea(&t), "start ok solape-truncado=si");
     }
 
     /// C1 (unitario) y C11: el aviso nombra la tarea, quien la lleva y lo
