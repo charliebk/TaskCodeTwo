@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [estado]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-127-escrituras-de-estado-con-muchos-ficheros
 asignado_a: charlie.bk@gmail.com
@@ -36,6 +36,7 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 |---|---|---|---|---|
 | 2026-11-18T13:17:32Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-18T13:23:44Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-18T13:23:58Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
