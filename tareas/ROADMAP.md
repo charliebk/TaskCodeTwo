@@ -33,6 +33,9 @@ Métricas, presupuesto de tokens, ciclo de iteración, guía.
 
 ### H9 — Actualización de proyectos, piloto y 2.0.0
 taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTrading y ToolsaWeb.
+
+### H11 — Panel web: dashboard y planificación
+`tc2 panel`: pestaña Dashboard (progreso, producción diaria, coste por tarea y persona) y pestaña Planificación (tareas por persona y predecesoras).
 <!-- manual:fin -->
 
 ## Estado del trabajo
@@ -40,7 +43,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
 - **En marcha:** TASK-128 (en diseño)
-- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-125, TASK-126
+- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-125, TASK-126, TASK-129
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -201,24 +204,39 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 45 | TASK-093 | F9-10 Desinstalacion limpia de TaskCode 0.16 | — | TASK-013, TASK-064 | espera a TASK-064 |
 | 46 | TASK-072 | F9-9 Publicar 2.0.0 | — | TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 | espera a TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 |
 
+## H11 — Panel web: dashboard y planificación
+
+0 de 8 terminadas.
+
+| Paso | Tarea | Título | Complejidad | Depende de | Estado |
+|---|---|---|---|---|---|
+| 47 | TASK-129 | F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos | media | — | lista para empezar |
+| 48 | TASK-130 | F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas | media | TASK-129 | espera a TASK-129 |
+| 49 | TASK-131 | F11-3 Coste por tarea: tarifas por modelo configurables y desglose de entrada, salida y cache | media | TASK-130, TASK-058 | espera a TASK-130, TASK-058 |
+| 50 | TASK-132 | F11-4 Esqueleto web Vue servido por tc2 panel: pestanas, tema y build embebido | media | TASK-129 | espera a TASK-129 |
+| 51 | TASK-133 | F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona de cada tarea | media | TASK-131, TASK-132 | espera a TASK-131, TASK-132 |
+| 59 | TASK-134 | F11-6 Pestana Planificacion: tareas por persona y predecesoras | alta | TASK-130, TASK-132, TASK-122 | espera a TASK-130, TASK-132, TASK-122 |
+| 60 | TASK-135 | F11-7 Proyeccion de fechas por persona con el ritmo medido | media | TASK-134 | espera a TASK-134 |
+| 61 | TASK-136 | F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb | media | TASK-133, TASK-134, TASK-135 | espera a TASK-133, TASK-134, TASK-135 |
+
 ## H0 — H0
 
 3 de 15 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 47 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
+| 52 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
 | — | TASK-115 | Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable | simple | — | ✅ terminada |
 | — | TASK-116 | Nombres de la 2.0 alineados con F1-12 D1a | simple | — | ✅ terminada |
-| 48 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
-| 49 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | lista para empezar |
-| 50 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
-| 51 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
-| 52 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
-| 53 | TASK-122 | tc2 roadmap --grafo: grafo completo de tareas (RF-04) | media | — | lista para empezar |
-| 54 | TASK-123 | Seguimiento de F3-4: menores aceptados de tc2 roadmap | simple | — | lista para empezar |
-| 55 | TASK-124 | Seguimiento de F3-5: menores aceptados de tc2 board y status | simple | — | lista para empezar |
-| 56 | TASK-125 | Seguimiento de F3-10: quitar la copia vieja de la regla de actividad | simple | — | lista para empezar |
-| 57 | TASK-126 | Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad | simple | — | lista para empezar |
+| 53 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
+| 54 | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | lista para empezar |
+| 55 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
+| 56 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
+| 57 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
+| 58 | TASK-122 | tc2 roadmap --grafo: grafo completo de tareas (RF-04) | media | — | lista para empezar |
+| 62 | TASK-123 | Seguimiento de F3-4: menores aceptados de tc2 roadmap | simple | — | lista para empezar |
+| 63 | TASK-124 | Seguimiento de F3-5: menores aceptados de tc2 board y status | simple | — | lista para empezar |
+| 64 | TASK-125 | Seguimiento de F3-10: quitar la copia vieja de la regla de actividad | simple | — | lista para empezar |
+| 65 | TASK-126 | Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad | simple | — | lista para empezar |
 | — | TASK-127 | Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) | simple | — | ✅ terminada |
-| 58 | TASK-128 | Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso | simple | — | ▶ en diseño |
+| 66 | TASK-128 | Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso | simple | — | ▶ en diseño |
