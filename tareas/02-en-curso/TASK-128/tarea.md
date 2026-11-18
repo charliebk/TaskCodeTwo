@@ -44,3 +44,8 @@ Cerrar lo que quedo fuera de los ficheros citados en la revision de TASK-082 y e
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-18T18:00:44Z | diseno | agente:acc352a6b97b6ff67 | 44 | 73228 | 1068011 | 16078 | 31 | 1157361 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 78f965e
+- code-quality-reviewer — 78f965e
