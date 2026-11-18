@@ -8,6 +8,9 @@
 //! traido con un aviso en stderr y codigo 0). No escriben nada mas que
 //! `origin/taskcodetwo/tareas` y la marca de sincronizacion.
 //!
+//! - `status --seguir` (F3-12): la linea de progreso de la tarea en curso,
+//!   repetida al cambiar; la escribe [`crate::progreso::seguir`] desde
+//!   `main.rs`. Aqui solo se rechaza con `--json`.
 //! - `status [--json]`: una linea de equipo; no consulta la plataforma. Con
 //!   `--json`, `status ok en-diseno=... en-curso=... en-revision=... listas=...
 //!   commit=... remoto=... sincronizado=... pendientes=N [tareas=...]`. En
@@ -49,6 +52,9 @@ use crate::situacion::{self, Ficha, Quien, Situacion};
 pub const BOARD: &str = "board";
 /// Nombre de `status`.
 pub const STATUS: &str = "status";
+/// `status --seguir` (F3-12): la linea de progreso, repetida al cambiar
+/// ([`crate::progreso::seguir`], desde `main.rs`).
+pub const SEGUIR: &str = "--seguir";
 
 /// Tareas por grupo en la linea de `status` (las demas, `+N`).
 pub const K_STATUS: usize = 3;
@@ -526,6 +532,19 @@ pub fn cruzar(t: &Tablero, prs: &[PrAbierto]) -> Cruce {
 /// `status [--json]` (sin `--json`, que quita `lib.rs`). No consulta nunca
 /// la plataforma.
 pub fn orden_status(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>) -> Salida {
+    // F3-12: `status --seguir` lo atiende `main.rs` (escribe a trozos); aqui
+    // solo llega con `--json` o desde la biblioteca, y se rechaza.
+    if args.iter().any(|a| a == SEGUIR) {
+        let motivo = if json {
+            "seguir-con-json"
+        } else {
+            "seguir-sin-terminal"
+        };
+        return Informe::nuevo(STATUS, Resultado::Uso)
+            .con("motivo", motivo)
+            .diagnostico(&txt::USO_STATUS)
+            .salida_en(json, idioma);
+    }
     if !args.is_empty() {
         return Informe::nuevo(STATUS, Resultado::Uso)
             .con("motivo", "argumentos-de-mas")

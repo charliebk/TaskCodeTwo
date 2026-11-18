@@ -35,6 +35,21 @@ fn main() -> ExitCode {
             }
         }
     }
+    // F3-12: `status --seguir` escribe a trozos (una linea cada vez que
+    // cambia), que `Salida` no sabe hacer. Termina con Ctrl+C o al cerrarse
+    // stdout, con codigo 0.
+    if args.len() == 2 && args[0] == tc2::tablero::STATUS && args[1] == tc2::tablero::SEGUIR {
+        let dir = std::env::current_dir().unwrap_or_default();
+        let mut stdout = std::io::stdout();
+        let _ = tc2::progreso::seguir(
+            &dir,
+            &mut stdout,
+            &tc2::identidad::ahora,
+            &|| false,
+            tc2::progreso::ESPERA_SEGUIR,
+        );
+        return ExitCode::SUCCESS;
+    }
     let salida = tc2::ejecutar_en(idioma, args);
     // Si no se puede escribir la salida (stdout cerrado), no se da por bueno:
     // quien lee el codigo 0 creeria que recibio la respuesta.

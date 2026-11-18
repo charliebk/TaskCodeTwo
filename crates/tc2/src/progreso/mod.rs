@@ -168,6 +168,9 @@ pub fn linea_en(dir: &Path, ahora: u64) -> String {
 /// o, si no viene, `cwd` (documentacion de Claude Code: los dos llevan lo
 /// mismo).
 pub fn carpeta_del_json(json: &str) -> Option<PathBuf> {
+    // Sin la marca de orden de bytes que anaden algunos escritores de
+    // Windows (`StandardInput` de .NET), que serde_json no acepta.
+    let json = json.trim_start_matches('\u{feff}');
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
     v.pointer("/workspace/current_dir")
         .and_then(serde_json::Value::as_str)
@@ -264,6 +267,39 @@ pub fn escribir_en(g: &Git, dir: &Path, p: &Progreso) -> Result<(), String> {
 pub fn quitar(g: &Git, dir: &Path, id: &str) -> Result<Refresco, String> {
     let (_, carpeta) = carpeta_de(g, dir)?;
     quitar_en(&carpeta, id)
+}
+
+/// Cada cuanto mira `tc2 status --seguir`.
+pub const ESPERA_SEGUIR: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// `tc2 status --seguir` (F1-17, punto 8): la misma lectura que la status
+/// line para `dir`, repetida cada `espera`. Escribe la linea al empezar y
+/// otra solo cuando cambia el texto (porque se reescribio el fichero o
+/// porque corrio el reloj), sin ANSI. Para cuando `parar()` es verdadero
+/// (despues de cada mirada) o cuando no se puede escribir (stdout cerrado:
+/// `Ok`). `reloj` y `parar` se inyectan en las pruebas; en el binario son la
+/// hora del sistema y nunca (lo corta Ctrl+C).
+pub fn seguir(
+    dir: &Path,
+    out: &mut dyn std::io::Write,
+    reloj: &dyn Fn() -> u64,
+    parar: &dyn Fn() -> bool,
+    espera: std::time::Duration,
+) -> std::io::Result<()> {
+    let mut ultima: Option<String> = None;
+    loop {
+        let l = linea_en(dir, reloj());
+        if ultima.as_deref() != Some(l.as_str()) {
+            if writeln!(out, "{l}").and_then(|()| out.flush()).is_err() {
+                return Ok(());
+            }
+            ultima = Some(l);
+        }
+        if parar() {
+            return Ok(());
+        }
+        std::thread::sleep(espera);
+    }
 }
 
 /// `tc2 estado --stdin` en el proceso: lee stdin (con tope), la carpeta
@@ -365,6 +401,10 @@ mod tests {
             carpeta_del_json(r#"{"cwd":"/c"}"#),
             Some(PathBuf::from("/c"))
         );
+        assert_eq!(
+            carpeta_del_json("\u{feff}{\"cwd\":\"/c\"}"),
+            Some(PathBuf::from("/c"))
+        );
         for malo in [
             "",
             "x",
@@ -394,6 +434,71 @@ mod tests {
         }
         assert_eq!(orden_estado("", None, 0), linea::SIN_TAREA);
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// C9 (biblioteca): `seguir` imprime la linea inicial, otra al
+    /// reescribirse el fichero, ninguna si no cambia, y termina cuando
+    /// `parar()` es verdadero; con stdout cerrado, termina bien.
+    #[test]
+    fn c9_seguir_con_reloj_y_parar_inyectados() -> std::io::Result<()> {
+        let raiz = dir("seguir");
+        let principal = raiz.join("p");
+        let comun = principal.join(".git");
+        std::fs::create_dir_all(&comun)?;
+        let carpeta = fichero::carpeta(&comun);
+        let p = fichero::tests::ejemplo("TASK-001");
+        fichero::escribir(&carpeta, &p)?;
+        let vueltas = std::cell::Cell::new(0);
+        let parar = || {
+            vueltas.set(vueltas.get() + 1);
+            if vueltas.get() == 1 {
+                let mut q = fichero::tests::ejemplo("TASK-001");
+                q.fase = "rondas".to_owned();
+                q.faltan = vec!["cierre".to_owned()];
+                let _ = fichero::escribir(&carpeta, &q);
+            }
+            vueltas.get() >= 3
+        };
+        let mut out = Vec::new();
+        seguir(
+            &principal,
+            &mut out,
+            &|| 1_000,
+            &parar,
+            std::time::Duration::ZERO,
+        )?;
+        let texto = String::from_utf8_lossy(&out).into_owned();
+        let lineas: Vec<&str> = texto.lines().collect();
+        assert_eq!(vueltas.get(), 3);
+        assert_eq!(lineas.len(), 2, "{texto}");
+        assert!(
+            lineas[0].starts_with("TASK-001 · implementacion · "),
+            "{texto}"
+        );
+        assert!(
+            lineas[1].starts_with("TASK-001 · rondas · fases que faltan: cierre · "),
+            "{texto}"
+        );
+        assert!(!texto.contains('\u{1b}'));
+        // Stdout cerrado: termina bien a la primera.
+        struct Cerrado;
+        impl std::io::Write for Cerrado {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        seguir(
+            &principal,
+            &mut Cerrado,
+            &|| 1_000,
+            &|| false,
+            std::time::Duration::ZERO,
+        )?;
+        let _ = std::fs::remove_dir_all(&raiz);
+        Ok(())
     }
 
     /// La linea del principal: la de calculo mas reciente y `+N en curso`;

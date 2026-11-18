@@ -2,8 +2,8 @@
 
 crate::i18n::textos! {
     USO_STATUS {
-        es: "uso: status [--json]",
-        en: "usage: status [--json]",
+        es: "uso: status [--json] | status --seguir",
+        en: "usage: status [--json] | status --seguir",
     }
     USO_BOARD {
         es: "uso: board [--sin-plataforma] [--json]",

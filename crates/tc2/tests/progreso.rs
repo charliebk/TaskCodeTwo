@@ -379,6 +379,181 @@ fn c1_misma_salida_con_10_y_1000_tareas_sin_procesos_y_rapida() {
     );
 }
 
+/// Un hijo que muere siempre al salir del test (tambien si falla).
+struct Hijo(std::process::Child);
+
+impl Drop for Hijo {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// Un progreso de ejemplo de `id` en la fase `fase`.
+fn ejemplo(id: &str, fase: &str, calculada: u64) -> progreso::Progreso {
+    progreso::Progreso {
+        version: progreso::fichero::VERSION,
+        id: id.to_owned(),
+        fase: fase.to_owned(),
+        pausada: false,
+        faltan: if fase == "rondas" {
+            vec!["cierre".to_owned()]
+        } else {
+            vec!["rondas".to_owned(), "cierre".to_owned()]
+        },
+        transcurrido: 0.0,
+        ultimo_evento: calculada,
+        calculada,
+        nivel: "repo".to_owned(),
+        n: 6,
+        tabla: vec![
+            progreso::Punto {
+                mediana: 50.0,
+                p80: 65.0,
+                desbordada: false,
+            };
+            progreso::fichero::PUNTOS
+        ],
+        avisos: Vec::new(),
+    }
+}
+
+/// C9 (proceso) y C11: `tc2 status --seguir` imprime la linea inicial y
+/// otra al reescribirse el fichero, sin git en el PATH (sin procesos ni
+/// red); el hijo muere siempre.
+#[test]
+fn c9_status_seguir_como_proceso() {
+    let f = Fixture::nueva("progreso-c9");
+    let (_bare, clon) = f.remoto_y_clon();
+    let carpeta = carpeta(&clon);
+    let ahora = tc2::identidad::ahora();
+    progreso::fichero::escribir(&carpeta, &ejemplo("TASK-001", "implementacion", ahora)).unwrap();
+    let vacio = f.raiz.join("path-vacio");
+    std::fs::create_dir_all(&vacio).unwrap();
+    let hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .current_dir(&clon)
+        .args(["status", "--seguir"])
+        .env("PATH", &vacio)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("lanzar tc2 status --seguir");
+    let mut hijo = Hijo(hijo);
+    let stdout = hijo.0.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        for l in std::io::BufReader::new(stdout).lines() {
+            let Ok(l) = l else { break };
+            if tx.send(l).is_err() {
+                break;
+            }
+        }
+    });
+    let espera = std::time::Duration::from_secs(20);
+    let primera = rx.recv_timeout(espera).expect("la linea inicial");
+    assert!(
+        primera.starts_with("TASK-001 · implementacion · fases que faltan: rondas, cierre · "),
+        "{primera}"
+    );
+    progreso::fichero::escribir(&carpeta, &ejemplo("TASK-001", "rondas", ahora)).unwrap();
+    let segunda = rx.recv_timeout(espera).expect("la linea tras reescribir");
+    assert!(
+        segunda.starts_with("TASK-001 · rondas · fases que faltan: cierre · "),
+        "{segunda}"
+    );
+    assert!(!primera.contains('\u{1b}') && !segunda.contains('\u{1b}'));
+    drop(hijo);
+}
+
+/// `status --seguir --json` es `uso`: la vista que se repite no tiene JSON.
+#[test]
+fn status_seguir_con_json_es_uso() {
+    let f = Fixture::nueva("progreso-seguir-json");
+    let (_bare, clon) = f.remoto_y_clon();
+    let (c, out, err) = tc2(&f, &clon, &["status", "--seguir", "--json"]);
+    assert_eq!(c, Some(2), "{out} {err}");
+    assert!(out.contains("\"motivo\":\"seguir-con-json\""), "{out}");
+    assert!(err.contains("status --seguir"), "{err}");
+}
+
+/// C11: `tc2 init` propone la status line (la orden exacta y el bloque en
+/// `--json`) y deja los `settings.json` del proyecto y de la persona igual
+/// byte a byte.
+#[test]
+fn c11_init_propone_la_status_line_sin_tocar_settings() {
+    let f = Fixture::nueva("progreso-c11");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "repo"]);
+    let repo = f.raiz.join("repo");
+    let home = f.raiz.join("home");
+    let claude = home.join(".claude");
+    let ficheros = [
+        (
+            repo.join(".claude").join("settings.json"),
+            b"{\"permissions\": {\"allow\": []}}\r\n".to_vec(),
+        ),
+        (
+            repo.join(".claude").join("settings.local.json"),
+            b"{\n  \"statusLine\": {\"type\": \"command\", \"command\": \"taskctl estado --stdin\"}\n}".to_vec(),
+        ),
+        (
+            claude.join("settings.json"),
+            b"{\"statusLine\": {\"type\": \"command\", \"command\": \"otra\"}}".to_vec(),
+        ),
+    ];
+    for (r, b) in &ficheros {
+        std::fs::create_dir_all(r.parent().unwrap()).unwrap();
+        std::fs::write(r, b).unwrap();
+    }
+    for json in [false, true] {
+        let mut args = vec!["init"];
+        if json {
+            args.push("--json");
+        }
+        let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+            .current_dir(&repo)
+            .args(&args)
+            .envs(f.entorno())
+            .env("HOME", &home)
+            .env("USERPROFILE", &home)
+            .env("CLAUDE_CONFIG_DIR", &claude)
+            .env("LC_ALL", "C")
+            .env("TC2_IDIOMA", "es")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env_remove("TC2_TOKEN_PERSONA")
+            .env_remove("TC2_TOKEN_AGENTE")
+            .output()
+            .unwrap();
+        let out = texto(&o.stdout);
+        assert_eq!(o.status.code(), Some(0), "{out} {}", texto(&o.stderr));
+        let linea = out
+            .lines()
+            .find(|l| l.contains("status-line"))
+            .unwrap_or_else(|| panic!("sin la propuesta: {out}"));
+        if json {
+            let v: serde_json::Value = serde_json::from_str(linea).unwrap();
+            assert_eq!(
+                v["accion"]["propuesta"],
+                serde_json::json!({"statusLine": {"type": "command", "command": "tc2 estado --stdin"}})
+            );
+            assert_eq!(v["accion"]["decision"], "pendiente");
+            assert_eq!(v["accion"]["orden"], "tc2 estado --stdin");
+        } else {
+            assert!(
+                linea.ends_with(
+                    "clase=status-line dueno=taskcodetwo decision=pendiente motivo=pegar-a-mano orden=tc2%20estado%20--stdin"
+                ),
+                "{linea}"
+            );
+            assert!(linea.contains("settings.local.json"), "{linea}");
+        }
+        for (r, b) in &ficheros {
+            assert_eq!(&std::fs::read(r).unwrap(), b, "{} cambio", r.display());
+        }
+    }
+}
+
 /// C8: un fichero corrupto o a medias da el ultimo valor bueno con su
 /// antiguedad; si tampoco hay anterior, «progreso ilegible» (codigo 0).
 #[test]
