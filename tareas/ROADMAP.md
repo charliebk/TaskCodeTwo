@@ -109,9 +109,9 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-079 | F3-5b status y roadmap siempre frescos | — | TASK-032 | ✅ terminada |
 | — | TASK-080 | F3-9 Inventario de skills y agentes instalados | — | TASK-016, TASK-073 | ✅ terminada |
 | — | TASK-081 | F3-10 Liberar y reasignar tareas abandonadas | — | TASK-033 | ✅ terminada |
+| 1 | TASK-082 | F3-11 Aviso de solape entre tareas en curso | — | TASK-033 | ▶ en diseño |
 | — | TASK-083 | F3-13 Estimacion por fase de cada tarea al planificar | — | TASK-029, TASK-075 | ✅ terminada |
 | — | TASK-084 | F3-12 Progreso en vivo: fases que faltan y tiempo restante | — | TASK-018, TASK-083 | ✅ terminada |
-| 2 | TASK-082 | F3-11 Aviso de solape entre tareas en curso | — | TASK-033, TASK-036 | ▶ en diseño |
 
 ## H4 — Diseño, aprobación y relevo
 
@@ -119,7 +119,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 1 | TASK-036 | F4-1 plan con brainstorm de roles | — | TASK-029 | lista para empezar |
+| 2 | TASK-036 | F4-1 plan con brainstorm de roles | — | TASK-029 | lista para empezar |
 | 3 | TASK-037 | F4-2 approve con la identidad de la persona | — | TASK-007, TASK-036 | espera a TASK-036 |
 | 4 | TASK-038 | F4-3 Aprobacion de un hito en lote | — | TASK-037 | espera a TASK-037 |
 | 14 | TASK-085 | F4-6 plan propone skills, agentes y modelo por rol | — | TASK-036, TASK-049, TASK-080 | espera a TASK-036, TASK-049 |
