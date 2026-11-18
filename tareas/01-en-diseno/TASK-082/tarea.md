@@ -6,10 +6,10 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-082-f3-11-aviso-de-solape-entre-tareas-en-cu
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-18
 dependencias: [TASK-033, TASK-036]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 ## Criterios de aceptacion
 - [ ] Dos tareas que tocan el mismo módulo → aviso con nombres y tareas
 - [ ] Cumple lo que pide la tarea F3-11 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-18T08:45:26Z | plan | automatico | persona | 0.16.1 |
