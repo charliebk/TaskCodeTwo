@@ -7,7 +7,7 @@ etiquetas: [tablero]
 complejidad: simple
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-125-seguimiento-de-f3-10-quitar-la-copia-vie
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 160923
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-18
@@ -35,3 +35,10 @@ Quitar situacion::actividad, que quedo sin usos fuera de sus tests tras TASK-081
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-18T20:40:58Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-18T20:42:59Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-18T20:42:58Z | diseno | agente:a34ddf615abf1fb2e | 14 | 29956 | 124657 | 6296 | 9 | 160923 | - | - |
