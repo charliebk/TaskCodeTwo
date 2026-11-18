@@ -395,3 +395,80 @@ fn leer_varios_en_un_solo_proceso_y_mismo_resultado() {
     assert_eq!(en_lote.registro().len(), antes);
     registro_permitido(&en_lote.registro());
 }
+
+/// Escribe `n` ficheros nuevos `escala/<prefijo>-<i>.md` en una operacion.
+struct Muchos {
+    prefijo: &'static str,
+    n: usize,
+}
+
+impl Operacion for Muchos {
+    fn nombre(&self) -> &str {
+        "muchos"
+    }
+    fn anotacion(&self) -> String {
+        format!("muchos {}", self.n)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        Ok((0..self.n)
+            .map(|i| {
+                Cambio::nuevo(
+                    format!("escala/{}-{i:04}.md", self.prefijo),
+                    format!("fichero {i} de {}\n", self.prefijo),
+                )
+            })
+            .collect())
+    }
+}
+
+/// TASK-127: una transaccion con 1000 ficheros termina en `ok` (en Windows
+/// fallaba `hash-object` por la longitud de la linea de ordenes) y lanza los
+/// mismos procesos de git que una con 10: rutas y entradas van por stdin.
+#[test]
+fn mil_ficheros_en_una_transaccion_con_procesos_acotados() {
+    let f = Fixture::nueva("estado-mil");
+    let (_bare, clon) = f.remoto_y_clon();
+    let i = estado::montar(&f.git(), &clon);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+
+    let procesos = |prefijo: &'static str, n: usize| {
+        let g = f.git();
+        let i = escribir_estado(&g, &clon, &Muchos { prefijo, n });
+        assert_eq!(i.resultado, Resultado::Ok, "{n}: {}", i.linea());
+        g.registro()
+    };
+    let diez = procesos("diez", 10);
+    let mil = procesos("mil", 1000);
+
+    let rama = rama_en(&f, &clon);
+    let rama = rama.trim();
+    let listado = f.crudo(
+        &clon,
+        &["ls-tree", "--name-only", &format!("{rama}:escala")],
+    );
+    let mil_en_rama = listado.lines().filter(|l| l.starts_with("mil-")).count();
+    assert_eq!(mil_en_rama, 1000, "los 1000 ficheros estan en la rama");
+    assert_eq!(
+        f.crudo(&clon, &["show", &format!("{rama}:escala/mil-0999.md")]),
+        "fichero 999 de mil\n"
+    );
+
+    assert_eq!(
+        diez.len(),
+        mil.len(),
+        "los procesos no crecen con los ficheros:\n{diez:#?}\n{mil:#?}"
+    );
+    for l in mil
+        .iter()
+        .filter(|l| l.starts_with("git hash-object") || l.starts_with("git update-index"))
+    {
+        assert!(
+            !l.contains("blob-") && !l.contains("escala/"),
+            "sin rutas en la linea de ordenes: {l}"
+        );
+    }
+    registro_permitido(&mil);
+}

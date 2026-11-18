@@ -235,6 +235,16 @@ impl Git {
         }
     }
 
+    /// Puerto con otro binario en lugar de `git` (solo tests: un git falso
+    /// que provoca salidas que el real no da).
+    #[cfg(test)]
+    pub(crate) fn con_binario(binario: impl Into<OsString>) -> Self {
+        Self {
+            binario: binario.into(),
+            ..Self::nuevo()
+        }
+    }
+
     /// Anade variables de entorno a cada llamada (los tests aislan asi la
     /// configuracion del usuario sin tocar el entorno del proceso).
     #[must_use]
@@ -288,9 +298,10 @@ impl Git {
         self.lanzar(dir, sub, args, Some(indice))
     }
 
-    /// Lanza `git cat-file <args>` en `dir` con `entrada` por stdin (lectura
-    /// en lote, F2-4b). Solo `cat-file`: es el unico que lo necesita y no
-    /// escribe nada.
+    /// Lanza `git <sub> <args>` en `dir` con `entrada` por stdin. Solo dos
+    /// formas: `cat-file` (lectura en lote, F2-4b) y exactamente
+    /// `hash-object -w --no-filters --stdin-paths` (escritura de blobs de la
+    /// rama de estado sin rutas en la linea de ordenes, TASK-127).
     pub fn ejecutar_con_entrada(
         &self,
         dir: &Path,
@@ -298,13 +309,53 @@ impl Git {
         args: &[&str],
         entrada: &[u8],
     ) -> Result<SalidaCruda, ErrorGit> {
-        if sub != Subcomando::CatFile {
+        let permitida = match sub {
+            Subcomando::CatFile => true,
+            Subcomando::HashObject => args == HASH_OBJECT_STDIN,
+            _ => false,
+        };
+        if !permitida {
             return Err(ErrorGit::Prohibido(
                 Mensaje::nuevo(&txt::SIN_ENTRADA).con("sub", sub.nombre()),
             ));
         }
+        self.lanzar_con_entrada(dir, sub, args, None, entrada)
+    }
+
+    /// Como [`Git::ejecutar_con_entrada`], con `GIT_INDEX_FILE=indice`: solo
+    /// exactamente `update-index --add -z --index-info` y con `indice`
+    /// absoluto (TASK-127). Las entradas van por stdin, no por argumentos.
+    pub fn ejecutar_con_indice_y_entrada(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        indice: &Path,
+        entrada: &[u8],
+    ) -> Result<SalidaCruda, ErrorGit> {
+        if sub != Subcomando::UpdateIndex || args != UPDATE_INDEX_STDIN {
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::SIN_ENTRADA).con("sub", sub.nombre()),
+            ));
+        }
+        if !indice.is_absolute() {
+            return Err(ErrorGit::Prohibido(
+                Mensaje::nuevo(&txt::INDICE_RELATIVO).con("sub", sub.nombre()),
+            ));
+        }
+        self.lanzar_con_entrada(dir, sub, args, Some(indice), entrada)
+    }
+
+    fn lanzar_con_entrada(
+        &self,
+        dir: &Path,
+        sub: Subcomando,
+        args: &[&str],
+        indice: Option<&Path>,
+        entrada: &[u8],
+    ) -> Result<SalidaCruda, ErrorGit> {
         comprobar_argumentos(sub, args)?;
-        let mut cmd = self.comando(dir, sub, args, None);
+        let mut cmd = self.comando(dir, sub, args, indice);
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -405,6 +456,13 @@ impl Git {
         })
     }
 }
+
+/// Unica forma de `hash-object` con entrada por stdin: una ruta por linea.
+pub const HASH_OBJECT_STDIN: &[&str] = &["-w", "--no-filters", "--stdin-paths"];
+
+/// Unica forma de `update-index` con entrada por stdin: entradas
+/// `<modo> <sha>\t<ruta>` terminadas en NUL, siempre contra un indice temporal.
+pub const UPDATE_INDEX_STDIN: &[&str] = &["--add", "-z", "--index-info"];
 
 /// Argumentos prohibidos dentro de los subcomandos permitidos (F1-4,
 /// decision 3). Se mira cada argumento entero, no subcadenas (H9). No se
@@ -633,12 +691,63 @@ mod tests {
             let r = git.ejecutar(Path::new("."), Subcomando::UpdateRef, ok);
             assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{ok:?}: {r:?}");
         }
-        // Entrada por stdin: solo `cat-file`.
+        // Entrada por stdin: `cat-file`, y `hash-object` y `update-index`
+        // solo en su forma exacta (TASK-127).
         for sub in [Subcomando::UpdateRef, Subcomando::Push, Subcomando::Show] {
             let r = git.ejecutar_con_entrada(Path::new("."), sub, &["--stdin"], b"x\n");
             assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{sub:?}: {r:?}");
         }
+        for malo in [
+            &["--stdin"][..],
+            &["-w", "--stdin-paths"][..],
+            &["-w", "--no-filters", "--stdin-paths", "x"][..],
+        ] {
+            let r = git.ejecutar_con_entrada(Path::new("."), Subcomando::HashObject, malo, b"x\n");
+            assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{malo:?}: {r:?}");
+        }
         let r = git.ejecutar_con_entrada(Path::new("."), Subcomando::CatFile, &["--batch"], b"");
+        assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
+        let r = git.ejecutar_con_entrada(
+            Path::new("."),
+            Subcomando::HashObject,
+            HASH_OBJECT_STDIN,
+            b"",
+        );
+        assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
+        // `update-index` por stdin: nunca sin indice temporal, ni relativo,
+        // ni con otra forma; `update-ref --stdin` sigue prohibido.
+        let r = git.ejecutar_con_entrada(
+            Path::new("."),
+            Subcomando::UpdateIndex,
+            UPDATE_INDEX_STDIN,
+            b"",
+        );
+        assert!(matches!(r, Err(ErrorGit::Prohibido(_))), "{r:?}");
+        let casos: &[(Subcomando, &[&str], &Path)] = &[
+            (
+                Subcomando::UpdateIndex,
+                UPDATE_INDEX_STDIN,
+                Path::new("relativo"),
+            ),
+            (Subcomando::UpdateIndex, &["--index-info"], &indice),
+            (Subcomando::UpdateIndex, &["--add", "--index-info"], &indice),
+            (Subcomando::UpdateRef, &["--stdin"], &indice),
+            (Subcomando::HashObject, HASH_OBJECT_STDIN, &indice),
+        ];
+        for (sub, args, ind) in casos {
+            let r = git.ejecutar_con_indice_y_entrada(Path::new("."), *sub, args, ind, b"");
+            assert!(
+                matches!(r, Err(ErrorGit::Prohibido(_))),
+                "{sub:?} {args:?}: {r:?}"
+            );
+        }
+        let r = git.ejecutar_con_indice_y_entrada(
+            Path::new("."),
+            Subcomando::UpdateIndex,
+            UPDATE_INDEX_STDIN,
+            &indice,
+            b"",
+        );
         assert!(matches!(r, Err(ErrorGit::Lanzar(_))), "{r:?}");
         // Tras `--` en push no hay rutas: se sigue mirando.
         let r = git.ejecutar(Path::new("."), Subcomando::Push, &["origin", "--", "+r:r"]);

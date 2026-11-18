@@ -346,10 +346,8 @@ fn repo_con(f: &Fixture, n: usize, inicio: u64) -> PathBuf {
         let t = Tarea::nueva(&id, &format!("Planificada {i}"), "2026-11-17");
         ficheros.push((format!("{id}/tarea.md"), t.escribir(&Cuerpo::plantilla())));
     }
-    // Por tandas: `hash-object` recibe las rutas en la linea de ordenes.
-    for tanda in ficheros.chunks(100) {
-        poner(f, &a, tanda);
-    }
+    // En una sola transaccion: rutas y entradas van por stdin (TASK-127).
+    poner(f, &a, &ficheros);
     a
 }
 
