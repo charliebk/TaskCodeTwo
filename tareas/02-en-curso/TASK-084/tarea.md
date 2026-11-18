@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-084-f3-12-progreso-en-vivo-fases-que-faltan
 asignado_a: charlie.bk@gmail.com
@@ -49,6 +49,7 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 |---|---|---|---|---|
 | 2026-11-18T02:49:02Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-18T02:55:29Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-18T02:55:30Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
