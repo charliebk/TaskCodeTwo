@@ -46,11 +46,28 @@ const CERRADOS: [&str; 2] = ["terminada", "descartada"];
 
 /// Los commits de `develop` de un solo `git log` ([`git::historia`]). Si no
 /// se pueden leer, ninguno: la estimacion sale igual, con los eventos de los
-/// `tarea.md` (la fila de transiciones y de coste).
+/// `tarea.md` (la fila de transiciones y de coste), y queda constancia
+/// ([`Commits::leido`] y la clave `historia=sin-log`, R1-04).
 pub fn commits_de(g: &Git, dir: &Path) -> Commits {
-    git::historia(g, dir, NOMBRE)
-        .map(|t| Commits::de_log(&t))
-        .unwrap_or_default()
+    de_historia(git::historia(g, dir, NOMBRE))
+}
+
+/// Los commits de lo que dio [`git::historia`]: si fallo, [`Commits::sin_log`].
+fn de_historia(h: Result<String, Informe>) -> Commits {
+    h.map_or_else(|_| Commits::sin_log(), |t| Commits::de_log(&t))
+}
+
+/// Valor de la clave `historia` cuando el `git log` fallo.
+pub const SIN_LOG: &str = "sin-log";
+
+/// Pone `historia=sin-log` al final de `i` si el `git log` de `c` fallo (la
+/// estimacion salio sin los commits de `develop`).
+pub fn con_historia(i: Informe, c: &Commits) -> Informe {
+    if c.leido() {
+        i
+    } else {
+        i.con("historia", SIN_LOG)
+    }
 }
 
 /// Lo que se sabe de una tarea para estimarla.
@@ -65,13 +82,19 @@ pub fn objetivo(t: &Tarea, cuerpo: &Cuerpo) -> Objetivo {
 
 /// Recalcula la estimacion de `t` con las muestras de `h` y la pone en su
 /// campo `estimacion` (el resto del `tarea.md`, byte a byte). `ahora`, en
-/// segundos desde 1970, es la hora `calculada`.
+/// segundos desde 1970, es la hora `calculada`. La estimacion del agente
+/// (`agente`, D1a) no es del historico: se conserva la que hubiera (H3 y
+/// R1-02 de la ronda 1).
 pub fn recalcular(t: &mut Tarea, cuerpo: &Cuerpo, h: &Historico, ahora: u64) -> Estimacion {
-    let e = estimar(
+    let mut e = estimar(
         &objetivo(t, cuerpo),
         &h.muestras,
         &crate::alta::instante_utc(ahora),
     );
+    e.agente = t
+        .estimacion()
+        .and_then(|crudo| Estimacion::leer(crudo).ok())
+        .and_then(|previa| previa.agente);
     t.poner_estimacion(&e);
     e
 }
@@ -195,7 +218,7 @@ fn de_estimar(mut i: Informe) -> Informe {
 fn rellenar(e: &Entorno<'_>) -> Informe {
     let op = Rellenar::nuevo(commits_de(e.git, e.dir), e.ahora);
     let ctx = estado::Contexto::nuevo(e.git, e.dir, e.catalogo, None);
-    let mut i = de_estimar(estado::transaccion(&ctx, &op));
+    let mut i = con_historia(de_estimar(estado::transaccion(&ctx, &op)), &op.commits);
     if i.resultado.es_exito() {
         let ids = if i.resultado == Resultado::Ok {
             op.ids()
@@ -240,15 +263,18 @@ fn leer(e: &Entorno<'_>, id: &str) -> Result<(Tarea, Cuerpo, Historico, Commits)
 fn mostrar(e: &Entorno<'_>, id: &str) -> (Informe, Option<String>) {
     match leer(e, id) {
         Err(i) => (i, None),
-        Ok((t, c, h, _)) => {
+        Ok((t, c, h, commits)) => {
             let est = estimar(
                 &objetivo(&t, &c),
                 &h.muestras,
                 &crate::alta::instante_utc(e.ahora),
             );
-            let i = con_claves(
-                Informe::nuevo(NOMBRE, Resultado::Ok).con("id", id),
-                Some(&est),
+            let i = con_historia(
+                con_claves(
+                    Informe::nuevo(NOMBRE, Resultado::Ok).con("id", id),
+                    Some(&est),
+                ),
+                &commits,
             );
             (i, Some(est.linea()))
         }
@@ -305,7 +331,10 @@ fn medir(e: &Entorno<'_>, id: &str) -> (Informe, Option<String>) {
     if errores.is_empty() {
         return rechazada("sin-cifras", Mensaje::nuevo(&txt::SIN_CIFRAS));
     }
-    let mut i = Informe::nuevo(NOMBRE, Resultado::Ok).con("id", id);
+    let mut i = con_historia(
+        Informe::nuevo(NOMBRE, Resultado::Ok).con("id", id),
+        &commits,
+    );
     let mut partes = Vec::new();
     for x in &errores {
         let (rel, rel_c) = decimales(x.relativo);
@@ -331,5 +360,39 @@ mod tests {
     fn decimales_con_punto_y_con_coma() {
         assert_eq!(decimales(0.6), ("0.60".to_owned(), "0,60".to_owned()));
         assert_eq!(decimales(1.0 / 3.0).0, "0.33");
+    }
+
+    /// H3 y R1-02: recalcular conserva la estimacion del agente (D1a) y
+    /// cambia lo del historico; sin estimacion previa, `agente: null`.
+    #[test]
+    fn recalcular_conserva_el_agente() {
+        let cuerpo = Cuerpo::plantilla();
+        let mut t = Tarea::nueva("TASK-001", "Una", "2026-11-17");
+        let h = Historico::default();
+        assert_eq!(recalcular(&mut t, &cuerpo, &h, 0).agente, None);
+        let mut previa = recalcular(&mut t, &cuerpo, &h, 0);
+        previa.agente = Some(25);
+        t.poner_estimacion(&previa);
+        let e = recalcular(&mut t, &cuerpo, &h, 86_400);
+        assert_eq!(e.agente, Some(25));
+        assert_eq!(e.calculada, "1970-01-02T00:00:00Z");
+        let guardada = t.estimacion().and_then(|c| Estimacion::leer(c).ok());
+        assert_eq!(guardada, Some(e));
+    }
+
+    /// R1-04: si el `git log` falla, la estimacion sale sin commits y la
+    /// salida lo dice con `historia=sin-log`; si se leyo, nada.
+    #[test]
+    fn fallo_del_log_deja_constancia() {
+        let malo = de_historia(Err(Informe::nuevo(NOMBRE, Resultado::Error)));
+        assert!(!malo.leido());
+        assert!(malo.de_tarea("TASK-001").is_empty());
+        let i = con_historia(Informe::nuevo(NOMBRE, Resultado::Ok), &malo);
+        assert_eq!(i.valor("historia"), Some(SIN_LOG));
+        let bueno = de_historia(Ok(String::new()));
+        assert!(bueno.leido());
+        let i = con_historia(Informe::nuevo(NOMBRE, Resultado::Ok), &bueno);
+        assert_eq!(i.valor("historia"), None);
+        assert!(Commits::vacios().leido());
     }
 }
