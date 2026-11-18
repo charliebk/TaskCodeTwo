@@ -8,10 +8,10 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| M1 | MENOR | abierto | crates/tc2/src/progreso/linea.rs:60 | implementacion |
-| M2 | MENOR | abierto | crates/tc2/src/progreso/linea.rs:94 | implementacion |
-| M3 | MENOR | abierto | docs/distribucion/instalar.md:95 | implementacion |
-| M4 | MENOR | abierto | crates/tc2/src/lib.rs:353 | implementacion |
+| M1 | MENOR | corregido | crates/tc2/src/progreso/linea.rs:60 | implementacion |
+| M2 | MENOR | corregido | crates/tc2/src/progreso/linea.rs:94 | implementacion |
+| M3 | MENOR | corregido | docs/distribucion/instalar.md:95 | implementacion |
+| M4 | MENOR | corregido | crates/tc2/src/lib.rs:353 | implementacion |
 
 **M1.** La eleccion del tramo de la tabla (`lo_que_falta`) no esta sujeta: `.floor()` → `.round()` deja `--lib progreso` 18/18 verde (los tests solo usan 0, 20 y 70 min). Falta un caso a mitad de tramo (22 o 23 min).
 

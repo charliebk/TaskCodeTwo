@@ -8,11 +8,11 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| R1-01 | IMPORTANTE | abierto | crates/tc2/src/progreso/mod.rs:282 | implementacion |
-| R1-02 | MENOR | abierto | crates/tc2/src/tablero.rs:279 | implementacion |
-| R1-03 | MENOR | abierto | crates/tc2/src/main.rs:47 | implementacion |
-| R1-04 | MENOR | abierto | crates/tc2/src/progreso/fichero.rs:1102 | implementacion |
-| R1-05 | MENOR | abierto | crates/tc2/src/progreso/linea.rs:80 | implementacion |
+| R1-01 | IMPORTANTE | corregido | crates/tc2/src/progreso/mod.rs:282 | implementacion |
+| R1-02 | MENOR | corregido | crates/tc2/src/tablero.rs:279 | implementacion |
+| R1-03 | MENOR | corregido | crates/tc2/src/main.rs:47 | implementacion |
+| R1-04 | MENOR | corregido | crates/tc2/src/progreso/fichero.rs:1102 | implementacion |
+| R1-05 | MENOR | corregido | crates/tc2/src/progreso/linea.rs:80 | implementacion |
 
 **R1-01 (IMPORTANTE).** `status --seguir` no termina al cerrarse stdout si la linea no cambia: `seguir` solo detecta el cierre al escribir y solo escribe si el texto cambia (`progreso/mod.rs:292-296`). Sin tarea en curso la linea es fija y el proceso queda huerfano consultando cada 2 s, contra el comentario de `main.rs:38-40`, el docstring de `seguir` y C9. Reproduccion: fuera de un repo, `timeout 10 tc2 status --seguir | head -1`: `head` sale y tc2 sigue vivo hasta el `timeout` (`PIPESTATUS[0]`=124). El test `Cerrado` pasa porque su primera escritura siempre falla. Arreglo: detectar el cierre de otra forma o escribir un keepalive; o documentar que solo termina con Ctrl+C y quitar la promesa.
 
