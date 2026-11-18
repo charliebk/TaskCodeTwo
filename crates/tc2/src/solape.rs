@@ -22,11 +22,11 @@ use std::path::Path;
 
 use crate::contrato::Informe;
 use crate::git::{self, Git};
+use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
-use crate::i18n::{Mensaje, Texto};
 use crate::plataforma::Personas;
 use crate::situacion::{self, Ficha};
-use crate::tarea::Documento;
+use crate::tarea::{Asignado, Documento};
 
 /// Estados que cuentan para el solape (D2a de TASK-082): las tareas que
 /// alguien esta cambiando o que esperan revision con sus cambios en la rama.
@@ -43,6 +43,9 @@ pub struct EnCurso {
     pub quien: String,
     /// Su rama, si la tiene.
     pub rama: Option<String>,
+    /// Quien la lleva, para no avisar a una persona contra si misma
+    /// (TASK-128); `None` sin asignar.
+    pub asignado: Option<Asignado>,
 }
 
 /// Las tareas en curso o en revision de unos `tarea.md` leidos, por ID y
@@ -57,6 +60,7 @@ pub fn en_curso<'a>(docs: impl IntoIterator<Item = &'a Documento>) -> Vec<EnCurs
             quien: situacion::quien(f.asignado.as_ref(), &sin_lista).texto(),
             id: f.nodo.id,
             rama: f.rama,
+            asignado: f.asignado,
         })
         .collect();
     v.sort_by(|a, b| a.id.cmp(&b.id));
@@ -151,23 +155,6 @@ pub const MAX_AVISOS: usize = 5;
 /// Tareas como mucho en la nota del primer `start`; el resto, «y N mas».
 pub const MAX_TAREAS_NOTA: usize = 5;
 
-/// La linea final de los avisos que no caben en [`MAX_AVISOS`]. Vive aqui
-/// y no en el catalogo de `toma` porque la correccion de H3 solo podia
-/// tocar este modulo.
-pub static AVISO_Y_MAS: Texto = Texto {
-    clave: "tc2::solape::AVISO_Y_MAS",
-    es: "aviso: y {n} tareas mas tocan lo mismo (todas en la clave solape)",
-    en: "warning: and {n} more tasks touch the same (all of them in the solape key)",
-};
-
-/// La cola de la nota cuando no caben todas las tareas
-/// ([`MAX_TAREAS_NOTA`]).
-pub static NOTA_Y_MAS: Texto = Texto {
-    clave: "tc2::solape::NOTA_Y_MAS",
-    es: "{tareas}; y {n} mas",
-    en: "{tareas}; and {n} more",
-};
-
 /// Lo que sale del solape de una tarea.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Solape {
@@ -189,15 +176,34 @@ pub struct Solape {
     pub truncado: bool,
 }
 
+/// Las tareas de `en_curso` que cuentan para el solape de `id`: ni la propia
+/// ni las que lleva la misma persona que `propio` (por id de cuenta, como
+/// decide la toma si una tarea es suya), que no se avisa a nadie contra si
+/// mismo (TASK-128). Las heredadas y las sin asignar si cuentan.
+fn otras<'a>(en_curso: &'a [EnCurso], id: &str, propio: &Asignado) -> Vec<&'a EnCurso> {
+    en_curso
+        .iter()
+        .filter(|t| t.id != id && !t.asignado.as_ref().is_some_and(|a| a.misma_persona(propio)))
+        .collect()
+}
+
 /// El solape de la tarea `id` (rama `rama`, ya creada en local) con las
-/// tareas `en_curso`, desde la carpeta `dir` del repo. Sin red: lo que
+/// tareas `en_curso`, desde la carpeta `dir` del repo. Las de la persona
+/// `propio` no cuentan. Sin red: lo que
 /// sabe el clon tras el `fetch` de `start`.
 ///
 /// `None` (ninguna clave) si no hay otra tarea en curso o el clon no conoce
 /// ninguna rama de `origin` (sin remoto o sin haberlo traido nunca). Un
 /// `diff` que falla no rompe nada: la tarea queda en `incompletas`.
-pub fn calcular(g: &Git, dir: &Path, id: &str, rama: &str, en_curso: &[EnCurso]) -> Option<Solape> {
-    let otras: Vec<&EnCurso> = en_curso.iter().filter(|t| t.id != id).collect();
+pub fn calcular(
+    g: &Git,
+    dir: &Path,
+    id: &str,
+    rama: &str,
+    propio: &Asignado,
+    en_curso: &[EnCurso],
+) -> Option<Solape> {
+    let otras = otras(en_curso, id, propio);
     if otras.is_empty() {
         return None;
     }
@@ -354,7 +360,7 @@ impl Solape {
             .collect();
         match self.cruces.len().saturating_sub(MAX_AVISOS) {
             0 => {}
-            n => v.push(Mensaje::nuevo(&AVISO_Y_MAS).con("n", n.to_string())),
+            n => v.push(Mensaje::nuevo(&txt::AVISO_Y_MAS).con("n", n.to_string())),
         }
         if self.propia_vacia && !self.publicadas.is_empty() {
             let tareas: Vec<String> = self
@@ -377,7 +383,7 @@ impl Solape {
                     0 => nota.con("tareas", tareas),
                     n => nota.con_mensaje(
                         "tareas",
-                        Mensaje::nuevo(&NOTA_Y_MAS)
+                        Mensaje::nuevo(&txt::NOTA_Y_MAS)
                             .con("tareas", tareas)
                             .con("n", n.to_string()),
                     ),
@@ -418,6 +424,24 @@ fn resumen<'a>(v: impl Iterator<Item = &'a str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// TASK-128 C2: los textos del solape viven en el catalogo de `toma`, y
+    /// asi los recorre `catalogo_completo` (traducidos, mismos huecos).
+    #[test]
+    fn textos_del_solape_en_el_catalogo_de_toma() {
+        for t in [&txt::AVISO_Y_MAS, &txt::NOTA_Y_MAS] {
+            assert!(
+                txt::TODOS.iter().any(|c| c.clave == t.clave),
+                "{} no esta en catalogo::toma::TODOS",
+                t.clave
+            );
+            assert!(
+                t.clave.starts_with("tc2::i18n::catalogo::toma::"),
+                "{}",
+                t.clave
+            );
+        }
+    }
     use crate::tarea::{Asignado, Cuerpo, Tarea};
 
     fn conjunto(v: &[&str]) -> BTreeSet<String> {
@@ -733,13 +757,42 @@ mod tests {
                     id: "TASK-001".to_owned(),
                     quien: "@ana".to_owned(),
                     rama: Some("feature/task-001-x".to_owned()),
+                    asignado: Asignado::persona(7, "ana"),
                 },
                 EnCurso {
                     id: "TASK-003".to_owned(),
                     quien: "—".to_owned(),
                     rama: Some("feature/task-003-x".to_owned()),
+                    asignado: None,
                 },
             ]
         );
+    }
+
+    /// TASK-128 C1: no cuentan la propia ni las de la misma persona (por id
+    /// de cuenta, aunque el login haya cambiado); si las de otra persona y
+    /// las sin asignar.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn otras_quita_la_propia_y_las_de_la_misma_persona() {
+        let t = |id: &str, asignado: Option<Asignado>| EnCurso {
+            id: id.to_owned(),
+            quien: String::new(),
+            rama: None,
+            asignado,
+        };
+        let lista = [
+            t("TASK-001", Asignado::persona(8, "beto")),
+            t("TASK-002", Asignado::persona(7, "ana")),
+            t("TASK-003", Asignado::persona(7, "ana-nueva")),
+            t("TASK-004", None),
+            t("TASK-005", Asignado::persona(9, "ana")),
+        ];
+        let propio = Asignado::persona(7, "ana").unwrap();
+        let ids: Vec<&str> = otras(&lista, "TASK-002", &propio)
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
+        assert_eq!(ids, ["TASK-001", "TASK-004", "TASK-005"]);
     }
 }

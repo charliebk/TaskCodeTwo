@@ -166,6 +166,38 @@ fn carpeta(dir: &Path) -> PathBuf {
     dir.join(".git").join("taskcodetwo").join("progreso")
 }
 
+/// TASK-128 (MEN-1 de la ronda 1): si el progreso que habia no pasa a
+/// `.anterior.json`, la transicion sale igual (codigo 0, stderr vacio) y su
+/// linea lo dice con `progreso=sin-anterior`: en `start`, sobre un progreso
+/// a medias; en `pausa`, con una carpeta ocupando la ruta del anterior.
+#[test]
+fn sin_anterior_en_start_y_en_una_transicion() {
+    let f = Fixture::nueva("progreso-sin-anterior");
+    let (_bare, a) = preparar(&f);
+    poner(&f, &a, &seis());
+    let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    let p = carpeta(&a);
+    std::fs::create_dir_all(&p).unwrap();
+    std::fs::write(p.join("TASK-007.json"), "a medias").unwrap();
+    let (c, out, err) = tc2(&f, &a, &["start", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert!(out.starts_with("start ok id=TASK-007 "), "{out}");
+    assert!(out.contains(" progreso=sin-anterior"), "{out}");
+    assert!(err.is_empty(), "{err}");
+    let anterior = p.join("TASK-007.anterior.json");
+    let _ = std::fs::remove_file(&anterior);
+    std::fs::create_dir_all(anterior.join("ocupada")).unwrap();
+    let (c, out, err) = tc2(&f, &a, &["pausa", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert!(
+        out.starts_with("pausa ok id=TASK-007 ")
+            && out.trim_end().ends_with(" progreso=sin-anterior"),
+        "{out}"
+    );
+    assert!(err.is_empty(), "{err}");
+}
+
 fn worktree(dir: &Path, id: &str) -> PathBuf {
     dir.join(".taskcodetwo").join("worktrees").join(id)
 }
@@ -179,6 +211,17 @@ fn linea(dir: &Path) -> String {
     let s = texto(&o.stdout);
     assert_eq!(s.lines().count(), 1, "{s}");
     s.trim_end().to_owned()
+}
+
+/// Tras una transicion que reescribe el progreso, el que habia (`previo`)
+/// paso a `.anterior.json`, o la linea lo dice con `progreso=sin-anterior`
+/// (TASK-128: bajo carga en Windows la rotacion puede fallar, y ya no se
+/// calla). En los dos casos stderr no cambia.
+fn rotado(out: &str, anterior: &Path, previo: &[u8]) {
+    let dice = out.trim_end().ends_with(" progreso=sin-anterior");
+    let rota = std::fs::read(anterior).is_ok_and(|a| a == previo);
+    assert!(rota || dice, "ni rotado ni sin-anterior: {out}");
+    assert!(!(rota && dice), "rotado y sin-anterior a la vez: {out}");
 }
 
 /// C3: en un E2E con remoto local, tras `start`, `pausa` y `reanudar` el
@@ -221,7 +264,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     assert_eq!(c, Some(0), "{out} {err}");
     let tras_pausa = std::fs::read(&actual).unwrap();
     assert_ne!(tras_pausa, tras_start);
-    assert_eq!(std::fs::read(&anterior).unwrap(), tras_start);
+    rotado(&out, &anterior, &tras_start);
     let l_pausa = linea(&wt);
     assert!(
         l_pausa.starts_with("TASK-007 · pausada en implementacion · "),
@@ -231,7 +274,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     let (c, out, err) = tc2(&f, &a, &["reanudar", "TASK-007"]);
     assert_eq!(c, Some(0), "{out} {err}");
     assert_ne!(std::fs::read(&actual).unwrap(), tras_pausa);
-    assert_eq!(std::fs::read(&anterior).unwrap(), tras_pausa);
+    rotado(&out, &anterior, &tras_pausa);
     let l_reanudar = linea(&wt);
     assert!(
         l_reanudar.starts_with("TASK-007 · implementacion · "),

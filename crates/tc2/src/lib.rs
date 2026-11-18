@@ -437,6 +437,10 @@ fn con_progreso(
         };
     }
     match refrescar(&id) {
+        Ok(progreso::Refresco::EscritoSinAnterior) => ConProgreso {
+            informe: i.con(progreso::CLAVE, progreso::SIN_ANTERIOR),
+            aviso: None,
+        },
         Ok(_) => ConProgreso {
             informe: i,
             aviso: None,
@@ -915,10 +919,18 @@ mod tests {
             "{}",
             s.stderr
         );
-        let s = con_progreso(ok, |_| Ok(progreso::Refresco::Escrito)).salida(false, Idioma::Es);
+        let s =
+            con_progreso(ok.clone(), |_| Ok(progreso::Refresco::Escrito)).salida(false, Idioma::Es);
         assert_eq!(
             (s.codigo, s.stdout.as_str(), s.stderr.as_str()),
             (0, "start ok id=TASK-001\n", "")
+        );
+        // TASK-128: sin rotar el anterior, la linea lo dice y stderr no.
+        let s = con_progreso(ok, |_| Ok(progreso::Refresco::EscritoSinAnterior))
+            .salida(false, Idioma::Es);
+        assert_eq!(
+            (s.codigo, s.stdout.as_str(), s.stderr.as_str()),
+            (0, "start ok id=TASK-001 progreso=sin-anterior\n", "")
         );
         let mut llamado = false;
         let mal = Informe::nuevo("pausa", Resultado::Rechazada).con("id", "TASK-001");

@@ -45,4 +45,12 @@ crate::i18n::textos! {
         es: "nota: tu rama aun no cambia nada; en curso con rama publicada: {tareas}",
         en: "note: your branch changes nothing yet; in progress with a published branch: {tareas}",
     }
+    AVISO_Y_MAS {
+        es: "aviso: y {n} tareas mas tocan lo mismo (todas en la clave solape)",
+        en: "warning: and {n} more tasks touch the same (all of them in the solape key)",
+    }
+    NOTA_Y_MAS {
+        es: "{tareas}; y {n} mas",
+        en: "{tareas}; and {n} more",
+    }
 }

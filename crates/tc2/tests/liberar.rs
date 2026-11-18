@@ -472,22 +472,20 @@ fn c5_c6_c10_tarea_de_otra_persona_por_actividad() {
         ("TASK-001", "feature/task-001-uno"),
         ("TASK-002", "feature/task-002-dos"),
     ] {
-        // F3-11: el `start` de TASK-002 avisa por stderr con una sola `nota:`
-        // de lo que toca TASK-001, ya publicada; el de TASK-001 no dice nada.
-        // El resultado, el codigo y la linea unica de stdout no cambian.
+        // F3-11 y TASK-128: las dos son de beto, asi que el `start` de
+        // TASK-002 no avisa de TASK-001 (ya publicada) ni saca la `nota:`:
+        // nadie se avisa contra si mismo. stderr vacio en los dos.
         let o = lanzar(&b, entorno_ssh(&f), &["start", id]);
         let out = texto(&o.stdout);
         assert_eq!(o.status.code(), Some(0), "{out}");
         assert_eq!(out.lines().count(), 1, "{out}");
         assert!(out.starts_with(&format!("start ok id={id} ")), "{out}");
+        assert!(
+            !out.contains(" solape") && !out.contains(" en-curso-modulos="),
+            "{out}"
+        );
         let err = texto(&o.stderr);
-        if id == "TASK-002" {
-            assert_eq!(err.lines().count(), 1, "{err}");
-            assert!(err.starts_with("nota: "), "{err}");
-            assert!(err.contains("TASK-001"), "{err}");
-        } else {
-            assert!(err.is_empty(), "stderr en un exito: {err}");
-        }
+        assert!(err.is_empty(), "stderr en un exito: {err}");
         trabajar(&f, &b, id, rama, None);
     }
     // La orden trae antes de decidir: lo que traiga no es una escritura.

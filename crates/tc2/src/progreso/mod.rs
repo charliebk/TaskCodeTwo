@@ -214,6 +214,10 @@ pub fn orden_estado(stdin: &str, cwd: Option<&Path>, ahora: u64) -> String {
 pub enum Refresco {
     /// Escribio el progreso de la tarea.
     Escrito,
+    /// Escribio el progreso, pero el que habia no paso a `.anterior.json`
+    /// ([`fichero::Anterior::NoEscrito`]): la linea lo dice con
+    /// `progreso=sin-anterior` (TASK-128).
+    EscritoSinAnterior,
     /// La tarea no esta en curso ni en revision (o la deja quien la lanza):
     /// borro su progreso.
     Borrado,
@@ -258,7 +262,10 @@ pub fn refrescar(g: &Git, dir: &Path, id: &str, ahora: u64) -> Result<Refresco, 
     let h = crate::estimacion::historico(&leidas, &commits);
     match calcular(&t, &c, &h, &commits, ahora) {
         Some(p) => fichero::escribir(&carpeta, &p)
-            .map(|()| Refresco::Escrito)
+            .map(|a| match a {
+                fichero::Anterior::NoEscrito => Refresco::EscritoSinAnterior,
+                fichero::Anterior::Rotado | fichero::Anterior::SinPrevio => Refresco::Escrito,
+            })
             .map_err(|e| e.to_string()),
         None => quitar_en(&carpeta, id),
     }
@@ -276,9 +283,14 @@ pub const CLAVE: &str = "progreso";
 /// Valor de [`CLAVE`].
 pub const NO_ESCRITO: &str = "no-escrito";
 
+/// Valor de [`CLAVE`] cuando el progreso se escribio pero el que habia no
+/// paso a `.anterior.json` (TASK-128). No cambia el resultado ni sale por
+/// stderr: el progreso esta al dia, solo falta su respaldo.
+pub const SIN_ANTERIOR: &str = "sin-anterior";
+
 /// Escribe `p`, ya calculado, en el clon de `dir` (lo usa `start`, que lo
 /// calcula dentro de la toma con el historico que ya leyo).
-pub fn escribir_en(g: &Git, dir: &Path, p: &Progreso) -> Result<(), String> {
+pub fn escribir_en(g: &Git, dir: &Path, p: &Progreso) -> Result<fichero::Anterior, String> {
     let (_, carpeta) = carpeta_de(g, dir)?;
     fichero::escribir(&carpeta, p).map_err(|e| e.to_string())
 }
