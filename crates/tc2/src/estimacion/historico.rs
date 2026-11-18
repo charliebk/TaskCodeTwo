@@ -12,7 +12,7 @@
 //!   tiene y solo cuenta en el nivel `repo`.
 //! - Nunca escribe nada: lo derivado va aparte.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 
 use super::real::{self, Real};
 use crate::carril::Carril;
@@ -31,6 +31,51 @@ pub struct Commits {
     merges: HashMap<String, (String, String)>,
     /// Padres e instante de cada commit.
     grafo: HashMap<String, (Vec<String>, i64)>,
+    /// Generacion de cada commit del grafo (1 + la mayor de sus padres
+    /// leidos), calculada una vez en [`Commits::de_log`]: ordena el
+    /// recorrido de [`Commits::solo_de`] (H1 de la ronda 1).
+    generacion: HashMap<String, u32>,
+    /// Si el `git log` fallo (R1-04 de la ronda 1): ninguno, y la salida lo
+    /// dice con `historia=sin-log`.
+    sin_log: bool,
+}
+
+/// Marca de [`Commits::solo_de`]: alcanzado desde la base (`M^1`).
+const DESDE_BASE: u8 = 1;
+/// Marca de [`Commits::solo_de`]: alcanzado desde la rama (`M^2`).
+const DESDE_RAMA: u8 = 2;
+
+/// Generacion de cada commit de `grafo` (sin recursion; un ciclo, que git no
+/// produce, no lo cuelga).
+fn generaciones(grafo: &HashMap<String, (Vec<String>, i64)>) -> HashMap<String, u32> {
+    let mut gen_: HashMap<String, u32> = HashMap::with_capacity(grafo.len());
+    let mut abiertos: HashSet<&str> = HashSet::new();
+    for inicio in grafo.keys() {
+        let mut pila: Vec<(&str, bool)> = vec![(inicio.as_str(), false)];
+        while let Some((s, cerrar)) = pila.pop() {
+            if gen_.contains_key(s) {
+                continue;
+            }
+            let padres = grafo.get(s).map_or(&[][..], |(p, _)| p.as_slice());
+            if cerrar {
+                let g = padres
+                    .iter()
+                    .filter_map(|p| gen_.get(p.as_str()))
+                    .max()
+                    .map_or(1, |m| m.saturating_add(1));
+                gen_.insert(s.to_owned(), g);
+            } else if abiertos.insert(s) {
+                pila.push((s, true));
+                pila.extend(
+                    padres
+                        .iter()
+                        .filter(|p| grafo.contains_key(p.as_str()))
+                        .map(|p| (p.as_str(), false)),
+                );
+            }
+        }
+    }
+    gen_
 }
 
 /// Si `c` es de palabra (`\w` de Python).
@@ -93,6 +138,19 @@ impl Commits {
         Self::default()
     }
 
+    /// Ninguno porque el `git log` fallo (no porque no haya `develop`).
+    pub fn sin_log() -> Self {
+        Self {
+            sin_log: true,
+            ..Self::default()
+        }
+    }
+
+    /// Si el `git log` se pudo leer (o no habia `develop` que leer).
+    pub fn leido(&self) -> bool {
+        !self.sin_log
+    }
+
     /// Lee la salida de `git log --format=%H%x1f%P%x1f%ct%x1f%s` (de la mas
     /// nueva a la mas vieja). Las lineas que no tienen esa forma se saltan.
     pub fn de_log(texto: &str) -> Self {
@@ -116,24 +174,35 @@ impl Commits {
             }
             c.grafo.insert(sha.to_owned(), (padres, ts));
         }
+        c.generacion = generaciones(&c.grafo);
         c
     }
 
-    /// Antepasados de `sha` (incluido) en el grafo leido.
-    fn antepasados(&self, sha: &str, fuera: &HashSet<String>) -> Vec<String> {
-        let mut vistos: HashSet<String> = HashSet::new();
-        let mut pila = vec![sha.to_owned()];
-        let mut orden = Vec::new();
-        while let Some(s) = pila.pop() {
-            if fuera.contains(&s) || !vistos.insert(s.clone()) {
-                continue;
+    /// Los commits del grafo leido que son antepasados de `rama` (incluido)
+    /// y no de `base` (`base..rama`). Pinta hacia abajo por generacion desde
+    /// los dos a la vez y para en cuanto no queda en la cola ningun commit
+    /// alcanzado solo desde `rama`: recorre lo de la rama y lo de `develop`
+    /// hasta el merge-base, no todo `develop` por cada merge (H1).
+    fn solo_de<'a>(&'a self, rama: &'a str, base: &'a str) -> Vec<&'a str> {
+        let mut p = Pintura::default();
+        p.marcar(self, base, DESDE_BASE);
+        p.marcar(self, rama, DESDE_RAMA);
+        let mut fuera = Vec::new();
+        while p.pendientes > 0 {
+            let Some((_, s)) = p.cola.pop() else { break };
+            p.hechos.insert(s);
+            let m = p.marcas.get(s).copied().unwrap_or_default();
+            if m == DESDE_RAMA {
+                p.pendientes -= 1;
+                fuera.push(s);
             }
-            if let Some((padres, _)) = self.grafo.get(&s) {
-                pila.extend(padres.iter().cloned());
-                orden.push(s);
+            if let Some((padres, _)) = self.grafo.get(s) {
+                for padre in padres {
+                    p.marcar(self, padre, m);
+                }
             }
         }
-        orden
+        fuera
     }
 
     /// Instantes de los commits de la tarea `id`: los que la nombran en el
@@ -141,15 +210,54 @@ impl Commits {
     pub fn de_tarea(&self, id: &str) -> Vec<i64> {
         let mut v = self.asuntos.get(id).cloned().unwrap_or_default();
         if let Some((p1, p2)) = self.merges.get(id) {
-            let base: HashSet<String> = self.antepasados(p1, &HashSet::new()).into_iter().collect();
             v.extend(
-                self.antepasados(p2, &base)
-                    .iter()
+                self.solo_de(p2, p1)
+                    .into_iter()
                     .filter_map(|s| self.grafo.get(s).map(|(_, ts)| *ts)),
             );
         }
         v.sort_unstable();
         v
+    }
+}
+
+/// El estado del recorrido de [`Commits::solo_de`].
+#[derive(Default)]
+struct Pintura<'a> {
+    /// Marcas de cada commit alcanzado.
+    marcas: HashMap<&'a str, u8>,
+    /// Por recorrer, la generacion mayor primero (un commit sale despues de
+    /// todos sus hijos: sus marcas ya son las finales).
+    cola: BinaryHeap<(u32, &'a str)>,
+    /// Ya sacados de la cola.
+    hechos: HashSet<&'a str>,
+    /// En la cola con solo la marca de la rama.
+    pendientes: usize,
+}
+
+impl<'a> Pintura<'a> {
+    /// Anade la marca `m` a `s` (si es del grafo leido y no ha salido ya).
+    fn marcar(&mut self, c: &Commits, s: &'a str, m: u8) {
+        let Some(&g) = c.generacion.get(s) else {
+            return;
+        };
+        if self.hechos.contains(s) {
+            return;
+        }
+        let antes = self.marcas.get(s).copied().unwrap_or_default();
+        let ahora = antes | m;
+        if ahora == antes {
+            return;
+        }
+        self.marcas.insert(s, ahora);
+        if antes == 0 {
+            self.cola.push((g, s));
+        }
+        if ahora == DESDE_RAMA {
+            self.pendientes += 1;
+        } else if antes == DESDE_RAMA {
+            self.pendientes -= 1;
+        }
     }
 }
 
@@ -504,6 +612,144 @@ mod tests {
         assert_eq!(c.de_tarea("TASK-007"), vec![30, 35, 40, 50]);
         assert!(c.de_tarea("TASK-008").is_empty());
         assert!(Commits::vacios().de_tarea("TASK-007").is_empty());
+    }
+
+    /// El calculo de antes de H1 (antepasados completos de `M^1` por cada
+    /// merge), como referencia.
+    fn antepasados(c: &Commits, sha: &str, fuera: &HashSet<String>) -> Vec<String> {
+        let mut vistos: HashSet<String> = HashSet::new();
+        let mut pila = vec![sha.to_owned()];
+        let mut orden = Vec::new();
+        while let Some(s) = pila.pop() {
+            if fuera.contains(&s) || !vistos.insert(s.clone()) {
+                continue;
+            }
+            if let Some((padres, _)) = c.grafo.get(&s) {
+                pila.extend(padres.iter().cloned());
+                orden.push(s);
+            }
+        }
+        orden
+    }
+
+    fn de_tarea_ingenuo(c: &Commits, id: &str) -> Vec<i64> {
+        let mut v = c.asuntos.get(id).cloned().unwrap_or_default();
+        if let Some((p1, p2)) = c.merges.get(id) {
+            let base: HashSet<String> = antepasados(c, p1, &HashSet::new()).into_iter().collect();
+            v.extend(
+                antepasados(c, p2, &base)
+                    .iter()
+                    .filter_map(|s| c.grafo.get(s).map(|(_, ts)| *ts)),
+            );
+        }
+        v.sort_unstable();
+        v
+    }
+
+    /// Un `develop` sintetico con `tareas` merges de rama: ramas que salen
+    /// de puntos viejos de `develop` o de otra rama, que traen `develop` a
+    /// medias y con relojes desordenados.
+    fn log_sintetico(tareas: usize, entre: usize, semilla: u64) -> String {
+        let mut r = semilla;
+        let mut azar = move || {
+            r = r
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            usize::try_from(r >> 33).unwrap_or_default()
+        };
+        let mut lineas: Vec<String> = Vec::new();
+        let mut t: i64 = 1_000_000;
+        let mut n = 0usize;
+        let mut commit = |padres: &[String], asunto: &str, azar: &mut dyn FnMut() -> usize| {
+            n += 1;
+            t += 60;
+            let sha = format!("c{n:07}");
+            let ts = t + (i64::try_from(azar() % 7).unwrap_or_default() - 3) * 1000;
+            lineas.push(format!(
+                "{sha}\u{1f}{}\u{1f}{ts}\u{1f}{asunto}",
+                padres.join(" ")
+            ));
+            sha
+        };
+        let mut develop = vec![commit(&[], "inicial", &mut azar)];
+        let mut puntas: Vec<String> = Vec::new();
+        for k in 0..tareas {
+            for _ in 0..entre {
+                let asunto = if azar() % 9 == 0 {
+                    format!("docs(TASK-{:03}): nota", azar() % (tareas + 1))
+                } else {
+                    "chore: algo".to_owned()
+                };
+                let d = commit(&[develop[develop.len() - 1].clone()], &asunto, &mut azar);
+                develop.push(d);
+            }
+            let mut punta = if !puntas.is_empty() && azar() % 5 == 0 {
+                puntas[azar() % puntas.len()].clone()
+            } else {
+                develop[develop.len() - 1 - azar() % develop.len().min(50)].clone()
+            };
+            for j in 0..1 + azar() % 4 {
+                punta = if j == 1 && azar() % 3 == 0 {
+                    commit(
+                        &[punta, develop[develop.len() - 1].clone()],
+                        "merge develop en la rama",
+                        &mut azar,
+                    )
+                } else {
+                    commit(&[punta], "trabajo", &mut azar)
+                };
+            }
+            puntas.push(punta.clone());
+            let m = commit(
+                &[develop[develop.len() - 1].clone(), punta],
+                &format!("merge(feature): feature/task-{k:03}-x -> develop"),
+                &mut azar,
+            );
+            develop.push(m);
+        }
+        lineas.reverse();
+        lineas.join("\n")
+    }
+
+    /// H1: recorrer solo hasta el merge-base da lo mismo que recorrer todos
+    /// los antepasados de `M^1` por cada merge.
+    #[test]
+    fn h1_rama_igual_que_todos_los_antepasados() {
+        let mut con_rama = 0;
+        for semilla in 1..=6 {
+            let c = Commits::de_log(&log_sintetico(60, 8, semilla));
+            for k in 0..61 {
+                let id = format!("TASK-{k:03}");
+                let v = c.de_tarea(&id);
+                assert_eq!(v, de_tarea_ingenuo(&c, &id), "{semilla} {id}");
+                con_rama += usize::from(c.merges.contains_key(&id) && !v.is_empty());
+            }
+        }
+        assert!(con_rama >= 300, "{con_rama}");
+        // Un ciclo (que git no produce) ni cuelga ni hace panic.
+        let ciclo = "a\u{1f}b\u{1f}1\u{1f}x\nb\u{1f}a\u{1f}2\u{1f}y\nm\u{1f}a b\u{1f}3\u{1f}merge(feature): feature/task-001-x -> develop\n";
+        let _ = Commits::de_log(ciclo).de_tarea("TASK-001");
+    }
+
+    /// H1, medida: 300 merges sobre unos 30 000 commits; con
+    /// `cargo test --release -p tc2 --lib h1_medida -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "medida de tiempo, a mano"]
+    fn h1_medida() {
+        let log = log_sintetico(300, 100, 7);
+        let ids: Vec<String> = (0..300).map(|k| format!("TASK-{k:03}")).collect();
+        let t = std::time::Instant::now();
+        let c = Commits::de_log(&log);
+        let nuevo: Vec<Vec<i64>> = ids.iter().map(|id| c.de_tarea(id)).collect();
+        let d_nuevo = t.elapsed();
+        let t = std::time::Instant::now();
+        let viejo: Vec<Vec<i64>> = ids.iter().map(|id| de_tarea_ingenuo(&c, id)).collect();
+        let d_viejo = t.elapsed();
+        assert_eq!(nuevo, viejo);
+        eprintln!(
+            "commits={} de_log+de_tarea nuevo={d_nuevo:?} antes(de_tarea)={d_viejo:?}",
+            c.grafo.len()
+        );
     }
 
     #[test]
