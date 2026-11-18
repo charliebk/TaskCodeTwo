@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 651332
-tokens_implementacion: null
+tokens_implementacion: 25474611
 tokens_revision: null
 creado: 2026-11-14
 actualizado: 2026-11-18
@@ -43,6 +43,32 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 - [ ] C10: el registro del puerto muestra exactamente 1 + k + 1 procesos de git del solape, con k = tareas en curso con rama publicada
 - [ ] C11: un login o una ruta con caracteres de control salen saneados
 
+## Autorrevision
+
+- rust-wasm-reviewer — 277a5b9
+- code-quality-reviewer — 277a5b9
+
+Hallazgos propios (ninguno CRITICO ni IMPORTANTE de esta tarea):
+
+- Fuera de esta tarea (de TASK-084): `progreso::c3_transiciones_reales_reescriben_el_progreso`
+  es intermitente bajo carga (2 de 4); causa probable: `progreso::fichero::escribir`
+  ignora el error al rotar `.anterior.json` y en Windows el rename puede no entrar
+  a tiempo. Pasa a una tarea nueva.
+- MENOR (previo, todas las claves): U+202E y otros caracteres de formato no se
+  escapan en la linea de contrato (el contrato solo escapa controles); en stderr
+  si salen saneados.
+- MENOR: el aviso cuenta tambien las tareas de la misma persona.
+- Desviaciones del plan: las tareas en curso salen de `Ficha::de` reutilizando la
+  lectura de `Tomar` (con `situacion::calcular` habria un tercer `cat-file` y se
+  rompia `estimacion::r1_05`); clave nueva `solape-incompleto=TASK-NNN` para un
+  diff que falla; sin otras tareas en curso no se lanza ningun proceso;
+  `tests/liberar.rs` acepta una linea `nota:` en stderr en un exito; el aviso de
+  `start` es otra excepcion a «diagnostico solo si falla» (en la adenda de F1-17).
+- Mutaciones comprobadas (7, rojo y restauradas): filtro de estado, modulo de la
+  raiz, modulo con fichero comun, saneado, corte a 20, rama no publicada, sin
+  refs de `origin`.
+- Verificacion propia: `--test solape` 10 de 10.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -56,3 +82,4 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-18T08:50:06Z | diseno | agente:acde2811b6529af53 | 26 | 70403 | 564348 | 16555 | 19 | 651332 | - | - |
+| 2026-11-18T12:02:51Z | implementacion | agente:a54a98153a1f299a8 | 212 | 1666931 | 23718530 | 88938 | 51 | 25474611 | - | - |
