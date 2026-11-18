@@ -8,12 +8,13 @@ use crate::carril::Carril;
 use crate::i18n::catalogo::config as t;
 use crate::i18n::{Idioma, Texto};
 
-/// Tope de claves de primer nivel (plan, F2-7; F1-11, decision 1).
-pub const TOPE_CLAVES: usize = 12;
+/// Tope de claves de primer nivel (plan, F2-7; F1-11, decision 1). 13 desde
+/// la adenda de TASK-081 en F1-11 (`dias_sin_actividad`, F3-10 D1a).
+pub const TOPE_CLAVES: usize = 13;
 
 /// Fases de `tc2` en las que puede correr un derivado (F1-11 se lo pide a
 /// F2-7): las ordenes que escriben en la rama de estado.
-pub const FASES: [&str; 8] = [
+pub const FASES: [&str; 10] = [
     "new",
     "plan",
     "approve",
@@ -22,6 +23,8 @@ pub const FASES: [&str; 8] = [
     "finish",
     "descartar",
     "pausa",
+    "liberar",
+    "reasignar",
 ];
 
 /// Modelos de la escala de F1-15.
@@ -519,6 +522,13 @@ pub(crate) fn tabla() -> Vec<Campo> {
             "presupuesto por defecto de los lotes; sin cifras inventadas",
         )
         .de("F1-16, consecuencias"),
+        Campo::opcional(
+            "dias_sin_actividad",
+            entero(1, 365),
+            "dias sin actividad tras los que otra persona puede liberar o reasignar una tarea y status y board la marcan",
+        )
+        .con_defecto(json!(7))
+        .de("F1-11 adenda de TASK-081; F3-10 D1a"),
     ]
 }
 
@@ -626,9 +636,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn claves_de_primer_nivel_no_pasan_de_12_y_cada_una_cita_su_adr() {
+    fn claves_de_primer_nivel_no_pasan_del_tope_y_cada_una_cita_su_adr() {
         let t = tabla();
-        assert_eq!(TOPE_CLAVES, 12, "el tope lo fija el plan (F2-7)");
+        assert_eq!(
+            TOPE_CLAVES, 13,
+            "el tope lo fija el plan (F2-7) y la adenda de TASK-081 en F1-11"
+        );
         assert!(t.len() <= TOPE_CLAVES, "{} claves", t.len());
         for c in &t {
             assert!(!c.origen.is_empty(), "{} sin origen", c.nombre);

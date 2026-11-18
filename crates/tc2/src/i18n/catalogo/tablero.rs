@@ -37,6 +37,14 @@ crate::i18n::textos! {
         es: "aviso: la rama local {rama} tiene commits que no estan en lo publicado; {carpeta}/ no se adelanta: revisalos",
         en: "warning: the local branch {rama} has commits that are not in what was published; {carpeta}/ is not fast-forwarded: review them",
     }
+    AVISO_YA_NO_TUYA {
+        es: "aviso: {id} ya no es tuya: la lleva {quien}; tu worktree sigue en {ruta} y la rama no se ha tocado",
+        en: "warning: {id} is no longer yours: {quien} has it; your worktree is still at {ruta} and the branch was not touched",
+    }
+    AVISO_YA_NO_TUYA_LIBRE {
+        es: "aviso: {id} ya no es tuya: esta libre para quien la empiece; tu worktree sigue en {ruta} y la rama no se ha tocado",
+        en: "warning: {id} is no longer yours: it is free for whoever starts it; your worktree is still at {ruta} and the branch was not touched",
+    }
     AVISO_PR_SIN_REVISION {
         es: "aviso: con PR abierto listo y sin pasar a revision: {ids}",
         en: "warning: with an open ready pull request but not in review: {ids}",

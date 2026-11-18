@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (carpeta fija `TASK-NNN/` en la rama huérfana `taskcode/tareas`, montada en `tareas/`)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2b, D3a, D4a del plan de TASK-003)
 - Adenda (2026-11-17, TASK-079, F3-5b): la lectura fresca de los puntos 5 y 6 queda hecha; ver [la adenda del final](#adenda-f3-5b-task-079--lectura-fresca-y-hora-de-sincronización)
+- Adenda (2026-11-17, TASK-081, F3-10): `liberar` y `reasignar` implementadas y el punto 4 admite la rama propia de la tarea en `start`; ver [la adenda del final](#adenda-f3-10-task-081--liberar-y-reasignar)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
 
 ## Contexto
@@ -603,3 +604,49 @@ la revisión 1, rama reescrita y `.lock` huérfano), los unitarios de
 `marca_del_futuro_es_nunca`) y de `estado/lectura.rs`
 (`reintenta_solo_la_ref_bloqueada`), y la suite de la transacción
 (`estado_*`, `alta`, `toma`, `ciclo`, `importar`).
+
+## Adenda (F3-10, TASK-081) — liberar y reasignar
+
+Cierra lo que el punto 5 y las consecuencias dejaban a F3-10 (opciones
+recomendadas D1a..D6a del plan de TASK-081, aceptadas por Carlos para todo el
+H3):
+
+- **`liberar` y `reasignar` exigen red** (D2b, como ya decía el punto 5):
+  `fetch` completo (también las ramas) y, sin red, `sinred pendiente=no` (4)
+  sin commit ni ref pendiente. Son operaciones de la rama de estado por el
+  punto único de escritura, con el `ROADMAP.md` del mismo commit; anotación
+  `liberar|TASK-NNN|<id>|<login>|<actividad o ->|<dias>|<ahora>` y
+  `reasignar|TASK-NNN|<id>|<login>|<id destino>|<login destino>|<actividad o
+  ->|<dias>|<ahora>`.
+- **Quién (D3a)**: el dueño siempre (también su agente); una tarea sin dueño,
+  cualquiera; la de otra persona de la lista, solo con `dias_sin_actividad`
+  días o más sin actividad (`rechazada motivo=activa dias=K umbral=N`) y
+  lanzada por una persona en un terminal (`requiere-persona`: el agente no
+  quita a nadie una tarea). Un `asignado_a` heredado de la 0.16 no espera los
+  días, pero también lo decide una persona.
+- **Actividad (D2a)**: la más reciente de la última fila de
+  `## Transiciones` (también `pausa`/`reanudar`: la pausa no exime) y del
+  último commit de `origin/<rama>` tras el `fetch`. Sin ninguna de las dos no
+  se sabe y no frena.
+- **`liberar` (D6a)**: `en-curso` → `planificada`, `en-diseno` y
+  `planificada` se quedan; `asignado_a: null`; `rama:` y `plan_aprobado`
+  igual; `en-revision` se rechaza (se reasigna). **`reasignar`**: solo
+  `asignado_a`, a una persona de `personas.yml` de la base (si no,
+  `fuera-de-lista`); conserva el estado.
+- **Trabajo sin publicar (D4a)**: si el worktree de la tarea en el clon que
+  lanza la orden tiene cambios sin guardar o commits sin publicar,
+  `rechazada motivo=sin-publicar` antes de la transacción; publicada, el
+  worktree se quita como en `descartar`. La rama no se toca nunca.
+- **Punto 4, la rama propia**: `start` ya no da `ocupada` por la rama que la
+  tarea tiene en su `rama:`; cualquier otra `*/task-nnn-*` sigue siendo
+  `ocupada`. La siguiente persona la retoma desde `origin/<rama>` con su
+  historia (`git::reanudar`).
+- **Riesgos aceptados**: la foto de actividad se toma antes de la
+  transacción (si el dueño publica entre el `fetch` y el push del estado, la
+  liberación sigue: la misma ventana que `comprobar-id` en `start`); el
+  aviso al dueño anterior es sin plataforma (D5a): la fila, el commit de
+  estado y `ya-no-tuyas=` en su `status`/`board`.
+
+Evidencia: `crates/tc2/tests/liberar.rs` (C1..C8, C11, C12 y
+`la_rama_propia_no_debilita_ocupada`), `crates/tc2/tests/tablero.rs`
+(`c9_c10_inactivas_y_ya_no_tuyas`) y los unitarios de `ciclo/liberar.rs`.

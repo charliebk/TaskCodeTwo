@@ -31,6 +31,26 @@ pub struct Ficha {
     /// En pausa: la ultima fila `pausa`/`reanudar` de sus transiciones es
     /// `pausa` ([`crate::tarea::Cuerpo::en_pausa`], TASK-034).
     pub en_pausa: bool,
+    /// Instante (segundos desde 1970) de la ultima fila de sus transiciones
+    /// ([`crate::tarea::Cuerpo::ultima_fecha`], F3-10).
+    pub ultima_transicion: Option<u64>,
+}
+
+/// Segundos de un dia.
+const DIA: u64 = 86_400;
+
+/// La actividad de una tarea (F3-10, D2a): el instante mas reciente entre
+/// la ultima fila de sus transiciones (tambien `pausa` y `reanudar`: la
+/// pausa no exime) y el ultimo commit de `origin/<rama>` (`commit_rama`).
+/// Sin ninguna de las dos, `None`: no se sabe.
+pub fn actividad(ficha: &Ficha, commit_rama: Option<u64>) -> Option<u64> {
+    ficha.ultima_transicion.max(commit_rama)
+}
+
+/// Dias completos sin actividad desde `ultima` hasta `ahora`. Una actividad
+/// del futuro (reloj adelantado) cuenta como de hoy: 0.
+pub fn dias_sin_actividad(ultima: u64, ahora: u64) -> u64 {
+    ahora.saturating_sub(ultima) / DIA
 }
 
 impl Ficha {
@@ -59,6 +79,7 @@ impl Ficha {
             rama: rama.filter(|r| !r.trim().is_empty()),
             motivo,
             en_pausa: cuerpo.en_pausa(),
+            ultima_transicion: cuerpo.ultima_fecha(),
         }
     }
 }
@@ -179,4 +200,36 @@ pub fn calcular(estado: &dyn Estado) -> Result<Situacion, Fallo> {
         orden,
         roadmap,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tarea::{Cuerpo, Tarea};
+
+    fn ficha(cuerpo: &str) -> Ficha {
+        let t = Tarea::nueva("TASK-001", "Uno", "2026-11-01");
+        Ficha::de(&Documento::Formato2(t, Cuerpo::leer(cuerpo)))
+    }
+
+    /// TASK-081 (D2a): la actividad es la mas reciente de la ultima fila y
+    /// del commit de la rama; sin ninguna, no se sabe. Los dias son
+    /// completos y una actividad del futuro cuenta como de hoy.
+    #[test]
+    fn actividad_y_dias_sin_actividad() {
+        let f = ficha(
+            "## Transiciones\n| fecha | fase |\n|---|---|\n| 2026-11-17T10:20:30Z | pausa |\n",
+        );
+        let fila = 1_794_910_830;
+        assert_eq!(f.ultima_transicion, Some(fila));
+        assert_eq!(actividad(&f, None), Some(fila));
+        assert_eq!(actividad(&f, Some(fila - 5)), Some(fila));
+        assert_eq!(actividad(&f, Some(fila + 5)), Some(fila + 5));
+        let sin = ficha("");
+        assert_eq!(actividad(&sin, None), None);
+        assert_eq!(actividad(&sin, Some(3)), Some(3));
+        assert_eq!(dias_sin_actividad(fila, fila + 7 * DIA - 1), 6);
+        assert_eq!(dias_sin_actividad(fila, fila + 7 * DIA), 7);
+        assert_eq!(dias_sin_actividad(fila + 100, fila), 0);
+    }
 }

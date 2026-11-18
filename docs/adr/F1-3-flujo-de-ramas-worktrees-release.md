@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (estado en `taskcode/tareas`, montada en `tareas/`; límite de un worktree por rama) y [ADR F1-2](F1-2-escrituras-atomicas-ids-y-toma.md) (punto único de escritura, re-ejecución en vez de rebase, `start` publica el `asignado` antes de crear la rama)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a del plan de TASK-004)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
+- Adenda (2026-11-17, TASK-081, F3-10): cierra la pregunta abierta del worktree tras `liberar` o `reasignar`; ver [la adenda del final](#adenda-f3-10-task-081--el-worktree-tras-liberar-o-reasignar)
 
 ## Contexto
 
@@ -461,8 +462,9 @@ Este ADR se planificó con un solo rol (arquitectura). Quedan sin cubrir:
   ignorados) igual que borra `tareas/` (hueco abierto desde F1-1); lo
   commiteado y publicado lo recupera el `start` del dueño (PoC 1f), lo no
   publicado se pierde. F2-2/F2-3 tienen que avisar o protegerse.
-- **Worktree de tarea abierto tras `liberar` o `reasignar`** (F3-10): qué
-  pasa con el worktree y lo no publicado de quien la tenía.
+- ~~**Worktree de tarea abierto tras `liberar` o `reasignar`** (F3-10): qué
+  pasa con el worktree y lo no publicado de quien la tenía.~~ Cerrada por la
+  adenda de TASK-081 (abajo).
 - **Hotfix cuyo PR contra `develop` choca** con trabajo nuevo: en la PoC no
   chocó (tocaban líneas distintas); quién resuelve el conflicto y en qué rama
   (¿una rama de vuelta propia?) está sin decidir.
@@ -478,3 +480,30 @@ Este ADR se planificó con un solo rol (arquitectura). Quedan sin cubrir:
   quizá un `taskctl podar` para ramas de tareas terminadas hace más de N
   meses.
 - **Plataforma**: la PoC no usa GitHub ni GitLab; F1-5, F1-13 y F9-4.
+
+## Adenda (F3-10, TASK-081) — el worktree tras `liberar` o `reasignar`
+
+Cierra la pregunta abierta del worktree de quien tenía la tarea (D4a y D5a
+del plan de TASK-081, aceptadas por Carlos para todo el H3):
+
+- **La rama no se toca nunca**: ni la local ni `origin/<rama>`. La
+  siguiente persona hace `start` y sigue en ella desde `origin/<rama>`, con
+  la historia de la anterior (`reanudar`, caso c de la decisión 2; `start`
+  ya no da `ocupada` por la rama propia de la tarea, adenda de TASK-081 en
+  F1-2).
+- **Quien la deja desde su clon** (`liberar` o `reasignar` del dueño): con
+  cambios sin guardar, commits sin publicar o HEAD suelto en el worktree,
+  `rechazada motivo=sin-publicar` antes de escribir el estado; limpio y
+  publicado, el worktree se quita como en `descartar` (`worktree=quitado`).
+- **Quien la tenía en otro clon** (la libera o reasigna otra persona tras
+  N días sin actividad): su worktree y su rama local se quedan como están.
+  `status` y `board` en su clon le avisan `ya-no-tuyas=TASK-NNN` con quien la
+  lleva ahora (por su cache de identidad y `git worktree list`, sin
+  plataforma ni red). Lo que no publicó lo sigue teniendo él; nadie más lo
+  ve (riesgo aceptado: «sin perder su trabajo» solo vale para lo publicado).
+
+Evidencia: `crates/tc2/tests/liberar.rs`
+(`c8_trabajo_sin_publicar_no_se_suelta`,
+`c1_c2_el_dueno_libera_y_otra_persona_la_retoma`,
+`c5_c6_c10_tarea_de_otra_persona_por_actividad`) y
+`crates/tc2/tests/tablero.rs` (`c9_c10_inactivas_y_ya_no_tuyas`).

@@ -1,7 +1,7 @@
 //! Operaciones de rama y worktree de tarea: `localizar-principal`,
 //! `validar-base`, `comprobar-id`, `crear-rama-y-worktree` y `reanudar`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use super::estado::hay_remoto;
@@ -54,11 +54,19 @@ pub fn validar_base(git: &Git, dir: &Path, base: &str) -> Informe {
 /// Mira si el ID ya tiene rama, en local o en el remoto (patron
 /// `*/task-nnn-*`). Ocupado → `rechazada motivo=ocupada`.
 pub fn comprobar_id(git: &Git, dir: &Path, id: &str) -> Informe {
+    comprobar_id_salvo(git, dir, id, None)
+}
+
+/// [`comprobar_id`] sin contar `propia`, la rama que la tarea ya tiene en su
+/// `rama:` (F3-10, paso 7 del plan de TASK-081): tras `liberar` o
+/// `reasignar`, la siguiente persona sigue en esa rama. Cualquier otra rama
+/// `*/task-nnn-*` sigue siendo `ocupada`.
+pub fn comprobar_id_salvo(git: &Git, dir: &Path, id: &str, propia: Option<&str>) -> Informe {
     const OP: &str = "comprobar-id";
     if !es_id(id) {
         return Informe::nuevo(OP, Resultado::Uso).con("motivo", "id-invalido");
     }
-    match ramas_del_id(git, dir, OP, id) {
+    match ramas_del_id(git, dir, OP, id).map(|r| ramas_ajenas(r, propia)) {
         Ok(r) if r.is_empty() => Informe::nuevo(OP, Resultado::Ok).con("id", id),
         Ok(r) => Informe::nuevo(OP, Resultado::Rechazada)
             .con("id", id)
@@ -67,6 +75,14 @@ pub fn comprobar_id(git: &Git, dir: &Path, id: &str) -> Informe {
             .diagnostico(Mensaje::nuevo(&txt::ID_CON_RAMA).con("id", id)),
         Err(i) => i,
     }
+}
+
+/// `ramas` sin `propia` (comparacion exacta del nombre).
+fn ramas_ajenas(mut ramas: Vec<String>, propia: Option<&str>) -> Vec<String> {
+    if let Some(p) = propia {
+        ramas.retain(|r| r != p);
+    }
+    ramas
 }
 
 fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> {
@@ -177,6 +193,35 @@ pub fn ids_con_rama(git: &Git, dir: &Path, op: &str) -> Paso<BTreeSet<u32>> {
         .iter()
         .filter_map(|r| id_de_rama(r))
         .collect())
+}
+
+/// Fecha del ultimo commit (committer, segundos desde 1970) de cada rama de
+/// `origin` tal como la conoce el clon (`refs/remotes/origin/*`), por nombre
+/// de rama sin `origin/` (F3-10, D2a). Un solo `for-each-ref` y sin red: la
+/// frescura es la del ultimo `fetch`.
+pub fn fechas_de_ramas(git: &Git, dir: &Path, op: &str) -> Paso<BTreeMap<String, u64>> {
+    let prefijo = format!("refs/remotes/{REMOTO}/");
+    let s = exigir(
+        git,
+        dir,
+        op,
+        Subcomando::ForEachRef,
+        &["--format=%(committerdate:unix) %(refname)", &prefijo],
+    )?;
+    Ok(fechas(&s, &prefijo))
+}
+
+/// Las lineas `<segundos> <ref>` de [`fechas_de_ramas`]; las que no se
+/// entienden (o `HEAD`, que no es una rama) se saltan.
+fn fechas(salida: &str, prefijo: &str) -> BTreeMap<String, u64> {
+    salida
+        .lines()
+        .filter_map(|l| {
+            let (fecha, r) = l.trim().split_once(' ')?;
+            let rama = r.strip_prefix(prefijo).filter(|r| *r != "HEAD")?;
+            Some((rama.to_owned(), fecha.parse().ok()?))
+        })
+        .collect()
 }
 
 /// Valida `id`, `tipo` y `slug` y devuelve el nombre de rama.
@@ -426,7 +471,56 @@ pub(crate) fn renombrar(mut i: Informe, op: &str) -> Informe {
 
 #[cfg(test)]
 mod tests {
-    use super::{id_de_rama, nombre_de_rama, nombres, partes_de_rama};
+    use super::{fechas, id_de_rama, nombre_de_rama, nombres, partes_de_rama, ramas_ajenas};
+
+    /// TASK-081: las fechas por rama sin `origin/`, sin `HEAD` ni lineas
+    /// que no se entienden.
+    #[test]
+    fn fechas_de_las_ramas_remotas() {
+        let f = fechas(
+            "1794910830 refs/remotes/origin/feature/task-001-uno\n\
+             1 refs/remotes/origin/HEAD\n\
+             x refs/remotes/origin/feature/mala\n\
+             1700000000 refs/remotes/otro/feature/task-002-x\n\
+             1700000001 refs/remotes/origin/develop\n",
+            "refs/remotes/origin/",
+        );
+        let v: Vec<(&str, u64)> = f.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+        assert_eq!(
+            v,
+            [
+                ("develop", 1_700_000_001),
+                ("feature/task-001-uno", 1_794_910_830)
+            ]
+        );
+    }
+
+    /// TASK-081 (paso 7): la rama propia de la tarea no cuenta como ocupada;
+    /// cualquier otra `*/task-nnn-*`, si.
+    #[test]
+    fn la_rama_propia_no_ocupa_el_id() {
+        let ramas = vec![
+            "feature/task-001-uno".to_owned(),
+            "fix/task-001-a-mano".to_owned(),
+        ];
+        assert_eq!(
+            ramas_ajenas(ramas.clone(), Some("feature/task-001-uno")),
+            ["fix/task-001-a-mano"]
+        );
+        assert_eq!(ramas_ajenas(ramas.clone(), None), ramas);
+        assert!(ramas_ajenas(vec![ramas[0].clone()], Some(&ramas[0])).is_empty());
+        // Comparacion exacta del nombre: el mismo slug con otro tipo o el
+        // mismo tipo con otro slug siguen siendo ajenas (H1 de la ronda 1).
+        let parecidas = vec![
+            "feature/task-001-otro".to_owned(),
+            "feature/task-001-uno".to_owned(),
+            "fix/task-001-uno".to_owned(),
+        ];
+        assert_eq!(
+            ramas_ajenas(parecidas, Some("feature/task-001-uno")),
+            ["feature/task-001-otro", "fix/task-001-uno"]
+        );
+    }
 
     /// F3-6: ida y vuelta con `nombre_de_rama`; lo que no es la rama de esa
     /// tarea o no pasa la validacion, `None`.

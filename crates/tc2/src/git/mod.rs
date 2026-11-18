@@ -23,15 +23,15 @@ pub use estado::Cambio;
 pub use guardar::guardar;
 pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaCruda, SalidaGit, Subcomando};
 pub use rama::{
-    comprobar_id, crear_rama_y_worktree, ids_con_rama, localizar_principal, partes_de_rama,
-    reanudar, validar_base,
+    comprobar_id, comprobar_id_salvo, crear_rama_y_worktree, fechas_de_ramas, ids_con_rama,
+    localizar_principal, partes_de_rama, reanudar, validar_base,
 };
 pub use remoto::{
     ESPERAS_PUSH, FalloRemoto, actualizar_principal, actualizar_rama, clasificar_fallo_remoto,
     fetch, push,
 };
 pub use tag::tag_anotado;
-pub use worktree::quitar_worktree;
+pub use worktree::{quitar_worktree, worktree_publicado};
 
 use std::path::{Component, Path, PathBuf};
 

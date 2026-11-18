@@ -45,18 +45,24 @@ pub fn motivo_valido(motivo: &str) -> bool {
     crate::tarea::titulo_valido(motivo) && motivo.chars().count() <= MOTIVO_MAX
 }
 
-/// Lo comun de las tres: la tarea, quien la lanza y cuando.
+/// Lo comun de las operaciones de una tarea (tambien las de
+/// [`super::liberar`]): la tarea, quien la lanza y cuando.
 #[derive(Debug)]
-struct Lanzada {
-    id: String,
-    asignado: Asignado,
-    decidido_por: &'static str,
-    ahora: u64,
-    dueno: RefCell<Option<String>>,
+pub(super) struct Lanzada {
+    pub(super) id: String,
+    pub(super) asignado: Asignado,
+    pub(super) decidido_por: &'static str,
+    pub(super) ahora: u64,
+    pub(super) dueno: RefCell<Option<String>>,
 }
 
 impl Lanzada {
-    fn nueva(id: &str, asignado: Asignado, decidido_por: &'static str, ahora: u64) -> Self {
+    pub(super) fn nueva(
+        id: &str,
+        asignado: Asignado,
+        decidido_por: &'static str,
+        ahora: u64,
+    ) -> Self {
         Self {
             id: id.to_owned(),
             asignado,
@@ -90,7 +96,7 @@ impl Lanzada {
     }
 
     /// El `tarea.md` con `actualizado` de hoy y la fila `fase`.
-    fn escribir(&self, mut t: Tarea, mut cuerpo: Cuerpo, fase: &str) -> Vec<Cambio> {
+    pub(super) fn escribir(&self, mut t: Tarea, mut cuerpo: Cuerpo, fase: &str) -> Vec<Cambio> {
         let instante = instante(self.ahora);
         t.actualizado = instante.get(..10).unwrap_or_default().to_owned();
         cuerpo.anadir_transicion(&Transicion {
@@ -107,7 +113,7 @@ impl Lanzada {
     }
 
     /// `<nombre>|TASK-NNN|<id>|<login>`.
-    fn anotacion(&self, nombre: &str) -> String {
+    pub(super) fn anotacion(&self, nombre: &str) -> String {
         format!(
             "{nombre}|{}|{}|{}",
             self.id,

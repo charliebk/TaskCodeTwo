@@ -334,7 +334,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 | F2-5 | Modelo de tarea y parser/serializador de frontmatter YAML válido | Ida y vuelta con un parser estándar; compatible con tareas de la 0.16 | F1-9 |
 | F2-6 | Adaptador GitHub (PR, checks, reviews, identidad) sobre la API, con errores dirigidos a la persona | E2E contra un repo de pruebas en GitHub | F1-13, F2-2 |
 | F2-9 | Adaptador GitLab (MR, pipelines, approvals, identidad) con la misma interfaz y la misma batería E2E (RR-15) | E2E contra un proyecto de pruebas en GitLab | F1-13, F2-2 |
-| F2-7 | Configuración mínima con esquema validado y valores por defecto | ≤ 12 claves; esquema publicado; tests | F1-10 |
+| F2-7 | Configuración mínima con esquema validado y valores por defecto | ≤ 12 claves (13 desde TASK-081: `dias_sin_actividad`, adenda de F1-11); esquema publicado; tests | F1-10 |
 | F2-8 | i18n de mensajes (es, en) | Test que falla si falta una traducción | F2-1 |
 | F2-10 | Build de ejecutables por sistema en la CI, con su hash, publicados en cada release (RR-16); firmados desde la primera release con attestation de procedencia y firma ad hoc en macOS, Authenticode y Developer ID al entrar en winget y Homebrew (ADR F1-14, D4a) | El ejecutable arranca en Windows, macOS y Linux limpios sin Node | F1-14, F2-1 |
 | F2-11 | Instaladores de una línea (PowerShell y shell), publicados en cada release, que descargan, comprueban el hash y, si hay `gh`, la attestation, y ponen `tc2` en el PATH (ADR F1-14, divergencias 3 y 5) | Instalación en menos de un minuto en cada sistema, medida en la CI en los 6 runners nativos y en alpine; las máquinas limpias de verdad, en F9-9a | F2-10 |

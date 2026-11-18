@@ -16,6 +16,15 @@
 //!   diseno, en curso, en revision y listas para empezar), con ID, titulo,
 //!   quien y PR; terminadas y descartadas solo como recuento.
 //!
+//! F3-10 (TASK-081): las dos cuentan como inactivas las tareas en curso o
+//! en revision con `dias_sin_actividad` dias o mas sin actividad (filas de
+//! transicion y commits de `origin/<rama>` tal como los conoce el clon):
+//! `status` con `inactivas=N` (en texto, `· sin actividad N` si N > 0) y
+//! `board` con `inactivas=` y la fila marcada. Si este clon tiene el
+//! worktree de una tarea abierta que ya no lleva la persona de su cache de
+//! identidad, `ya-no-tuyas=` y un aviso en stderr con quien la lleva ahora
+//! (codigo 0).
+//!
 //! El texto ajeno (titulos, logins, asignados heredados) se sanea al
 //! imprimirlo (F1-17, decision 8): sin caracteres de control ni de formato y
 //! con longitud acotada.
@@ -83,6 +92,9 @@ pub struct Tablero {
     /// Hora de la ultima sincronizacion para el texto (`None`: no se
     /// ensena, sin `origin`).
     pub sincronizado: Option<String>,
+    /// En curso o en revision sin actividad desde hace el umbral o mas
+    /// (F3-10, C9): ID y dias completos.
+    pub inactivas: BTreeMap<String, u64>,
 }
 
 impl Tablero {
@@ -147,6 +159,111 @@ pub fn tablero(s: &Situacion, personas: &Personas, commit: &str) -> Tablero {
         }
     }
     t
+}
+
+/// Las tareas en curso o en revision de `t` sin actividad desde hace
+/// `umbral` dias o mas en `ahora` (F3-10, D2a): la actividad es la de
+/// [`crate::ciclo::liberar::actividad_conocida`] (la misma regla que
+/// `liberar` y `reasignar`) con el commit de `origin/<rama>` de `fechas`
+/// tal como la conoce el clon (sin traer: avisa de mas, nunca de menos).
+/// Una tarea sin ninguna fecha no se marca: no se sabe.
+pub fn inactivas(
+    s: &Situacion,
+    t: &Tablero,
+    fechas: &BTreeMap<String, u64>,
+    ahora: u64,
+    umbral: u64,
+) -> BTreeMap<String, u64> {
+    let mut v = BTreeMap::new();
+    for f in t.en_curso.iter().chain(&t.en_revision) {
+        let Some(ficha) = s.fichas.iter().find(|x| x.nodo.id == f.id) else {
+            continue;
+        };
+        let rama = ficha.rama.as_ref().and_then(|r| fechas.get(r)).copied();
+        if let Some(a) =
+            crate::ciclo::liberar::actividad_conocida(ficha.ultima_transicion, rama, ahora)
+        {
+            let d = situacion::dias_sin_actividad(a, ahora);
+            if d >= umbral {
+                v.insert(f.id.clone(), d);
+            }
+        }
+    }
+    v
+}
+
+/// Las tareas abiertas con worktree en este clon que ya no lleva la persona
+/// de la cache de identidad (F3-10, D5a: el aviso al dueno anterior sin
+/// plataforma), con quien la lleva ahora. Sin cache o sin worktrees, nada.
+/// Solo lee: la cache sin comprobar su vigencia y `git worktree list`.
+fn ya_no_tuyas(
+    g: &Git,
+    dir: &Path,
+    op: &str,
+    s: &Situacion,
+    personas: &Personas,
+) -> Vec<(String, Quien)> {
+    let Ok(principal) = crate::git::localizar_principal(g, dir) else {
+        return Vec::new();
+    };
+    let Ok(comun) = crate::git::estado::dir_comun(g, &principal, op) else {
+        return Vec::new();
+    };
+    let Some(yo) = crate::identidad::Cache::en(&comun).leer() else {
+        return Vec::new();
+    };
+    let Ok(wts) = crate::git::worktrees(g, &principal, op) else {
+        return Vec::new();
+    };
+    let carpeta = principal.join(crate::git::CARPETA_WORKTREES);
+    let mut v = Vec::new();
+    for w in wts {
+        let Some(id) = w
+            .ruta
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|id| crate::git::misma_ruta(&w.ruta, &carpeta.join(id)))
+        else {
+            continue;
+        };
+        let Some(f) = s.fichas.iter().find(|f| f.nodo.id == id) else {
+            continue;
+        };
+        if !f
+            .nodo
+            .estado()
+            .is_some_and(|e| crate::ciclo::operacion::ABIERTAS.contains(&e))
+        {
+            continue;
+        }
+        let mia = f
+            .asignado
+            .clone()
+            .map(|a| crate::identidad::convertir_heredado(a, personas))
+            .is_some_and(|a| a.la_lleva(yo.cuenta.id));
+        if !mia {
+            v.push((
+                id.to_owned(),
+                situacion::quien(f.asignado.as_ref(), personas),
+            ));
+        }
+    }
+    v.sort_by(|a, b| a.0.cmp(&b.0));
+    v
+}
+
+/// El aviso de cada tarea que ya no es tuya, para stderr.
+fn avisos_ya_no_tuyas(v: &[(String, Quien)]) -> Vec<Mensaje> {
+    v.iter()
+        .map(|(id, q)| {
+            let m = match q {
+                Quien::Nadie => Mensaje::nuevo(&txt::AVISO_YA_NO_TUYA_LIBRE),
+                q => Mensaje::nuevo(&txt::AVISO_YA_NO_TUYA).con("quien", quien_impreso(q)),
+            };
+            m.con("id", id.as_str())
+                .con("ruta", crate::git::worktree_relativo(id))
+        })
+        .collect()
 }
 
 /// Texto ajeno listo para imprimir (F1-17, decision 8): sin caracteres de
@@ -254,6 +371,9 @@ pub fn texto_board(t: &Tablero, plataforma: &str, pr: Option<&dyn Fn(&Fila) -> S
                 l.push_str("  ");
                 l.push_str(&c[3]);
             }
+            if let Some(d) = t.inactivas.get(&c[0]) {
+                let _ = write!(l, "  · sin actividad hace {d} días");
+            }
             o.push_str(l.trim_end());
             o.push('\n');
         }
@@ -291,6 +411,8 @@ struct Leido {
     local: Option<Local>,
     /// Cuando se leyo, para el «hace N».
     ahora: u64,
+    /// Las tareas con worktree en este clon que ya no son de quien lo usa.
+    ya_no_tuyas: Vec<(String, Quien)>,
 }
 
 /// El tablero del estado que conoce el clon de `dir` tras traer la rama de
@@ -326,6 +448,14 @@ fn tablero_en(g: &Git, dir: &Path, op: &str, con_local: bool) -> Result<Leido, I
     };
     let mut t = tablero(&s, &personas, &commit);
     t.sincronizado = frescura.en_texto();
+    // F3-10: sin red y sin escribir nada; un fallo deja sin marcas.
+    let fechas = crate::git::fechas_de_ramas(g, dir, op).unwrap_or_default();
+    // Una configuracion que no vale tampoco marca (no cae al umbral de por
+    // defecto); `doctor` la senala.
+    if let Ok(umbral) = crate::ciclo::umbral_de_inactividad(g, dir, op) {
+        t.inactivas = inactivas(&s, &t, &fechas, ahora, umbral);
+    }
+    let ya_no_tuyas = ya_no_tuyas(g, dir, op, &s, &personas);
     Ok(Leido {
         tablero: t,
         avisos,
@@ -333,6 +463,7 @@ fn tablero_en(g: &Git, dir: &Path, op: &str, con_local: bool) -> Result<Leido, I
         frescura,
         local,
         ahora,
+        ya_no_tuyas,
     })
 }
 
@@ -459,6 +590,19 @@ pub fn status_en(e: &Entorno<'_>) -> Result<(String, Informe, Vec<Mensaje>), Inf
             avisos.push(m.con("carpeta", estado::CARPETA));
         }
     }
+    // F3-10: las que llevan el umbral sin actividad (en texto, solo si hay
+    // alguna) y las que ya no son de quien usa este clon.
+    i = i.con("inactivas", t.inactivas.len().to_string());
+    if !t.inactivas.is_empty() {
+        let _ = write!(linea, " · sin actividad {}", t.inactivas.len());
+    }
+    if !l.ya_no_tuyas.is_empty() {
+        i = i.con_lista(
+            "ya-no-tuyas",
+            l.ya_no_tuyas.iter().map(|(id, _)| id.clone()).collect(),
+        );
+        avisos.extend(avisos_ya_no_tuyas(&l.ya_no_tuyas));
+    }
     Ok((linea, i, avisos))
 }
 
@@ -520,12 +664,16 @@ pub fn board_en(e: &Entorno<'_>, modo: Modo) -> Result<(String, Informe, Vec<Men
             Err(c) => c,
         },
     };
-    let (texto, i) = board_de(&l.tablero, &consulta, &l.avisos);
-    Ok((
-        texto,
-        l.frescura.anotar(i),
-        l.frescura.aviso(l.ahora).into_iter().collect(),
-    ))
+    let (texto, mut i) = board_de(&l.tablero, &consulta, &l.avisos);
+    let mut avisos: Vec<Mensaje> = l.frescura.aviso(l.ahora).into_iter().collect();
+    if !l.ya_no_tuyas.is_empty() {
+        i = i.con_lista(
+            "ya-no-tuyas",
+            l.ya_no_tuyas.iter().map(|(id, _)| id.clone()).collect(),
+        );
+        avisos.extend(avisos_ya_no_tuyas(&l.ya_no_tuyas));
+    }
+    Ok((texto, l.frescura.anotar(i), avisos))
 }
 
 /// Texto e informe de `board` para un tablero y lo que se supo de la
@@ -588,6 +736,9 @@ fn informe_board(t: &Tablero, plataforma: &str, cruce: Option<&Cruce>, avisos: &
                 i = i.con_lista(clave, v);
             }
         }
+    }
+    if !t.inactivas.is_empty() {
+        i = i.con_lista("inactivas", t.inactivas.keys().cloned().collect());
     }
     i = i
         .con("terminadas", t.terminadas.to_string())
@@ -882,7 +1033,71 @@ mod tests {
             descartadas: 1,
             ilegibles: Vec::new(),
             sincronizado: None,
+            inactivas: BTreeMap::new(),
         }
+    }
+
+    /// TASK-081 C9 (parte pura): en curso o en revision con el umbral o mas
+    /// sin actividad se marcan; un commit reciente de la rama lo evita; sin
+    /// fechas no se marca; las de otros grupos no cuentan. `board` marca la
+    /// fila y `status` cuenta.
+    #[test]
+    fn inactivas_por_filas_y_commits_de_la_rama() {
+        use crate::tarea::{Cuerpo, Documento, Tarea};
+        let ahora = 1_794_910_830;
+        let ficha = |id: &str, rama: &str, cuerpo: &str| {
+            let mut t = Tarea::nueva(id, "t", "2026-11-01");
+            t.rama = Some(rama.to_owned());
+            Ficha::de(&Documento::Formato2(t, Cuerpo::leer(cuerpo)))
+        };
+        let vieja = "## Transiciones\n| 2026-11-01T10:20:30Z | start |\n";
+        let s = Situacion {
+            fichas: vec![
+                ficha("TASK-002", "feature/b", vieja),
+                ficha("TASK-003", "feature/c", vieja),
+                ficha("TASK-004", "feature/d", ""),
+                ficha("TASK-001", "feature/a", vieja),
+                ficha("TASK-006", "feature/f", vieja),
+            ],
+            ..Situacion::default()
+        };
+        let fechas: BTreeMap<String, u64> = [("feature/c".to_owned(), ahora - 3600)].into();
+        let t = de_prueba();
+        let v = inactivas(&s, &t, &fechas, ahora, 7);
+        assert_eq!(
+            v.into_iter().collect::<Vec<_>>(),
+            [("TASK-002".to_owned(), 16)]
+        );
+        assert!(inactivas(&s, &t, &fechas, ahora, 17).is_empty());
+        // M-1 de la ronda 1: justo el umbral ya cuenta (`d >= umbral`).
+        assert_eq!(
+            inactivas(&s, &t, &fechas, ahora, 16)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            [("TASK-002".to_owned(), 16)]
+        );
+        // H2: un commit de la rama de mas de un dia por delante no se sabe y
+        // no la hace activa; dentro del margen, si.
+        let mut futuro = fechas.clone();
+        futuro.insert("feature/b".to_owned(), ahora + 30 * 86_400);
+        assert_eq!(inactivas(&s, &t, &futuro, ahora, 7).len(), 1);
+        futuro.insert("feature/b".to_owned(), ahora + 3600);
+        assert!(inactivas(&s, &t, &futuro, ahora, 7).is_empty());
+        let t = Tablero {
+            inactivas: [("TASK-002".to_owned(), 16)].into(),
+            ..de_prueba()
+        };
+        let texto = texto_board(&t, "no-consultada", None);
+        assert!(
+            texto.contains("  TASK-002  Titulo de TASK-002  @ana  · sin actividad hace 16 días\n"),
+            "{texto}"
+        );
+        assert!(
+            !texto.contains("TASK-003  Titulo de TASK-003  @luis  ·"),
+            "{texto}"
+        );
+        let linea = board_de(&t, &Consulta::NoConsultada, &[]).1.linea();
+        assert!(linea.contains(" inactivas=TASK-002 "), "{linea}");
     }
 
     /// C3 (parte pura): la hora va al final de la linea de `status` y de la

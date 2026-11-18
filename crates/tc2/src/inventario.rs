@@ -603,7 +603,7 @@ fn dias_desde_epoca(anio: i64, mes: i64, dia: i64) -> i64 {
 /// Milisegundos desde la epoca de un texto ISO 8601 / RFC 3339
 /// (`AAAA-MM-DD`, opcionalmente `THH:MM[:SS[.fff]]` y `Z` o `+HH:MM`);
 /// `None` si no tiene esa forma o algun campo esta fuera de rango.
-fn ms_de_iso(s: &str) -> Option<i64> {
+pub(crate) fn ms_de_iso(s: &str) -> Option<i64> {
     let num = |x: &str| -> Option<i64> {
         (!x.is_empty() && x.bytes().all(|b| b.is_ascii_digit()))
             .then(|| x.parse().ok())

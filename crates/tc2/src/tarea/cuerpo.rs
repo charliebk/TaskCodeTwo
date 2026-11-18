@@ -234,6 +234,21 @@ impl Cuerpo {
             .find(|fase| *fase == PAUSA || *fase == REANUDAR)
             == Some(PAUSA)
     }
+
+    /// Instante, en segundos desde 1970 (UTC), de la ultima fila de
+    /// `## Transiciones` cuya fecha se entiende (F3-10, D2a: la actividad de
+    /// la tarea; cuentan tambien `pausa` y `reanudar`). Sin seccion o sin
+    /// ninguna fila fechada, `None`. La cabecera y el separador no son
+    /// fechas y se saltan.
+    pub fn ultima_fecha(&self) -> Option<u64> {
+        let s = self.seccion(TRANSICIONES)?;
+        s.texto
+            .lines()
+            .rev()
+            .filter_map(|l| l.trim().strip_prefix('|')?.split('|').next())
+            .find_map(|fecha| crate::inventario::ms_de_iso(fecha.trim()))
+            .and_then(|ms| u64::try_from(ms / 1000).ok())
+    }
 }
 
 /// Fase de la fila que pone una tarea en pausa (`tc2 pausa`).
@@ -427,6 +442,32 @@ mod tests {
         );
         assert!(!c.en_pausa());
         assert!(!Cuerpo::leer("").en_pausa());
+    }
+
+    /// TASK-081 (D2a): la ultima fila fechada de `## Transiciones`, tambien
+    /// una `pausa`; sin filas, ni cabecera ni separador cuentan; una fila de
+    /// otra seccion, tampoco.
+    #[test]
+    fn ultima_fecha_de_las_transiciones() {
+        let mut c = Cuerpo::plantilla();
+        assert_eq!(c.ultima_fecha(), None);
+        c.anadir_transicion(&T);
+        // 2026-11-17T10:00:00Z.
+        assert_eq!(c.ultima_fecha(), Some(1_794_909_600));
+        c.anadir_transicion(&Transicion {
+            fecha: "2026-11-20T00:00:01Z",
+            fase: PAUSA,
+            ..T
+        });
+        assert_eq!(c.ultima_fecha(), Some(1_795_132_801));
+        // Una fila final que no se entiende no tapa la anterior.
+        let c = Cuerpo::leer(&format!("{}| basura | x |\n", c.escribir()));
+        assert_eq!(c.ultima_fecha(), Some(1_795_132_801));
+        let c = Cuerpo::leer(
+            "## Objetivo\n| 2030-01-01T00:00:00Z | start |\n## Transiciones\n| fecha | fase |\n|---|---|\n",
+        );
+        assert_eq!(c.ultima_fecha(), None);
+        assert_eq!(Cuerpo::leer("").ultima_fecha(), None);
     }
 
     #[test]
