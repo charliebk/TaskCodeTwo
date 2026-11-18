@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [tablero]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-125-seguimiento-de-f3-10-quitar-la-copia-vie
 asignado_a: charlie.bk@gmail.com
@@ -36,6 +36,7 @@ Quitar situacion::actividad, que quedo sin usos fuera de sus tests tras TASK-081
 |---|---|---|---|---|
 | 2026-11-18T20:40:58Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-18T20:42:59Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-18T20:43:01Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
