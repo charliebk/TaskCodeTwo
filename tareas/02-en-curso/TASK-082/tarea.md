@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-082-f3-11-aviso-de-solape-entre-tareas-en-cu
 asignado_a: charlie.bk@gmail.com
@@ -49,6 +49,7 @@ Contexto (Carlos, 2026-11-14, RR-12 reforzado): el trabajo con varias personas d
 |---|---|---|---|---|
 | 2026-11-18T08:45:26Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-18T08:50:06Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-18T08:50:07Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
