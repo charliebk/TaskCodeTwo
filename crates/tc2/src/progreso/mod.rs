@@ -24,6 +24,7 @@ pub use calculo::calcular;
 pub use fichero::{Lectura, Progreso, Punto};
 
 use crate::Salida;
+use crate::git::Git;
 
 /// Orden de la status line (`tc2 estado --stdin`, la de
 /// [`distribucion::STATUS_LINE`]).
@@ -182,6 +183,87 @@ pub fn orden_estado(stdin: &str, cwd: Option<&Path>, ahora: u64) -> String {
         Some(d) => linea_en(&d, ahora),
         None => linea::SIN_TAREA.to_owned(),
     }
+}
+
+/// Que hizo un refresco.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refresco {
+    /// Escribio el progreso de la tarea.
+    Escrito,
+    /// La tarea no esta en curso ni en revision (o la deja quien la lanza):
+    /// borro su progreso.
+    Borrado,
+}
+
+/// Nombre de la operacion en los informes de error.
+const OP: &str = "progreso";
+
+/// La carpeta de progreso del repo de `dir` (localiza el principal: lanza
+/// git).
+fn carpeta_de(g: &Git, dir: &Path) -> Result<(PathBuf, PathBuf), String> {
+    let principal = crate::git::localizar_principal(g, dir).map_err(|i| i.linea())?;
+    let comun = crate::git::estado::dir_comun(g, &principal, OP).map_err(|i| i.linea())?;
+    Ok((principal, fichero::carpeta(&comun)))
+}
+
+/// `refrescar(g, dir, id, ahora)`: recalcula y escribe el progreso de `id`
+/// tras una transicion, con el estado que conoce el clon (sin `fetch`):
+/// todos los `tarea.md` y un `git log` de `develop` (O(N): solo en las
+/// transiciones). Si la tarea no esta en curso ni en revision, borra su
+/// progreso. Lo llaman las transiciones (`lib.rs`, `de_una_tarea`); `review`
+/// y `finish` (F6-2, F7-1) lo llamaran igual cuando existan.
+pub fn refrescar(g: &Git, dir: &Path, id: &str, ahora: u64) -> Result<Refresco, String> {
+    let (principal, carpeta) = carpeta_de(g, dir)?;
+    let vista = crate::estado::leer(g, dir).map_err(|i| i.linea())?;
+    let texto = |f: crate::estado::Fallo| match f {
+        crate::estado::Fallo::Rechazada { motivo, .. } => motivo,
+        crate::estado::Fallo::Error(d) => d.texto(crate::i18n::Idioma::Es),
+    };
+    let (t, c) = match crate::estado::tarea_de(&vista, id) {
+        Ok(x) => x,
+        // No existe, es de la 0.16 o no se entiende: no hay progreso.
+        Err(crate::estado::Fallo::Rechazada { .. }) => return quitar_en(&carpeta, id),
+        Err(f) => return Err(texto(f)),
+    };
+    if calculo::fase_de(&t.estado).is_none() {
+        return quitar_en(&carpeta, id);
+    }
+    let leidas =
+        crate::estado::tareas(&vista, &crate::estado::Estado::rutas(&vista)).map_err(texto)?;
+    let commits = crate::estimacion::commits_de(g, &principal);
+    let h = crate::estimacion::historico(&leidas, &commits);
+    match calcular(&t, &c, &h, &commits, ahora) {
+        Some(p) => fichero::escribir(&carpeta, &p)
+            .map(|()| Refresco::Escrito)
+            .map_err(|e| e.to_string()),
+        None => quitar_en(&carpeta, id),
+    }
+}
+
+fn quitar_en(carpeta: &Path, id: &str) -> Result<Refresco, String> {
+    fichero::borrar(carpeta, id)
+        .map(|()| Refresco::Borrado)
+        .map_err(|e| e.to_string())
+}
+
+/// Clave de la linea de una transicion cuyo progreso no se pudo escribir.
+pub const CLAVE: &str = "progreso";
+
+/// Valor de [`CLAVE`].
+pub const NO_ESCRITO: &str = "no-escrito";
+
+/// Escribe `p`, ya calculado, en el clon de `dir` (lo usa `start`, que lo
+/// calcula dentro de la toma con el historico que ya leyo).
+pub fn escribir_en(g: &Git, dir: &Path, p: &Progreso) -> Result<(), String> {
+    let (_, carpeta) = carpeta_de(g, dir)?;
+    fichero::escribir(&carpeta, p).map_err(|e| e.to_string())
+}
+
+/// Borra el progreso de `id` en el clon de `dir` (tras `descartar`,
+/// `liberar` o `reasignar`: la tarea deja de estar en curso aqui).
+pub fn quitar(g: &Git, dir: &Path, id: &str) -> Result<Refresco, String> {
+    let (_, carpeta) = carpeta_de(g, dir)?;
+    quitar_en(&carpeta, id)
 }
 
 /// `tc2 estado --stdin` en el proceso: lee stdin (con tope), la carpeta

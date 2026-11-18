@@ -15,6 +15,7 @@ pub mod identidad;
 pub mod importar;
 pub mod init;
 pub mod plataforma;
+pub mod progreso;
 pub mod roadmap;
 pub mod siguiente;
 pub mod tablero;
@@ -39,6 +40,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         importar::TODOS,
         init::TODOS,
         plataforma::TODOS,
+        progreso::TODOS,
         roadmap::TODOS,
         siguiente::TODOS,
         tablero::TODOS,

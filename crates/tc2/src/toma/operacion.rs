@@ -60,6 +60,7 @@ pub struct Tomar {
     pendientes: RefCell<Vec<String>>,
     rama: RefCell<Option<String>>,
     estimacion: RefCell<Option<Estimacion>>,
+    progreso: RefCell<Option<crate::progreso::Progreso>>,
 }
 
 impl Tomar {
@@ -80,7 +81,16 @@ impl Tomar {
             pendientes: RefCell::new(Vec::new()),
             rama: RefCell::new(None),
             estimacion: RefCell::new(None),
+            progreso: RefCell::new(None),
         }
+    }
+
+    /// El progreso en vivo de la tarea tomada en el ultimo intento (F3-12),
+    /// calculado con el mismo historico y los mismos commits que la
+    /// estimacion: `start` lo escribe sin volver a leer el estado ni la
+    /// historia (R1-05 y R1-06 de TASK-083).
+    pub fn progreso(&self) -> Option<crate::progreso::Progreso> {
+        self.progreso.borrow().clone()
     }
 
     /// Los commits de `develop` para el historico de la estimacion (un
@@ -142,6 +152,7 @@ impl Operacion for Tomar {
         self.pendientes.borrow_mut().clear();
         *self.rama.borrow_mut() = None;
         *self.estimacion.borrow_mut() = None;
+        *self.progreso.borrow_mut() = None;
         let ruta = format!("{}/tarea.md", self.id);
         let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
         let rama = t
@@ -217,6 +228,8 @@ impl Operacion for Tomar {
             decidido_por: self.decidido_por,
             version: crate::VERSION,
         });
+        *self.progreso.borrow_mut() =
+            crate::progreso::calcular(&t, &cuerpo, &h, &self.commits, self.ahora);
         Ok(vec![Cambio::nuevo(ruta, t.escribir(&cuerpo))])
     }
 }

@@ -163,27 +163,32 @@ where
         }
         [orden, resto @ ..] if orden == toma::NOMBRE => {
             let (json, resto) = con_json(resto);
-            de_una_tarea(toma::NOMBRE, |e| toma::orden(&resto, e)).salida_en(json, idioma)
+            de_una_tarea(toma::NOMBRE, (json, idioma), |e| toma::orden(&resto, e))
         }
         [orden, resto @ ..] if orden == ciclo::DESCARTAR => {
             let (json, resto) = con_json(resto);
-            de_una_tarea(ciclo::DESCARTAR, |e| ciclo::orden_descartar(&resto, e))
-                .salida_en(json, idioma)
+            de_una_tarea(ciclo::DESCARTAR, (json, idioma), |e| {
+                ciclo::orden_descartar(&resto, e)
+            })
         }
         [orden, resto @ ..] if orden == ciclo::PAUSA || orden == ciclo::REANUDAR => {
             let (json, resto) = con_json(resto);
             let reanudar = orden == ciclo::REANUDAR;
-            de_una_tarea(orden, |e| ciclo::orden_pausa(&resto, reanudar, e)).salida_en(json, idioma)
+            de_una_tarea(orden, (json, idioma), |e| {
+                ciclo::orden_pausa(&resto, reanudar, e)
+            })
         }
         [orden, resto @ ..] if orden == ciclo::LIBERAR => {
             let (json, resto) = con_json(resto);
-            de_una_tarea(ciclo::LIBERAR, |e| ciclo::orden_liberar(&resto, e))
-                .salida_en(json, idioma)
+            de_una_tarea(ciclo::LIBERAR, (json, idioma), |e| {
+                ciclo::orden_liberar(&resto, e)
+            })
         }
         [orden, resto @ ..] if orden == ciclo::REASIGNAR => {
             let (json, resto) = con_json(resto);
-            de_una_tarea(ciclo::REASIGNAR, |e| ciclo::orden_reasignar(&resto, e))
-                .salida_en(json, idioma)
+            de_una_tarea(ciclo::REASIGNAR, (json, idioma), |e| {
+                ciclo::orden_reasignar(&resto, e)
+            })
         }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -324,29 +329,124 @@ fn orden_identidad(args: &[String]) -> Informe {
 /// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10) en la carpeta actual:
 /// quien la lanza sale de
 /// [`identidad::resolver`] con el terminal y los tokens del proceso.
-fn de_una_tarea(nombre: &str, orden: impl FnOnce(&toma::Entorno<'_>) -> Informe) -> Informe {
-    use std::io::IsTerminal;
+///
+/// Si la transicion sale bien, refresca el progreso en vivo de la tarea
+/// (F3-12): [`progreso::refrescar`], o [`progreso::quitar`] tras
+/// `descartar`, `liberar` y `reasignar`. Un fallo ahi no cambia la
+/// transicion: la linea gana `progreso=no-escrito` y stderr un aviso, con el
+/// mismo codigo.
+fn de_una_tarea(
+    nombre: &str,
+    (json, idioma): (bool, Idioma),
+    orden: impl FnOnce(&toma::Entorno<'_>) -> Informe,
+) -> Salida {
     let dir = match std::env::current_dir() {
         Ok(d) => d,
         Err(e) => {
             return Informe::nuevo(nombre, Resultado::Error)
-                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()))
+                .salida_en(json, idioma);
         }
     };
     let g = git::Git::nuevo();
     let ahora = identidad::ahora();
+    let i = transicion(&dir, &g, ahora, orden);
+    // `start` que publico la toma (`estado=`) ya escribio el progreso con lo
+    // que calculo dentro (un solo `git log` y una sola lectura de todos los
+    // `tarea.md`, R1-05 y R1-06 de TASK-083).
+    let hecho = nombre == toma::NOMBRE && i.valor("estado").is_some();
+    con_progreso(i, |id| {
+        if hecho {
+            Ok(progreso::Refresco::Escrito)
+        } else if [ciclo::DESCARTAR, ciclo::LIBERAR, ciclo::REASIGNAR].contains(&nombre) {
+            progreso::quitar(&g, &dir, id)
+        } else {
+            progreso::refrescar(&g, &dir, id, ahora)
+        }
+    })
+    .salida(json, idioma)
+}
+
+/// El informe de una transicion y, si fallo el refresco del progreso, el
+/// aviso para stderr.
+struct ConProgreso {
+    informe: Informe,
+    aviso: Option<Mensaje>,
+}
+
+impl ConProgreso {
+    fn salida(self, json: bool, idioma: Idioma) -> Salida {
+        let mut s = self.informe.salida_en(json, idioma);
+        if let Some(a) = self.aviso {
+            s.stderr.push_str(&a.texto(idioma));
+            s.stderr.push('\n');
+        }
+        s
+    }
+}
+
+/// Refresca el progreso de la tarea (`id=` de la linea) si la transicion
+/// salio bien; un fallo de `refrescar` no toca el resultado. Si la propia
+/// transicion ya dice `progreso=no-escrito` (`start`), solo el aviso.
+fn con_progreso(
+    i: Informe,
+    refrescar: impl FnOnce(&str) -> Result<progreso::Refresco, String>,
+) -> ConProgreso {
+    let aviso = |id: &str, e: &str| {
+        Some(
+            Mensaje::nuevo(&i18n::catalogo::progreso::AVISO_NO_ESCRITO)
+                .con("id", id)
+                .con("error", tablero::sanear(e, 200)),
+        )
+    };
+    let id = match i.valor("id") {
+        Some(id) if i.resultado.es_exito() => id.to_owned(),
+        _ => {
+            return ConProgreso {
+                informe: i,
+                aviso: None,
+            };
+        }
+    };
+    if i.valor(progreso::CLAVE) == Some(progreso::NO_ESCRITO) {
+        return ConProgreso {
+            aviso: aviso(&id, "escritura"),
+            informe: i,
+        };
+    }
+    match refrescar(&id) {
+        Ok(_) => ConProgreso {
+            informe: i,
+            aviso: None,
+        },
+        Err(e) => ConProgreso {
+            informe: i.con(progreso::CLAVE, progreso::NO_ESCRITO),
+            aviso: aviso(&id, &e),
+        },
+    }
+}
+
+/// La transicion en `dir`, con quien la lanza resuelto por
+/// [`identidad::resolver`].
+fn transicion(
+    dir: &std::path::Path,
+    g: &git::Git,
+    ahora: u64,
+    orden: impl FnOnce(&toma::Entorno<'_>) -> Informe,
+) -> Informe {
+    use std::io::IsTerminal;
     let quien = || {
         identidad::resolver(identidad::Entorno {
-            dir: &dir,
-            git: &g,
+            dir,
+            git: g,
             tty: std::io::stdin().is_terminal(),
             credenciales: Box::new(plataforma::CredencialesEntorno),
             ahora,
         })
     };
     let e = toma::Entorno {
-        dir: &dir,
-        git: &g,
+        dir,
+        git: g,
         quien: &quien,
         catalogo: &catalogo,
         ahora,
@@ -775,6 +875,59 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// F3-12: un fallo al refrescar el progreso nunca cambia el resultado de
+    /// la transicion (mismo codigo; la linea gana `progreso=no-escrito` y
+    /// stderr un aviso); una transicion que no sale bien no lo refresca.
+    #[test]
+    fn el_progreso_no_cambia_la_transicion() {
+        let ok = Informe::nuevo("start", Resultado::Ok).con("id", "TASK-001");
+        let s =
+            con_progreso(ok.clone(), |_| Err("disco lleno".to_owned())).salida(false, Idioma::Es);
+        assert_eq!(s.codigo, 0);
+        assert_eq!(s.stdout, "start ok id=TASK-001 progreso=no-escrito\n");
+        assert!(
+            s.stderr
+                .starts_with("aviso: no se pudo escribir el progreso de TASK-001 (disco lleno)"),
+            "{}",
+            s.stderr
+        );
+        let s = con_progreso(ok, |_| Ok(progreso::Refresco::Escrito)).salida(false, Idioma::Es);
+        assert_eq!(
+            (s.codigo, s.stdout.as_str(), s.stderr.as_str()),
+            (0, "start ok id=TASK-001\n", "")
+        );
+        let mut llamado = false;
+        let mal = Informe::nuevo("pausa", Resultado::Rechazada).con("id", "TASK-001");
+        let s = con_progreso(mal, |_| {
+            llamado = true;
+            Ok(progreso::Refresco::Escrito)
+        })
+        .salida(false, Idioma::Es);
+        assert_eq!((s.codigo, llamado), (3, false));
+        // `start` que ya lo intento: solo el aviso, sin volver a refrescar.
+        let ya = Informe::nuevo("start", Resultado::Ok)
+            .con("id", "TASK-001")
+            .con("progreso", "no-escrito");
+        let mut llamado = false;
+        let s = con_progreso(ya, |_| {
+            llamado = true;
+            Ok(progreso::Refresco::Escrito)
+        })
+        .salida(false, Idioma::Es);
+        assert_eq!((s.codigo, llamado), (0, false));
+        assert_eq!(s.stdout, "start ok id=TASK-001 progreso=no-escrito\n");
+        assert_eq!(s.stderr.lines().count(), 1, "{}", s.stderr);
+        let sin_cambios = Informe::nuevo("pausa", Resultado::SinCambios).con("id", "TASK-001");
+        let s = con_progreso(sin_cambios, |_| Err("x".to_owned())).salida(true, Idioma::En);
+        assert_eq!(s.codigo, 0);
+        assert!(
+            s.stdout.contains("\"progreso\":\"no-escrito\""),
+            "{}",
+            s.stdout
+        );
+        assert!(s.stderr.starts_with("warning: "), "{}", s.stderr);
     }
 
     #[test]
