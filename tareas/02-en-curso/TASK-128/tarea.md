@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [solape, progreso]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-128-seguimiento-de-f3-11-y-f3-12-aviso-de-so
 asignado_a: charlie.bk@gmail.com
@@ -37,6 +37,7 @@ Cerrar lo que quedo fuera de los ficheros citados en la revision de TASK-082 y e
 |---|---|---|---|---|
 | 2026-11-18T17:54:47Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-18T18:00:59Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-18T18:01:00Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
