@@ -13,7 +13,7 @@
 //! worktree), cada hueco con el tope de 45 min de F1-17. Pausada, el reloj
 //! no corre. Todo lo que viene del fichero se sanea (F1-17, punto 8).
 
-use super::fichero::{PASO_MIN, Progreso};
+use super::fichero::{PASO_MIN, Progreso, TOPE_MIN};
 use crate::estimacion::{UMBRAL_MIN, minutos};
 use crate::tablero::sanear;
 
@@ -55,12 +55,24 @@ pub fn transcurrido(p: &Progreso, ahora: u64, actividad: Option<u64>) -> (f64, f
     (p.transcurrido + antes + abierto.min(UMBRAL_MIN), abierto)
 }
 
-/// La parte de lo que falta.
+/// Aviso de una tabla que ya no llega a lo transcurrido (revision 1 de
+/// TASK-084, R1-05).
+pub const SATURADA: &str = "estimacion saturada: mas de 480 min en la fase";
+
+/// La parte de lo que falta. Pasado el ultimo punto de la tabla
+/// ([`TOPE_MIN`]), el dato es el de ese punto y la linea lo avisa: la tabla
+/// no se alarga porque una fase de mas de 8 h activas ya no se parece a sus
+/// parecidas y el fichero creceria sin aportar nada.
 fn lo_que_falta(p: &Progreso, t: f64) -> String {
     let i = ((t / PASO_MIN as f64).floor().max(0.0) as usize).min(p.tabla.len().saturating_sub(1));
     let nivel = sanear(&p.nivel, MAX_NIVEL);
-    match p.tabla.get(i) {
-        None => format!("faltan: sin estimacion (n={})", p.n),
+    let saturada = if t > TOPE_MIN as f64 {
+        format!("{SEP}{SATURADA}")
+    } else {
+        String::new()
+    };
+    let parte = match p.tabla.get(i) {
+        None => return format!("faltan: sin estimacion (n={})", p.n),
         Some(x) if x.desbordada => format!(
             "faltan ≥{} min (fase en curso por encima de sus parecidas){SEP}n={} {nivel}",
             minutos(x.mediana),
@@ -72,7 +84,8 @@ fn lo_que_falta(p: &Progreso, t: f64) -> String {
             minutos(x.p80),
             p.n
         ),
-    }
+    };
+    format!("{parte}{saturada}")
 }
 
 /// `linea(progreso, ahora, ultima_actividad)`: la linea de la tarea.
@@ -250,6 +263,54 @@ mod tests {
                 .all(|x| x.chars().count() <= MAX_AVISO_LINEA.max(MAX_NIVEL + 10)),
             "{l}"
         );
+    }
+
+    /// Revision 1 de TASK-084 (M1): a mitad de tramo (23 min) vale el punto
+    /// de los 20, no el de los 25 (`floor`, no `round`).
+    #[test]
+    fn m1_a_mitad_de_tramo_vale_el_punto_anterior() {
+        let (t, c) = tarea(EN_CURSO, &[(0, "start")]);
+        let p = calcular(&t, &c, &historico(), &Commits::vacios(), T0);
+        let p = p.unwrap_or_else(|| unreachable!());
+        let a_los_20 = linea(&p, T0 + 20 * 60, None);
+        let a_los_25 = linea(&p, T0 + 25 * 60, None);
+        assert_ne!(a_los_20, a_los_25);
+        assert_eq!(linea(&p, T0 + 23 * 60, None), a_los_20);
+        assert_eq!(linea(&p, T0 + 24 * 60 + 59, None), a_los_20);
+    }
+
+    /// Revision 1 de TASK-084 (M2): la frontera de «sin actividad
+    /// registrada»: a los 45 min no, a los 46 si.
+    #[test]
+    fn m2_frontera_de_sin_actividad() {
+        let p = ejemplo("TASK-001");
+        let a_los_45 = linea(&p, p.ultimo_evento + 45 * 60, None);
+        assert!(!a_los_45.contains("sin actividad"), "{a_los_45}");
+        let a_los_46 = linea(&p, p.ultimo_evento + 46 * 60, None);
+        assert!(
+            a_los_46.ends_with(" · sin actividad registrada hace 46 min"),
+            "{a_los_46}"
+        );
+    }
+
+    /// Revision 1 de TASK-084 (R1-05): pasado el ultimo punto de la tabla,
+    /// la linea avisa de que el dato esta saturado; en el punto, no.
+    #[test]
+    fn r1_05_pasado_el_tope_avisa_saturada() {
+        assert!(SATURADA.contains(&format!("{TOPE_MIN} min")));
+        let mut p = ejemplo("TASK-001");
+        p.transcurrido = TOPE_MIN as f64;
+        let en_el_tope = linea(&p, p.ultimo_evento, None);
+        assert!(!en_el_tope.contains("saturada"), "{en_el_tope}");
+        p.transcurrido = TOPE_MIN as f64 + 1.0;
+        let pasado = linea(&p, p.ultimo_evento, None);
+        assert!(
+            pasado.ends_with(&format!("faltan ≈50 min (p80 65) · n=6 repo · {SATURADA}")),
+            "{pasado}"
+        );
+        // Sin tabla no hay dato que saturar.
+        p.tabla.clear();
+        assert!(!linea(&p, p.ultimo_evento, None).contains("saturada"));
     }
 
     #[test]

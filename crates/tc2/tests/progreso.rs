@@ -292,6 +292,39 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     assert_eq!(linea(&a), "tc2 · sin tarea en curso");
 }
 
+/// Revision 1 de TASK-084 (M4): `reasignar` borra el progreso de la tarea en
+/// el clon de quien la suelta (sigue en curso, asi que `refrescar` lo
+/// reescribiria: solo lo quita la lista de borrado de `de_una_tarea`).
+#[test]
+fn m4_reasignar_borra_el_progreso() {
+    let f = Fixture::nueva("progreso-reasignar");
+    let (_bare, a) = preparar(&f);
+    poner(&f, &a, &seis());
+    let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    let (c, out, err) = tc2(&f, &a, &["start", "TASK-007"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    let actual = carpeta(&a).join("TASK-007.json");
+    assert!(actual.is_file());
+    assert!(linea(&a).starts_with("TASK-007 · "));
+    // Con la rama publicada (si no, `reasignar` se niega).
+    let o = Command::new("git")
+        .current_dir(&a)
+        .args(["push", "-q", "origin", "feature/task-007-siete"])
+        .envs(entorno_ssh(&f))
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", texto(&o.stderr));
+    let (c, out, err) = tc2(&f, &a, &["reasignar", "TASK-007", "beto"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert!(out.starts_with("reasignar ok id=TASK-007 "), "{out}");
+    assert!(!out.contains("progreso="), "{out}");
+    assert!(!actual.exists());
+    assert!(!carpeta(&a).join("TASK-007.anterior.json").exists());
+    assert_eq!(linea(&a), "tc2 · sin tarea en curso");
+}
+
 /// Un repo con `n` tareas en la rama de estado: las seis terminadas, la
 /// `TASK-007` en curso desde `inicio` y el resto planificadas. Devuelve el
 /// clon.
@@ -465,6 +498,88 @@ fn c9_status_seguir_como_proceso() {
     );
     assert!(!primera.contains('\u{1b}') && !segunda.contains('\u{1b}'));
     drop(hijo);
+}
+
+/// Revision 1 de TASK-084 (R1-01): fuera de un repo (la linea no cambia
+/// nunca), `tc2 status --seguir` termina solo poco despues de que se cierre
+/// el extremo de lectura de su stdout. Si en 10 s no ha terminado, se mata
+/// y el test falla.
+#[test]
+fn r1_01_status_seguir_termina_al_cerrarse_stdout_con_la_linea_fija() {
+    let f = Fixture::nueva("progreso-seguir-cierre");
+    let fuera = f.raiz.join("fuera");
+    std::fs::create_dir_all(&fuera).unwrap();
+    assert!(
+        progreso::buscar(&fuera).is_none(),
+        "la carpeta temporal esta dentro de un repo: el test no probaria nada"
+    );
+    let hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .current_dir(&fuera)
+        .args(["status", "--seguir"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("lanzar tc2 status --seguir");
+    let mut hijo = Hijo(hijo);
+    let stdout = hijo.0.stdout.take().unwrap();
+    // Un hilo lee la primera linea y suelta el extremo de lectura.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut lector = std::io::BufReader::new(stdout);
+        let mut l = String::new();
+        let _ = lector.read_line(&mut l);
+        drop(lector);
+        let _ = tx.send(l);
+    });
+    let primera = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("la linea inicial");
+    assert_eq!(primera, "tc2 · sin tarea en curso\n");
+    let t0 = std::time::Instant::now();
+    let limite = std::time::Duration::from_secs(10);
+    let estado = loop {
+        if let Some(e) = hijo.0.try_wait().unwrap() {
+            break Some(e);
+        }
+        if t0.elapsed() > limite {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let estado = estado.unwrap_or_else(|| {
+        panic!("tc2 status --seguir sigue vivo {limite:?} despues de cerrarse stdout")
+    });
+    println!("status --seguir termino {:?} tras el cierre", t0.elapsed());
+    assert_eq!(estado.code(), Some(0));
+    drop(hijo);
+}
+
+/// Revision 1 de TASK-084 (R1-03): `tc2 estado --stdin` con stdout cerrado
+/// (Claude Code dejo de leer) sale con 0 y no escribe en stderr.
+#[test]
+fn r1_03_estado_stdin_con_stdout_cerrado_sale_con_0_y_calla() {
+    let f = Fixture::nueva("progreso-estado-cerrado");
+    let fuera = f.raiz.join("fuera");
+    std::fs::create_dir_all(&fuera).unwrap();
+    let mut hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .current_dir(&fuera)
+        .args(["estado", "--stdin"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("lanzar tc2");
+    // Se cierra la lectura de su stdout antes de que termine de leer stdin:
+    // cuando escriba, el pipe ya esta roto.
+    drop(hijo.stdout.take());
+    let mut entrada = hijo.stdin.take().unwrap();
+    entrada.write_all(json_de(&fuera).as_bytes()).unwrap();
+    drop(entrada);
+    let o = hijo.wait_with_output().unwrap();
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stderr));
+    assert!(o.stderr.is_empty(), "{}", texto(&o.stderr));
 }
 
 /// `status --seguir --json` es `uso`: la vista que se repite no tiene JSON.

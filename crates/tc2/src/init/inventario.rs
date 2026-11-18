@@ -241,6 +241,10 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
 
 /// Donde se recomienda pegar la status line: el `settings.local.json` del
 /// proyecto, que no sustituye la de la 0.16 de `~/.claude/settings.json`.
+/// Es el ambito «Project local» de
+/// <https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect>
+/// (consultada el 2026-11-18): solo para quien lo escribe y en ese proyecto,
+/// fuera de git, y por encima de los otros dos.
 pub(super) const RUTA_STATUS_LINE: &str = ".claude/settings.local.json";
 
 /// La propuesta de la status line: la orden exacta en `orden=` y el bloque

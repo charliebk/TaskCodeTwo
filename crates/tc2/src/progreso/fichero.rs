@@ -165,13 +165,16 @@ pub fn leer(carpeta: &Path, id: &str) -> Lectura {
 }
 
 /// Escribe `p` en `carpeta`: antes, el que habia pasa a `.anterior.json`.
-/// Cada paso, de una vez ([`crate::huella::escribir_local`]).
+/// Cada paso, de una vez ([`crate::huella::escribir_local`]). Si el anterior
+/// no se puede escribir, el progreso se escribe igual (revision 1 de
+/// TASK-084, R1-04): el anterior solo es el respaldo de un fichero a medias,
+/// y sin el nuevo la linea se quedaria con el dato viejo.
 pub fn escribir(carpeta: &Path, p: &Progreso) -> std::io::Result<()> {
     let r = ruta(carpeta, &p.id);
     // Solo un anterior valido: si el actual quedo a medias, el anterior que
     // habia sigue siendo el ultimo bueno.
     if let Some(previo) = de(&r, &p.id) {
-        crate::huella::escribir_local(&ruta_anterior(carpeta, &p.id), &previo.json())?;
+        let _ = crate::huella::escribir_local(&ruta_anterior(carpeta, &p.id), &previo.json());
     }
     crate::huella::escribir_local(&r, &p.json())
 }
@@ -288,6 +291,22 @@ pub(crate) mod tests {
         borrar(&d, "TASK-001")?;
         assert_eq!(leer(&d, "TASK-001"), Lectura::Ninguno);
         assert!(ids(&d).is_empty());
+        let _ = std::fs::remove_dir_all(&d);
+        Ok(())
+    }
+
+    /// Revision 1 de TASK-084 (R1-04): si el anterior no se puede escribir
+    /// (aqui, una carpeta con su nombre), el progreso se escribe igual.
+    #[test]
+    fn sin_anterior_escribe_el_progreso() -> std::io::Result<()> {
+        let d = dir("anterior-roto");
+        let mut p = ejemplo("TASK-001");
+        escribir(&d, &p)?;
+        std::fs::create_dir_all(ruta_anterior(&d, "TASK-001").join("ocupado"))?;
+        p.calculada = 2_000;
+        escribir(&d, &p)?;
+        assert_eq!(leer(&d, "TASK-001"), Lectura::Bueno(p));
+        assert!(ruta_anterior(&d, "TASK-001").is_dir());
         let _ = std::fs::remove_dir_all(&d);
         Ok(())
     }

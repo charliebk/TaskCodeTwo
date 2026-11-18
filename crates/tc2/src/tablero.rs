@@ -274,9 +274,12 @@ fn avisos_ya_no_tuyas(v: &[(String, Quien)]) -> Vec<Mensaje> {
 
 /// Texto ajeno listo para imprimir (F1-17, decision 8): sin caracteres de
 /// control ni de formato (bidi, anchura cero), espacios juntados y como
-/// mucho `max` caracteres (con `…` si se corta).
+/// mucho `max` caracteres (con `…` si se corta). De formato: U+00AD (guion
+/// blando), U+061C (marca de letra arabe, bidi), U+180E (separador de
+/// vocales mongol), U+200B..U+200F, U+202A..U+202E, U+2060..U+2064
+/// (union de palabra y operadores invisibles), U+2066..U+2069 y U+FEFF.
 pub fn sanear(t: &str, max: usize) -> String {
-    let formato = |c: char| matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}');
+    let formato = |c: char| matches!(c, '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}');
     let limpio: String = t
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
@@ -980,6 +983,13 @@ mod tests {
     fn sanear_quita_controles_y_formato_y_acota() {
         assert_eq!(sanear("a\u{1b}[31mb\tc\n", 60), "a [31mb c");
         assert_eq!(sanear("x\u{202E}y\u{200B}z", 60), "xyz");
+        // Revision 1 de TASK-084 (R1-02): los demas de formato invisibles.
+        for c in [
+            '\u{00AD}', '\u{061C}', '\u{180E}', '\u{2060}', '\u{2061}', '\u{2062}', '\u{2063}',
+            '\u{2064}',
+        ] {
+            assert_eq!(sanear(&format!("x{c}y"), 60), "xy", "U+{:04X}", c as u32);
+        }
         assert_eq!(sanear("abcdef", 4), "abc…");
         assert_eq!(sanear("  dos   espacios ", 60), "dos espacios");
     }

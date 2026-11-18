@@ -37,27 +37,39 @@ fn main() -> ExitCode {
     }
     // F3-12: `status --seguir` escribe a trozos (una linea cada vez que
     // cambia), que `Salida` no sabe hacer. Termina con Ctrl+C o al cerrarse
-    // stdout, con codigo 0.
+    // stdout (en pocos segundos: fuera de una terminal repite la linea para
+    // enterarse, `progreso::REPETIR_SEGUIR`), con codigo 0.
     if args.len() == 2 && args[0] == tc2::tablero::STATUS && args[1] == tc2::tablero::SEGUIR {
         let dir = std::env::current_dir().unwrap_or_default();
         let mut stdout = std::io::stdout();
+        let repetir =
+            (!std::io::IsTerminal::is_terminal(&stdout)).then_some(tc2::progreso::REPETIR_SEGUIR);
         let _ = tc2::progreso::seguir(
             &dir,
             &mut stdout,
             &tc2::identidad::ahora,
             &|| false,
             tc2::progreso::ESPERA_SEGUIR,
+            repetir,
         );
         return ExitCode::SUCCESS;
     }
+    // La status line (`estado --stdin`) siempre sale con 0 y stderr vacio,
+    // tambien si Claude Code cerro stdout antes de leerla (revision 1 de
+    // TASK-084, R1-03): no hay a quien avisar.
+    let es_status_line = args.first().map(String::as_str) == Some(tc2::progreso::ESTADO);
     let salida = tc2::ejecutar_en(idioma, args);
     // Si no se puede escribir la salida (stdout cerrado), no se da por bueno:
     // quien lee el codigo 0 creeria que recibio la respuesta.
     let mut stdout = std::io::stdout();
-    if let Err(e) = stdout
+    let escrito = stdout
         .write_all(salida.stdout.as_bytes())
-        .and_then(|()| stdout.flush())
-    {
+        .and_then(|()| stdout.flush());
+    if es_status_line {
+        let _ = std::io::stderr().write_all(salida.stderr.as_bytes());
+        return ExitCode::from(salida.codigo);
+    }
+    if let Err(e) = escrito {
         let m = Mensaje::nuevo(&txt::NO_SE_PUDO_ESCRIBIR).con("error", e.to_string());
         let _ = writeln!(std::io::stderr(), "{}", m.texto(idioma));
         return ExitCode::from(1);

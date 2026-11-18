@@ -127,16 +127,36 @@ fn actividad(gitdir: &Path) -> Option<u64> {
 }
 
 /// La linea de una tarea leida.
-fn linea_de(l: &Lectura, id: &str, gitdir: &Path, ahora: u64) -> Option<(u64, String)> {
+/// `gitdir` es la carpeta git de su worktree, si se encontro.
+fn linea_de(l: &Lectura, id: &str, gitdir: Option<&Path>, ahora: u64) -> Option<(u64, String)> {
+    let act = || gitdir.and_then(actividad);
     match l {
         Lectura::Ninguno => None,
-        Lectura::Bueno(p) => Some((p.calculada, linea::linea(p, ahora, actividad(gitdir)))),
+        Lectura::Bueno(p) => Some((p.calculada, linea::linea(p, ahora, act()))),
         Lectura::Anterior(p) => Some((
             p.calculada,
-            linea::con_antiguedad(&linea::linea(p, ahora, actividad(gitdir)), p, ahora),
+            linea::con_antiguedad(&linea::linea(p, ahora, act()), p, ahora),
         )),
         Lectura::Ilegible => Some((0, linea::ilegible(id))),
     }
+}
+
+/// Las carpetas git de los worktrees de tarea, por ID. Cada carpeta
+/// administrativa (`<comun>/worktrees/<nombre>`) guarda en su fichero
+/// `gitdir` la ruta del `.git` de su worktree (absoluta, o relativa a ella);
+/// el ID sale de esa ruta y no del nombre de la carpeta, al que git anade un
+/// numero si choca con otro (revision 1 de TASK-084, M4).
+fn gitdirs_de_tareas(comun: &Path) -> std::collections::HashMap<String, PathBuf> {
+    std::fs::read_dir(comun.join("worktrees"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let admin = e.path();
+            let punto_git = junto(&admin, texto_corto(&admin.join("gitdir"))?.trim());
+            Some((id_de_worktree(punto_git.parent()?)?, admin))
+        })
+        .collect()
 }
 
 /// La linea de progreso para la carpeta `dir` a las `ahora`.
@@ -146,16 +166,17 @@ pub fn linea_en(dir: &Path, ahora: u64) -> String {
     };
     let carpeta = fichero::carpeta(&repo.comun);
     if let Some(id) = &repo.id {
-        return linea_de(&fichero::leer(&carpeta, id), id, &repo.gitdir, ahora)
+        return linea_de(&fichero::leer(&carpeta, id), id, Some(&repo.gitdir), ahora)
             .map_or_else(|| linea::SIN_TAREA.to_owned(), |(_, l)| l);
     }
     // En el principal (o en `tareas/`): la de calculo mas reciente.
     let ids = fichero::ids(&carpeta);
+    let gitdirs = gitdirs_de_tareas(&repo.comun);
     let mejor = ids
         .iter()
         .filter_map(|id| {
-            let gitdir = repo.comun.join("worktrees").join(id);
-            linea_de(&fichero::leer(&carpeta, id), id, &gitdir, ahora)
+            let gitdir = gitdirs.get(id).map(PathBuf::as_path);
+            linea_de(&fichero::leer(&carpeta, id), id, gitdir, ahora)
         })
         .max_by_key(|(calculada, _)| *calculada);
     match mejor {
@@ -272,28 +293,55 @@ pub fn quitar(g: &Git, dir: &Path, id: &str) -> Result<Refresco, String> {
 /// Cada cuanto mira `tc2 status --seguir`.
 pub const ESPERA_SEGUIR: std::time::Duration = std::time::Duration::from_secs(2);
 
+/// Vueltas de [`ESPERA_SEGUIR`] sin cambios tras las que `status --seguir`
+/// repite la linea cuando stdout no es una terminal (4 s: quien cierra el
+/// pipe ve terminar el proceso en unos 4 s como mucho).
+///
+/// Revision 1 de TASK-084 (R1-01): un proceso solo sabe que se cerro el
+/// extremo de lectura de su stdout cuando escribe (`EPIPE` en Unix, donde
+/// Rust ignora `SIGPIPE`; `ERROR_NO_DATA` en Windows). Sin escribir, con la
+/// linea fija (sin tarea en curso), `--seguir` quedaba vivo para siempre.
+/// Preguntar al sistema por el pipe (`poll` con `POLLERR` en Unix,
+/// `PeekNamedPipe` en Windows, que ademas pide permiso de lectura que el
+/// extremo de escritura no tiene) exige `unsafe`, prohibido en el workspace
+/// (`unsafe_code = "forbid"`); y una escritura vacia no llega al sistema
+/// (`Stdout` la absorbe en su buffer), asi que no detecta nada. Repetir la
+/// misma linea si llega al sistema y funciona igual en los dos. En una
+/// terminal no se repite (no hay pipe que se cierre: se corta con Ctrl+C o
+/// al cerrar la ventana), para no ensuciar la vista.
+pub const REPETIR_SEGUIR: u32 = 2;
+
 /// `tc2 status --seguir` (F1-17, punto 8): la misma lectura que la status
 /// line para `dir`, repetida cada `espera`. Escribe la linea al empezar y
-/// otra solo cuando cambia el texto (porque se reescribio el fichero o
-/// porque corrio el reloj), sin ANSI. Para cuando `parar()` es verdadero
-/// (despues de cada mirada) o cuando no se puede escribir (stdout cerrado:
-/// `Ok`). `reloj` y `parar` se inyectan en las pruebas; en el binario son la
-/// hora del sistema y nunca (lo corta Ctrl+C).
+/// otra cuando cambia el texto (porque se reescribio el fichero o porque
+/// corrio el reloj), sin ANSI; con `repetir = Some(n)`, tambien la repite
+/// tras `n` vueltas sin cambios, para enterarse de que stdout se cerro
+/// ([`REPETIR_SEGUIR`]). Para cuando `parar()` es verdadero (despues de
+/// cada mirada) o cuando no se puede escribir (stdout cerrado: `Ok`).
+/// `reloj` y `parar` se inyectan en las pruebas; en el binario son la hora
+/// del sistema y nunca (lo corta Ctrl+C o el cierre de stdout).
 pub fn seguir(
     dir: &Path,
     out: &mut dyn std::io::Write,
     reloj: &dyn Fn() -> u64,
     parar: &dyn Fn() -> bool,
     espera: std::time::Duration,
+    repetir: Option<u32>,
 ) -> std::io::Result<()> {
     let mut ultima: Option<String> = None;
+    let mut sin_cambios: u32 = 0;
     loop {
         let l = linea_en(dir, reloj());
-        if ultima.as_deref() != Some(l.as_str()) {
+        let cambia = ultima.as_deref() != Some(l.as_str());
+        if !cambia {
+            sin_cambios = sin_cambios.saturating_add(1);
+        }
+        if cambia || repetir.is_some_and(|n| sin_cambios >= n.max(1)) {
             if writeln!(out, "{l}").and_then(|()| out.flush()).is_err() {
                 return Ok(());
             }
             ultima = Some(l);
+            sin_cambios = 0;
         }
         if parar() {
             return Ok(());
@@ -466,6 +514,7 @@ mod tests {
             &|| 1_000,
             &parar,
             std::time::Duration::ZERO,
+            None,
         )?;
         let texto = String::from_utf8_lossy(&out).into_owned();
         let lineas: Vec<&str> = texto.lines().collect();
@@ -496,7 +545,73 @@ mod tests {
             &|| 1_000,
             &|| false,
             std::time::Duration::ZERO,
+            Some(REPETIR_SEGUIR),
         )?;
+        // Revision 1 de TASK-084 (R1-01): con `repetir`, la linea fija se
+        // repite cada `n` vueltas sin cambios (por eso se entera del cierre);
+        // sin el, no.
+        for (repetir, esperadas) in [(Some(2), 3), (None, 1)] {
+            let vueltas = std::cell::Cell::new(0);
+            let parar = || {
+                vueltas.set(vueltas.get() + 1);
+                vueltas.get() >= 5
+            };
+            let mut out = Vec::new();
+            seguir(
+                &principal,
+                &mut out,
+                &|| 1_000,
+                &parar,
+                std::time::Duration::ZERO,
+                repetir,
+            )?;
+            let texto = String::from_utf8_lossy(&out).into_owned();
+            assert_eq!(texto.lines().count(), esperadas, "{repetir:?}: {texto}");
+            assert!(texto.lines().all(|l| l == lineas[1]), "{texto}");
+        }
+        let _ = std::fs::remove_dir_all(&raiz);
+        Ok(())
+    }
+
+    /// Revision 1 de TASK-084 (M4): desde el principal, la actividad de una
+    /// tarea es el `logs/HEAD` de la carpeta administrativa cuyo `gitdir`
+    /// apunta a su worktree, aunque esa carpeta no se llame como el ID (git
+    /// le anade un numero si choca).
+    #[test]
+    fn m4_actividad_con_carpeta_administrativa_de_otro_nombre() -> std::io::Result<()> {
+        let raiz = dir("admin");
+        let principal = raiz.join("p");
+        let comun = principal.join(".git");
+        std::fs::create_dir_all(&comun)?;
+        let carpeta = fichero::carpeta(&comun);
+        let p = fichero::tests::ejemplo("TASK-001");
+        fichero::escribir(&carpeta, &p)?;
+        let ahora = p.ultimo_evento + 100 * 60;
+        let sin = linea_en(&principal, ahora);
+        assert!(
+            sin.ends_with("sin actividad registrada hace 100 min"),
+            "{sin}"
+        );
+        // Una carpeta administrativa con el nombre del ID que no es la suya
+        // (apunta a otro sitio) no cuenta.
+        let cuando =
+            std::time::UNIX_EPOCH + std::time::Duration::from_secs(p.ultimo_evento + 90 * 60);
+        let poner = |nombre: &str, gitdir: &Path| -> std::io::Result<()> {
+            let admin = comun.join("worktrees").join(nombre);
+            std::fs::create_dir_all(admin.join("logs"))?;
+            std::fs::write(admin.join("gitdir"), format!("{}\n", gitdir.display()))?;
+            let head = std::fs::File::create(admin.join("logs").join("HEAD"))?;
+            head.set_modified(cuando)
+        };
+        poner("TASK-001", &raiz.join("otro").join(".git"))?;
+        assert_eq!(linea_en(&principal, ahora), sin);
+        // La suya, con sufijo (y `gitdir` relativo a ella): 10 min abiertos.
+        poner(
+            "TASK-0011",
+            Path::new("../../../.taskcodetwo/worktrees/TASK-001/.git"),
+        )?;
+        let con = linea_en(&principal, ahora);
+        assert!(!con.contains("sin actividad"), "{con}");
         let _ = std::fs::remove_dir_all(&raiz);
         Ok(())
     }
