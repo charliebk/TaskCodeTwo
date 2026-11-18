@@ -39,8 +39,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-083, TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124
+- **En marcha:** TASK-083 (en diseño)
+- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-114, TASK-117, TASK-118, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -109,7 +109,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-079 | F3-5b status y roadmap siempre frescos | — | TASK-032 | ✅ terminada |
 | — | TASK-080 | F3-9 Inventario de skills y agentes instalados | — | TASK-016, TASK-073 | ✅ terminada |
 | — | TASK-081 | F3-10 Liberar y reasignar tareas abandonadas | — | TASK-033 | ✅ terminada |
-| 1 | TASK-083 | F3-13 Estimacion por fase de cada tarea al planificar | — | TASK-029, TASK-075 | lista para empezar |
+| 1 | TASK-083 | F3-13 Estimacion por fase de cada tarea al planificar | — | TASK-029, TASK-075 | ▶ en diseño |
 | 2 | TASK-084 | F3-12 Progreso en vivo: fases que faltan y tiempo restante | — | TASK-018, TASK-083 | espera a TASK-083 |
 | 4 | TASK-082 | F3-11 Aviso de solape entre tareas en curso | — | TASK-033, TASK-036 | espera a TASK-036 |
 

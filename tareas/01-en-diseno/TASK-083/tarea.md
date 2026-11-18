@@ -6,10 +6,10 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-083-f3-13-estimacion-por-fase-de-cada-tarea
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-18
 dependencias: [TASK-029, TASK-075]
 ---
 ## Objetivo
@@ -34,3 +34,9 @@ Contexto (Carlos, 2026-11-14, RR-19, imprescindible): mientras se trabaja lo imp
 - [ ] Cada tarea planificada tiene su estimación por fase
 - [ ] el error se mide
 - [ ] Cumple lo que pide la tarea F3-13 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-18T00:08:14Z | plan | automatico | persona | 0.16.1 |
