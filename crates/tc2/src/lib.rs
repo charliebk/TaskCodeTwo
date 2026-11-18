@@ -93,6 +93,8 @@ where
 {
     let args: Vec<String> = args.into_iter().map(|a| a.as_ref().to_owned()).collect();
     match args.as_slice() {
+        // F3-12: la status line, lo primero y sin identidad, catalogo ni git.
+        [a, b] if a == progreso::ESTADO && b == "--stdin" => progreso::estado_del_proceso(),
         [a] if a == "--version" || a == "-V" => Salida {
             codigo: 0,
             stdout: format!(
