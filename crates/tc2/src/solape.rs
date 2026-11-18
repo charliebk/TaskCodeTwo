@@ -773,6 +773,7 @@ mod tests {
     /// de cuenta, aunque el login haya cambiado); si las de otra persona y
     /// las sin asignar.
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn otras_quita_la_propia_y_las_de_la_misma_persona() {
         let t = |id: &str, asignado: Option<Asignado>| EnCurso {
             id: id.to_owned(),

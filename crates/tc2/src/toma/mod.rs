@@ -224,12 +224,18 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
             }
             // El progreso en vivo (F3-12), con lo que ya calculo la toma.
             // Un fallo no cambia el resultado: `progreso=no-escrito`, y
-            // `lib.rs` lo avisa por stderr.
+            // `lib.rs` lo avisa por stderr; sin rotar el anterior,
+            // `progreso=sin-anterior` sin aviso (TASK-128).
             if i.resultado.es_exito()
                 && let Some(p) = op.progreso()
-                && crate::progreso::escribir_en(g, &principal, &p).is_err()
             {
-                i = i.con(crate::progreso::CLAVE, crate::progreso::NO_ESCRITO);
+                match crate::progreso::escribir_en(g, &principal, &p) {
+                    Err(_) => i = i.con(crate::progreso::CLAVE, crate::progreso::NO_ESCRITO),
+                    Ok(crate::progreso::fichero::Anterior::NoEscrito) => {
+                        i = i.con(crate::progreso::CLAVE, crate::progreso::SIN_ANTERIOR);
+                    }
+                    Ok(_) => {}
+                }
             }
             // El solape (F3-11) con las tareas en curso que leyo la toma.
             Ok(destino.con_solape(i, &quien, || op.en_curso(), s))

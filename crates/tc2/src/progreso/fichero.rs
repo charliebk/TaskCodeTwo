@@ -134,8 +134,17 @@ fn bytes(ruta: &Path) -> Option<Vec<u8>> {
 
 /// Un progreso valido de `ruta`, si lo hay.
 fn de(ruta: &Path, id: &str) -> Option<Progreso> {
-    let p: Progreso = serde_json::from_slice(&bytes(ruta)?).ok()?;
+    de_bytes(&bytes(ruta)?, id)
+}
+
+fn de_bytes(b: &[u8], id: &str) -> Option<Progreso> {
+    let p: Progreso = serde_json::from_slice(b).ok()?;
     (p.valido() && p.id == id).then_some(p)
+}
+
+/// Si `b` es un progreso valido de `id`.
+fn valido(b: &[u8], id: &str) -> bool {
+    de_bytes(b, id).is_some()
 }
 
 /// Lo que da la lectura de una tarea.
@@ -164,19 +173,47 @@ pub fn leer(carpeta: &Path, id: &str) -> Lectura {
     de(&ruta_anterior(carpeta, id), id).map_or(Lectura::Ilegible, Lectura::Anterior)
 }
 
+/// Que paso con el `.anterior.json` al escribir un progreso.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Anterior {
+    /// El que habia paso a ser el anterior.
+    Rotado,
+    /// No habia progreso: no hay anterior que escribir.
+    SinPrevio,
+    /// Habia progreso pero no paso a ser el anterior: no se pudo leer
+    /// entero (a medias, o abierto por otro proceso) o no se pudo escribir.
+    /// El nuevo se escribio igual (TASK-128: ya no se calla).
+    NoEscrito,
+}
+
 /// Escribe `p` en `carpeta`: antes, el que habia pasa a `.anterior.json`.
 /// Cada paso, de una vez ([`crate::huella::escribir_local`]). Si el anterior
 /// no se puede escribir, el progreso se escribe igual (revision 1 de
 /// TASK-084, R1-04): el anterior solo es el respaldo de un fichero a medias,
-/// y sin el nuevo la linea se quedaria con el dato viejo.
-pub fn escribir(carpeta: &Path, p: &Progreso) -> std::io::Result<()> {
+/// y sin el nuevo la linea se quedaria con el dato viejo. Lo que paso con el
+/// anterior se devuelve (TASK-128) para que la transicion lo diga.
+pub fn escribir(carpeta: &Path, p: &Progreso) -> std::io::Result<Anterior> {
     let r = ruta(carpeta, &p.id);
     // Solo un anterior valido: si el actual quedo a medias, el anterior que
     // habia sigue siendo el ultimo bueno.
-    if let Some(previo) = de(&r, &p.id) {
-        let _ = crate::huella::escribir_local(&ruta_anterior(carpeta, &p.id), &previo.json());
-    }
-    crate::huella::escribir_local(&r, &p.json())
+    let anterior = if !r.exists() {
+        Anterior::SinPrevio
+    } else {
+        // Los bytes tal cual, no el progreso vuelto a serializar: un `f64`
+        // leido y reescrito por `serde_json` puede cambiar en la ultima cifra
+        // (TASK-128), y el anterior dejaria de ser el fichero que habia.
+        match bytes(&r).filter(|b| valido(b, &p.id)) {
+            Some(previo) => {
+                match crate::huella::escribir_local(&ruta_anterior(carpeta, &p.id), &previo) {
+                    Ok(()) => Anterior::Rotado,
+                    Err(_) => Anterior::NoEscrito,
+                }
+            }
+            None => Anterior::NoEscrito,
+        }
+    };
+    crate::huella::escribir_local(&r, &p.json())?;
+    Ok(anterior)
 }
 
 /// Borra el progreso de `id` (y su anterior). Que no exista no es un fallo.
@@ -241,6 +278,52 @@ pub(crate) mod tests {
             .join(format!("progreso-fichero-{nombre}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
+    }
+
+    /// TASK-128: `escribir` dice que paso con el anterior. Sin progreso,
+    /// `SinPrevio`; con uno bueno, `Rotado`; si el anterior no se puede
+    /// escribir (aqui, una carpeta ocupa su ruta), `NoEscrito` y el nuevo
+    /// queda escrito igual; sobre uno a medias, `NoEscrito`.
+    #[test]
+    fn escribir_dice_que_paso_con_el_anterior() -> std::io::Result<()> {
+        let d = dir("rotacion");
+        let mut p = ejemplo("TASK-001");
+        assert_eq!(escribir(&d, &p)?, Anterior::SinPrevio);
+        p.calculada = 2_000;
+        assert_eq!(escribir(&d, &p)?, Anterior::Rotado);
+        std::fs::remove_file(ruta_anterior(&d, "TASK-001"))?;
+        std::fs::create_dir_all(ruta_anterior(&d, "TASK-001").join("ocupada"))?;
+        p.calculada = 3_000;
+        assert_eq!(escribir(&d, &p)?, Anterior::NoEscrito);
+        assert_eq!(leer(&d, "TASK-001"), Lectura::Bueno(p.clone()));
+        std::fs::remove_dir_all(ruta_anterior(&d, "TASK-001"))?;
+        let json = p.json();
+        std::fs::write(ruta(&d, "TASK-001"), &json[..json.len() / 2])?;
+        p.calculada = 4_000;
+        assert_eq!(escribir(&d, &p)?, Anterior::NoEscrito);
+        assert_eq!(leer(&d, "TASK-001"), Lectura::Bueno(p));
+        let _ = std::fs::remove_dir_all(&d);
+        Ok(())
+    }
+
+    /// TASK-128, causa del `progreso::c3` intermitente: el anterior es el
+    /// fichero que habia byte a byte, tambien con un `transcurrido` que
+    /// `serde_json` no devuelve igual al leerlo y reescribirlo (este valor
+    /// cambia en la ultima cifra; con el progreso re-serializado, falla).
+    #[test]
+    fn el_anterior_es_el_fichero_que_habia_byte_a_byte() -> std::io::Result<()> {
+        let d = dir("bytes");
+        let mut p = ejemplo("TASK-001");
+        p.transcurrido = 0.009_027_842_777_777_777;
+        escribir(&d, &p)?;
+        let habia = std::fs::read(ruta(&d, "TASK-001"))?;
+        assert_eq!(habia, p.json());
+        let mut q = p.clone();
+        q.calculada = 2_000;
+        assert_eq!(escribir(&d, &q)?, Anterior::Rotado);
+        assert_eq!(std::fs::read(ruta_anterior(&d, "TASK-001"))?, habia);
+        let _ = std::fs::remove_dir_all(&d);
+        Ok(())
     }
 
     /// C3 (en pequeno) y C8: al reescribir, el bueno pasa a `.anterior`; un

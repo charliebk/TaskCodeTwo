@@ -181,6 +181,17 @@ fn linea(dir: &Path) -> String {
     s.trim_end().to_owned()
 }
 
+/// Tras una transicion que reescribe el progreso, el que habia (`previo`)
+/// paso a `.anterior.json`, o la linea lo dice con `progreso=sin-anterior`
+/// (TASK-128: bajo carga en Windows la rotacion puede fallar, y ya no se
+/// calla). En los dos casos stderr no cambia.
+fn rotado(out: &str, anterior: &Path, previo: &[u8]) {
+    let dice = out.trim_end().ends_with(" progreso=sin-anterior");
+    let rota = std::fs::read(anterior).is_ok_and(|a| a == previo);
+    assert!(rota || dice, "ni rotado ni sin-anterior: {out}");
+    assert!(!(rota && dice), "rotado y sin-anterior a la vez: {out}");
+}
+
 /// C3: en un E2E con remoto local, tras `start`, `pausa` y `reanudar` el
 /// fichero se reescribe, la linea cambia y el anterior queda en
 /// `.anterior.json`; tras `descartar` o `liberar`, «sin tarea en curso». Un
@@ -221,7 +232,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     assert_eq!(c, Some(0), "{out} {err}");
     let tras_pausa = std::fs::read(&actual).unwrap();
     assert_ne!(tras_pausa, tras_start);
-    assert_eq!(std::fs::read(&anterior).unwrap(), tras_start);
+    rotado(&out, &anterior, &tras_start);
     let l_pausa = linea(&wt);
     assert!(
         l_pausa.starts_with("TASK-007 · pausada en implementacion · "),
@@ -231,7 +242,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     let (c, out, err) = tc2(&f, &a, &["reanudar", "TASK-007"]);
     assert_eq!(c, Some(0), "{out} {err}");
     assert_ne!(std::fs::read(&actual).unwrap(), tras_pausa);
-    assert_eq!(std::fs::read(&anterior).unwrap(), tras_pausa);
+    rotado(&out, &anterior, &tras_pausa);
     let l_reanudar = linea(&wt);
     assert!(
         l_reanudar.starts_with("TASK-007 · implementacion · "),
