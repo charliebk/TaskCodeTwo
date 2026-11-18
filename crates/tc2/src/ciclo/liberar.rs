@@ -575,6 +575,9 @@ mod tests {
             Some(rama)
         );
         assert_eq!(actividad_conocida(None, None, AHORA), None);
+        // Sin fila, solo el commit de la rama (TASK-125: lo cubria el test
+        // de `situacion::actividad`, que ya no existe).
+        assert_eq!(actividad_conocida(None, Some(rama), AHORA), Some(rama));
         let borde = AHORA + MARGEN_FUTURO;
         assert_eq!(
             actividad_conocida(Some(fila), Some(borde), AHORA),
