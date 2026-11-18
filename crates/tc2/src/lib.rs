@@ -16,7 +16,8 @@
 //! [`importar`] (alta en bloque con dependencias e hito, F3-2) y [`grafo`] y
 //! [`siguiente`] (orden de trabajo y `next`, F3-3) y [`situacion`] y
 //! [`roadmap`] (el calculo comun y `roadmap`, F3-4) y [`tablero`]
-//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`ciclo`]
+//! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`solape`]
+//! (aviso de solape de `start`, F3-11) y [`ciclo`]
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
 //! F3-10) y [`doctor`] (F3-8). Las capas
 //! que vienen entran como modulos de esta biblioteca.
@@ -47,6 +48,7 @@ pub mod recursos;
 pub mod roadmap;
 pub mod siguiente;
 pub mod situacion;
+pub mod solape;
 pub mod tablero;
 pub mod tarea;
 pub mod toma;
