@@ -42,6 +42,7 @@ pub mod init;
 pub mod instalacion;
 pub mod inventario;
 pub mod plataforma;
+pub mod progreso;
 pub mod recursos;
 pub mod roadmap;
 pub mod siguiente;
