@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-082-f3-11-aviso-de-solape-entre-tareas-en-cu
 asignado_a: charlie.bk@gmail.com
@@ -89,6 +89,7 @@ Incidencias de proceso: la verificacion completa tardo casi tres horas en salir 
 | 2026-11-18T08:50:06Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-18T08:50:07Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T12:02:52Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T13:08:56Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -104,3 +105,10 @@ Incidencias de proceso: la verificacion completa tardo casi tres horas en salir 
 ## Verificacion ligera
 
 - 2026-11-18T12:43:16Z: ronda 1; commit revisado 1866457c7b052bf73ffa8205973f0d364b28b111; commit verificado 5bb28557661b6c8b423cfb36a85bbf0086b1d856; ficheros: crates/tc2/src/solape.rs, crates/tc2/tests/liberar.rs, crates/tc2/tests/solape.rs; corregidos: R1-01, R1-02, R1-03, R1-04, H1, H3; pendientes: H2
+
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 259 min
+- Paso de la hora: 259 min reales frente a 180 estimados
+- Cierre (finish): 1496 s, de 2026-11-18T12:44:00Z a 2026-11-18T13:08:56Z
