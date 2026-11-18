@@ -467,6 +467,23 @@ motivo en [AMPLIACION-2026-11-16](AMPLIACION-2026-11-16.md).
 | F10-16 | App Vue del visor con dockview y PrimeVue: paneles de red completa 3D, por ficheros, por etiquetas, etiquetas y ficheros, búsqueda y detalle de tarea, con su disposición guardada (RF-84) | Las cuatro vistas abiertas a la vez con el grafo de ToolsaWeb; la disposición se conserva al volver a abrir | F10-15 |
 | F10-17 | Efectos del visor y panel de actividad: pulso de la búsqueda (brillo y partículas en etiquetas y relaciones durante unos cientos de ms), halo verde o rojo en el fichero según líneas añadidas o borradas, aparición de los ficheros creados y apagado de los borrados, y panel de dockview con la pila de búsquedas (consulta, etiquetas, ficheros y tareas) y ficheros cambiados, creados o borrados en tiempo real, sincronizado con el grafo (RF-84) | Una búsqueda ilumina exactamente los nodos y aristas devueltos por `tc2 buscar`; añadir y borrar líneas destella verde y rojo en el fichero correcto; un fichero creado aparece en la red unido a la tarea en curso; cada evento aparece en la pila y en el grafo a la vez; pulsar una entrada de la pila resalta y centra sus nodos | F10-16 |
 
+### Fase 11 — Panel web: dashboard y planificación (RR-11, RR-12)
+
+> Añadida el 2026-11-18 por decisión de Carlos. Nace del dashboard de progreso y coste que se hizo para ToolsaWeb ese día, que sirve de referencia funcional. Ocupa el hito H11 (el H10 quedó descartado con la Fase 10).
+
+`tc2 panel` sirve en local una página Vue de solo lectura con dos pestañas para cada programador: **Dashboard** (progreso, producción diaria, coste por día, por hito y por tarea, y quién hizo cada tarea) y **Planificación** (tareas por persona, en el orden de `tc2 next`, con sus predecesoras).
+
+| ID | Tarea | Criterio de aceptación | Dep. |
+|---|---|---|---|
+| F11-1 | ADR del panel web: servidor local de solo lectura con token, Vue embebido, origen de los datos y contrato JSON v1 | ADR con alternativas, decisión y motivo | — |
+| F11-2 | Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas (`tc2 panel --json`) | Con ToolsaWeb, 399 tareas y 171 terminadas a 2026-11-18; lee la 0.16 y la rama de estado | F11-1 |
+| F11-3 | Coste por tarea con tarifas por modelo configurables y desglose de entrada, salida y caché | Coste exacto donde F8-1 da el desglose y estimación marcada donde no | F11-2, F8-1 |
+| F11-4 | Esqueleto web Vue servido por `tc2 panel`: pestañas, tema y build embebido | Se abre sin Node ni red; build reproducible | F11-1 |
+| F11-5 | Pestaña Dashboard con persona de cada tarea y filtros por persona e hito | Reproduce las cifras del dashboard de referencia de ToolsaWeb | F11-3, F11-4 |
+| F11-6 | Pestaña Planificación: tareas por persona, predecesoras y sucesoras y grafo de dependencias | Mismo orden que `tc2 next`; avisa de esperas entre personas | F11-2, F11-4, TASK-122 |
+| F11-7 | Proyección de fechas por persona y por hito con el ritmo medido | Sin datos de ritmo no inventa fechas | F11-6 |
+| F11-8 | Pruebas E2E del panel y paridad con el dashboard de referencia | Pasa en Windows, macOS y Linux | F11-5..F11-7 |
+
 ## 9. Criterios de salida de la 2.0
 
 - Los **veinte requisitos rectores** se cumplen, cada uno con su prueba o su
