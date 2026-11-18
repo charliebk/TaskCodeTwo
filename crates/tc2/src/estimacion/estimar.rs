@@ -264,6 +264,7 @@ pub fn restante(parecidas: &[&Muestra], fase: Fase, transcurrido: f64) -> Option
         .filter(|m| actual.is_none_or(|a| real(m, a) > transcurrido))
         .collect();
     let condicionada = vivas.len() >= N_MIN && actual.is_some();
+    let desbordada = actual.is_some() && vivas.len() < N_MIN;
     let base: Vec<&Muestra> = if vivas.len() >= N_MIN {
         vivas.clone()
     } else {
@@ -272,6 +273,15 @@ pub fn restante(parecidas: &[&Muestra], fase: Fase, transcurrido: f64) -> Option
     let xs: Vec<f64> = base
         .iter()
         .map(|m| {
+            if desbordada {
+                // Lo que queda de la fase en curso no se sabe: la cota es
+                // solo lo de las fases siguientes (punto 5 de F1-17).
+                return siguientes
+                    .iter()
+                    .filter(|f| Some(**f) != actual)
+                    .map(|f| real(m, f))
+                    .sum();
+            }
             let mut r: f64 = siguientes.iter().map(|f| real(m, f)).sum();
             if let Some(a) = actual {
                 r -= transcurrido.min(real(m, a));
@@ -284,7 +294,7 @@ pub fn restante(parecidas: &[&Muestra], fase: Fase, transcurrido: f64) -> Option
         p80: cuantil(&xs, P80)?,
         n: base.len(),
         condicionada,
-        desbordada: actual.is_some() && vivas.len() < N_MIN,
+        desbordada,
     })
 }
 
@@ -469,6 +479,29 @@ mod tests {
         // 45 minutos: solo 2 por encima, desbordada; la cota sale de todas.
         let r = restante(&p, Fase::Implementacion, 45.0);
         assert_eq!(r.map(|r| (r.n, r.desbordada)), Some((6, true)));
+        // R1-03: desbordada, la cota es la mediana de las fases siguientes
+        // (rondas 10 + cierre 5 = 15), no lo que quedaria de la fase en
+        // curso en las parecidas (que daria 25 con estas).
+        let ms2: Vec<Muestra> = [10.0, 20.0, 50.0, 60.0, 70.0, 80.0]
+            .iter()
+            .enumerate()
+            .map(|(i, x)| muestra(&format!("TASK-{i:03}"), F, None, 2, *x))
+            .collect();
+        let p2: Vec<&Muestra> = ms2.iter().collect();
+        let r = restante(&p2, Fase::Implementacion, 45.0);
+        assert_eq!(
+            r.map(|r| (r.mediana, r.n, r.condicionada, r.desbordada)),
+            Some((15.0, 6, false, true))
+        );
+        // En rondas desbordada, solo el cierre.
+        let r = restante(&p2, Fase::Rondas, 11.0);
+        assert_eq!(r.map(|r| (r.mediana, r.desbordada)), Some((5.0, true)));
+        // Con 5 que pasaron, condicionada (sin cota): lo que les queda.
+        let r = restante(&p2, Fase::Implementacion, 15.0);
+        assert_eq!(
+            r.map(|r| (r.mediana, r.condicionada, r.desbordada)),
+            Some((60.0, true, false))
+        );
         // En rondas, lo que falta son rondas y cierre.
         let r = restante(&p, Fase::Rondas, 0.0);
         assert_eq!(r.map(|r| r.mediana), Some(15.0));
