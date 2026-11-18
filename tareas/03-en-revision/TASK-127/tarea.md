@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 408633
 tokens_implementacion: 5806770
-tokens_revision: 3085646
+tokens_revision: 9947241
 creado: 2026-11-18
 actualizado: 2026-11-18
 dependencias: []
@@ -48,6 +48,8 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 | 2026-11-18T14:10:54Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 70 | 56201 | 5734068 | 16431 | 5 | 5806770 | - | - |
 | 2026-11-18T14:21:31Z | revision | agente:a324a0b1d78124359 | 20 | 103964 | 860702 | 5539 | 2 | 970225 | 1 | rust-wasm-reviewer |
 | 2026-11-18T14:21:31Z | revision | agente:a4b729769f42ff4bd | 38 | 131669 | 1967278 | 16436 | 4 | 2115421 | 1 | code-quality-reviewer |
+| 2026-11-18T15:25:46Z | revision | agente:a372d86c1374fda45 | 90 | 156613 | 5380027 | 30622 | 11 | 5567352 | 2 | code-quality-reviewer |
+| 2026-11-18T15:25:46Z | revision | agente:af057479711085659 | 24 | 122452 | 1160516 | 11251 | 9 | 1294243 | 2 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -55,3 +57,10 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 - code-quality-reviewer — 22ffc96
 - rust-wasm-reviewer — 4589b99
 - code-quality-reviewer — 4589b99
+- rust-wasm-reviewer — eb0eb3d
+- code-quality-reviewer — eb0eb3d
+
+
+## Rondas extra
+
+- Ronda 3: Carlos (consigna del 2026-11-18: opcion recomendada en las cuatro tareas del H0). IMP-1 seguia abierto solo por el cableado de HASH_OBJECT_INCOMPLETO en construir_commit; la correccion es barata (hashear con test de git real), asi que se verifica en una ronda mas en vez de aceptarlo.
