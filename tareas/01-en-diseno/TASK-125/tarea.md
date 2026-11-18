@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: [tablero]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-125-seguimiento-de-f3-10-quitar-la-copia-vie
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -29,3 +29,9 @@ Quitar situacion::actividad, que quedo sin usos fuera de sus tests tras TASK-081
 ## Criterios de aceptacion
 - [ ] situacion::actividad no existe o delega en ciclo::liberar::actividad_conocida, y no queda ningun comentario que diga que una fecha futura cuenta como de hoy
 - [ ] Los tests de situacion, tablero y liberar siguen en verde
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-18T20:40:58Z | plan | automatico | persona | 0.16.1 |
