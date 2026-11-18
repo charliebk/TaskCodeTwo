@@ -165,7 +165,13 @@ where
         }
         [orden, resto @ ..] if orden == toma::NOMBRE => {
             let (json, resto) = con_json(resto);
-            de_una_tarea(toma::NOMBRE, (json, idioma), |e| toma::orden(&resto, e))
+            let mut solape = None;
+            let s = de_una_tarea(toma::NOMBRE, (json, idioma), |e| {
+                let (i, s) = toma::orden_con_solape(&resto, e);
+                solape = s;
+                i
+            });
+            con_aviso_de_solape(s, solape.as_ref(), idioma)
         }
         [orden, resto @ ..] if orden == ciclo::DESCARTAR => {
             let (json, resto) = con_json(resto);
@@ -233,6 +239,20 @@ fn con_aviso(mut s: Salida, parecidas: &[alta::Parecida], idioma: Idioma) -> Sal
         && let Some(a) = alta::aviso_parecidas(parecidas, idioma)
     {
         s.stderr.push_str(&a);
+        s.stderr.push('\n');
+    }
+    s
+}
+
+/// El aviso de solape de `start` (F3-11) va a stderr con codigo 0, como el
+/// de titulos parecidos: solo para la persona; el canal fiable son las
+/// claves `solape*` de la linea y del JSON. Nunca cambia codigo ni stdout.
+fn con_aviso_de_solape(mut s: Salida, solape: Option<&solape::Solape>, idioma: Idioma) -> Salida {
+    if s.codigo != 0 {
+        return s;
+    }
+    for a in solape.map(solape::Solape::avisos).unwrap_or_default() {
+        s.stderr.push_str(&a.texto(idioma));
         s.stderr.push('\n');
     }
     s

@@ -25,4 +25,24 @@ crate::i18n::textos! {
         es: "la tarea {id} depende de tareas sin terminar ({ids}): terminalas antes o elige otra con tc2 next",
         en: "task {id} depends on unfinished tasks ({ids}): finish them first or pick another one with tc2 next",
     }
+    AVISO_SOLAPE {
+        es: "aviso: {id} ({quien}) toca {que}: hablad antes de seguir (solo es un aviso; start ya se hizo)",
+        en: "warning: {id} ({quien}) touches {que}: talk before going on (only a warning; start is done)",
+    }
+    SOLAPE_FICHEROS {
+        es: "los mismos ficheros ({ficheros})",
+        en: "the same files ({ficheros})",
+    }
+    SOLAPE_MODULOS {
+        es: "los mismos modulos ({modulos})",
+        en: "the same modules ({modulos})",
+    }
+    SOLAPE_FICHEROS_Y_MODULOS {
+        es: "los mismos ficheros ({ficheros}) y modulos ({modulos})",
+        en: "the same files ({ficheros}) and modules ({modulos})",
+    }
+    NOTA_EN_CURSO {
+        es: "nota: tu rama aun no cambia nada; en curso con rama publicada: {tareas}",
+        en: "note: your branch changes nothing yet; in progress with a published branch: {tareas}",
+    }
 }

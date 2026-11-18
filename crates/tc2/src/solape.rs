@@ -21,6 +21,8 @@ use std::path::Path;
 
 use crate::contrato::Informe;
 use crate::git::{self, Git};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::toma as txt;
 use crate::plataforma::Personas;
 use crate::situacion::{self, Ficha};
 use crate::tarea::Documento;
@@ -277,6 +279,78 @@ impl Solape {
         i = lista(i, "solape-incompleto", self.incompletas.clone(), &mut t);
         if t { i.con("solape-truncado", "si") } else { i }
     }
+
+    /// Lo que se dice a la persona por stderr (D3b y D4a de TASK-082): una
+    /// linea `aviso:` por tarea que cruza y, en el primer `start`, una
+    /// `nota:` con las tareas en curso con rama publicada, su @ y sus
+    /// modulos. Login, rutas e IDs son texto ajeno: van saneados (F1-17,
+    /// punto 8). Sin nada que decir, vacio.
+    pub fn avisos(&self) -> Vec<Mensaje> {
+        let mut v: Vec<Mensaje> = self
+            .cruces
+            .iter()
+            .map(|c| {
+                let ficheros = resumen(c.ficheros.iter().map(String::as_str));
+                let modulos = resumen(c.modulos.iter().map(String::as_str));
+                let que = match (c.ficheros.is_empty(), c.modulos.is_empty()) {
+                    (false, true) => {
+                        Mensaje::nuevo(&txt::SOLAPE_FICHEROS).con("ficheros", ficheros)
+                    }
+                    (true, _) => Mensaje::nuevo(&txt::SOLAPE_MODULOS).con("modulos", modulos),
+                    (false, false) => Mensaje::nuevo(&txt::SOLAPE_FICHEROS_Y_MODULOS)
+                        .con("ficheros", ficheros)
+                        .con("modulos", modulos),
+                };
+                Mensaje::nuevo(&txt::AVISO_SOLAPE)
+                    .con("id", sanear(&c.id, MAX_ID))
+                    .con("quien", sanear(&c.quien, MAX_QUIEN))
+                    .con_mensaje("que", que)
+            })
+            .collect();
+        if self.propia_vacia && !self.publicadas.is_empty() {
+            let tareas: Vec<String> = self
+                .publicadas
+                .iter()
+                .map(|p| {
+                    let id = sanear(&p.id, MAX_ID);
+                    let quien = sanear(&p.quien, MAX_QUIEN);
+                    match modulos_nota(p) {
+                        m if m.is_empty() => format!("{id} ({quien})"),
+                        m => format!("{id} ({quien}: {})", resumen(m.into_iter())),
+                    }
+                })
+                .collect();
+            v.push(Mensaje::nuevo(&txt::NOTA_EN_CURSO).con("tareas", tareas.join("; ")));
+        }
+        v
+    }
+}
+
+/// Caracteres como mucho de un ID, un quien y una ruta en el aviso.
+const MAX_ID: usize = 20;
+const MAX_QUIEN: usize = 40;
+const MAX_RUTA: usize = 120;
+
+/// Elementos como mucho de una lista en el aviso; el resto, `+N`.
+const MAX_EN_AVISO: usize = 5;
+
+fn sanear(t: &str, max: usize) -> String {
+    crate::tablero::sanear(t, max)
+}
+
+/// Las rutas de un aviso: saneadas, separadas por comas y, pasadas
+/// [`MAX_EN_AVISO`], `+N`.
+fn resumen<'a>(v: impl Iterator<Item = &'a str>) -> String {
+    let todas: Vec<&str> = v.collect();
+    let mut s: Vec<String> = todas
+        .iter()
+        .take(MAX_EN_AVISO)
+        .map(|r| sanear(r, MAX_RUTA))
+        .collect();
+    if todas.len() > MAX_EN_AVISO {
+        s.push(format!("+{}", todas.len() - MAX_EN_AVISO));
+    }
+    s.join(", ")
 }
 
 #[cfg(test)]
@@ -366,6 +440,135 @@ mod tests {
         t.asignado_a = asignado;
         t.rama = rama.map(str::to_owned);
         Documento::Formato2(t, Cuerpo::plantilla())
+    }
+
+    fn cruce(id: &str, quien: &str, ficheros: &[&str], modulos: &[&str]) -> Cruce {
+        Cruce {
+            id: id.to_owned(),
+            quien: quien.to_owned(),
+            ficheros: ficheros.iter().map(|s| (*s).to_owned()).collect(),
+            modulos: modulos.iter().map(|s| (*s).to_owned()).collect(),
+        }
+    }
+
+    fn linea(s: &Solape) -> String {
+        s.con_claves(Informe::nuevo("start", crate::contrato::Resultado::Ok))
+            .linea()
+    }
+
+    /// C1 y C2 (unitarios): las claves planas `TASK-NNN:valor`, solo las
+    /// listas con algo; sin cruces ni nada mas, ninguna clave (C3).
+    #[test]
+    fn claves_del_solape() {
+        let s = Solape {
+            cruces: vec![
+                cruce("TASK-001", "@ana", &["src/x/a.rs"], &[]),
+                cruce("TASK-003", "@beto", &[], &["web/y"]),
+            ],
+            sin_rama: vec!["TASK-004".to_owned()],
+            ..Solape::default()
+        };
+        assert_eq!(
+            linea(&s),
+            "start ok solape=TASK-001,TASK-003 solape-ficheros=TASK-001:src/x/a.rs \
+             solape-modulos=TASK-003:web/y solape-asignados=TASK-001:@ana,TASK-003:@beto \
+             solape-sin-rama=TASK-004"
+        );
+        assert_eq!(linea(&Solape::default()), "start ok");
+        // `en-curso-modulos` solo con la rama propia vacia (D3b), como
+        // mucho 5 por tarea.
+        let muchos: Vec<String> = (0..7).map(|n| format!("m{n}/f.rs")).collect();
+        let p = Toca {
+            id: "TASK-002".to_owned(),
+            quien: "@luis".to_owned(),
+            ficheros: muchos.into_iter().chain(["raiz.md".to_owned()]).collect(),
+        };
+        let mut s = Solape {
+            publicadas: vec![p],
+            ..Solape::default()
+        };
+        assert_eq!(linea(&s), "start ok");
+        s.propia_vacia = true;
+        assert_eq!(
+            linea(&s),
+            "start ok en-curso-modulos=TASK-002:m0,TASK-002:m1,TASK-002:m2,TASK-002:m3,TASK-002:m4"
+        );
+        let n = s.avisos();
+        assert_eq!(n.len(), 1);
+        assert_eq!(
+            n[0].texto(crate::i18n::Idioma::Es),
+            "nota: tu rama aun no cambia nada; en curso con rama publicada: \
+             TASK-002 (@luis: m0, m1, m2, m3, m4)"
+        );
+    }
+
+    /// D5a: cada lista, como mucho 20, y `solape-truncado=si` si se corta.
+    #[test]
+    fn listas_cortadas_a_veinte() {
+        let ficheros: Vec<String> = (0..25).map(|n| format!("f{n:02}.rs")).collect();
+        let refs: Vec<&str> = ficheros.iter().map(String::as_str).collect();
+        let s = Solape {
+            cruces: vec![cruce("TASK-001", "@ana", &refs, &[])],
+            ..Solape::default()
+        };
+        let i = s.con_claves(Informe::nuevo("start", crate::contrato::Resultado::Ok));
+        let l = i.linea();
+        let lista = l
+            .split(' ')
+            .find_map(|kv| kv.strip_prefix("solape-ficheros="))
+            .unwrap_or_default();
+        assert_eq!(lista.split(',').count(), MAX_LISTA, "{l}");
+        assert_eq!(i.valor("solape-truncado"), Some("si"), "{l}");
+        let corta = Solape {
+            cruces: vec![cruce("TASK-001", "@ana", &refs[..MAX_LISTA], &[])],
+            ..Solape::default()
+        };
+        assert_eq!(linea(&corta).find("solape-truncado"), None);
+        // En el aviso, 5 y `+N`.
+        let a = s.avisos()[0].texto(crate::i18n::Idioma::Es);
+        assert!(
+            a.contains("(f00.rs, f01.rs, f02.rs, f03.rs, f04.rs, +20)"),
+            "{a}"
+        );
+    }
+
+    /// C1 (unitario) y C11: el aviso nombra la tarea, quien la lleva y lo
+    /// que toca; un login, una ruta o un ID con caracteres de control (o de
+    /// formato) salen saneados, en los dos idiomas. En la linea, el contrato
+    /// los escapa `%XX`.
+    #[test]
+    fn avisos_saneados() {
+        let s = Solape {
+            cruces: vec![
+                cruce("TASK-001", "@ana", &["src/x/a.rs"], &[]),
+                cruce(
+                    "TASK-00\u{1b}[31m2",
+                    "@lu\u{7}is\u{202e}",
+                    &["src/\u{1b}]8;;x\u{7}b.rs"],
+                    &["web/\r\ny"],
+                ),
+            ],
+            ..Solape::default()
+        };
+        let a = s.avisos();
+        assert_eq!(a.len(), 2);
+        let es = a[0].texto(crate::i18n::Idioma::Es);
+        assert_eq!(
+            es,
+            "aviso: TASK-001 (@ana) toca los mismos ficheros (src/x/a.rs): hablad antes de \
+             seguir (solo es un aviso; start ya se hizo)"
+        );
+        for idioma in [crate::i18n::Idioma::Es, crate::i18n::Idioma::En] {
+            let t = a[1].texto(idioma);
+            assert!(
+                !t.chars().any(|c| c.is_control() || c == '\u{202e}'),
+                "{t:?}"
+            );
+            assert!(t.contains("@lu is") && t.contains("web/ y"), "{t:?}");
+        }
+        let l = linea(&s);
+        assert!(!l.chars().any(char::is_control), "{l:?}");
+        assert!(l.contains("TASK-00%1B[31m2:@lu%07is"), "{l}");
     }
 
     /// D2a: cuentan en curso y en revision (C7: una terminada no), con quien
