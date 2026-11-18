@@ -478,40 +478,83 @@ fn en_curso() -> Vec<EnCurso> {
     ]
 }
 
-/// C10: el solape lanza exactamente 1 + k + 1 procesos de git (k = otras
-/// tareas en curso con rama publicada): un `for-each-ref` de las ramas de
-/// `origin`, el `diff` de la propia y uno por cada publicada. Sin otra
-/// tarea en curso, ninguno.
+/// `start id` de luis por la biblioteca, con el registro del puerto: el
+/// informe, el solape y todos los procesos de git del `start` completo.
+fn start_de_luis(
+    e: &Escena,
+    id: &str,
+) -> (tc2::contrato::Informe, Option<solape::Solape>, Vec<String>) {
+    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
+    let luis = || -> Result<Quien, tc2::contrato::Informe> {
+        Ok(Quien::Persona(Cuenta {
+            proveedor: Proveedor::GitHub,
+            id: 1002,
+            login: "luis".to_owned(),
+        }))
+    };
+    let entorno = tc2::toma::Entorno {
+        dir: &e.b,
+        git: &g,
+        quien: &luis,
+        catalogo: &sin_catalogo,
+        ahora: tc2::identidad::ahora(),
+    };
+    let (i, s) = tc2::toma::start_con_solape(&entorno, id);
+    (i, s, g.registro())
+}
+
+/// C10 (R1-03 de la ronda 1), medido sobre el `start` completo: luis toma
+/// TASK-003 (la transaccion, con las tareas en curso que leyo la toma) y
+/// el solape son exactamente los 1 + k + 1 ultimos procesos de git (k = 2:
+/// TASK-001 de ana y TASK-002 de luis, publicadas): un `for-each-ref` de
+/// las ramas de `origin`, el `diff` de la propia y uno por cada publicada;
+/// en todo el `start` no hay otro `diff`. Sin otra tarea en curso, ninguno.
 #[test]
 fn c10_uno_mas_k_mas_uno_procesos() {
-    let e = escena("solape-c10", &["src/x/a.rs"], &["src/x/a.rs"], |f, a| {
-        start(f, a, "TASK-003");
-        tocar(f, a, "TASK-003", RAMA_3, &["web/z.ts"], true);
-    });
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
-    let s = solape::calcular(&g, &e.b, "TASK-002", RAMA_2, &en_curso()).unwrap();
-    let r = g.registro();
+    let e = escena("solape-c10", &["src/x/a.rs"], &["src/x/a.rs"], nada);
+    let (i, s, r) = start_de_luis(&e, "TASK-003");
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    let s = s.expect("el solape del start");
     let k = 2;
-    assert_eq!(r.len(), 1 + k + 1, "{r:#?}");
-    assert!(
-        r[0].starts_with("git for-each-ref ") && r[0].ends_with(" refs/remotes/origin/"),
-        "{r:#?}"
-    );
-    for l in &r[1..] {
+    let desde = r
+        .iter()
+        .rposition(|l| l.starts_with("git for-each-ref ") && l.ends_with(" refs/remotes/origin/"))
+        .expect("el for-each-ref del solape");
+    let solape = &r[desde..];
+    assert_eq!(solape.len(), 1 + k + 1, "{r:#?}");
+    for l in &solape[1..] {
         assert!(
             l.starts_with("git diff --name-only -z --no-renames origin/develop..."),
             "{r:#?}"
         );
     }
     assert!(
-        r[1].ends_with(&format!("...refs/heads/{RAMA_2} --")),
+        solape[1].ends_with(&format!("...refs/heads/{RAMA_3} --")),
         "{r:#?}"
     );
+    for (l, rama) in solape[2..].iter().zip([RAMA_1, RAMA_2]) {
+        assert!(
+            l.ends_with(&format!("...refs/remotes/origin/{rama} --")),
+            "{r:#?}"
+        );
+    }
+    let diffs = r.iter().filter(|l| l.starts_with("git diff ")).count();
+    assert_eq!(diffs, k + 1, "{r:#?}");
+    // Primer `start`: rama propia vacia, la nota con las dos publicadas.
+    assert!(s.propia_vacia);
     assert_eq!(
-        s.cruces.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
-        ["TASK-001"]
+        s.publicadas
+            .iter()
+            .map(|p| p.id.as_str())
+            .collect::<Vec<_>>(),
+        ["TASK-001", "TASK-002"]
     );
-    assert_eq!(s.sin_rama, ["TASK-009"]);
+    let l = i.linea();
+    assert_eq!(
+        valor(&l, "en-curso-modulos"),
+        Some("TASK-001:src/x,TASK-002:src/x"),
+        "{l}"
+    );
     // Sin otra tarea en curso, ningun proceso.
     let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
     let solo: Vec<EnCurso> = en_curso()
@@ -578,4 +621,169 @@ fn c5_sin_red_y_sin_origin_sin_claves() {
     let r = g.registro();
     assert_eq!(r.len(), 1, "{r:#?}");
     assert!(r[0].starts_with("git for-each-ref "), "{r:#?}");
+}
+
+/// H1 de la ronda 1: TASK-003 (ana) publica una rama huerfana, sin
+/// `merge-base` con `origin/develop`: su `diff` falla. `start` sale 0, el
+/// solape con TASK-001 se sigue viendo y TASK-003 va en `solape-incompleto`.
+#[test]
+fn h1_diff_fallido_marca_incompleto() {
+    let e = escena("solape-h1", &["src/x/a.rs"], &["src/x/a.rs"], |f, a| {
+        start(f, a, "TASK-003");
+        let arbol = f.crudo(a, &["rev-parse", "origin/develop^{tree}"]);
+        let huerfano = f.crudo(a, &["commit-tree", arbol.trim(), "-m", "huerfano"]);
+        let destino = format!("{}:refs/heads/{RAMA_3}", huerfano.trim());
+        git(f, a, &["push", "-q", "origin", &destino]);
+    });
+    for (out, _) in [&e.primera, &e.ultima] {
+        assert_eq!(valor(out, "solape-incompleto"), Some("TASK-003"), "{out}");
+        assert_eq!(valor(out, "solape-sin-rama"), None, "{out}");
+    }
+    let (out, err) = &e.ultima;
+    assert_eq!(valor(out, "solape"), Some("TASK-001"), "{out}");
+    let avisos = lineas(err, "aviso:");
+    assert_eq!(avisos.len(), 1, "{err}");
+    assert!(avisos[0].contains("TASK-001"), "{err}");
+}
+
+/// H2 de la ronda 1: ana renombra `README.md` a una ruta con espacio, coma
+/// y `%` y borra `.taskcode/personas.yml`; luis toca las tres rutas. Con
+/// `--no-renames` el renombrado da los dos nombres (el viejo y el nuevo) y
+/// el borrado cuenta: tres ficheros en comun, escapados en la linea, tal
+/// cual en `--json` y en el aviso.
+#[test]
+fn h2_renombrado_y_borrado_dan_los_dos_nombres() {
+    const NUEVO: &str = "doc nueva/ñandú, 100%.md";
+    let de_luis = ["README.md", ".taskcode/personas.yml", NUEVO];
+    let e = escena("solape-h2", &["web/z.ts"], &de_luis, |f, a| {
+        let wt = worktree(a, "TASK-001");
+        std::fs::create_dir_all(wt.join("doc nueva")).unwrap();
+        f.crudo(&wt, &["mv", "README.md", NUEVO]);
+        f.crudo(&wt, &["rm", "-q", ".taskcode/personas.yml"]);
+        f.crudo(&wt, &["commit", "-q", "-m", "renombrar y borrar"]);
+        git(f, &wt, &["push", "-q", "origin", RAMA_1]);
+    });
+    let (out, err) = &e.ultima;
+    assert_eq!(
+        valor(out, "solape-ficheros"),
+        Some(
+            "TASK-001:.taskcode/personas.yml,TASK-001:README.md,\
+             TASK-001:doc%20nueva/ñandú%2C%20100%25.md"
+        ),
+        "{out}"
+    );
+    assert_eq!(valor(out, "solape-modulos"), None, "{out}");
+    let avisos = lineas(err, "aviso:");
+    assert_eq!(avisos.len(), 1, "{err}");
+    for parte in ["README.md", ".taskcode/personas.yml", NUEVO] {
+        assert!(avisos[0].contains(parte), "{err}");
+    }
+    let o = tc2(&e.f, &e.b, &["start", "--json", "TASK-002"]);
+    assert_eq!(o.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_str(&texto(&o.stdout)).unwrap();
+    assert_eq!(
+        v["claves"]["solape-ficheros"],
+        serde_json::json!([
+            "TASK-001:.taskcode/personas.yml",
+            "TASK-001:README.md",
+            format!("TASK-001:{NUEVO}"),
+        ])
+    );
+}
+
+/// H3 de la ronda 1: con mas de `MAX_DIFFS` otras tareas con rama
+/// publicada, el solape lanza como mucho 1 + 20 + 1 procesos; las de mas no
+/// lanzan `diff` y la linea lleva `solape-truncado=si`. En stderr, 5 lineas
+/// `aviso:` y una final «y N mas».
+#[test]
+fn h3_tope_de_diffs() {
+    let f = Fixture::nueva("solape-h3");
+    let (_bare, c) = f.remoto_y_clon();
+    f.crudo(&c, &["checkout", "-q", "-b", RAMA_2]);
+    escribir(&c, "src/x/a.rs", "de TASK-002\n");
+    f.crudo(&c, &["add", "src/x/a.rs"]);
+    f.crudo(&c, &["commit", "-q", "-m", "trabajo"]);
+    f.crudo(&c, &["checkout", "-q", "develop"]);
+    let n = solape::MAX_DIFFS + 3;
+    let ramas: Vec<String> = (0..n)
+        .map(|i| format!("feature/task-{:03}-x", 100 + i))
+        .collect();
+    let destinos: Vec<String> = ramas
+        .iter()
+        .map(|r| format!("{RAMA_2}:refs/heads/{r}"))
+        .collect();
+    let mut push = vec!["push", "-q", "origin"];
+    push.extend(destinos.iter().map(String::as_str));
+    f.crudo(&c, &push);
+    f.crudo(&c, &["fetch", "-q", "origin"]);
+    let lista: Vec<EnCurso> = ramas
+        .iter()
+        .enumerate()
+        .map(|(i, r)| EnCurso {
+            id: format!("TASK-{:03}", 100 + i),
+            quien: "@ana".to_owned(),
+            rama: Some(r.clone()),
+        })
+        .collect();
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno());
+    let s = solape::calcular(&g, &c, "TASK-002", RAMA_2, &lista).unwrap();
+    let r = g.registro();
+    assert_eq!(r.len(), 1 + 1 + solape::MAX_DIFFS, "{r:#?}");
+    assert!(s.truncado);
+    assert!(s.incompletas.is_empty() && s.sin_rama.is_empty(), "{s:?}");
+    // Las 20 primeras por ID; las 3 ultimas, sin leer.
+    let ids: Vec<&str> = s.publicadas.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(ids.len(), solape::MAX_DIFFS);
+    assert_eq!(ids.last(), Some(&"TASK-119"));
+    assert_eq!(s.cruces.len(), solape::MAX_DIFFS);
+    let l = s
+        .con_claves(tc2::contrato::Informe::nuevo("start", Resultado::Ok))
+        .linea();
+    assert_eq!(valor(&l, "solape-truncado"), Some("si"), "{l}");
+    let a = s.avisos();
+    assert_eq!(a.len(), solape::MAX_AVISOS + 1);
+    assert_eq!(
+        a[solape::MAX_AVISOS].texto(tc2::i18n::Idioma::Es),
+        "aviso: y 15 tareas mas tocan lo mismo (todas en la clave solape)"
+    );
+}
+
+/// C11 por el binario (R1-04 de la ronda 1): ana publica un fichero en una
+/// carpeta con caracteres de control (ESC y BEL, solo en el indice: el
+/// sistema de ficheros no los admite). En el primer `start` de luis la
+/// `nota:` los da saneados en stderr y `en-curso-modulos` escapados `%XX`
+/// en la linea.
+#[test]
+fn c11_ruta_con_control_saneada_y_escapada() {
+    const RARO: &str = "m\u{1b}[31m\u{7}/a.rs";
+    let e = escena("solape-c11", &["web/z.ts"], &["src/x/a.rs"], |f, a| {
+        let wt = worktree(a, "TASK-001");
+        let blob = f.crudo(&wt, &["rev-parse", "HEAD:web/z.ts"]);
+        let info = format!("100644,{},{RARO}", blob.trim());
+        f.crudo(
+            &wt,
+            &[
+                "-c",
+                "core.protectNTFS=false",
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &info,
+            ],
+        );
+        f.crudo(&wt, &["commit", "-q", "-m", "ruta rara"]);
+        git(f, &wt, &["push", "-q", "origin", RAMA_1]);
+    });
+    let (out, err) = &e.primera;
+    assert!(!out.chars().any(char::is_control), "{out:?}");
+    assert_eq!(
+        valor(out, "en-curso-modulos"),
+        Some("TASK-001:m%1B[31m%07,TASK-001:web"),
+        "{out}"
+    );
+    let notas = lineas(err, "nota:");
+    assert_eq!(notas.len(), 1, "{err:?}");
+    assert_eq!(err.lines().count(), 1, "{err:?}");
+    assert!(!notas[0].chars().any(|c| c.is_control()), "{err:?}");
+    assert!(notas[0].contains("TASK-001 (@ana: m [31m"), "{err:?}");
 }
