@@ -222,7 +222,17 @@ motivo=pegar-a-mano orden=tc2%20estado%20--stdin` (con `--json`, el bloque
 entero en `propuesta`). Para usarla,
 añade a mano a `.claude/settings.local.json` del proyecto (recomendado: no
 sustituye la status line de la 0.16 de `~/.claude/settings.json`) o a tu
-`~/.claude/settings.json`:
+`~/.claude/settings.json`. Según la página oficial de ajustes de Claude Code
+([Settings files and who they
+affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect),
+consultada el 2026-11-18), `.claude/settings.local.json` es el ámbito
+«Project local»: solo te afecta a ti y solo en ese proyecto, Claude Code lo
+deja fuera de git cuando lo crea él (si lo creas a mano, añádelo tú a
+`.gitignore`), y en caso de choque gana a `.claude/settings.json` y a
+`~/.claude/settings.json`; por eso la status line de ese proyecto no pisa la
+de la 0.16 en los demás. En un repo git, Claude Code lo lee de la raíz del
+repo (en un worktree, de la del principal; en Windows, junto a
+`.claude/settings.json` de la carpeta donde arranca):
 
 ```json
 {
@@ -244,13 +254,20 @@ sustituye la status line de la 0.16 de `~/.claude/settings.json`) o a tu
 - **Cuándo cambia**: lo escriben `start`, `pausa` y `reanudar` (y lo borran
   `descartar`, `liberar` y `reasignar`); entre transiciones, la línea suma el
   reloj (con el tope de 45 min por hueco de F1-17) y, si pasan más de 45 min
-  sin commits, dice `sin actividad registrada hace N min`. Claude Code
+  sin commits, dice `sin actividad registrada hace N min`. Pasadas 8 h
+  activas en la fase (el último punto de la tabla de estimación), lo que
+  falta es el de ese punto y la línea añade `estimacion saturada: mas de
+  480 min en la fase`. Claude Code
   repinta la status line con sus eventos; para que corra el reloj aunque la
   sesión esté quieta, añade `"refreshInterval": 60` al bloque.
 - **En Windows**, Claude Code la lanza con Git Bash si está instalado (si
   no, con PowerShell); `tc2` tiene que estar en el PATH de ese shell.
 - **`tc2 status --seguir`** hace lo mismo en un terminal aparte: imprime la
   línea, y otra cada vez que cambia (mira cada 2 s); se para con Ctrl+C.
+  Si su salida no va a un terminal (`tc2 status --seguir | head -1`, otro
+  programa que lee), repite la misma línea cada 4 s sin cambios: es la única
+  forma de enterarse, sin código `unsafe`, de que quien leía cerró la tubería,
+  y entonces termina solo (código 0) en unos 4 s.
 - `tc2 desinstalar --maquina` quita la `statusLine` de
   `~/.claude/settings.json` si su `command` es exactamente
   `tc2 estado --stdin`; la de `.claude/settings.local.json` del proyecto la
