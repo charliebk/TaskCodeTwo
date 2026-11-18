@@ -206,6 +206,56 @@ tc2 desinstalar --maquina
   --proyecto` fuera de un repo sale `rechazada motivo=no-es-repo` sin hacer
   nada, tampoco en la máquina.
 
+## La status line de Claude Code y `tc2 status --seguir`
+
+Lo construyó TASK-084 (F3-12; ADR F1-17, adenda de TASK-084). Mientras se
+trabaja en una tarea, la línea dice la fase, las fases que faltan y lo que
+falta según las tareas parecidas, sin gastar tokens:
+
+```text
+TASK-007 · implementacion · fases que faltan: rondas, cierre · faltan ≈50 min (p80 65) · n=6 repo
+```
+
+`tc2 init` **no lee ni escribe** ningún `settings.json`: imprime la
+propuesta como una línea `clase=status-line decision=pendiente
+motivo=pegar-a-mano orden=tc2%20estado%20--stdin` (con `--json`, el bloque
+entero en `propuesta`). Para usarla,
+añade a mano a `.claude/settings.local.json` del proyecto (recomendado: no
+sustituye la status line de la 0.16 de `~/.claude/settings.json`) o a tu
+`~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "tc2 estado --stdin"
+  }
+}
+```
+
+- **Qué lee**: Claude Code le pasa por stdin un JSON con
+  `workspace.current_dir` (y `cwd`, el mismo valor); `tc2 estado --stdin`
+  sube desde esa carpeta hasta el `.git` y abre el fichero de progreso de la
+  tarea en `.git/taskcodetwo/progreso/` (sin lanzar git ni abrir la red). Si
+  el JSON no trae la carpeta, usa la del proceso. Dentro de
+  `.taskcodetwo/worktrees/TASK-NNN` enseña esa tarea; en el principal, la
+  última calculada y `+N en curso`. Sin tarea: `tc2 · sin tarea en curso`.
+  Siempre una línea y código 0.
+- **Cuándo cambia**: lo escriben `start`, `pausa` y `reanudar` (y lo borran
+  `descartar`, `liberar` y `reasignar`); entre transiciones, la línea suma el
+  reloj (con el tope de 45 min por hueco de F1-17) y, si pasan más de 45 min
+  sin commits, dice `sin actividad registrada hace N min`. Claude Code
+  repinta la status line con sus eventos; para que corra el reloj aunque la
+  sesión esté quieta, añade `"refreshInterval": 60` al bloque.
+- **En Windows**, Claude Code la lanza con Git Bash si está instalado (si
+  no, con PowerShell); `tc2` tiene que estar en el PATH de ese shell.
+- **`tc2 status --seguir`** hace lo mismo en un terminal aparte: imprime la
+  línea, y otra cada vez que cambia (mira cada 2 s); se para con Ctrl+C.
+- `tc2 desinstalar --maquina` quita la `statusLine` de
+  `~/.claude/settings.json` si su `command` es exactamente
+  `tc2 estado --stdin`; la de `.claude/settings.local.json` del proyecto la
+  quita la persona.
+
 ## Comprobar los recursos: skills, agentes y plugin
 
 Lo construyó TASK-080 (F3-9; ADR F1-14, punto 8, y F1-15, decisión 2).
