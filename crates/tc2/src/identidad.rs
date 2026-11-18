@@ -266,23 +266,13 @@ impl Cache {
                     .con("error", e.to_string()),
             )
         };
-        if let Some(padre) = self.ruta.parent() {
-            std::fs::create_dir_all(padre).map_err(error)?;
-        }
         let texto = format!(
             "---\nproveedor: \"{}\"\nid: {}\nlogin: {}\nverificado: {ahora}\n",
             cuenta.proveedor.nombre(),
             cuenta.id,
             crate::tarea::yaml::cadena(&cuenta.login),
         );
-        let tmp = self
-            .ruta
-            .with_extension(format!("yml.tmp-{}", std::process::id()));
-        std::fs::write(&tmp, texto).map_err(error)?;
-        std::fs::rename(&tmp, &self.ruta).map_err(|e| {
-            let _ = std::fs::remove_file(&tmp);
-            error(e)
-        })
+        crate::huella::escribir_local(&self.ruta, texto.as_bytes()).map_err(error)
     }
 }
 

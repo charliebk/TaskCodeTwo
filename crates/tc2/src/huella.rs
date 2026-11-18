@@ -9,9 +9,10 @@
 //! - la carpeta de los worktrees de tarea, [`CARPETA_WORKTREES`];
 //! - lo que se guarda en la carpeta comun de git (`.git` del principal),
 //!   bajo [`CARPETA_COMUN`]: el cerrojo, la cache de identidad, la marca de
-//!   la ultima sincronizacion y los indices temporales de la transaccion.
-//!   `tc2 desinstalar` borra la carpeta entera, asi que un fichero nuevo
-//!   aqui queda reconocido sin tocarlo.
+//!   la ultima sincronizacion, los indices temporales de la transaccion y el
+//!   progreso en vivo ([`CARPETA_PROGRESO`]). `tc2 desinstalar` borra la
+//!   carpeta entera, asi que un fichero nuevo aqui queda reconocido sin
+//!   tocarlo. Sus ficheros se escriben con [`escribir_local`].
 //!
 //! La configuracion del proyecto (`.taskcode/config.yml`, `personas.yml` y
 //! el vocabulario) no esta aqui: F1-12 D4a la deja compartida con la 0.16.
@@ -61,6 +62,59 @@ pub const FICHERO_SINCRONIZACION: &str = "sincronizacion";
 
 /// Indices temporales de la transaccion, en [`CARPETA_COMUN`].
 pub const CARPETA_TEMPORALES: &str = "estado-tmp";
+
+/// Progreso en vivo de cada tarea en curso del clon, en [`CARPETA_COMUN`]
+/// (F3-12): `TASK-NNN.json` y el anterior, `TASK-NNN.anterior.json`. Es
+/// derivado y sin versionar; lo escriben las transiciones y lo leen la
+/// status line y `tc2 status --seguir` (adenda de TASK-084 en F1-17).
+pub const CARPETA_PROGRESO: &str = "progreso";
+
+/// Esperas antes de repetir el `rename` de [`escribir_local`]: en Windows
+/// falla mientras un lector tiene el destino abierto sin `FILE_SHARE_DELETE`
+/// (Python, Node o un antivirus; L2 de F1-17, punto 7). Unos 300 ms en total.
+const ESPERAS_RENAME: [std::time::Duration; 5] = [
+    std::time::Duration::from_millis(10),
+    std::time::Duration::from_millis(20),
+    std::time::Duration::from_millis(40),
+    std::time::Duration::from_millis(80),
+    std::time::Duration::from_millis(150),
+];
+
+/// Escribe `ruta` de una vez, para los ficheros locales de [`CARPETA_COMUN`]
+/// (la marca de sincronizacion, la cache de identidad y el progreso): crea la
+/// carpeta si falta, escribe un temporal `<nombre>.tmp-<pid>` al lado y lo
+/// renombra encima, de modo que quien lee no ve nunca un fichero a medias.
+/// Si el `rename` falla, se repite tras cada espera de [`ESPERAS_RENAME`]; si
+/// sigue fallando, se borra el temporal y se devuelve el ultimo error.
+pub fn escribir_local(ruta: &Path, contenido: &[u8]) -> io::Result<()> {
+    escribir_local_con(ruta, contenido, &ESPERAS_RENAME)
+}
+
+fn escribir_local_con(
+    ruta: &Path,
+    contenido: &[u8],
+    esperas: &[std::time::Duration],
+) -> io::Result<()> {
+    if let Some(padre) = ruta.parent() {
+        std::fs::create_dir_all(padre)?;
+    }
+    let mut nombre = ruta.file_name().unwrap_or_default().to_os_string();
+    nombre.push(format!(".tmp-{}", std::process::id()));
+    let tmp = ruta.with_file_name(nombre);
+    std::fs::write(&tmp, contenido)?;
+    let mut r = std::fs::rename(&tmp, ruta);
+    for e in esperas {
+        if r.is_ok() {
+            break;
+        }
+        std::thread::sleep(*e);
+        r = std::fs::rename(&tmp, ruta);
+    }
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
+}
 
 /// Workflow de CI que deja `tc2 init` (F3-1). Hasta que F5-1 entregue el
 /// reutilizable, `init` solo deja la ranura (`pendiente motivo=sin-plantilla`).
@@ -118,6 +172,7 @@ mod tests {
             FICHERO_IDENTIDAD,
             FICHERO_SINCRONIZACION,
             CARPETA_TEMPORALES,
+            CARPETA_PROGRESO,
         ];
         for (i, a) in ficheros.iter().enumerate() {
             assert!(ficheros[i + 1..].iter().all(|b| a != b), "{a} repetido");
@@ -168,6 +223,62 @@ mod tests {
         assert_eq!(d, comun.join("taskcodetwo"));
         assert!(d.is_dir());
         let _ = std::fs::remove_dir_all(&comun);
+        Ok(())
+    }
+
+    fn carpeta(nombre: &str) -> PathBuf {
+        let d = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("huella-{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        d
+    }
+
+    /// `escribir_local` crea la carpeta, sustituye el contenido y no deja
+    /// temporales sueltos.
+    #[test]
+    fn escribir_local_de_una_vez_y_sin_temporales() -> io::Result<()> {
+        let d = carpeta("escribir");
+        let ruta = d.join("sub").join("f.json");
+        escribir_local(&ruta, b"uno")?;
+        escribir_local(&ruta, b"dos")?;
+        assert_eq!(std::fs::read(&ruta)?, b"dos");
+        let n = std::fs::read_dir(d.join("sub"))?.count();
+        assert_eq!(n, 1);
+        let _ = std::fs::remove_dir_all(&d);
+        Ok(())
+    }
+
+    /// L2 de F1-17 (punto 7): en Windows, con un lector abierto sin
+    /// `FILE_SHARE_DELETE` (como Python o Node), el `rename` falla; con el
+    /// reintento entra en cuanto el lector cierra. Sin reintento, falla.
+    #[cfg(windows)]
+    #[test]
+    fn escribir_local_reintenta_con_un_lector_abierto() -> io::Result<()> {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 1;
+        let d = carpeta("lector");
+        let ruta = d.join("f.json");
+        escribir_local(&ruta, b"viejo")?;
+        let abrir = || {
+            std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(FILE_SHARE_READ)
+                .open(&ruta)
+        };
+        // Sin reintento, con el lector abierto: falla y no deja temporal.
+        let lector = abrir()?;
+        assert!(escribir_local_con(&ruta, b"nuevo", &[]).is_err());
+        assert_eq!(std::fs::read_dir(&d)?.count(), 1);
+        // Con reintento: el lector cierra a los 30 ms y la escritura entra.
+        let hilo = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            drop(lector);
+        });
+        escribir_local(&ruta, b"nuevo")?;
+        let _ = hilo.join();
+        assert_eq!(std::fs::read(&ruta)?, b"nuevo");
+        let _ = std::fs::remove_dir_all(&d);
         Ok(())
     }
 }

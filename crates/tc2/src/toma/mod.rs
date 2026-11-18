@@ -203,6 +203,15 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             if !leido {
                 i = i.con("historia", crate::estimacion::SIN_LOG);
             }
+            // El progreso en vivo (F3-12), con lo que ya calculo la toma.
+            // Un fallo no cambia el resultado: `progreso=no-escrito`, y
+            // `lib.rs` lo avisa por stderr.
+            if i.resultado.es_exito()
+                && let Some(p) = op.progreso()
+                && crate::progreso::escribir_en(g, &principal, &p).is_err()
+            {
+                i = i.con(crate::progreso::CLAVE, crate::progreso::NO_ESCRITO);
+            }
             Ok(i)
         }
         // Entre la lectura y el push paso a ser suya y empezada.

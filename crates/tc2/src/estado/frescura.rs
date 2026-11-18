@@ -186,18 +186,10 @@ impl Marca {
         t.parse().ok()
     }
 
-    /// Guarda `ahora`. Escribe un temporal y lo renombra.
+    /// Guarda `ahora`. Escribe un temporal y lo renombra
+    /// ([`crate::huella::escribir_local`]).
     pub fn registrar(&self, ahora: u64) -> std::io::Result<()> {
-        if let Some(padre) = self.ruta.parent() {
-            std::fs::create_dir_all(padre)?;
-        }
-        let tmp = self
-            .ruta
-            .with_extension(format!("tmp-{}", std::process::id()));
-        std::fs::write(&tmp, format!("{ahora}\n"))?;
-        std::fs::rename(&tmp, &self.ruta).inspect_err(|_| {
-            let _ = std::fs::remove_file(&tmp);
-        })
+        crate::huella::escribir_local(&self.ruta, format!("{ahora}\n").as_bytes())
     }
 }
 

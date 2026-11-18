@@ -12,6 +12,9 @@
 //! de estado montada en `tareas/` y `personas.yml` con la persona del token.
 //! El workflow de CI queda como ranura `pendiente` hasta F5-1 y los rulesets
 //! `taskcodetwo-*` solo se proponen (`persona`): aplicarlos es de TASK-118.
+//! La status line de Claude Code (F3-12) tambien se propone, como
+//! `pendiente motivo=pegar-a-mano` con la orden exacta: `init` nunca lee ni
+//! escribe un `settings.json`.
 //!
 //! Nunca pisa la 0.16 ni una configuracion que no vale: `rechazada` sin
 //! escribir nada. Con `origin` y sin red, `sinred pendiente=no` sin escribir.

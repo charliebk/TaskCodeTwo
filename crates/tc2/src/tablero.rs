@@ -8,6 +8,9 @@
 //! traido con un aviso en stderr y codigo 0). No escriben nada mas que
 //! `origin/taskcodetwo/tareas` y la marca de sincronizacion.
 //!
+//! - `status --seguir` (F3-12): la linea de progreso de la tarea en curso,
+//!   repetida al cambiar; la escribe [`crate::progreso::seguir`] desde
+//!   `main.rs`. Aqui solo se rechaza con `--json`.
 //! - `status [--json]`: una linea de equipo; no consulta la plataforma. Con
 //!   `--json`, `status ok en-diseno=... en-curso=... en-revision=... listas=...
 //!   commit=... remoto=... sincronizado=... pendientes=N [tareas=...]`. En
@@ -49,6 +52,9 @@ use crate::situacion::{self, Ficha, Quien, Situacion};
 pub const BOARD: &str = "board";
 /// Nombre de `status`.
 pub const STATUS: &str = "status";
+/// `status --seguir` (F3-12): la linea de progreso, repetida al cambiar
+/// ([`crate::progreso::seguir`], desde `main.rs`).
+pub const SEGUIR: &str = "--seguir";
 
 /// Tareas por grupo en la linea de `status` (las demas, `+N`).
 pub const K_STATUS: usize = 3;
@@ -268,9 +274,12 @@ fn avisos_ya_no_tuyas(v: &[(String, Quien)]) -> Vec<Mensaje> {
 
 /// Texto ajeno listo para imprimir (F1-17, decision 8): sin caracteres de
 /// control ni de formato (bidi, anchura cero), espacios juntados y como
-/// mucho `max` caracteres (con `…` si se corta).
+/// mucho `max` caracteres (con `…` si se corta). De formato: U+00AD (guion
+/// blando), U+061C (marca de letra arabe, bidi), U+180E (separador de
+/// vocales mongol), U+200B..U+200F, U+202A..U+202E, U+2060..U+2064
+/// (union de palabra y operadores invisibles), U+2066..U+2069 y U+FEFF.
 pub fn sanear(t: &str, max: usize) -> String {
-    let formato = |c: char| matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}');
+    let formato = |c: char| matches!(c, '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}');
     let limpio: String = t
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
@@ -526,6 +535,19 @@ pub fn cruzar(t: &Tablero, prs: &[PrAbierto]) -> Cruce {
 /// `status [--json]` (sin `--json`, que quita `lib.rs`). No consulta nunca
 /// la plataforma.
 pub fn orden_status(args: &[String], json: bool, idioma: Idioma, e: &Entorno<'_>) -> Salida {
+    // F3-12: `status --seguir` lo atiende `main.rs` (escribe a trozos); aqui
+    // solo llega con `--json` o desde la biblioteca, y se rechaza.
+    if args.iter().any(|a| a == SEGUIR) {
+        let motivo = if json {
+            "seguir-con-json"
+        } else {
+            "seguir-sin-terminal"
+        };
+        return Informe::nuevo(STATUS, Resultado::Uso)
+            .con("motivo", motivo)
+            .diagnostico(&txt::USO_STATUS)
+            .salida_en(json, idioma);
+    }
     if !args.is_empty() {
         return Informe::nuevo(STATUS, Resultado::Uso)
             .con("motivo", "argumentos-de-mas")
@@ -961,6 +983,13 @@ mod tests {
     fn sanear_quita_controles_y_formato_y_acota() {
         assert_eq!(sanear("a\u{1b}[31mb\tc\n", 60), "a [31mb c");
         assert_eq!(sanear("x\u{202E}y\u{200B}z", 60), "xyz");
+        // Revision 1 de TASK-084 (R1-02): los demas de formato invisibles.
+        for c in [
+            '\u{00AD}', '\u{061C}', '\u{180E}', '\u{2060}', '\u{2061}', '\u{2062}', '\u{2063}',
+            '\u{2064}',
+        ] {
+            assert_eq!(sanear(&format!("x{c}y"), 60), "xy", "U+{:04X}", c as u32);
+        }
         assert_eq!(sanear("abcdef", 4), "abc…");
         assert_eq!(sanear("  dos   espacios ", 60), "dos espacios");
     }

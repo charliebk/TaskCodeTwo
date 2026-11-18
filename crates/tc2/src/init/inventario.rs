@@ -230,9 +230,41 @@ pub(super) fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
             .motivo("sin-plantilla")
     });
 
+    // Status line de Claude Code (F3-12, D2A de TASK-084): solo propuesta;
+    // `init` nunca lee ni escribe un `settings.json`.
+    v.push(status_line(&principal));
+
     // Rulesets: solo propuesta (D1); los aplica TASK-118.
     puertas(&plataforma, &mut v);
     Ok(v)
+}
+
+/// Donde se recomienda pegar la status line: el `settings.local.json` del
+/// proyecto, que no sustituye la de la 0.16 de `~/.claude/settings.json`.
+/// Es el ambito «Project local» de
+/// <https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect>
+/// (consultada el 2026-11-18): solo para quien lo escribe y en ese proyecto,
+/// fuera de git, y por encima de los otros dos.
+pub(super) const RUTA_STATUS_LINE: &str = ".claude/settings.local.json";
+
+/// La propuesta de la status line: la orden exacta en `orden=` y el bloque
+/// `statusLine` en `--json`. No mira el fichero, asi que no puede saber si
+/// ya esta: sale siempre `pendiente motivo=pegar-a-mano` (no `persona`, que
+/// en una segunda ejecucion diria que queda algo por hacer que quiza ya se
+/// hizo; C2 de TASK-028).
+fn status_line(principal: &Path) -> Accion {
+    let mut a = Accion::nueva(
+        t(&principal.join(RUTA_STATUS_LINE)),
+        "status-line",
+        "taskcodetwo",
+        Decision::Pendiente,
+    )
+    .motivo("pegar-a-mano")
+    .orden(distribucion::STATUS_LINE);
+    a.propuesta = Some(serde_json::json!({
+        "statusLine": {"type": "command", "command": distribucion::STATUS_LINE}
+    }));
+    a
 }
 
 /// Linea `rechaza motivo=proyecto-016` (C4).
