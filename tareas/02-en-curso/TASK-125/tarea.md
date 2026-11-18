@@ -43,3 +43,8 @@ Quitar situacion::actividad, que quedo sin usos fuera de sus tests tras TASK-081
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-18T20:42:58Z | diseno | agente:a34ddf615abf1fb2e | 14 | 29956 | 124657 | 6296 | 9 | 160923 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — d52d640
+- code-quality-reviewer — d52d640
