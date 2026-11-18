@@ -1,0 +1,605 @@
+{
+ "c1": [
+  {
+   "cierre": 10.0,
+   "commits": [
+    "2026-11-17T10:20:00Z",
+    "2026-11-17T11:40:00Z"
+   ],
+   "implementacion": 85.0,
+   "nombre": "con-commit-1140",
+   "rondas": 30.0,
+   "total": 125.0,
+   "transiciones": [
+    [
+     "2026-11-17T10:00:00Z",
+     "start"
+    ],
+    [
+     "2026-11-17T10:30:00Z",
+     "pausa"
+    ],
+    [
+     "2026-11-17T11:30:00Z",
+     "reanudar"
+    ],
+    [
+     "2026-11-17T13:00:00Z",
+     "review"
+    ],
+    [
+     "2026-11-17T13:30:00Z",
+     "review"
+    ],
+    [
+     "2026-11-17T13:40:00Z",
+     "finish"
+    ]
+   ]
+  },
+  {
+   "cierre": 10.0,
+   "commits": [
+    "2026-11-17T10:20:00Z"
+   ],
+   "implementacion": 75.0,
+   "nombre": "sin-commit-1140",
+   "rondas": 30.0,
+   "total": 115.0,
+   "transiciones": [
+    [
+     "2026-11-17T10:00:00Z",
+     "start"
+    ],
+    [
+     "2026-11-17T10:30:00Z",
+     "pausa"
+    ],
+    [
+     "2026-11-17T11:30:00Z",
+     "reanudar"
+    ],
+    [
+     "2026-11-17T13:00:00Z",
+     "review"
+    ],
+    [
+     "2026-11-17T13:30:00Z",
+     "review"
+    ],
+    [
+     "2026-11-17T13:40:00Z",
+     "finish"
+    ]
+   ]
+  }
+ ],
+ "corpus": [
+  {
+   "descartes": {
+    "duracion-negativa": [
+     "TASK-007"
+    ]
+   },
+   "estimaciones": [
+    {
+     "cierre": [
+      10.0,
+      12.0
+     ],
+     "implementacion": [
+      29.0,
+      50.0
+     ],
+     "n": 6,
+     "nivel": "carril+complejidad+tamano",
+     "objetivo": {
+      "carril": "funcionalidad",
+      "complejidad": "media",
+      "criterios": 2
+     },
+     "rondas": [
+      0.0,
+      15.0
+     ],
+     "total": [
+      46.5,
+      70.0
+     ]
+    }
+   ],
+   "filas_malas": 0,
+   "grupos": [
+    {
+     "cierre": 8.0,
+     "id": "TASK-001",
+     "implementacion": 12.0,
+     "miembros": [
+      "TASK-001"
+     ],
+     "rondas": 0.0,
+     "total": 20.0
+    },
+    {
+     "cierre": 8.0,
+     "id": "TASK-002",
+     "implementacion": 25.0,
+     "miembros": [
+      "TASK-002"
+     ],
+     "rondas": 15.0,
+     "total": 48.0
+    },
+    {
+     "cierre": 12.0,
+     "id": "TASK-003",
+     "implementacion": 33.0,
+     "miembros": [
+      "TASK-003"
+     ],
+     "rondas": 0.0,
+     "total": 45.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-004",
+     "implementacion": 60.0,
+     "miembros": [
+      "TASK-004"
+     ],
+     "rondas": 0.0,
+     "total": 70.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-005",
+     "implementacion": 20.0,
+     "miembros": [
+      "TASK-005"
+     ],
+     "rondas": 0.0,
+     "total": 30.0
+    },
+    {
+     "cierre": 15.0,
+     "id": "TASK-006",
+     "implementacion": 50.0,
+     "miembros": [
+      "TASK-006"
+     ],
+     "rondas": 25.0,
+     "total": 90.0
+    }
+   ],
+   "log": "906c6389c02a8df0135d63d27b025eadeb0844dd\u001f4bbd3e390c00896ea3c5f0635983b50b2ac665ec\u001f1791369060\u001fchore(TASK-007): tarea terminada y artefactos de cierre\n4bbd3e390c00896ea3c5f0635983b50b2ac665ec\u001f1bd7637a7c82a2fb0edf17b1b6c0996b4b4fd120 abc7873e904c8255566533dab1e69c5c2d94bb55\u001f1791368700\u001fmerge(feature): feature/task-007-tarea-7 -> develop\nabc7873e904c8255566533dab1e69c5c2d94bb55\u001f1bd7637a7c82a2fb0edf17b1b6c0996b4b4fd120\u001f1791367800\u001fx\n1bd7637a7c82a2fb0edf17b1b6c0996b4b4fd120\u001f07829b8d900ef9e82d3e7387d48475e45348a476\u001f1791282660\u001fchore(TASK-006): tarea terminada y artefactos de cierre\n07829b8d900ef9e82d3e7387d48475e45348a476\u001fd8244948df641da7fde04df85db07b6c43469cc1 6290af0eeadf01565bbe9cee43eb25ec2a4d5d7f\u001f1791282300\u001fmerge(feature): feature/task-006-tarea-6 -> develop\n6290af0eeadf01565bbe9cee43eb25ec2a4d5d7f\u001f68368e336298da9763e4ac32902d249f58b729ad\u001f1791279600\u001fy\n68368e336298da9763e4ac32902d249f58b729ad\u001fd8244948df641da7fde04df85db07b6c43469cc1\u001f1791278400\u001fx\nd8244948df641da7fde04df85db07b6c43469cc1\u001ff51de7af58fe9c39dd3b291774435b0073995db8\u001f1791196260\u001fchore(TASK-005): tarea terminada y artefactos de cierre\nf51de7af58fe9c39dd3b291774435b0073995db8\u001fa3cbf0ffc50acd7df51d3c9c74d9359241eda480 c5e849c6e88aaae0c8ae4e823aea17a9eb8967dd\u001f1791195900\u001fmerge(feature): feature/task-005-tarea-5 -> develop\nc5e849c6e88aaae0c8ae4e823aea17a9eb8967dd\u001fa3cbf0ffc50acd7df51d3c9c74d9359241eda480\u001f1791195000\u001fx\na3cbf0ffc50acd7df51d3c9c74d9359241eda480\u001ff3a70a4add77decc5ce1cef0f5da79f2ff0b5b45\u001f1791109260\u001fchore(TASK-004): tarea terminada y artefactos de cierre\nf3a70a4add77decc5ce1cef0f5da79f2ff0b5b45\u001f2f12118073c98eea81a9393411a17bfb4e50cfea 841ea4059bbd55d4328c697ec8f17eead35bb39d\u001f1791108900\u001fmerge(feature): feature/task-004-tarea-4 -> develop\n841ea4059bbd55d4328c697ec8f17eead35bb39d\u001f0d209942e8058af18fb209ec7263f0a2c37904e8\u001f1791108300\u001fy\n0d209942e8058af18fb209ec7263f0a2c37904e8\u001f2f12118073c98eea81a9393411a17bfb4e50cfea\u001f1791105000\u001fx\n2f12118073c98eea81a9393411a17bfb4e50cfea\u001fd9960ac5b07385c08662605107a5c6d73b8b7012\u001f1791020760\u001fchore(TASK-003): tarea terminada y artefactos de cierre\nd9960ac5b07385c08662605107a5c6d73b8b7012\u001f774feb525bc0ac0b27106d422544ef5a8e2aee95 a4b08ffa07b64466dd3626163e3a113a9c4271f0\u001f1791020400\u001fmerge(feature): feature/task-003-tarea-3 -> develop\n774feb525bc0ac0b27106d422544ef5a8e2aee95\u001fed0733275d441e135d166398e0cc6fbec3fc2ea8\u001f1791019740\u001fdocs(task-3): nota\na4b08ffa07b64466dd3626163e3a113a9c4271f0\u001fed0733275d441e135d166398e0cc6fbec3fc2ea8\u001f1791018900\u001fx\ned0733275d441e135d166398e0cc6fbec3fc2ea8\u001f5836cd7b6ee10f6dbbd56fc44c977d2935fee2bd\u001f1790934540\u001fchore(TASK-002): tarea terminada y artefactos de cierre\n5836cd7b6ee10f6dbbd56fc44c977d2935fee2bd\u001f0fdfb0424879ae7837d19f9e98aa82f6b200d332 0bb2f7477f3642b58c19ad945ad992e4673e65b7\u001f1790934300\u001fmerge(feature): feature/task-002-tarea-2 -> develop\n0bb2f7477f3642b58c19ad945ad992e4673e65b7\u001f17b57b8ef30304bcbf083f98c0355e6904444d94\u001f1790932800\u001fy\n17b57b8ef30304bcbf083f98c0355e6904444d94\u001f0fdfb0424879ae7837d19f9e98aa82f6b200d332\u001f1790932200\u001fx\n0fdfb0424879ae7837d19f9e98aa82f6b200d332\u001fdf013deee4983a72b0e4ff6f4ba23a473808db79\u001f1790846460\u001fchore(TASK-001): tarea terminada y artefactos de cierre\ndf013deee4983a72b0e4ff6f4ba23a473808db79\u001feb9959ae1441aa1d98877ab1a3de2d048ba4189f cc295fb0aea2cd9c982ed428d96cda162ce79f76\u001f1790846280\u001fmerge(feature): feature/task-001-tarea-1 -> develop\ncc295fb0aea2cd9c982ed428d96cda162ce79f76\u001f9c2e73c38a61c39dd1f3d19c581d4b1c62e62901\u001f1790845800\u001ffeat(TASK-001): b\n9c2e73c38a61c39dd1f3d19c581d4b1c62e62901\u001feb9959ae1441aa1d98877ab1a3de2d048ba4189f\u001f1790845500\u001ffeat: a\neb9959ae1441aa1d98877ab1a3de2d048ba4189f\u001f\u001f1790758800\u001finicial\n",
+   "nombre": "c2",
+   "reales": {
+    "TASK-001": {
+     "cierre": 8.0,
+     "implementacion": 12.0,
+     "rondas": 0.0
+    },
+    "TASK-002": {
+     "cierre": 8.0,
+     "implementacion": 25.0,
+     "rondas": 15.0
+    },
+    "TASK-003": {
+     "cierre": 12.0,
+     "implementacion": 33.0,
+     "rondas": 0.0
+    },
+    "TASK-004": {
+     "cierre": 10.0,
+     "implementacion": 60.0,
+     "rondas": 0.0
+    },
+    "TASK-005": {
+     "cierre": 10.0,
+     "implementacion": 20.0,
+     "rondas": 0.0
+    },
+    "TASK-006": {
+     "cierre": 15.0,
+     "implementacion": 50.0,
+     "rondas": 25.0
+    }
+   },
+   "tareas": {
+    "TASK-001/tarea.md": "---\nformato: 2\nid: \"TASK-001\"\ntitulo: \"Tarea 1\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-001-tarea-1\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-01\"\nactualizado: \"2026-10-01\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 1.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-01T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-01T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-01T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-01T09:12:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-01T09:20:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n| 2026-10-01T09:12:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n| 2026-10-01T09:15:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n",
+    "TASK-002/tarea.md": "---\nformato: 2\nid: \"TASK-002\"\ntitulo: \"Tarea 2\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-002-tarea-2\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-02\"\nactualizado: \"2026-10-02\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 2.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-02T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-02T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-02T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-02T09:25:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-02T09:40:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-02T09:48:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n| 2026-10-02T09:25:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n| 2026-10-02T09:38:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n",
+    "TASK-003/tarea.md": "---\nformato: 2\nid: \"TASK-003\"\ntitulo: \"Tarea 3\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-003-tarea-3\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-03\"\nactualizado: \"2026-10-03\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 3.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-03T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-03T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-03T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-03T09:33:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-03T09:45:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n| 2026-10-03T09:33:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n",
+    "TASK-004/tarea.md": "---\nformato: 2\nid: \"TASK-004\"\ntitulo: \"Tarea 4\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-004-tarea-4\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-04\"\nactualizado: \"2026-10-04\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 4.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-04T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-04T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-04T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-04T10:10:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-04T10:20:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-005/tarea.md": "---\nformato: 2\nid: \"TASK-005\"\ntitulo: \"Tarea 5\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-005-tarea-5\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-05\"\nactualizado: \"2026-10-05\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 5.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-05T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-05T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-05T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-05T09:05:00Z | pausa | automatico | persona | 0.16.1 |\n| 2026-10-05T10:05:00Z | reanudar | automatico | persona | 0.16.1 |\n| 2026-10-05T10:20:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-05T10:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-006/tarea.md": "---\nformato: 2\nid: \"TASK-006\"\ntitulo: \"Tarea 6\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-006-tarea-6\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-06\"\nactualizado: \"2026-10-06\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 6.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-06T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-06T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-06T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-06T09:50:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-06T10:10:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-06T10:15:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-06T10:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n| 2026-10-06T09:50:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n| 2026-10-06T10:12:00Z | implementacion | sesion:s | 1 | 1 | 1 | 1 | 0 | 1000 | - | - |\n",
+    "TASK-007/tarea.md": "---\nformato: 2\nid: \"TASK-007\"\ntitulo: \"Tarea 7\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-007-tarea-7\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-07\"\nactualizado: \"2026-10-07\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 7.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-07T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-07T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-07T09:30:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-07T10:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-07T10:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
+   }
+  },
+  {
+   "descartes": {},
+   "estimaciones": [
+    {
+     "cierre": [
+      10.0,
+      10.0
+     ],
+     "implementacion": [
+      45.0,
+      60.0
+     ],
+     "n": 5,
+     "nivel": "carril",
+     "objetivo": {
+      "carril": "funcionalidad",
+      "complejidad": "media",
+      "criterios": 2
+     },
+     "rondas": [
+      0.0,
+      0.0
+     ],
+     "total": [
+      60.0,
+      70.0
+     ]
+    },
+    {
+     "cierre": [
+      10.0,
+      10.0
+     ],
+     "implementacion": [
+      37.5,
+      60.0
+     ],
+     "n": 6,
+     "nivel": "repo",
+     "objetivo": {
+      "carril": "fix",
+      "complejidad": "media",
+      "criterios": 2
+     },
+     "rondas": [
+      0.0,
+      0.0
+     ],
+     "total": [
+      57.5,
+      70.0
+     ]
+    },
+    {
+     "cierre": [
+      10.0,
+      10.0
+     ],
+     "implementacion": [
+      37.5,
+      60.0
+     ],
+     "n": 6,
+     "nivel": "repo",
+     "objetivo": {
+      "carril": null,
+      "complejidad": "media",
+      "criterios": 2
+     },
+     "rondas": [
+      0.0,
+      0.0
+     ],
+     "total": [
+      57.5,
+      70.0
+     ]
+    }
+   ],
+   "filas_malas": 0,
+   "grupos": [
+    {
+     "cierre": 10.0,
+     "id": "TASK-001",
+     "implementacion": 20.0,
+     "miembros": [
+      "TASK-001"
+     ],
+     "rondas": 0.0,
+     "total": 30.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-002",
+     "implementacion": 30.0,
+     "miembros": [
+      "TASK-002"
+     ],
+     "rondas": 20.0,
+     "total": 60.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-003",
+     "implementacion": 45.0,
+     "miembros": [
+      "TASK-003"
+     ],
+     "rondas": 0.0,
+     "total": 55.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-004",
+     "implementacion": 60.0,
+     "miembros": [
+      "TASK-004"
+     ],
+     "rondas": 0.0,
+     "total": 70.0
+    },
+    {
+     "cierre": 9.0,
+     "id": "TASK-005",
+     "implementacion": 85.0,
+     "miembros": [
+      "TASK-005"
+     ],
+     "rondas": 0.0,
+     "total": 94.0
+    },
+    {
+     "cierre": 4.0,
+     "id": "TASK-006",
+     "implementacion": 8.0,
+     "miembros": [
+      "TASK-006"
+     ],
+     "rondas": 0.0,
+     "total": 12.0
+    }
+   ],
+   "log": "793651523cb56bff7cc2b6572cc7975151ed9aa5\u001fa3f8c95bae0484d605f11ebb43141d308bf91d28\u001f1793005980\u001fchore(TASK-006): tarea terminada y artefactos de cierre\na3f8c95bae0484d605f11ebb43141d308bf91d28\u001f81bd5c4d80db57f1ee2055421da989e67e83d8d2 554d5a470277a48cd5ba97c0a6dc72886a143e36\u001f1793005800\u001fmerge(feature): feature/task-006-tarea-6 -> develop\n554d5a470277a48cd5ba97c0a6dc72886a143e36\u001f81bd5c4d80db57f1ee2055421da989e67e83d8d2\u001f1793005500\u001fx\n81bd5c4d80db57f1ee2055421da989e67e83d8d2\u001f8c48cfb94080143da585febb623445762aa75fa7\u001f1792924800\u001fchore(TASK-005): tarea terminada y artefactos de cierre\n8c48cfb94080143da585febb623445762aa75fa7\u001f45258e7c0d209b5db103561d68d838dd055d60d3 bfa87131c8fbd18fdc59c9206d148f981e5a32df\u001f1792924500\u001fmerge(feature): feature/task-005-tarea-5 -> develop\nbfa87131c8fbd18fdc59c9206d148f981e5a32df\u001f45258e7c0d209b5db103561d68d838dd055d60d3\u001f1792921800\u001fx\n45258e7c0d209b5db103561d68d838dd055d60d3\u001fcfca5f0b5bba977c4d7c99999a17ced571750c59\u001f1792836660\u001fchore(TASK-004): tarea terminada y artefactos de cierre\ncfca5f0b5bba977c4d7c99999a17ced571750c59\u001f5f967d9efdfa6b8e23c8edc5ee183cf8ba1be383 f9d032cffbe08d7d99b085710ac5c18e3af1b5db\u001f1792836300\u001fmerge(feature): feature/task-004-tarea-4 -> develop\nf9d032cffbe08d7d99b085710ac5c18e3af1b5db\u001f5f967d9efdfa6b8e23c8edc5ee183cf8ba1be383\u001f1792834200\u001fx\n5f967d9efdfa6b8e23c8edc5ee183cf8ba1be383\u001f15cfe32d4cdd358b7e99631270b0ed1e8e1373fc\u001f1792749360\u001fchore(TASK-003): tarea terminada y artefactos de cierre\n15cfe32d4cdd358b7e99631270b0ed1e8e1373fc\u001fc25ce20832d6db20baaba863a0abe206d209f12d 263a4d9f55a2c5dfd2bab66275508e19f5e4bb5b\u001f1792749000\u001fmerge(feature): feature/task-003-tarea-3 -> develop\n263a4d9f55a2c5dfd2bab66275508e19f5e4bb5b\u001fd72ddeb5371400f22ef9fbc959b847d5ccffb6c2\u001f1792748400\u001fy\nd72ddeb5371400f22ef9fbc959b847d5ccffb6c2\u001fc25ce20832d6db20baaba863a0abe206d209f12d\u001f1792747500\u001fx\nc25ce20832d6db20baaba863a0abe206d209f12d\u001f272cef5137d1a243b9d8c659b3dadb49fe0683af\u001f1792663260\u001fchore(TASK-002): tarea terminada y artefactos de cierre\n272cef5137d1a243b9d8c659b3dadb49fe0683af\u001ff3b5f26d232b04d22cb5d9b0f899d275798204eb 7f4f6481d8b3b639726b6f9a5b1fed7fea091b25\u001f1792662900\u001fmerge(feature): feature/task-002-tarea-2 -> develop\n7f4f6481d8b3b639726b6f9a5b1fed7fea091b25\u001ff3b5f26d232b04d22cb5d9b0f899d275798204eb\u001f1792660500\u001fx\nf3b5f26d232b04d22cb5d9b0f899d275798204eb\u001f7e9915b506c435a593742b7709a1992c4e999877\u001f1792575060\u001fchore(TASK-001): tarea terminada y artefactos de cierre\n7e9915b506c435a593742b7709a1992c4e999877\u001fe41f105cbd5dfddbc4714cb437f714a1b5f9f862 44ad7f1b5d9e72807275da6261b924c35f8e7ed9\u001f1792574700\u001fmerge(feature): feature/task-001-tarea-1 -> develop\n44ad7f1b5d9e72807275da6261b924c35f8e7ed9\u001fe41f105cbd5dfddbc4714cb437f714a1b5f9f862\u001f1792573800\u001fx\ne41f105cbd5dfddbc4714cb437f714a1b5f9f862\u001f\u001f1792486800\u001finicial\n",
+   "nombre": "cascada",
+   "reales": {
+    "TASK-001": {
+     "cierre": 10.0,
+     "implementacion": 20.0,
+     "rondas": 0.0
+    },
+    "TASK-002": {
+     "cierre": 10.0,
+     "implementacion": 30.0,
+     "rondas": 20.0
+    },
+    "TASK-003": {
+     "cierre": 10.0,
+     "implementacion": 45.0,
+     "rondas": 0.0
+    },
+    "TASK-004": {
+     "cierre": 10.0,
+     "implementacion": 60.0,
+     "rondas": 0.0
+    },
+    "TASK-005": {
+     "cierre": 9.0,
+     "implementacion": 85.0,
+     "rondas": 0.0
+    },
+    "TASK-006": {
+     "cierre": 4.0,
+     "implementacion": 8.0,
+     "rondas": 0.0
+    }
+   },
+   "tareas": {
+    "TASK-001/tarea.md": "---\nformato: 2\nid: \"TASK-001\"\ntitulo: \"Tarea 1\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-001-tarea-1\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-21\"\nactualizado: \"2026-10-21\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 1.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-21T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-21T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-21T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-21T09:20:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-21T09:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-002/tarea.md": "---\nformato: 2\nid: \"TASK-002\"\ntitulo: \"Tarea 2\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-002-tarea-2\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-22\"\nactualizado: \"2026-10-22\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 2.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-22T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-22T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-22T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-22T09:30:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-22T09:50:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-22T10:00:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-003/tarea.md": "---\nformato: 2\nid: \"TASK-003\"\ntitulo: \"Tarea 3\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-003-tarea-3\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-23\"\nactualizado: \"2026-10-23\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 3.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-23T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-23T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-23T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-23T09:45:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-23T09:55:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-004/tarea.md": "---\nformato: 2\nid: \"TASK-004\"\ntitulo: \"Tarea 4\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-004-tarea-4\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-24\"\nactualizado: \"2026-10-24\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 4.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-24T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-24T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-24T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-24T10:00:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-24T10:10:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-005/tarea.md": "---\nformato: 2\nid: \"TASK-005\"\ntitulo: \"Tarea 5\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"alta\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-005-tarea-5\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-25\"\nactualizado: \"2026-10-25\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 5.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-25T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-25T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-25T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-25T10:30:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-25T10:39:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-006/tarea.md": "---\nformato: 2\nid: \"TASK-006\"\ntitulo: \"Tarea 6\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"fix\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-006-tarea-6\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-10-26\"\nactualizado: \"2026-10-26\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 6.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-10-26T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-10-26T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-10-26T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-10-26T09:08:00Z | review | automatico | persona | 0.16.1 |\n| 2026-10-26T09:12:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
+   }
+  },
+  {
+   "descartes": {},
+   "estimaciones": [
+    {
+     "n": 3,
+     "nivel": "sin-datos",
+     "objetivo": {
+      "carril": "funcionalidad",
+      "complejidad": "media",
+      "criterios": 2
+     }
+    }
+   ],
+   "filas_malas": 0,
+   "grupos": [
+    {
+     "cierre": 10.0,
+     "id": "TASK-001",
+     "implementacion": 20.0,
+     "miembros": [
+      "TASK-001"
+     ],
+     "rondas": 0.0,
+     "total": 30.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-002",
+     "implementacion": 30.0,
+     "miembros": [
+      "TASK-002"
+     ],
+     "rondas": 0.0,
+     "total": 40.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-003",
+     "implementacion": 40.0,
+     "miembros": [
+      "TASK-003"
+     ],
+     "rondas": 0.0,
+     "total": 50.0
+    }
+   ],
+   "log": "b584c5ed42b994a19dbdb13c0d07052982fcd711\u001f3c812457b634ef3aac0684ba7b34c8fe33d6635f\u001f1794477060\u001fchore(TASK-003): tarea terminada y artefactos de cierre\n3c812457b634ef3aac0684ba7b34c8fe33d6635f\u001f9e8a7abcfa442228ef2117689dde0d9e5b1fe1d5 c40e7962dc755540dd0826cc7b10f2d465dcc292\u001f1794476700\u001fmerge(feature): feature/task-003-tarea-3 -> develop\nc40e7962dc755540dd0826cc7b10f2d465dcc292\u001f9e8a7abcfa442228ef2117689dde0d9e5b1fe1d5\u001f1794475200\u001fx\n9e8a7abcfa442228ef2117689dde0d9e5b1fe1d5\u001f88ec11b67588687dc1221df4b68af6e2f2b3a58d\u001f1794390060\u001fchore(TASK-002): tarea terminada y artefactos de cierre\n88ec11b67588687dc1221df4b68af6e2f2b3a58d\u001f4d9376920f89cfbe66cfd7ab83b564855d90aadf d2fb68dbc27e6e8b384582eec74556982625162f\u001f1794389700\u001fmerge(feature): feature/task-002-tarea-2 -> develop\nd2fb68dbc27e6e8b384582eec74556982625162f\u001f4d9376920f89cfbe66cfd7ab83b564855d90aadf\u001f1794388500\u001fx\n4d9376920f89cfbe66cfd7ab83b564855d90aadf\u001ffcfcda59bd498a2fea6dc15137f5ec07156c0973\u001f1794303060\u001fchore(TASK-001): tarea terminada y artefactos de cierre\nfcfcda59bd498a2fea6dc15137f5ec07156c0973\u001f60086352f1d323c3fa1f57e7aa1c25cbcfa011a9 0a671f5d9f082fc0d81094393d2567a056361561\u001f1794302700\u001fmerge(feature): feature/task-001-tarea-1 -> develop\n0a671f5d9f082fc0d81094393d2567a056361561\u001f60086352f1d323c3fa1f57e7aa1c25cbcfa011a9\u001f1794301800\u001fx\n60086352f1d323c3fa1f57e7aa1c25cbcfa011a9\u001f\u001f1794214800\u001finicial\n",
+   "nombre": "sin-datos",
+   "reales": {
+    "TASK-001": {
+     "cierre": 10.0,
+     "implementacion": 20.0,
+     "rondas": 0.0
+    },
+    "TASK-002": {
+     "cierre": 10.0,
+     "implementacion": 30.0,
+     "rondas": 0.0
+    },
+    "TASK-003": {
+     "cierre": 10.0,
+     "implementacion": 40.0,
+     "rondas": 0.0
+    }
+   },
+   "tareas": {
+    "TASK-001/tarea.md": "---\nformato: 2\nid: \"TASK-001\"\ntitulo: \"Tarea 1\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-001-tarea-1\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-11-10\"\nactualizado: \"2026-11-10\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 1.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-11-10T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-11-10T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-11-10T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-11-10T09:20:00Z | review | automatico | persona | 0.16.1 |\n| 2026-11-10T09:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-002/tarea.md": "---\nformato: 2\nid: \"TASK-002\"\ntitulo: \"Tarea 2\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-002-tarea-2\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-11-11\"\nactualizado: \"2026-11-11\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 2.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-11-11T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-11-11T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-11-11T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-11-11T09:30:00Z | review | automatico | persona | 0.16.1 |\n| 2026-11-11T09:40:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-003/tarea.md": "---\nformato: 2\nid: \"TASK-003\"\ntitulo: \"Tarea 3\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-003-tarea-3\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-11-12\"\nactualizado: \"2026-11-12\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 3.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-11-12T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-11-12T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-11-12T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-11-12T09:40:00Z | review | automatico | persona | 0.16.1 |\n| 2026-11-12T09:50:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
+   }
+  },
+  {
+   "descartes": {},
+   "estimaciones": [
+    {
+     "cierre": [
+      10.0,
+      10.0
+     ],
+     "implementacion": [
+      40.0,
+      50.0
+     ],
+     "n": 5,
+     "nivel": "carril+complejidad",
+     "objetivo": {
+      "carril": "funcionalidad",
+      "complejidad": "media",
+      "criterios": 2
+     },
+     "rondas": [
+      0.0,
+      0.0
+     ],
+     "total": [
+      50.0,
+      60.0
+     ]
+    }
+   ],
+   "filas_malas": 0,
+   "grupos": [
+    {
+     "cierre": 10.0,
+     "id": "TASK-001",
+     "implementacion": 20.0,
+     "miembros": [
+      "TASK-001"
+     ],
+     "rondas": 0.0,
+     "total": 30.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-002",
+     "implementacion": 30.0,
+     "miembros": [
+      "TASK-002"
+     ],
+     "rondas": 0.0,
+     "total": 40.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-003",
+     "implementacion": 40.0,
+     "miembros": [
+      "TASK-003"
+     ],
+     "rondas": 0.0,
+     "total": 50.0
+    },
+    {
+     "cierre": 10.0,
+     "id": "TASK-004",
+     "implementacion": 50.0,
+     "miembros": [
+      "TASK-004"
+     ],
+     "rondas": 0.0,
+     "total": 60.0
+    },
+    {
+     "cierre": 16.0,
+     "id": "TASK-005+TASK-006",
+     "implementacion": 109.0,
+     "miembros": [
+      "TASK-005",
+      "TASK-006"
+     ],
+     "rondas": 0.0,
+     "total": 125.0
+    }
+   ],
+   "log": "d7626f73ac841e14b6c09d76f3b706d4d8013768\u001fa35b07a36376644f8d7379584b673b32939d5828\u001f1796463060\u001fchore(TASK-006): tarea terminada y artefactos de cierre\na35b07a36376644f8d7379584b673b32939d5828\u001f69c90755b3e43f8b85406da49363bbe976a4a2ff ea6fc23415069e3013ff75e38e0054887f6fc257\u001f1796462880\u001fmerge(feature): feature/task-006-tarea-6 -> develop\nea6fc23415069e3013ff75e38e0054887f6fc257\u001f69c90755b3e43f8b85406da49363bbe976a4a2ff\u001f1796461920\u001fx\n69c90755b3e43f8b85406da49363bbe976a4a2ff\u001f17fb8d59039ba40197eb19d815e277d0ec025c0a\u001f1796382060\u001fchore(TASK-005): tarea terminada y artefactos de cierre\n17fb8d59039ba40197eb19d815e277d0ec025c0a\u001fa823aaab506ee1005027d2276567998a5fe13638 10833b5cadb63eca2a78cf04dc31c35a2a85bc79\u001f1796381700\u001fmerge(feature): feature/task-005-tarea-5 -> develop\n10833b5cadb63eca2a78cf04dc31c35a2a85bc79\u001f4c35c451e35da7f182073ca9556f0dbfac7c163c\u001f1796380800\u001fy\n4c35c451e35da7f182073ca9556f0dbfac7c163c\u001fa823aaab506ee1005027d2276567998a5fe13638\u001f1796376600\u001fx\na823aaab506ee1005027d2276567998a5fe13638\u001fecebf300186b818a7923b674f6b7db1c8d8ae0ac\u001f1796292060\u001fchore(TASK-004): tarea terminada y artefactos de cierre\necebf300186b818a7923b674f6b7db1c8d8ae0ac\u001feaed917bf62c25562be5676fd5b7a12bd8de935f d68c6bb0eac0f09c08b5aa4827848838e70c8789\u001f1796291700\u001fmerge(feature): feature/task-004-tarea-4 -> develop\nd68c6bb0eac0f09c08b5aa4827848838e70c8789\u001feaed917bf62c25562be5676fd5b7a12bd8de935f\u001f1796289900\u001fx\neaed917bf62c25562be5676fd5b7a12bd8de935f\u001ffb3952d8955dc477d36c0eb330edaeda491216e5\u001f1796205060\u001fchore(TASK-003): tarea terminada y artefactos de cierre\nfb3952d8955dc477d36c0eb330edaeda491216e5\u001f8f5decd243397e68293703ec2c0c9dfa54e771dc 1058c20abb15e90963702cdeb3e133ed67563fcf\u001f1796204700\u001fmerge(feature): feature/task-003-tarea-3 -> develop\n1058c20abb15e90963702cdeb3e133ed67563fcf\u001f8f5decd243397e68293703ec2c0c9dfa54e771dc\u001f1796203200\u001fx\n8f5decd243397e68293703ec2c0c9dfa54e771dc\u001f2ffc03d63870c47ceefd034a379b6801994fc908\u001f1796118060\u001fchore(TASK-002): tarea terminada y artefactos de cierre\n2ffc03d63870c47ceefd034a379b6801994fc908\u001fa49567f76d5302f5a3011bf42334427bbae11121 6d08c99baff52e694dc274e835d7370b785700a7\u001f1796117700\u001fmerge(feature): feature/task-002-tarea-2 -> develop\n6d08c99baff52e694dc274e835d7370b785700a7\u001fa49567f76d5302f5a3011bf42334427bbae11121\u001f1796116500\u001fx\na49567f76d5302f5a3011bf42334427bbae11121\u001f8de0d892270091505fa27daa57bbbf26db8c2b03\u001f1796031060\u001fchore(TASK-001): tarea terminada y artefactos de cierre\n8de0d892270091505fa27daa57bbbf26db8c2b03\u001faa191ce206836463d989842a9c75ebbf8f98bd6b a16cf0a3bf2f551e8dcb519964b485793b7c4d32\u001f1796030700\u001fmerge(feature): feature/task-001-tarea-1 -> develop\na16cf0a3bf2f551e8dcb519964b485793b7c4d32\u001faa191ce206836463d989842a9c75ebbf8f98bd6b\u001f1796029800\u001fx\naa191ce206836463d989842a9c75ebbf8f98bd6b\u001f\u001f1795942800\u001finicial\n",
+   "nombre": "troceo",
+   "reales": {
+    "TASK-001": {
+     "cierre": 10.0,
+     "implementacion": 20.0,
+     "rondas": 0.0
+    },
+    "TASK-002": {
+     "cierre": 10.0,
+     "implementacion": 30.0,
+     "rondas": 0.0
+    },
+    "TASK-003": {
+     "cierre": 10.0,
+     "implementacion": 40.0,
+     "rondas": 0.0
+    },
+    "TASK-004": {
+     "cierre": 10.0,
+     "implementacion": 50.0,
+     "rondas": 0.0
+    },
+    "TASK-005": {
+     "cierre": 10.0,
+     "implementacion": 85.0,
+     "rondas": 0.0
+    },
+    "TASK-006": {
+     "cierre": 6.0,
+     "implementacion": 24.0,
+     "rondas": 0.0
+    }
+   },
+   "tareas": {
+    "TASK-001/tarea.md": "---\nformato: 2\nid: \"TASK-001\"\ntitulo: \"Tarea 1\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-001-tarea-1\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-11-30\"\nactualizado: \"2026-11-30\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 1.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-11-30T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-11-30T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-11-30T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-11-30T09:20:00Z | review | automatico | persona | 0.16.1 |\n| 2026-11-30T09:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-002/tarea.md": "---\nformato: 2\nid: \"TASK-002\"\ntitulo: \"Tarea 2\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-002-tarea-2\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-12-01\"\nactualizado: \"2026-12-01\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 2.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-12-01T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-12-01T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-12-01T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-12-01T09:30:00Z | review | automatico | persona | 0.16.1 |\n| 2026-12-01T09:40:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-003/tarea.md": "---\nformato: 2\nid: \"TASK-003\"\ntitulo: \"Tarea 3\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-003-tarea-3\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-12-02\"\nactualizado: \"2026-12-02\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 3.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n- [x] C3: criterio 3\n- [x] C4: criterio 4\n- [x] C5: criterio 5\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-12-02T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-12-02T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-12-02T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-12-02T09:40:00Z | review | automatico | persona | 0.16.1 |\n| 2026-12-02T09:50:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-004/tarea.md": "---\nformato: 2\nid: \"TASK-004\"\ntitulo: \"Tarea 4\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-004-tarea-4\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-12-03\"\nactualizado: \"2026-12-03\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 4.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-12-03T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-12-03T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-12-03T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-12-03T09:50:00Z | review | automatico | persona | 0.16.1 |\n| 2026-12-03T10:00:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-005/tarea.md": "---\nformato: 2\nid: \"TASK-005\"\ntitulo: \"Tarea 5\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-005-tarea-5\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-12-04\"\nactualizado: \"2026-12-04\"\ndependencias: []\n---\n## Objetivo\n\nObjetivo de la tarea 5.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-12-04T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-12-04T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-12-04T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-12-04T10:50:00Z | review | automatico | persona | 0.16.1 |\n| 2026-12-04T11:00:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n",
+    "TASK-006/tarea.md": "---\nformato: 2\nid: \"TASK-006\"\ntitulo: \"Tarea 6\"\ntipo: \"feature\"\nsprint: 1\netiquetas: []\ncomplejidad: \"media\"\ncarril: \"funcionalidad\"\nestado: \"terminada\"\nmotivo: null\nplan_aprobado: true\nrama: \"feature/task-006-tarea-6\"\nasignado_a: {id: 7, login: \"ana\"}\nroles:\n  diseno: {modelo: null, skills: [], regla: null}\n  implementacion: {modelo: \"sonnet\", skills: [], regla: null}\n  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}\nestimacion: null\ntokens_diseno: null\ntokens_implementacion: null\ntokens_revision: null\ncreado: \"2026-12-05\"\nactualizado: \"2026-12-05\"\ndependencias: []\n---\n## Objetivo\n\nSegunda parte de TASK-005: lo que falto.\n\n## Criterios de aceptacion\n\n- [x] C1: criterio 1\n- [x] C2: criterio 2\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n| 2026-12-05T08:50:00Z | plan | automatico | persona | 0.16.1 |\n| 2026-12-05T08:59:00Z | approve | automatico | persona | 0.16.1 |\n| 2026-12-05T09:00:00Z | start | automatico | persona | 0.16.1 |\n| 2026-12-05T09:24:00Z | review | automatico | persona | 0.16.1 |\n| 2026-12-05T09:30:00Z | finish | automatico | persona | 0.16.1 |\n\n## Coste\n\n| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
+   }
+  }
+ ],
+ "fuente": "poc-f1-17.py (TASK-075) ejecutada con python -I -B por t083-paridad.py",
+ "n_min": 5,
+ "pct": 0.8,
+ "umbral": 45
+}

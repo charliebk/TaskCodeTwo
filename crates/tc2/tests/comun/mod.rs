@@ -213,7 +213,7 @@ pub fn dos_veces(f: &Fixture, bare: &Path, clon: &Path, op: impl Fn() -> Informe
 /// Detector independiente por lista permitida (F1-4 B2b): cada linea del
 /// registro es un subcomando permitido sin argumentos prohibidos.
 pub fn registro_permitido(registro: &[String]) {
-    const PERMITIDOS: [&str; 25] = [
+    const PERMITIDOS: [&str; 26] = [
         "add",
         "branch",
         "cat-file",
@@ -223,6 +223,7 @@ pub fn registro_permitido(registro: &[String]) {
         "fetch",
         "for-each-ref",
         "hash-object",
+        "log",
         "ls-remote",
         "ls-tree",
         "merge",
