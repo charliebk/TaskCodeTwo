@@ -39,16 +39,10 @@ pub struct Ficha {
 /// Segundos de un dia.
 const DIA: u64 = 86_400;
 
-/// La actividad de una tarea (F3-10, D2a): el instante mas reciente entre
-/// la ultima fila de sus transiciones (tambien `pausa` y `reanudar`: la
-/// pausa no exime) y el ultimo commit de `origin/<rama>` (`commit_rama`).
-/// Sin ninguna de las dos, `None`: no se sabe.
-pub fn actividad(ficha: &Ficha, commit_rama: Option<u64>) -> Option<u64> {
-    ficha.ultima_transicion.max(commit_rama)
-}
-
-/// Dias completos sin actividad desde `ultima` hasta `ahora`. Una actividad
-/// del futuro (reloj adelantado) cuenta como de hoy: 0.
+/// Dias completos sin actividad desde `ultima` hasta `ahora`. `ultima` es la
+/// actividad ya filtrada por [`crate::ciclo::liberar::actividad_conocida`]
+/// (F3-10, D2a): solo puede ir por delante de `ahora` dentro de su
+/// `MARGEN_FUTURO`, y entonces la resta satura y da 0.
 pub fn dias_sin_actividad(ultima: u64, ahora: u64) -> u64 {
     ahora.saturating_sub(ultima) / DIA
 }
@@ -212,22 +206,16 @@ mod tests {
         Ficha::de(&Documento::Formato2(t, Cuerpo::leer(cuerpo)))
     }
 
-    /// TASK-081 (D2a): la actividad es la mas reciente de la ultima fila y
-    /// del commit de la rama; sin ninguna, no se sabe. Los dias son
-    /// completos y una actividad del futuro cuenta como de hoy.
+    /// TASK-081 (D2a): la ultima fila cuenta tambien si es `pausa`. Los dias
+    /// son completos; la regla de la actividad (y su margen para un reloj
+    /// adelantado) vive en `ciclo::liberar::actividad_conocida` (TASK-125).
     #[test]
-    fn actividad_y_dias_sin_actividad() {
+    fn dias_sin_actividad_completos() {
         let f = ficha(
             "## Transiciones\n| fecha | fase |\n|---|---|\n| 2026-11-17T10:20:30Z | pausa |\n",
         );
         let fila = 1_794_910_830;
         assert_eq!(f.ultima_transicion, Some(fila));
-        assert_eq!(actividad(&f, None), Some(fila));
-        assert_eq!(actividad(&f, Some(fila - 5)), Some(fila));
-        assert_eq!(actividad(&f, Some(fila + 5)), Some(fila + 5));
-        let sin = ficha("");
-        assert_eq!(actividad(&sin, None), None);
-        assert_eq!(actividad(&sin, Some(3)), Some(3));
         assert_eq!(dias_sin_actividad(fila, fila + 7 * DIA - 1), 6);
         assert_eq!(dias_sin_actividad(fila, fila + 7 * DIA), 7);
         assert_eq!(dias_sin_actividad(fila + 100, fila), 0);
