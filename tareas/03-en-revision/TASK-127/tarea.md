@@ -38,6 +38,7 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 | 2026-11-18T13:23:44Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-18T13:23:58Z | start | automatico | persona | 0.16.1 |
 | 2026-11-18T14:10:54Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T15:12:21Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
