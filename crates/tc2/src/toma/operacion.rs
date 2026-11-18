@@ -61,6 +61,7 @@ pub struct Tomar {
     rama: RefCell<Option<String>>,
     estimacion: RefCell<Option<Estimacion>>,
     progreso: RefCell<Option<crate::progreso::Progreso>>,
+    en_curso: RefCell<Option<Vec<crate::solape::EnCurso>>>,
 }
 
 impl Tomar {
@@ -82,7 +83,15 @@ impl Tomar {
             rama: RefCell::new(None),
             estimacion: RefCell::new(None),
             progreso: RefCell::new(None),
+            en_curso: RefCell::new(None),
         }
+    }
+
+    /// Las tareas en curso o en revision del estado del ultimo intento que
+    /// escribio la toma, de la misma lectura de todos los `tarea.md` que el
+    /// historico (F3-11): el solape de `start` no vuelve a leer el estado.
+    pub fn en_curso(&self) -> Option<Vec<crate::solape::EnCurso>> {
+        self.en_curso.borrow().clone()
     }
 
     /// El progreso en vivo de la tarea tomada en el ultimo intento (F3-12),
@@ -153,6 +162,7 @@ impl Operacion for Tomar {
         *self.rama.borrow_mut() = None;
         *self.estimacion.borrow_mut() = None;
         *self.progreso.borrow_mut() = None;
+        *self.en_curso.borrow_mut() = None;
         let ruta = format!("{}/tarea.md", self.id);
         let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
         let rama = t
@@ -211,6 +221,9 @@ impl Operacion for Tomar {
         // La estimacion, recalculada con las terminadas del estado fresco
         // (F3-13, D2a): `calculada` es la hora del `start`.
         let leidas = crate::estado::tareas(estado, &estado.rutas())?;
+        *self.en_curso.borrow_mut() = Some(crate::solape::en_curso(
+            leidas.iter().filter_map(|(_, d)| d.as_ref().ok()),
+        ));
         let h = crate::estimacion::historico(&leidas, &self.commits);
         let e = crate::estimacion::recalcular(&mut t, &cuerpo, &h, self.ahora);
         *self.estimacion.borrow_mut() = Some(e);

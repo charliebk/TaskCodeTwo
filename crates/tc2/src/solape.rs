@@ -11,9 +11,16 @@
 //!
 //! Punto de extension de F4-1: [`Toca`] ganara las `zonas` (globs) de la
 //! tarea y [`cruzar`] la regla de prefijo de F1-17 (punto 11).
+//!
+//! [`calcular`] corre tras el `fetch` de `start` y sin red: un
+//! `for-each-ref` de `refs/remotes/origin/`, el `diff` de la rama propia y
+//! uno por cada otra tarea con rama publicada (1 + k + 1 procesos de git).
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
+use crate::contrato::Informe;
+use crate::git::{self, Git};
 use crate::plataforma::Personas;
 use crate::situacion::{self, Ficha};
 use crate::tarea::Documento;
@@ -116,6 +123,160 @@ pub fn cruzar(propia: &BTreeSet<String>, otras: &[Toca]) -> Vec<Cruce> {
         .collect();
     v.sort_by(|a, b| a.id.cmp(&b.id));
     v
+}
+
+/// Nombre de la operacion en los informes de error de git (no se ven: un
+/// fallo del solape solo marca `solape-incompleto`).
+const OP: &str = "solape";
+
+/// Elementos como mucho de cada lista de la linea (D5a de TASK-082); si se
+/// corta alguna, `solape-truncado=si`.
+pub const MAX_LISTA: usize = 20;
+
+/// Modulos como mucho por tarea en `en-curso-modulos` y en la nota (D3b).
+pub const MAX_MODULOS_NOTA: usize = 5;
+
+/// Lo que sale del solape de una tarea.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Solape {
+    /// Las otras tareas que tocan lo mismo, por ID.
+    pub cruces: Vec<Cruce>,
+    /// Las otras tareas con la rama publicada y su diff leido, por ID.
+    pub publicadas: Vec<Toca>,
+    /// Las otras tareas sin `origin/<rama>` (o sin `rama:`): no se sabe que
+    /// tocan.
+    pub sin_rama: Vec<String>,
+    /// Las tareas cuyo `diff` fallo (la propia incluida): su solape no se
+    /// sabe.
+    pub incompletas: Vec<String>,
+    /// La rama propia aun no cambia nada (primer `start`, D3b): en vez de
+    /// cruces, la nota con lo que tocan las demas.
+    pub propia_vacia: bool,
+}
+
+/// El solape de la tarea `id` (rama `rama`, ya creada en local) con las
+/// tareas `en_curso`, desde la carpeta `dir` del repo. Sin red: lo que
+/// sabe el clon tras el `fetch` de `start`.
+///
+/// `None` (ninguna clave) si no hay otra tarea en curso o el clon no conoce
+/// ninguna rama de `origin` (sin remoto o sin haberlo traido nunca). Un
+/// `diff` que falla no rompe nada: la tarea queda en `incompletas`.
+pub fn calcular(g: &Git, dir: &Path, id: &str, rama: &str, en_curso: &[EnCurso]) -> Option<Solape> {
+    let otras: Vec<&EnCurso> = en_curso.iter().filter(|t| t.id != id).collect();
+    if otras.is_empty() {
+        return None;
+    }
+    let mut s = Solape::default();
+    let remotas = match git::fechas_de_ramas(g, dir, OP) {
+        Ok(r) if r.is_empty() => return None,
+        Ok(r) => r,
+        Err(_) => {
+            s.incompletas = otras.iter().map(|t| t.id.clone()).collect();
+            return Some(s);
+        }
+    };
+    let propia = git::ficheros_de_rama(
+        g,
+        dir,
+        OP,
+        git::base_de_rama(rama),
+        &format!("refs/heads/{rama}"),
+    )
+    .ok();
+    if propia.is_none() {
+        s.incompletas.push(id.to_owned());
+    }
+    for t in otras {
+        let Some(r) = t.rama.as_deref().filter(|r| remotas.contains_key(*r)) else {
+            s.sin_rama.push(t.id.clone());
+            continue;
+        };
+        let remota = format!("refs/remotes/{}/{r}", git::REMOTO);
+        match git::ficheros_de_rama(g, dir, OP, git::base_de_rama(r), &remota) {
+            Ok(ficheros) => s.publicadas.push(Toca {
+                id: t.id.clone(),
+                quien: t.quien.clone(),
+                ficheros,
+            }),
+            Err(_) => s.incompletas.push(t.id.clone()),
+        }
+    }
+    s.incompletas.sort();
+    match propia {
+        Some(p) if p.is_empty() => s.propia_vacia = true,
+        Some(p) => s.cruces = cruzar(&p, &s.publicadas),
+        None => {}
+    }
+    Some(s)
+}
+
+/// `TASK-NNN:<valor>`: un elemento de una lista de la linea. `:` no se
+/// escapa en un valor de lista (F1-4, decision 4: solo espacio, `%`,
+/// controles y `,`) y el ID no lo lleva, asi que el primer `:` separa.
+fn de(id: &str, valor: &str) -> String {
+    format!("{id}:{valor}")
+}
+
+/// Anade la lista `clave` si no esta vacia, cortada a [`MAX_LISTA`].
+fn lista(i: Informe, clave: &str, mut v: Vec<String>, truncado: &mut bool) -> Informe {
+    if v.is_empty() {
+        return i;
+    }
+    if v.len() > MAX_LISTA {
+        v.truncate(MAX_LISTA);
+        *truncado = true;
+    }
+    i.con_lista(clave, v)
+}
+
+/// Los modulos de una tarea para la nota, como mucho [`MAX_MODULOS_NOTA`].
+fn modulos_nota(t: &Toca) -> Vec<&str> {
+    modulos(&t.ficheros)
+        .into_iter()
+        .take(MAX_MODULOS_NOTA)
+        .collect()
+}
+
+impl Solape {
+    /// Las claves del solape en la linea de `start` (D5a de TASK-082):
+    /// `solape`, `solape-ficheros`, `solape-modulos` y `solape-asignados`
+    /// si cruza con alguna; `en-curso-modulos` en el primer `start` (D3b);
+    /// `solape-sin-rama` y `solape-incompleto` si las hay; y
+    /// `solape-truncado=si` si se corto alguna lista. Una lista vacia no
+    /// sale.
+    pub fn con_claves(&self, mut i: Informe) -> Informe {
+        let mut t = false;
+        let c = &self.cruces;
+        i = lista(
+            i,
+            "solape",
+            c.iter().map(|c| c.id.clone()).collect(),
+            &mut t,
+        );
+        let ficheros = c
+            .iter()
+            .flat_map(|c| c.ficheros.iter().map(|f| de(&c.id, f)))
+            .collect();
+        i = lista(i, "solape-ficheros", ficheros, &mut t);
+        let modulos = c
+            .iter()
+            .flat_map(|c| c.modulos.iter().map(|m| de(&c.id, m)))
+            .collect();
+        i = lista(i, "solape-modulos", modulos, &mut t);
+        let asignados = c.iter().map(|c| de(&c.id, &c.quien)).collect();
+        i = lista(i, "solape-asignados", asignados, &mut t);
+        if self.propia_vacia {
+            let en_curso = self
+                .publicadas
+                .iter()
+                .flat_map(|p| modulos_nota(p).into_iter().map(|m| de(&p.id, m)))
+                .collect();
+            i = lista(i, "en-curso-modulos", en_curso, &mut t);
+        }
+        i = lista(i, "solape-sin-rama", self.sin_rama.clone(), &mut t);
+        i = lista(i, "solape-incompleto", self.incompletas.clone(), &mut t);
+        if t { i.con("solape-truncado", "si") } else { i }
+    }
 }
 
 #[cfg(test)]
