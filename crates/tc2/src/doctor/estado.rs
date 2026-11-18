@@ -4,7 +4,9 @@
 //!   `fetch` (lo ultimo traido; D4a de F3-5b: `doctor` solo lee):
 //!   ausente, `falla motivo=sin-rama-de-estado`; una ref que existe y no es
 //!   un commit, `falla motivo=ref-ilegible ref=...`; un `tarea.md` que no se
-//!   entiende, `falla motivo=tarea-ilegible ids=...`.
+//!   entiende, `falla motivo=tarea-ilegible ids=...`. Con el estado leido,
+//!   `estado historico ok usables=N descartadas=M` (F3-13: las terminadas
+//!   que dan muestra a la estimacion y las que no).
 //! - La instalacion es el inventario de `tc2 init` en simulacion, sin
 //!   credenciales (no llama a la API: los rulesets salen `pendiente
 //!   motivo=sin-token` y los mira [`super::plataforma`]). Cada accion que
@@ -70,6 +72,16 @@ pub(super) fn rama(g: &Git, dir: &Path) -> (Vec<Hallazgo>, Option<String>) {
             .con("ids", s.ilegibles.join(",")),
         Err(_) => t(Estado::Falla).motivo("estado-ilegible").con("ref", r),
     });
+    // F3-13: el historico de la estimacion, sin `git log` (doctor solo lee
+    // el estado; los descartes no dependen de los commits).
+    if let Ok(leidas) = estado::tareas(&vista, &estado::Estado::rutas(&vista)) {
+        let h = crate::estimacion::historico(&leidas, &crate::estimacion::Commits::vacios());
+        v.push(
+            Hallazgo::nuevo("estado", "historico", Estado::Ok)
+                .con("usables", h.usables.to_string())
+                .con("descartadas", h.descartadas().to_string()),
+        );
+    }
     (v, commit)
 }
 

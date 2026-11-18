@@ -322,7 +322,8 @@ pub struct Tarea {
     pub asignado_a: Option<Asignado>,
     pub roles: Roles,
     /// Entrada `estimacion:` cruda (su forma la fija F1-17); `None` es `null`.
-    /// Privada: solo llega de una lectura, que la ha validado como YAML.
+    /// Privada: solo llega de una lectura, que la ha validado como YAML, o de
+    /// [`Tarea::poner_estimacion`].
     estimacion: Option<String>,
     pub tokens_diseno: Option<u64>,
     pub tokens_implementacion: Option<u64>,
@@ -518,6 +519,13 @@ impl Tarea {
     /// Entrada `estimacion:` cruda tal como se leyo; `None` si es `null`.
     pub fn estimacion(&self) -> Option<&str> {
         self.estimacion.as_deref()
+    }
+
+    /// Pone la estimacion con la forma del punto 7 de F1-17 (F3-13): el
+    /// unico camino de escritura del campo. Lo escrito se vuelve a leer igual
+    /// (`estimacion` en bloque, YAML valido).
+    pub fn poner_estimacion(&mut self, e: &crate::estimacion::Estimacion) {
+        self.estimacion = Some(e.yaml());
     }
 
     /// Lee el frontmatter de formato 2 con el esquema estricto.

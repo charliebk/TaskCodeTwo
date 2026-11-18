@@ -61,6 +61,8 @@ pub struct Importar {
     fecha: String,
     ocupados: BTreeSet<u32>,
     plan: RefCell<Option<Plan>>,
+    ahora: u64,
+    commits: crate::estimacion::Commits,
 }
 
 impl Importar {
@@ -73,6 +75,8 @@ impl Importar {
             fecha: alta::hoy(),
             ocupados: BTreeSet::new(),
             plan: RefCell::new(None),
+            ahora: crate::identidad::ahora(),
+            commits: crate::estimacion::Commits::vacios(),
         }
     }
 
@@ -80,6 +84,13 @@ impl Importar {
     #[must_use]
     pub fn con_ocupados(mut self, ocupados: BTreeSet<u32>) -> Self {
         self.ocupados = ocupados;
+        self
+    }
+
+    /// Los commits de `develop` para la estimacion de cada tarea (F3-13).
+    #[must_use]
+    pub fn con_commits(mut self, commits: crate::estimacion::Commits) -> Self {
+        self.commits = commits;
         self
     }
 
@@ -106,7 +117,11 @@ impl Operacion for Importar {
     }
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         let rutas = estado.rutas();
-        let tareas = alta::tareas(estado, &rutas)?;
+        // Una sola lectura de los `tarea.md` y un solo historico para todo
+        // el lote (F3-13).
+        let leidas = alta::leidas(estado, &rutas)?;
+        let historico = crate::estimacion::historico(&leidas, &self.commits);
+        let tareas = alta::de_formato2(&leidas);
         let prefijo = format!("{}/", self.lote);
         let del_lote = |t: &crate::tarea::Tarea| {
             t.lote
@@ -160,7 +175,16 @@ impl Operacion for Importar {
             .into_iter()
             .filter(|t| del_lote(t).is_none())
             .collect();
-        let a = alta::altas(&fuera, &ids, &entradas, &self.fecha)?;
+        let a = alta::altas(
+            &fuera,
+            &ids,
+            &entradas,
+            &self.fecha,
+            &alta::Calculo {
+                historico: &historico,
+                ahora: self.ahora,
+            },
+        )?;
         *self.plan.borrow_mut() = Some(Plan {
             creadas: ids.iter().map(|n| alta::formato_id(*n)).collect(),
             existentes,
@@ -312,7 +336,10 @@ fn importar_en(
             return i;
         }
     };
-    let op = Importar::nuevo(&nombre, sprint, lote.entradas).con_ocupados(ocupados);
+    // La historia de `develop` para la estimacion (F3-13), una vez.
+    let op = Importar::nuevo(&nombre, sprint, lote.entradas)
+        .con_ocupados(ocupados)
+        .con_commits(crate::estimacion::commits_de(g, dir));
     if o.simular {
         return simular(g, dir, &op, parecidas);
     }

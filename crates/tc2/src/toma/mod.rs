@@ -133,7 +133,10 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 2. Quien la toma.
     let quien = (e.quien)()?;
     // 3. La toma en seco sobre lo leido: los rechazos, sin esperar al push.
-    let op = Tomar::nueva(id, &quien, e.ahora);
+    // La historia de `develop` para la estimacion (F3-13), una vez y antes
+    // de la transaccion.
+    let op =
+        Tomar::nueva(id, &quien, e.ahora).con_commits(crate::estimacion::commits_de(g, &principal));
     let empezada = match op.aplicar(&vista) {
         Ok(c) => c.is_empty(),
         Err(Fallo::Rechazada {
@@ -189,7 +192,9 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     match t.resultado {
         Resultado::Ok => {
             let commit = t.valor("commit").map(str::to_owned);
-            Ok(destino.crear(commit, &quien))
+            let i = destino.crear(commit, &quien);
+            // Las claves de la estimacion publicada (F3-13).
+            Ok(crate::estimacion::con_claves(i, op.estimacion().as_ref()))
         }
         // Entre la lectura y el push paso a ser suya y empezada.
         Resultado::SinCambios => Ok(destino.crear(None, &quien)),
