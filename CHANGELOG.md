@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-127 (fix) — Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) (2026-11-18)
 - TASK-082 (feature) — F3-11 Aviso de solape entre tareas en curso (2026-11-18)
 - TASK-084 (feature) — F3-12 Progreso en vivo: fases que faltan y tiempo restante (2026-11-18)
 - TASK-083 (feature) — F3-13 Estimacion por fase de cada tarea al planificar (2026-11-18)

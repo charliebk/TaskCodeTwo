@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [estado]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-127-escrituras-de-estado-con-muchos-ficheros
 asignado_a: charlie.bk@gmail.com
@@ -51,6 +51,7 @@ Incidencias de proceso: el freno de fin de turno lanzo la suite a la vez que la 
 | 2026-11-18T15:12:21Z | review | automatico | persona | 0.16.1 |
 | 2026-11-18T16:02:28Z | review | automatico | persona | 0.16.1 |
 | 2026-11-18T17:26:49Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T17:54:14Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -83,3 +84,10 @@ Incidencias de proceso: el freno de fin de turno lanzo la suite a la vez que la 
 
 - Ronda 3: Carlos (consigna del 2026-11-18: opcion recomendada en las cuatro tareas del H0). IMP-1 seguia abierto solo por el cableado de HASH_OBJECT_INCOMPLETO en construir_commit; la correccion es barata (hashear con test de git real), asi que se verifica en una ronda mas en vez de aceptarlo.
 - Ronda 4: Carlos (misma consigna). IMP-1 seguia abierto por el cableado de hashear en construir_commit, sin red con git real; se cierra con un test con git falso (construir_commit_rechaza_shas_incompletos) y el mutante W en rojo.
+
+## Duracion
+
+- Estimada: 45 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 270 min
+- Paso de la hora: 270 min reales frente a 45 estimados
+- Cierre (finish): 1279 s, de 2026-11-18T17:32:55Z a 2026-11-18T17:54:14Z
