@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: [estado]
 complejidad: simple
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-127-escrituras-de-estado-con-muchos-ficheros
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -29,3 +29,9 @@ Una operacion de estado que escribe muchos ficheros a la vez (p. ej. 1000 en un 
 ## Criterios de aceptacion
 - [ ] Una transaccion que escribe 1000 ficheros en una sola operacion termina en ok en Windows (test)
 - [ ] El numero de procesos de git no crece con el numero de ficheros mas alla de un tope fijo (hash-object por stdin o por tandas)
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-18T13:17:32Z | plan | automatico | persona | 0.16.1 |
