@@ -286,20 +286,23 @@ fn con_entrada(
     if s.codigo == 0 {
         Ok(s.stdout)
     } else {
+        let s = super::SalidaGit {
+            codigo: s.codigo,
+            stdout: String::new(),
+            stderr: s.stderr,
+        };
         Err(Informe::nuevo(op, Resultado::Error)
             .con("git", sub.nombre())
-            .diagnostico(
-                Mensaje::nuevo(&txt::GIT_FALLO)
-                    .con("subcomando", sub.nombre())
-                    .con(
-                        "error",
-                        s.stderr
-                            .lines()
-                            .find(|l| !l.trim().is_empty())
-                            .unwrap_or_default(),
-                    ),
-            ))
+            .diagnostico(git_fallo(sub, &s)))
     }
+}
+
+/// Un sha por linea de la salida de `hash-object --stdin-paths`, solo si hay
+/// exactamente uno por fichero: si faltara alguno, emparejar por orden daria
+/// a cada ruta el contenido de otra.
+fn shas_completos(salida: &str, n: usize) -> Option<Vec<&str>> {
+    let shas: Vec<&str> = salida.lines().map(str::trim).collect();
+    (shas.len() == n).then_some(shas)
 }
 
 /// Construye un commit con el arbol de `base` mas `cambios` y `base` como
@@ -342,12 +345,9 @@ pub(crate) fn construir_commit(
         }
         let shas = con_entrada(git, dir, op, Subcomando::HashObject, None, rutas.as_bytes())?;
         let shas = String::from_utf8_lossy(&shas);
-        let shas: Vec<&str> = shas.lines().map(str::trim).collect();
-        if shas.len() != cambios.len() {
-            return Err(
-                Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO)
-            );
-        }
+        let shas = shas_completos(&shas, cambios.len()).ok_or_else(|| {
+            Informe::nuevo(op, Resultado::Error).diagnostico(&txt::HASH_OBJECT_INCOMPLETO)
+        })?;
         let mut entradas = String::new();
         for (c, sha) in cambios.iter().zip(&shas) {
             entradas.push_str(&format!("100644 {sha}\t{}\0", c.ruta));
@@ -479,5 +479,81 @@ mod tests {
         ] {
             assert!(!ruta_valida(malo), "{malo}");
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests_stdin {
+    use super::*;
+
+    /// Repo vacio de verdad en una carpeta temporal propia.
+    fn repo(nombre: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("tc2-estado-{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let ok = std::process::Command::new("git")
+            .current_dir(&d)
+            .args(["init", "-q"])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        d
+    }
+
+    #[test]
+    fn shas_completos_exige_uno_por_fichero() {
+        assert_eq!(shas_completos("a\nb\n", 2), Some(vec!["a", "b"]));
+        assert_eq!(shas_completos("a\n", 2), None);
+        assert_eq!(shas_completos("a\nb\nc\n", 2), None);
+        assert_eq!(shas_completos("", 0), Some(vec![]));
+    }
+
+    /// TASK-127: si git falla con la entrada por stdin, `con_entrada` da
+    /// `error` con el subcomando, no `Ok`; con datos buenos, un sha por ruta.
+    #[test]
+    fn con_entrada_da_error_si_git_falla() {
+        let d = repo("con-entrada");
+        let git = Git::nuevo();
+        let entrada = format!("{}\n", d.join("no-existe").display());
+        let r = con_entrada(
+            &git,
+            &d,
+            "prueba",
+            Subcomando::HashObject,
+            None,
+            entrada.as_bytes(),
+        );
+        let i = r.expect_err("hash-object de un fichero que no existe");
+        assert_eq!(i.resultado, Resultado::Error);
+        assert!(i.linea().contains("git=hash-object"), "{}", i.linea());
+
+        let indice = d.join("indice");
+        let r = con_entrada(
+            &git,
+            &d,
+            "prueba",
+            Subcomando::UpdateIndex,
+            Some(&indice),
+            b"basura sin forma\0",
+        );
+        let i = r.expect_err("update-index con una entrada mal formada");
+        assert!(i.linea().contains("git=update-index"), "{}", i.linea());
+
+        let f = d.join("blob");
+        std::fs::write(&f, "hola\n").unwrap();
+        let entrada = format!("{}\n", f.display());
+        let r = con_entrada(
+            &git,
+            &d,
+            "prueba",
+            Subcomando::HashObject,
+            None,
+            entrada.as_bytes(),
+        );
+        let shas = String::from_utf8(r.expect("hash-object de un fichero que existe")).unwrap();
+        assert_eq!(shas_completos(&shas, 1).map(|v| v[0].len()), Some(40));
+        let _ = std::fs::remove_dir_all(&d);
     }
 }
