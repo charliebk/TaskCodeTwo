@@ -230,9 +230,16 @@ consultada el 2026-11-18), `.claude/settings.local.json` es el ámbito
 deja fuera de git cuando lo crea él (si lo creas a mano, añádelo tú a
 `.gitignore`), y en caso de choque gana a `.claude/settings.json` y a
 `~/.claude/settings.json`; por eso la status line de ese proyecto no pisa la
-de la 0.16 en los demás. En un repo git, Claude Code lo lee de la raíz del
-repo (en un worktree, de la del principal; en Windows, junto a
-`.claude/settings.json` de la carpeta donde arranca):
+de la 0.16 en los demás. Dónde lo lee lo dice otra sección de la misma página
+([Where Claude Code keeps the local file in a git
+repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository),
+consultada el 2026-11-18): desde Claude Code v2.1.211, en un repo git lo lee
+de la raíz del repo (en un worktree, de la del principal); antes de esa
+versión, de la carpeta donde arranca. Se queda junto a `.claude/settings.json`
+de la carpeta donde arranca fuera de un repo git, cuando la raíz del repo es tu
+carpeta personal, **en Windows**, o cuando la raíz del repo o su `.git` o
+`.claude` no son de tu usuario. En Windows, por tanto, ponlo en el
+`.claude/` de la carpeta desde la que arrancas Claude Code:
 
 ```json
 {
