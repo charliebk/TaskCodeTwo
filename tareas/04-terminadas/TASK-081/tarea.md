@@ -6,7 +6,7 @@ sprint: 3
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-081-f3-10-liberar-y-reasignar-tareas-abandon
 asignado_a: charlie.bk@gmail.com
@@ -93,6 +93,7 @@ Incidencias de proceso: el primer commit de la implementacion salio con un mensa
 | 2026-11-17T22:01:41Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-17T22:01:42Z | start | automatico | persona | 0.16.1 |
 | 2026-11-17T23:09:27Z | review | automatico | persona | 0.16.1 |
+| 2026-11-18T00:07:59Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -108,3 +109,10 @@ Incidencias de proceso: el primer commit de la implementacion salio con un mensa
 ## Verificacion ligera
 
 - 2026-11-17T23:53:55Z: ronda 1; commit revisado 6f41ef2e6595a749fa6ea41439152efc1dfb5182; commit verificado 5663e3c875e4eda6fe735271b25e5ef2b9663cd8; ficheros: crates/tc2/src/ciclo/liberar.rs, crates/tc2/src/ciclo/mod.rs, crates/tc2/src/git/rama.rs, crates/tc2/src/tablero.rs, docs/plan/PLAN-TASKCODE-2.md; corregidos: M-1, M-2, M-3, M-4, M-5, H1, H2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 126 min
+- Paso de la hora: 126 min reales frente a 300 estimados
+- Cierre (finish): 804 s, de 2026-11-17T23:54:35Z a 2026-11-18T00:07:59Z

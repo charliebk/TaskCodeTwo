@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-17. No editar a mano.
 
-## Planificadas (00-planificadas) — 59
+## Planificadas (00-planificadas) — 58
 
 ```text
 ID        Titulo                                                               Asignado
@@ -44,7 +44,6 @@ TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0      (
 TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                    (sin asignar)
 TASK-071  F9-9a Prueba de instalacion en maquinas limpias                      (sin asignar)
 TASK-072  F9-9 Publicar 2.0.0                                                  (sin asignar)
-TASK-081  F3-10 Liberar y reasignar tareas abandonadas                         (sin asignar)
 TASK-082  F3-11 Aviso de solape entre tareas en curso                          (sin asignar)
 TASK-083  F3-13 Estimacion por fase de cada tarea al planificar                (sin asignar)
 TASK-084  F3-12 Progreso en vivo: fases que faltan y tiempo restante           (sin asignar)
@@ -68,7 +67,7 @@ TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                (
 TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status         (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 48
+## Terminadas (04-terminadas) — 49
 
 ```text
 ID        Titulo                                                                    Asignado
@@ -116,6 +115,7 @@ TASK-077  F2-13 Identidad de la persona desde la plataforma                     
 TASK-078  F2-14 tc2 desinstalar: quitar TaskCodeTwo de forma limpia                 charlie.bk@gmail.com
 TASK-079  F3-5b status y roadmap siempre frescos                                    charlie.bk@gmail.com
 TASK-080  F3-9 Inventario de skills y agentes instalados                            charlie.bk@gmail.com
+TASK-081  F3-10 Liberar y reasignar tareas abandonadas                              charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                charlie.bk@gmail.com
 TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda  charlie.bk@gmail.com
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                    charlie.bk@gmail.com

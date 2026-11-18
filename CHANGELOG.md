@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-081 (feature) — F3-10 Liberar y reasignar tareas abandonadas (2026-11-17)
 - TASK-080 (feature) — F3-9 Inventario de skills y agentes instalados (2026-11-17)
 - TASK-079 (feature) — F3-5b status y roadmap siempre frescos (2026-11-17)
 - TASK-035 (feature) — F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks (2026-11-17)
