@@ -472,8 +472,13 @@ fn c5_c6_c10_tarea_de_otra_persona_por_actividad() {
         ("TASK-001", "feature/task-001-uno"),
         ("TASK-002", "feature/task-002-dos"),
     ] {
-        let (c, out) = tc2(&f, &b, &["start", id]);
-        assert_eq!(c, Some(0), "{out}");
+        // F3-11: el `start` de TASK-002 avisa por stderr (`nota:`) de lo que
+        // toca TASK-001, ya publicada; el resultado y el codigo no cambian.
+        let o = lanzar(&b, entorno_ssh(&f), &["start", id]);
+        let out = texto(&o.stdout);
+        assert_eq!(o.status.code(), Some(0), "{out}");
+        let err = texto(&o.stderr);
+        assert!(err.lines().all(|l| l.starts_with("nota: ")), "{err}");
         trabajar(&f, &b, id, rama, None);
     }
     // La orden trae antes de decidir: lo que traiga no es una escritura.
