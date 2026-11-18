@@ -23,6 +23,11 @@
 //!
 //! Lanzada desde un worktree de tarea escribe el estado en el principal (lo
 //! localiza la transaccion) y crea el worktree junto al principal.
+//!
+//! Con la rama y el worktree listos, el aviso de solape (F3-11,
+//! [`crate::solape`]): que otras tareas en curso tocan lo mismo. Solo anade
+//! claves a la linea (y el aviso de stderr en `lib.rs`); nunca cambia el
+//! resultado ni el codigo.
 
 pub mod operacion;
 
@@ -34,6 +39,7 @@ use crate::git::{self, Git, Subcomando};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
 use crate::identidad::Quien;
+use crate::solape::{self, EnCurso, Solape};
 
 pub use operacion::{Tomar, desde_anotacion, instante};
 
@@ -61,25 +67,37 @@ pub struct Entorno<'a> {
 
 /// `start TASK-NNN` (sin `--json`, que quita `lib.rs`).
 pub fn orden(args: &[String], e: &Entorno<'_>) -> Informe {
+    orden_con_solape(args, e).0
+}
+
+/// Como [`orden`], y el solape calculado si la toma salio bien, para el
+/// aviso de stderr (F3-11).
+pub fn orden_con_solape(args: &[String], e: &Entorno<'_>) -> (Informe, Option<Solape>) {
     let uso = |motivo: &str| {
         Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", motivo)
             .diagnostico(&txt::USO_START)
     };
     match args {
-        [id] if git::es_id(id) => start_en(e, id),
-        [_] => uso("id-invalido"),
-        [] => uso("sin-id"),
-        _ => uso("argumentos-de-mas"),
+        [id] if git::es_id(id) => start_con_solape(e, id),
+        [_] => (uso("id-invalido"), None),
+        [] => (uso("sin-id"), None),
+        _ => (uso("argumentos-de-mas"), None),
     }
 }
 
 /// `start` de la tarea `id` en el repo de `e`.
 pub fn start_en(e: &Entorno<'_>, id: &str) -> Informe {
-    let i = match paso(e, id) {
+    start_con_solape(e, id).0
+}
+
+/// Como [`start_en`], y el solape calculado si la toma salio bien.
+pub fn start_con_solape(e: &Entorno<'_>, id: &str) -> (Informe, Option<Solape>) {
+    let mut s = None;
+    let i = match paso(e, id, &mut s) {
         Ok(i) | Err(i) => i,
     };
-    de_start(i, id)
+    (de_start(i, id), s)
 }
 
 /// El informe como de `start`: el comando, `id=` el primero y sin la clave
@@ -119,7 +137,7 @@ fn rechazo_de_toma(mut i: Informe, op: &Tomar) -> Informe {
     i
 }
 
-fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
+fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, Informe> {
     let g = e.git;
     let principal = git::localizar_principal(g, e.dir)?;
     // 1. Lo de ahora del remoto: el estado, la base y las ramas.
@@ -171,7 +189,8 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     };
     if empezada {
         // 5c. Ya es suya y esta empezada: crear solo lo que falte.
-        return Ok(destino.crear(None, &quien));
+        let i = destino.crear(None, &quien);
+        return Ok(destino.con_solape(i, || en_curso_de(&vista), s));
     }
     // 5. El ID no tiene rama de nadie mas. La suya propia (la de `rama:`)
     // no cuenta: tras `liberar` o `reasignar` (F3-10) la siguiente persona
@@ -212,10 +231,14 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             {
                 i = i.con(crate::progreso::CLAVE, crate::progreso::NO_ESCRITO);
             }
-            Ok(i)
+            // El solape (F3-11) con las tareas en curso que leyo la toma.
+            Ok(destino.con_solape(i, || op.en_curso(), s))
         }
         // Entre la lectura y el push paso a ser suya y empezada.
-        Resultado::SinCambios => Ok(destino.crear(None, &quien)),
+        Resultado::SinCambios => {
+            let i = destino.crear(None, &quien);
+            Ok(destino.con_solape(i, || en_curso_de(&vista), s))
+        }
         Resultado::Rechazada => Err(rechazo_de_toma(t, &op)),
         _ => Err(t),
     }
@@ -237,6 +260,16 @@ impl Estado for SinHistorico<'_> {
     fn leer_varios(&self, rutas: &[String]) -> Result<Vec<Option<String>>, Fallo> {
         self.0.leer_varios(rutas)
     }
+}
+
+/// Las tareas en curso o en revision de un estado leido (un solo `git
+/// cat-file --batch` con todos los `tarea.md`). Si la lectura falla, `None`:
+/// sin solape, nunca un fallo de `start`.
+fn en_curso_de(e: &dyn Estado) -> Option<Vec<EnCurso>> {
+    let leidas = estado::tareas(e, &e.rutas()).ok()?;
+    Some(solape::en_curso(
+        leidas.iter().filter_map(|(_, d)| d.as_ref().ok()),
+    ))
 }
 
 /// Base de la rama (ADR F1-3, decision 1; D4 de TASK-033): `origin/develop`;
@@ -333,6 +366,29 @@ impl Destino<'_> {
             s = s.con("asignado", quien.cuenta().login.clone());
         }
         s
+    }
+
+    /// Anade a `i` las claves del solape (F3-11) y lo deja en `salida`, solo
+    /// si `i` es un exito: la rama propia ya existe en local. `en_curso` se
+    /// evalua solo entonces. Nunca cambia el resultado de `i`.
+    fn con_solape(
+        &self,
+        i: Informe,
+        en_curso: impl FnOnce() -> Option<Vec<EnCurso>>,
+        salida: &mut Option<Solape>,
+    ) -> Informe {
+        if !i.resultado.es_exito() {
+            return i;
+        }
+        let Some(lista) = en_curso() else {
+            return i;
+        };
+        let Some(s) = solape::calcular(self.g, self.principal, self.id, self.rama, &lista) else {
+            return i;
+        };
+        let i = s.con_claves(i);
+        *salida = Some(s);
+        i
     }
 
     fn crear_paso(&self, nueva: bool) -> Result<Informe, Informe> {
