@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1559802
 tokens_implementacion: 58903472
-tokens_revision: 8084753
+tokens_revision: 13953784
 creado: 2026-11-14
 actualizado: 2026-11-18
 dependencias: [TASK-018, TASK-083]
@@ -93,3 +93,9 @@ Hallazgos propios (ninguno CRITICO ni IMPORTANTE de esta tarea):
 | 2026-11-18T04:11:31Z | revision | agente:ab4ba9ab6dcade8d3 | 48 | 133889 | 2696334 | 19300 | 5 | 2849571 | 1 | rust-wasm-reviewer |
 | 2026-11-18T04:13:40Z | revision | agente:a16c9ebcc7a604819 | 82 | 168175 | 5047820 | 19105 | 10 | 5235182 | 1 | code-quality-reviewer |
 | 2026-11-18T04:39:39Z | implementacion | agente:a7182021395bba7bc | 138 | 364319 | 8565118 | 45597 | 15 | 8975172 | - | - |
+| 2026-11-18T04:49:47Z | revision | agente:a999dcc8914feedd9 | 42 | 116468 | 1777119 | 11666 | 2 | 1905295 | 2 | code-quality-reviewer |
+| 2026-11-18T05:07:04Z | revision | agente:a9aa90e0b8aad0c71 | 84 | 109863 | 3843554 | 10235 | 10 | 3963736 | 2 | rust-wasm-reviewer |
+
+## Verificacion ligera
+
+- 2026-11-18T05:07:22Z: ronda 2; commit revisado f44ce49bb8f74f58264b879674eb039a7a5492f6; commit verificado 6e85a671a4a66e41c37d20ac524b554bb8478b05; ficheros: docs/distribucion/instalar.md; corregidos: N1; pendientes: ninguno
