@@ -729,7 +729,8 @@ fn review_abre_el_mr_del_agente_contra_develop() {
     assert_eq!(mr["author"]["id"], agente.id, "el MR lo abre el agente");
     assert_eq!(mr["target_branch"], "develop");
     assert_eq!(mr["title"], titulo.as_str());
-    assert_eq!(mr["description"], cuerpo.as_str());
+    // GitLab guarda la descripcion sin el salto de linea final.
+    assert_eq!(mr["description"].as_str(), Some(cuerpo.trim_end()));
 
     // Repetir converge: nada que empujar y el MR ya abierto.
     let q = revision::publicar(&gl, &g, &clon.dir, &url, datos, &git::ESPERAS_PUSH)
