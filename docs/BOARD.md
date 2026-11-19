@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-19. No editar a mano.
 
-## Planificadas (00-planificadas) — 59
+## Planificadas (00-planificadas) — 58
 
 ```text
 ID        Titulo                                                                                           Asignado
@@ -15,7 +15,6 @@ TASK-043  F5-3 Verificacion por impacto como paso de CI y completa en la cola   
 TASK-044  F5-4 Informe de verificacion en JSON para el revisor IA                                          (sin asignar)
 TASK-045  F5-5 Runner self-hosted Windows por perfil                                                       (sin asignar)
 TASK-046  F5-6 Hook local rapido, opcional y con confianza                                                 (sin asignar)
-TASK-048  F6-2 review: abre el PR contra develop con la identidad del agente                               (sin asignar)
 TASK-049  F6-3 Revisor en CI con las skills de dominio de la 0.16                                          (sin asignar)
 TASK-050  F6-4 Busqueda de errores                                                                         (sin asignar)
 TASK-051  F6-5 Hallazgos estructurados                                                                     (sin asignar)
@@ -68,7 +67,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 60
+## Terminadas (04-terminadas) — 61
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -112,6 +111,7 @@ TASK-036  F4-1 plan con brainstorm de roles                                     
 TASK-037  F4-2 approve con la identidad de la persona                                                                         charlie.bk@gmail.com
 TASK-038  F4-3 Aprobacion de un hito en lote                                                                                  charlie.bk@gmail.com
 TASK-047  F6-1 Identidades: agente implementador                                                                              charlie.bk@gmail.com
+TASK-048  F6-2 review: abre el PR contra develop con la identidad del agente                                                  charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol                                                     charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                                                           charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                                                                   charlie.bk@gmail.com

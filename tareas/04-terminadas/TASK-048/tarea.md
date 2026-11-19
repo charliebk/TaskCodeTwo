@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-048-f6-2-review-abre-el-pr-contra-develop-co
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Tarea F6-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 | 2026-11-19T12:45:59Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T12:46:00Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T13:39:25Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T14:18:06Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -66,3 +67,10 @@ Criterio `revision-ia` segun D1 (A): `review` lo lee e informa; no sale en verde
 Revision por pares, ronda 1: rust-wasm-reviewer aprobada (MEN-1 pushurl distinto sin cabecera, MEN-2 sin test que adelante la transaccion al PR) y code-quality-reviewer aprobada (MENOR-1 rechazos de `review_en` sin test de integracion). Los tres aceptados con motivo en sus informes; son seguimiento.
 
 Divergencias (adenda F6-2): `Git` no es componible por peticion, resuelto con `Git::derivado`; `estado_puertas` no expone un check suelto, el estado de `revision-ia` se deduce de `falta=`/`checks=`; la cabecera va a la URL de fetch de `origin`; el E2E llama a `revision::publicar` y no a `review_en` completo para no escribir en `taskcodetwo/tareas` del repo de pruebas.
+
+## Duracion
+
+- Estimada: 90 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 92 min
+- Paso de la hora: 92 min reales frente a 90 estimados
+- Cierre (finish): 1838 s, de 2026-11-19T13:47:28Z a 2026-11-19T14:18:06Z
