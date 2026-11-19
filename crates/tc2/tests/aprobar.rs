@@ -227,6 +227,13 @@ fn c1_el_agente_no_aprueba_y_el_remoto_queda_intacto() {
         (c, out.as_str()),
         (Some(2), "approve uso motivo=decidido-por")
     );
+    // MEN-3 de la revision: un fichero de cambios que no existe es `uso`.
+    let (c, out) = tc2(
+        &f,
+        &a,
+        &["approve", "TASK-001", "--pedir-cambios", "nofichero"],
+    );
+    assert_eq!((c, out.as_str()), (Some(2), "approve uso motivo=no-se-lee"));
     assert_eq!(f.huella(&bare, &a), antes);
     assert!(
         f.crudo(

@@ -650,6 +650,75 @@ mod tests_stdin {
         let _ = std::fs::remove_dir_all(&d);
     }
 
+    /// MEN-2 de TASK-037: con un cambio que modifica el fichero del
+    /// trailer, `Plan-Blob` es el blob del arbol del propio commit (el
+    /// nuevo), no el de la base. Firma real con una clave SSH desechable y
+    /// la configuracion aislada.
+    #[test]
+    fn plan_blob_es_el_del_arbol_del_propio_commit() {
+        let d = repo("plan-blob");
+        let clave = d.join("clave");
+        let k = std::process::Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "prueba", "-f"])
+            .arg(&clave)
+            .output()
+            .unwrap();
+        assert!(k.status.success(), "{}", String::from_utf8_lossy(&k.stderr));
+        let config = d.join("gitconfig");
+        std::fs::write(
+            &config,
+            format!(
+                "[user]\n\tname = Prueba\n\temail = prueba@example.com\n[gpg]\n\tformat = ssh\n[user]\n\tsigningkey = {}\n",
+                clave.to_string_lossy().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        let git = Git::nuevo().con_entorno(vec![
+            ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
+            ("GIT_CONFIG_GLOBAL".into(), config.into_os_string()),
+        ]);
+        let base = construir_commit(
+            &git,
+            &d,
+            "prueba",
+            None,
+            &[Cambio::nuevo("plan.md", "v1\n")],
+            "base\n",
+        )
+        .unwrap()
+        .unwrap();
+        let sello = Sello::Firmado {
+            trailers: vec![("Plan-Blob", "plan.md".to_owned())],
+        };
+        let sha = construir_commit_sellado(
+            &git,
+            &d,
+            "prueba",
+            Some(&base),
+            &[Cambio::nuevo("plan.md", "v2\n")],
+            "estado: approve\n\nOperacion: approve|x\n",
+            &sello,
+        )
+        .unwrap()
+        .unwrap();
+        let blob = |r: &str| {
+            exigir(&git, &d, "prueba", Subcomando::RevParse, &[r])
+                .unwrap()
+                .trim()
+                .to_owned()
+        };
+        let nuevo = blob(&format!("{sha}:plan.md"));
+        let viejo = blob(&format!("{base}:plan.md"));
+        assert_ne!(nuevo, viejo);
+        let cuerpo = exigir(&git, &d, "prueba", Subcomando::CatFile, &["-p", &sha]).unwrap();
+        assert!(cuerpo.contains("gpgsig "), "{cuerpo}");
+        assert!(
+            cuerpo.ends_with(&format!("Operacion: approve|x\nPlan-Blob: {nuevo}\n")),
+            "{cuerpo}"
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     /// TASK-127: si git falla con la entrada por stdin, `con_entrada` da
     /// `error` con el subcomando, no `Ok`; con datos buenos, un sha por ruta.
     #[test]

@@ -472,3 +472,105 @@ fn mil_ficheros_en_una_transaccion_con_procesos_acotados() {
     }
     registro_permitido(&mil);
 }
+
+/// Escribe `ruta` con un commit firmado (como `approve`, F4-2) y el trailer
+/// `Plan-Blob` de esa misma ruta.
+struct Firmada {
+    ruta: String,
+}
+
+impl Operacion for Firmada {
+    fn nombre(&self) -> &str {
+        "firmada"
+    }
+    fn anotacion(&self) -> String {
+        format!("firmada|{}", self.ruta)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        Ok(vec![Cambio::nuevo(self.ruta.clone(), "firmado\n")])
+    }
+    fn sello(&self) -> estado::Sello {
+        estado::Sello::Firmado {
+            trailers: vec![("Plan-Blob", self.ruta.clone())],
+        }
+    }
+}
+
+/// MEN-1 de TASK-037 (D4a): con una pendiente encolada, el commit firmado
+/// lleva solo lo de la operacion firmada; la pendiente sigue encolada y la
+/// publica la siguiente operacion normal, sin firmar.
+#[test]
+fn las_pendientes_no_entran_en_el_commit_firmado() {
+    let f = Fixture::nueva("estado-firmado");
+    let (bare, clon) = f.remoto_y_clon();
+    let clave = f.raiz.join("clave");
+    let k = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "prueba", "-f"])
+        .arg(&clave)
+        .output()
+        .unwrap();
+    assert!(k.status.success(), "{}", String::from_utf8_lossy(&k.stderr));
+    let mut entorno = f.entorno();
+    for (k, v) in [
+        ("GIT_CONFIG_COUNT", "2".to_owned()),
+        ("GIT_CONFIG_KEY_0", "gpg.format".to_owned()),
+        ("GIT_CONFIG_VALUE_0", "ssh".to_owned()),
+        ("GIT_CONFIG_KEY_1", "user.signingkey".to_owned()),
+        (
+            "GIT_CONFIG_VALUE_1",
+            clave.to_string_lossy().replace('\\', "/"),
+        ),
+    ] {
+        entorno.push((k.into(), v.into()));
+    }
+    let g = Git::nuevo().con_entorno(entorno);
+    assert!(estado::montar(&g, &clon).resultado.es_exito());
+    let url = bare.to_str().unwrap().to_owned();
+    f.crudo(
+        &clon,
+        &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
+    );
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/pendiente.md", false));
+    assert_eq!(i.valor("pendiente"), Some("si"), "{}", i.linea());
+    f.crudo(&clon, &["remote", "set-url", "origin", &url]);
+
+    let i = escribir_estado(
+        &g,
+        &clon,
+        &Firmada {
+            ruta: "notas/firmada.md".into(),
+        },
+    );
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert_eq!(i.valor("pendientes"), None, "{}", i.linea());
+    let arbol = f.crudo(
+        &bare,
+        &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
+    );
+    assert!(arbol.contains("notas/firmada.md"), "{arbol}");
+    assert!(!arbol.contains("notas/pendiente.md"), "{arbol}");
+    let cuerpo = f.crudo(&bare, &["cat-file", "-p", "taskcodetwo/tareas"]);
+    assert!(cuerpo.contains("gpgsig "), "{cuerpo}");
+    assert!(!cuerpo.contains("anotar|"), "{cuerpo}");
+    assert_eq!(
+        f.crudo(
+            &clon,
+            &["for-each-ref", "--format=%(refname)", "refs/taskcodetwo/"],
+        ),
+        "refs/taskcodetwo/pendientes/000001\n"
+    );
+
+    // La siguiente operacion normal publica la pendiente, sin firmar.
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/otra.md", true));
+    assert_eq!(i.valor("pendientes"), Some("1"), "{}", i.linea());
+    let arbol = f.crudo(
+        &bare,
+        &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
+    );
+    assert!(arbol.contains("notas/pendiente.md"), "{arbol}");
+    let cuerpo = f.crudo(&bare, &["cat-file", "-p", "taskcodetwo/tareas"]);
+    assert!(!cuerpo.contains("gpgsig "), "{cuerpo}");
+}

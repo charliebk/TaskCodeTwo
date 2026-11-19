@@ -348,8 +348,12 @@ impl Git {
 
     /// `git commit-tree -S <args>` en `dir`: la unica forma firmada (F4-2,
     /// `approve`). `args` son los de un `commit-tree` normal (sin `-S`, que
-    /// pone esta funcion): fuera de aqui `-S` y `--gpg-sign` estan
-    /// prohibidos. La entrada estandar se hereda para que `ssh-keygen` (o
+    /// pone esta funcion): fuera de aqui la capa no pide ninguna firma
+    /// (`commit` y `commit-tree` con `-S` o `--gpg-sign`, y `tag` con `-s`,
+    /// `--sign`, `-u` o `--local-user`, se rechazan sin lanzar git; lo que
+    /// firme la configuracion de la persona en un `commit` o un `tag -a`,
+    /// como `commit.gpgSign` o `tag.gpgSign`, no lo controla el puerto).
+    /// La entrada estandar se hereda para que `ssh-keygen` (o
     /// `gpg`) pueda pedir la frase de paso por el terminal de la persona;
     /// stdout (el sha) y stderr (el fallo de la firma) se capturan.
     pub fn ejecutar_firmado(&self, dir: &Path, args: &[&str]) -> Result<SalidaGit, ErrorGit> {
@@ -569,11 +573,18 @@ fn es_prohibido(sub: Subcomando, a: &str) -> bool {
             "-f" | "-d" | "-D" | "-m" | "-M" | "-c" | "-C" | "--delete" | "--move" | "--copy"
         ),
         Subcomando::Worktree => a == "-f",
-        Subcomando::Tag => matches!(a, "-d" | "-f" | "--delete"),
+        // Ningun tag firmado lo pide la capa (F4-2): ni `-s`, ni `--sign`,
+        // ni `-u<clave>`/`--local-user`.
+        Subcomando::Tag => {
+            matches!(a, "-d" | "-f" | "--delete" | "-s" | "--sign")
+                || a.starts_with("-u")
+                || a.starts_with("--local-user")
+        }
         Subcomando::Merge => a == "--abort",
-        Subcomando::Commit => a == "--amend",
         // La firma solo por `ejecutar_firmado` (F4-2): ni `-S`, ni
-        // `-S<clave>`, ni `--gpg-sign[=<clave>]` en un `commit-tree` normal.
+        // `-S<clave>`, ni `--gpg-sign[=<clave>]` en un `commit` o un
+        // `commit-tree` normal.
+        Subcomando::Commit => a == "--amend" || a.starts_with(FIRMA) || a.starts_with("--gpg-sign"),
         Subcomando::CommitTree => a.starts_with(FIRMA) || a.starts_with("--gpg-sign"),
         Subcomando::ReadTree => matches!(a, "-u" | "-m" | "--reset") || a.starts_with("--prefix"),
         _ => false,
@@ -636,6 +647,14 @@ mod tests {
                 Subcomando::CommitTree,
                 &["--gpg-sign=clave", "abc", "-m", "x"],
             ),
+            (Subcomando::Commit, &["-q", "-S", "-m", "x"]),
+            (Subcomando::Commit, &["-Sclave", "-m", "x"]),
+            (Subcomando::Commit, &["--gpg-sign", "-m", "x"]),
+            (Subcomando::Tag, &["-s", "-m", "m", "--", "v1", "abc"]),
+            (Subcomando::Tag, &["--sign", "-m", "m", "v1"]),
+            (Subcomando::Tag, &["-u", "clave", "-m", "m", "v1"]),
+            (Subcomando::Tag, &["-uclave", "-m", "m", "v1"]),
+            (Subcomando::Tag, &["--local-user=clave", "-m", "m", "v1"]),
             (Subcomando::Pull, &["origin", "develop"]),
             (Subcomando::UpdateRef, &["refs/heads/develop", "abc"]),
             (Subcomando::UpdateRef, &["refs/remotes/origin/x", "abc"]),
@@ -687,6 +706,13 @@ mod tests {
             (Subcomando::Add, &["--", "--force-x.txt"]),
             (Subcomando::Status, &["--porcelain", "--", "--amend"]),
             (Subcomando::Tag, &["-a", "-m", "-d", "--", "v1", "abc"]),
+            // El texto del mensaje no es una opcion de firma; tras `--` en
+            // `commit` hay rutas.
+            (Subcomando::Tag, &["-a", "-m", "-s", "--", "v1", "abc"]),
+            (
+                Subcomando::Commit,
+                &["-q", "-m", "-S", "--only", "--", "-S.txt"],
+            ),
             (Subcomando::Pull, &["-q", "--ff-only", "origin", "develop"]),
         ];
         for (sub, args) in permitidos {
