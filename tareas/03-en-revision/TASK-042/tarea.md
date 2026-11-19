@@ -40,6 +40,7 @@ Tarea F5-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-19T20:06:12Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T20:06:14Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T20:59:49Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T21:05:32Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -48,3 +49,7 @@ Tarea F5-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-19T20:06:12Z | diseno | agente:a1c0b5a7a377327c4 | 16 | 55667 | 225327 | 12600 | 15 | 293610 | - | - |
 | 2026-11-19T20:59:49Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 20 | 13796 | 3904494 | 4611 | 1 | 3922921 | - | - |
 | 2026-11-19T20:59:49Z | implementacion | agente:a446c748ef3c41da7 | 128 | 211612 | 10520406 | 72114 | 15 | 10804260 | - | - |
+
+## Revisores no relanzados
+
+- ronda 2: rust-wasm-reviewer - solo tenia hallazgos MENOR pendientes y la correccion no toca sus ficheros
