@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-036-f4-1-plan-con-brainstorm-de-roles
 asignado_a: charlie.bk@gmail.com
@@ -51,6 +51,7 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 | 2026-11-19T02:48:23Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T02:48:25Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T04:03:11Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T04:59:02Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -70,3 +71,10 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 ## Verificacion ligera
 
 - 2026-11-19T04:29:04Z: ronda 1; commit revisado 6ecf89825e4a41e13abdd7f70a2fa08bcbf65ff6; commit verificado d8d4190d8019ffa47f6bc2d512830221e71460fb; ficheros: crates/tc2/src/i18n/catalogo/plan.rs, crates/tc2/src/plan/mod.rs, crates/tc2/src/plan/operacion.rs, crates/tc2/src/plan/plantillas.rs, crates/tc2/tests/plan.rs; corregidos: MEN-1, MEN-2, MEN-3, MEN-4, MEN-1, MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 131 min
+- Paso de la hora: 131 min reales frente a 210 estimados
+- Cierre (finish): 1607 s, de 2026-11-19T04:32:15Z a 2026-11-19T04:59:02Z

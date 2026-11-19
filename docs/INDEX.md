@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-036 — F4-1 plan con brainstorm de roles · etiquetas: (sin etiquetas) · rama feature/task-036-f4-1-plan-con-brainstorm-de-roles · terminada 2026-11-19 · tareas/04-terminadas/TASK-036/
 - TASK-118 — Aplicar las puertas (rulesets) desde tc2 init · etiquetas: plataforma, puertas · rama feature/task-118-aplicar-las-puertas-rulesets-desde-tc2-i · terminada 2026-11-19 · tareas/04-terminadas/TASK-118/
 - TASK-125 — Seguimiento de F3-10: quitar la copia vieja de la regla de actividad · etiquetas: tablero · rama fix/task-125-seguimiento-de-f3-10-quitar-la-copia-vie · terminada 2026-11-18 · tareas/04-terminadas/TASK-125/
 - TASK-128 — Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso · etiquetas: solape, progreso · rama fix/task-128-seguimiento-de-f3-11-y-f3-12-aviso-de-so · terminada 2026-11-18 · tareas/04-terminadas/TASK-128/
