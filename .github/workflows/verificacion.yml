@@ -1,0 +1,177 @@
+# Workflow reutilizable de verificacion (TASK-041, F5-1; ADR F1-7 y F1-8).
+#
+# Solo llama al comando de verificacion del proyecto: no conoce sus pasos ni
+# sus grupos. Tres jobs, cada uno en su clase de F1-8:
+#   - buscar (ejecuta, Linux, contents: read): elige los perfiles del evento
+#     (F1-7, decision 4). La busqueda en la cache por arbol llega con F5-2.
+#   - ejecutar (ejecuta, matriz por perfil, runner del perfil, sin secretos):
+#     corre `comando argumentos-<perfil>` en el shell que declara el proyecto.
+#   - verificacion (privilegio, sin checkout): suma los resultados y publica el
+#     check-run `verificacion` con GITHUB_TOKEN (App github-actions, 15368).
+#
+# Uso desde el proyecto (fijado por SHA, nunca por rama):
+#   jobs:
+#     verificacion:
+#       permissions: { contents: read, checks: write }
+#       uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>
+#       with:
+#         comando: scripts\verificar.bat
+#         shell: cmd
+#         runner-completa: '"windows-latest"'
+# Guia: docs/ci/verificacion-reutilizable.md. El lint de lista blanca de F1-8
+# (xtask/src/workflows.rs) corre en `cargo xtask verificar --perfil rapida`.
+name: verificacion
+
+on:
+  workflow_call:
+    inputs:
+      comando:
+        description: Comando de verificacion del proyecto (F1-7, decision 1)
+        type: string
+        required: true
+      argumentos-rapida:
+        description: Argumentos del comando para el perfil rapida
+        type: string
+        default: --perfil rapida
+      argumentos-impacto:
+        description: Argumentos del comando para el perfil impacto
+        type: string
+        default: --perfil impacto
+      argumentos-completa:
+        description: Argumentos del comando para el perfil completa
+        type: string
+        default: --perfil completa
+      argumentos-pesada:
+        description: Argumentos del comando para el perfil pesada
+        type: string
+        default: --perfil pesada
+      runner-rapida:
+        description: runs-on del perfil rapida, en JSON (cadena o lista de etiquetas)
+        type: string
+        default: '"ubuntu-latest"'
+      runner-impacto:
+        description: runs-on del perfil impacto, en JSON
+        type: string
+        default: '"ubuntu-latest"'
+      runner-completa:
+        description: runs-on del perfil completa, en JSON
+        type: string
+        default: '"ubuntu-latest"'
+      runner-pesada:
+        description: runs-on del perfil pesada, en JSON
+        type: string
+        default: '"ubuntu-latest"'
+      shell:
+        description: Shell en el que corre el comando (bash, pwsh, powershell, cmd, sh)
+        type: string
+        default: bash
+      perfiles:
+        description: Perfiles separados por espacios; vacio, los del evento (F1-7, decision 4)
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  buscar:
+    name: buscar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      perfiles: ${{ steps.perfiles.outputs.perfiles }}
+    steps:
+      - name: Perfiles del evento
+        id: perfiles
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          ORIGEN: ${{ github.head_ref }}
+          FORZADOS: ${{ inputs.perfiles }}
+        run: |
+          set -eu
+          if [ -n "$FORZADOS" ]; then
+            perfiles="$FORZADOS"
+          else
+            case "$EVENTO" in
+              pull_request)
+                if [ "$BASE" = main ] && [ "$ORIGEN" = develop ]; then
+                  perfiles="completa pesada"
+                else
+                  perfiles="completa"
+                fi ;;
+              merge_group|workflow_dispatch) perfiles="completa" ;;
+              push) perfiles="" ;;
+              *) echo "verificacion: evento no admitido: $EVENTO" >&2; exit 2 ;;
+            esac
+          fi
+          lista=""
+          for p in $perfiles; do
+            case "$p" in
+              rapida|impacto|completa|pesada) ;;
+              *) echo "verificacion: perfil desconocido: $p" >&2; exit 2 ;;
+            esac
+            lista="${lista:+$lista,}\"$p\""
+          done
+          echo "perfiles=[$lista]" >> "$GITHUB_OUTPUT"
+          echo "Perfiles de este evento ($EVENTO): [${lista}]"
+
+  ejecutar:
+    name: ${{ matrix.perfil }}
+    needs: buscar
+    if: needs.buscar.outputs.perfiles != '[]'
+    runs-on: ${{ fromJSON(inputs[format('runner-{0}', matrix.perfil)]) }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        perfil: ${{ fromJSON(needs.buscar.outputs.perfiles) }}
+    # Un runner propio comparte target/ entre ejecuciones: una sola por repo y
+    # perfil. Ojo: con cancel-in-progress false GitHub sigue cancelando la
+    # pendiente mas antigua si llega una tercera (docs/ci).
+    concurrency:
+      group: verificacion-${{ github.repository }}-${{ matrix.perfil }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: ${{ inputs.shell }}
+    env:
+      RAMA_BASE: ${{ github.base_ref }}
+      TC2_PERFIL: ${{ matrix.perfil }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: comando del proyecto, perfil ${{ matrix.perfil }}
+        run: ${{ inputs.comando }} ${{ inputs[format('argumentos-{0}', matrix.perfil)] }}
+
+  verificacion:
+    name: verificacion
+    needs: [buscar, ejecutar]
+    if: always() && needs.buscar.result == 'success' && needs.buscar.outputs.perfiles != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: write
+    steps:
+      - name: Publicar el check verificacion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESULTADO: ${{ needs.ejecutar.result }}
+          PERFILES: ${{ needs.buscar.outputs.perfiles }}
+          EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eu
+          if [ "$RESULTADO" = success ]; then conclusion=success; else conclusion=failure; fi
+          resumen="perfiles=$PERFILES resultado=$RESULTADO ejecucion=$EJECUCION"
+          gh api --method POST "repos/$REPO/check-runs" \
+            -f name=verificacion -f head_sha="$HEAD_SHA" -f status=completed \
+            -f conclusion="$conclusion" -f details_url="$EJECUCION" \
+            -f "output[title]=verificacion: $conclusion" \
+            -f "output[summary]=$resumen" --jq '"check-run \(.id) app_id=\(.app.id) \(.name) \(.conclusion)"'
+          echo "$resumen"
+          [ "$conclusion" = success ]

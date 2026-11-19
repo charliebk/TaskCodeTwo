@@ -1,0 +1,103 @@
+# Plantilla de verificacion para GitLab CI (TASK-041, F5-1; ADR F1-7, F1-13).
+#
+# Equivalente al workflow reutilizable .github/workflows/verificacion.yml:
+# solo llama al comando de verificacion del proyecto. Un job por perfil
+# (verificacion-<perfil>); el perfil sale del evento (F1-7, decision 4):
+#   - pipeline de MR: completa; MR de develop a main: completa y pesada;
+#   - push de rama: nada, salvo los perfiles forzados con `perfiles`.
+#
+# Uso desde el .gitlab-ci.yml del proyecto (fijado por SHA, nunca por rama):
+#   include:
+#     - remote: https://raw.githubusercontent.com/charliebk/TaskCodeTwo/<sha>/plantillas/gitlab/verificacion.gitlab-ci.yml
+#       inputs:
+#         comando: scripts/verificar.sh
+# Fuera de F5-1 (D4): carril, estado de revision-ia y ci_config_path en otro
+# proyecto. La linea de la cache por arbol ira en un artefacto del job (D3, F5-2).
+# Guia: docs/ci/verificacion-reutilizable.md.
+spec:
+  inputs:
+    comando:
+      description: Comando de verificacion del proyecto (F1-7, decision 1)
+    argumentos-rapida:
+      description: Argumentos del comando para el perfil rapida
+      default: --perfil rapida
+    argumentos-impacto:
+      description: Argumentos del comando para el perfil impacto
+      default: --perfil impacto
+    argumentos-completa:
+      description: Argumentos del comando para el perfil completa
+      default: --perfil completa
+    argumentos-pesada:
+      description: Argumentos del comando para el perfil pesada
+      default: --perfil pesada
+    tags-rapida:
+      description: Etiquetas del runner del perfil rapida
+      type: array
+      default: []
+    tags-impacto:
+      description: Etiquetas del runner del perfil impacto
+      type: array
+      default: []
+    tags-completa:
+      description: Etiquetas del runner del perfil completa
+      type: array
+      default: []
+    tags-pesada:
+      description: Etiquetas del runner del perfil pesada
+      type: array
+      default: []
+    perfiles:
+      description: Perfiles forzados separados por espacios (tambien en push de rama)
+      default: ""
+    stage:
+      description: Etapa de los jobs de verificacion
+      default: test
+---
+.tc2-verificacion:
+  stage: $[[ inputs.stage ]]
+  interruptible: false
+  variables:
+    TC2_PERFILES: " $[[ inputs.perfiles ]] "
+    RAMA_BASE: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+
+verificacion-rapida:
+  extends: .tc2-verificacion
+  tags: $[[ inputs.tags-rapida ]]
+  variables:
+    TC2_PERFIL: rapida
+  rules:
+    - if: $TC2_PERFILES =~ / rapida /
+  script:
+    - $[[ inputs.comando ]] $[[ inputs.argumentos-rapida ]]
+
+verificacion-impacto:
+  extends: .tc2-verificacion
+  tags: $[[ inputs.tags-impacto ]]
+  variables:
+    TC2_PERFIL: impacto
+  rules:
+    - if: $TC2_PERFILES =~ / impacto /
+  script:
+    - $[[ inputs.comando ]] $[[ inputs.argumentos-impacto ]]
+
+verificacion-completa:
+  extends: .tc2-verificacion
+  tags: $[[ inputs.tags-completa ]]
+  variables:
+    TC2_PERFIL: completa
+  rules:
+    - if: $TC2_PERFILES =~ / completa /
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - $[[ inputs.comando ]] $[[ inputs.argumentos-completa ]]
+
+verificacion-pesada:
+  extends: .tc2-verificacion
+  tags: $[[ inputs.tags-pesada ]]
+  variables:
+    TC2_PERFIL: pesada
+  rules:
+    - if: $TC2_PERFILES =~ / pesada /
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "develop"
+  script:
+    - $[[ inputs.comando ]] $[[ inputs.argumentos-pesada ]]
