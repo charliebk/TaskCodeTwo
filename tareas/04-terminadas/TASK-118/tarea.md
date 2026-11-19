@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: [plataforma, puertas]
 complejidad: media
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-118-aplicar-las-puertas-rulesets-desde-tc2-i
 asignado_a: charlie.bk@gmail.com
@@ -57,6 +57,7 @@ Revision ronda 2 (acotada): aprobada por los dos; MEN-3 (la adenda de F1-5 no co
 | 2026-11-18T23:23:38Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T00:54:24Z | review | automatico | persona | 0.16.1 |
 | 2026-11-19T01:59:45Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T02:38:47Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -81,3 +82,10 @@ Revision ronda 2 (acotada): aprobada por los dos; MEN-3 (la adenda de F1-5 no co
 ## Verificacion ligera
 
 - 2026-11-19T02:09:24Z: ronda 2; commit revisado 29d24a7abacf092fb86a6d23d91ddc0b2cc75977; commit verificado 23e21334d093cdf8bf326a4b8ce659dd8ef75c2e; ficheros: docs/adr/F1-5-puertas-en-github.md; corregidos: MEN-3; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 195 min
+- Paso de la hora: 195 min reales frente a 150 estimados
+- Cierre (finish): 1704 s, de 2026-11-19T02:10:23Z a 2026-11-19T02:38:47Z

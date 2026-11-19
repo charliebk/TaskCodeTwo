@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-118 (feature) — Aplicar las puertas (rulesets) desde tc2 init (2026-11-19)
 - TASK-125 (fix) — Seguimiento de F3-10: quitar la copia vieja de la regla de actividad (2026-11-18)
 - TASK-128 (fix) — Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso (2026-11-18)
 - TASK-127 (fix) — Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) (2026-11-18)

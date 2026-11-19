@@ -1,8 +1,8 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-18. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-19. No editar a mano.
 
-## Planificadas (00-planificadas) — 64
+## Planificadas (00-planificadas) — 63
 
 ```text
 ID        Titulo                                                                                           Asignado
@@ -55,7 +55,6 @@ TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                   
 TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                                                     (sin asignar)
 TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                                           (sin asignar)
 TASK-117  Seguimiento de F2-14: menores aceptados de tc2 desinstalar                                       (sin asignar)
-TASK-118  Aplicar las puertas (rulesets) desde tc2 init                                                    (sin asignar)
 TASK-119  Seguimiento de F3-1: menores aceptados de tc2 init                                               (sin asignar)
 TASK-120  Seguimiento de F3-2: menores aceptados de tc2 import                                             (sin asignar)
 TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                                               (sin asignar)
@@ -73,7 +72,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 55
+## Terminadas (04-terminadas) — 56
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -130,6 +129,7 @@ TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busque
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                                                              charlie.bk@gmail.com
 TASK-115  Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable                                               charlie.bk@gmail.com
 TASK-116  Nombres de la 2.0 alineados con F1-12 D1a                                                                           charlie.bk@gmail.com
+TASK-118  Aplicar las puertas (rulesets) desde tc2 init                                                                       charlie.bk@gmail.com
 TASK-125  Seguimiento de F3-10: quitar la copia vieja de la regla de actividad                                                charlie.bk@gmail.com
 TASK-127  Escrituras de estado con muchos ficheros fallan en Windows (git hash-object)                                        charlie.bk@gmail.com
 TASK-128  Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso  charlie.bk@gmail.com
