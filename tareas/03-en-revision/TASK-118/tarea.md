@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1769062
 tokens_implementacion: 34895921
-tokens_revision: null
+tokens_revision: 6461279
 creado: 2026-11-17
 actualizado: 2026-11-19
 dependencias: []
@@ -47,8 +47,12 @@ TASK-028 (F3-1) solo propone los rulesets taskcodetwo-*. Aplicarlos exige los ch
 | 2026-11-18T23:23:25Z | diseno | agente:a5e8dec083c520ba2 | 6 | 30359 | 36713 | 8090 | 4 | 75168 | - | - |
 | 2026-11-19T00:54:24Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 48 | 48953 | 9566914 | 12725 | 4 | 9628640 | - | - |
 | 2026-11-19T00:54:24Z | implementacion | agente:a61e78c9f4a1bc6b5 | 200 | 680697 | 24484996 | 101388 | 17 | 25267281 | - | - |
+| 2026-11-19T01:10:19Z | revision | agente:a5991d3c8d5bc39b2 | 44 | 156428 | 2894895 | 18292 | 4 | 3069659 | 1 | rust-wasm-reviewer |
+| 2026-11-19T01:10:19Z | revision | agente:acfb29742fe2d94f3 | 50 | 168278 | 3198890 | 24402 | 1 | 3391620 | 1 | code-quality-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — a7f212e
 - code-quality-reviewer — a7f212e
+- rust-wasm-reviewer — ad859f7
+- code-quality-reviewer — ad859f7
