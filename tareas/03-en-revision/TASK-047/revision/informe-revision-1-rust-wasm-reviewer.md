@@ -8,11 +8,11 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| MENOR-1 | MENOR | abierto | crates/tc2/src/plataforma/credenciales.rs:242 | implementacion |
-| MENOR-2 | MENOR | abierto | crates/tc2/src/plataforma/app_github.rs:171 | implementacion |
-| MENOR-3 | MENOR | abierto | crates/tc2/src/plataforma/app_github.rs:256 (y conexion.rs:103, app_github.rs:33) | implementacion |
-| MENOR-4 | MENOR | abierto | crates/tc2/src/plataforma/app_github.rs:214 | implementacion |
-| MENOR-5 | MENOR | abierto | crates/tc2/src/git/puerto.rs:251 | implementacion |
+| MENOR-1 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/credenciales.rs:242 | implementacion |
+| MENOR-2 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:171 | implementacion |
+| MENOR-3 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:256 (y conexion.rs:103, app_github.rs:33) | implementacion |
+| MENOR-4 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:214 | implementacion |
+| MENOR-5 | MENOR | corregido (5f35211) | crates/tc2/src/git/puerto.rs:251 | implementacion |
 
 Sin CRITICO ni IMPORTANTE. Seguridad del token, JWT RS256, cache y renovacion, falla cerrada y errores: sin defectos
 demostrables (detalle en `## Revisado sin hallazgos`).

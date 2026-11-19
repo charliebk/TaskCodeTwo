@@ -30,12 +30,12 @@ Lo que sale bien (comprobado): el JWT se verifica con la clave publica exportada
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | crates/tc2/src/plataforma/app_github.rs:33 y :254-258, :324-339 | implementacion |
-| MEN-1 | MENOR | abierto | crates/tc2/src/i18n/catalogo/plataforma.rs (APP_SIN_TOKEN) y crates/tc2/src/plataforma/credenciales.rs:242-245 | implementacion |
-| MEN-2 | MENOR | abierto | crates/tc2/src/plataforma/app_github.rs:354-360 | implementacion |
-| MEN-3 | MENOR | abierto | crates/tc2/src/plataforma/app_github.rs:310-320 y crates/tc2/src/plataforma/github.rs:314-321 | implementacion |
-| MEN-4 | MENOR | abierto | crates/tc2/src/plataforma/entorno_git.rs:74 | implementacion |
-| MEN-5 | MENOR | abierto | crates/tc2/tests/agente_git/mod.rs:55-72 y crates/tc2/src/plataforma/credenciales.rs:71 | implementacion |
+| IMP-1 | IMPORTANTE | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:33 y :254-258, :324-339 | implementacion |
+| MEN-1 | MENOR | corregido (5f35211) | crates/tc2/src/i18n/catalogo/plataforma.rs (APP_SIN_TOKEN) y crates/tc2/src/plataforma/credenciales.rs:242-245 | implementacion |
+| MEN-2 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:354-360 | implementacion |
+| MEN-3 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/app_github.rs:310-320 y crates/tc2/src/plataforma/github.rs:314-321 | implementacion |
+| MEN-4 | MENOR | corregido (5f35211) | crates/tc2/src/plataforma/entorno_git.rs:74 | implementacion |
+| MEN-5 | MENOR | corregido (5f35211) | crates/tc2/tests/agente_git/mod.rs:55-72 y crates/tc2/src/plataforma/credenciales.rs:71 | implementacion |
 
 ### IMPORTANTE-1 — Protecciones nuevas del token de instalacion sin ningun test que se ponga rojo
 - Donde: `crates/tc2/src/plataforma/app_github.rs:33` (`MARGEN`), `:254-258` (reinicio de la instalacion en 404) y `:324-339` (`fallo_estado`, mapa de estado a `causa`).
