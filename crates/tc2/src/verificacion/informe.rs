@@ -298,9 +298,11 @@ mod tests {
                 "2 fallidos de 1",
             ),
         ];
+        // Un clon con core.autocrlf=true da el fixture con CRLF.
+        let verde = VERDE.replace("\r\n", "\n");
         for (original, mutado, esperado) in casos {
-            assert!(VERDE.contains(original), "el caso no casa: {original}");
-            match leer(&VERDE.replacen(original, mutado, 1)) {
+            assert!(verde.contains(original), "el caso no casa: {original}");
+            match leer(&verde.replacen(original, mutado, 1)) {
                 Ok(i) => panic!("«{mutado}» se acepto: {i:?}"),
                 Err(e) => assert!(e.contains(esperado), "«{esperado}» no esta en «{e}»"),
             }
