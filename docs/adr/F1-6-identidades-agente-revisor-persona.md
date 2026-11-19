@@ -761,12 +761,19 @@ Implementa la decisión 1 (proveedor de credenciales por rol), la tabla 2
   consigue su token → `denegada motivo=credenciales rol=<rol> causa=<causa>`
   (código 8), con `causa` entre `app-incompleta`, `app-solo-github`,
   `clave-ilegible`, `jwt-rechazado` (401), `sin-instalacion` (404),
-  `permisos-no-concedidos` (422) y `respuesta-inesperada`; sin red,
-  `sinred`. El diagnóstico nombra las variables de la App, nunca el token.
+  `permisos-no-concedidos` (422, o un 201 cuyos `permissions` no cubren los
+  pedidos), `tls` (el diagnóstico manda al almacén de certificados) y
+  `respuesta-inesperada` (con un detalle legible, nunca el `Debug` del
+  fallo); sin red, `sinred`. El diagnóstico nombra las variables de la App,
+  nunca el token. El id numérico de la App no admite ceros a la izquierda
+  (`app-incompleta`) y el PEM admite BOM UTF-8 y texto antes de
+  `-----BEGIN` (ronda 1 de revisión).
 - **GitLab sin código nuevo**: el agente es una cuenta de servicio (o un
   token de proyecto) con rol Developer y su token va en `TC2_TOKEN_AGENTE`;
-  el adaptador ya trata `bot: true` como `Bot`. Una App configurada con
-  GitLab da `causa=app-solo-github`.
+  el adaptador ya trata `bot: true` como `Bot`. Con una App configurada y un
+  destino GitLab se usa `TC2_TOKEN_<ROL>` del mismo rol (nunca de otro); si
+  no lo hay, `causa=app-solo-github` y el diagnóstico dice que en GitLab la
+  App no sirve y que hay que definir `TC2_TOKEN_<ROL>`.
 - **Git del agente** (D3 del plan: solo el punto de extensión; conectarlo a
   `review` es de F6-2): `plataforma::entorno_git(proveedor, url, token,
   autor)` devuelve `GIT_CONFIG_COUNT/KEY_0/VALUE_0` con
@@ -774,7 +781,9 @@ Implementa la decisión 1 (proveedor de credenciales por rol), la tabla 2
   (`x-access-token` en GitHub, `oauth2` en GitLab), limitado a la URL del
   remoto, y `GIT_AUTHOR_*`/`GIT_COMMITTER_*` con `<slug>[bot]` y
   `<id>+<slug>[bot]@users.noreply.github.com`. Se compone con
-  `Git::con_entorno_extra`: el token no pasa por la línea de órdenes, ni por
+  `Git::con_entorno_extra` (que, como `con_entorno`, acumula: las entradas
+  `GIT_CONFIG_*` se renumeran tras las del puerto y las del proceso, sin
+  pisarlas): el token no pasa por la línea de órdenes, ni por
   el registro del puerto, ni por los argumentos de `git-remote-http`
   (comprobado con `GIT_TRACE`). `git` no depende de `plataforma`.
 - **`identidad(Rol::Agente)` en GitHub** hace `GET /user`, que no funciona

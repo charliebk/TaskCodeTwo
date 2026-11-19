@@ -303,6 +303,21 @@ impl std::fmt::Debug for GitHub {
     }
 }
 
+/// `dueno/repo` de GitHub: dos partes no vacias, ni `.` ni `..`, con
+/// alfanumericos, `-`, `.` y `_`. Una sola regla para el adaptador y para la
+/// GitHub App ([`super::app_github`]), que asi no divergen.
+pub(crate) fn repo_valido(repo: &str) -> bool {
+    let partes: Vec<&str> = repo.split('/').collect();
+    partes.len() == 2
+        && partes.iter().all(|p| {
+            !p.is_empty()
+                && *p != "."
+                && *p != ".."
+                && p.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b))
+        })
+}
+
 impl GitHub {
     /// Adaptador para `dueno/repo` en la API `base`.
     pub fn nuevo(
@@ -311,16 +326,7 @@ impl GitHub {
         credenciales: Box<dyn Credenciales>,
         personas: Personas,
     ) -> Result<Self, Informe> {
-        let partes: Vec<&str> = repo.split('/').collect();
-        let valido = partes.len() == 2
-            && partes.iter().all(|p| {
-                !p.is_empty()
-                    && *p != "."
-                    && *p != ".."
-                    && p.bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b))
-            });
-        if !valido {
+        if !repo_valido(repo) {
             return Err(Informe::nuevo("plataforma", Resultado::Uso)
                 .con("motivo", "repo-invalido")
                 .diagnostico(&t::REPO_GITHUB));

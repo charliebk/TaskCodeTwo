@@ -99,8 +99,8 @@ pub enum FalloCredencial {
 pub mod causas {
     /// La App esta a medias: id sin clave o al reves, o id no valido.
     pub const APP_INCOMPLETA: &str = "app-incompleta";
-    /// La App solo existe en GitHub (en GitLab va un token de proyecto o de
-    /// cuenta de servicio en `TC2_TOKEN_<ROL>`).
+    /// La App solo existe en GitHub: fuera de GitHub se usa el token de
+    /// `TC2_TOKEN_<ROL>` del mismo rol y esta causa sale si no lo hay.
     pub const APP_SOLO_GITHUB: &str = "app-solo-github";
     /// No se pudo leer el PEM o no es una clave RSA que se entienda.
     pub const CLAVE_ILEGIBLE: &str = "clave-ilegible";
@@ -112,6 +112,9 @@ pub mod causas {
     pub const PERMISOS_NO_CONCEDIDOS: &str = "permisos-no-concedidos";
     /// Sin red al pedir el token.
     pub const SINRED: &str = "sinred";
+    /// Fallo de TLS al pedir el token (certificado, almacen del sistema,
+    /// proxy con su propia CA).
+    pub const TLS: &str = "tls";
     /// Respuesta con otro estado o con una forma inesperada.
     pub const RESPUESTA_INESPERADA: &str = "respuesta-inesperada";
 }
@@ -147,7 +150,8 @@ struct ConfigApp {
 }
 
 /// Lo que da el entorno para un rol con App: la App ya atada a un repo, la
-/// configuracion aun sin atar, o la App a medias.
+/// configuracion aun sin atar (destino que no es GitHub: se usa el token del
+/// mismo rol si lo hay), o la App a medias.
 enum EstadoApp {
     SinAtar(ConfigApp),
     Atada(Box<CredencialesApp>),
@@ -193,6 +197,8 @@ pub fn de_entorno_con(leer: impl Fn(&str) -> Option<String>, tty: bool) -> Crede
             match (valor(vid), valor(vclave)) {
                 (None, None) => {}
                 (Some(id), Some(clave)) if id_valido(id.trim()) => {
+                    // Sin `continue`: el token del mismo rol se guarda para
+                    // un destino que no es GitHub (la App solo vale ahi).
                     apps.insert(
                         rol,
                         EstadoApp::SinAtar(ConfigApp {
@@ -200,7 +206,6 @@ pub fn de_entorno_con(leer: impl Fn(&str) -> Option<String>, tty: bool) -> Crede
                             clave: PathBuf::from(clave.trim()),
                         }),
                     );
-                    continue;
                 }
                 _ => {
                     apps.insert(
@@ -221,13 +226,21 @@ pub fn de_entorno_con(leer: impl Fn(&str) -> Option<String>, tty: bool) -> Crede
     CredencialesDeEntorno { tokens, apps }
 }
 
-/// Id de App (numerico) o client id (`Iv1.` y alfanumericos).
+/// Id de App (numerico, un entero sin ceros a la izquierda: va sin comillas
+/// en el `iss` del JWT) o client id (`Iv1.` y alfanumericos).
 pub(crate) fn id_valido(id: &str) -> bool {
-    !id.is_empty()
+    let forma = !id.is_empty()
         && id.len() <= 64
         && id
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_')
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_');
+    if !forma {
+        return false;
+    }
+    if id.bytes().all(|b| b.is_ascii_digit()) {
+        return id.parse::<u64>().is_ok_and(|n| n.to_string() == id);
+    }
+    true
 }
 
 impl Credenciales for CredencialesDeEntorno {
@@ -239,10 +252,17 @@ impl Credenciales for CredencialesDeEntorno {
         match self.apps.get(&rol) {
             Some(EstadoApp::Atada(app)) => app.obtener(rol),
             Some(EstadoApp::Fallo(f)) => Err(f.clone()),
-            Some(EstadoApp::SinAtar(c)) => Err(FalloCredencial::Acunar {
-                causa: causas::APP_SOLO_GITHUB,
-                detalle: format!("app {}", c.id),
-            }),
+            // Destino que no es GitHub (GitLab): la App no sirve y se usa el
+            // token del mismo rol; nunca el de otro.
+            Some(EstadoApp::SinAtar(_)) => {
+                self.tokens
+                    .get(&rol)
+                    .cloned()
+                    .ok_or_else(|| FalloCredencial::Acunar {
+                        causa: causas::APP_SOLO_GITHUB,
+                        detalle: rol.variable().to_owned(),
+                    })
+            }
             None => self.tokens.get(&rol).cloned().ok_or(FalloCredencial::Falta),
         }
     }
@@ -307,6 +327,26 @@ mod tests {
         assert!(!format!("{e:?}").contains("supersecreto"));
     }
 
+    /// MENOR-2 de la ronda 1 de TASK-047: un id numerico es un entero sin
+    /// ceros a la izquierda (va sin comillas en el `iss`); un client id, texto.
+    #[test]
+    fn el_id_de_app_numerico_no_admite_ceros_a_la_izquierda() {
+        for id in ["1", "123456", "Iv1.abc", "Iv23li_x"] {
+            assert!(id_valido(id), "{id}");
+        }
+        for id in [
+            "",
+            "0123",
+            "00",
+            "007",
+            "99999999999999999999999",
+            "1-2",
+            "a b",
+        ] {
+            assert!(!id_valido(id), "{id}");
+        }
+    }
+
     fn lector(vars: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
         let m: BTreeMap<String, String> = vars
             .iter()
@@ -333,16 +373,29 @@ mod tests {
         // Con terminal, si.
         let c = de_entorno_con(lector(&todo), true);
         assert_eq!(c.token(Rol::Persona), Some(Secreto::nuevo("tok-persona")));
-        // El agente tiene App: su token fijo no se usa nunca, y sin atar a
-        // un repo de GitHub la App no da token (ni cae al de la variable).
+        // El agente tiene App. Sin atar a un repo de GitHub (destino GitLab)
+        // la App no sirve: se usa el token del mismo rol (MEN-1 de la ronda
+        // 1 de TASK-047)...
         assert!(c.tiene(Rol::Agente));
-        match c.obtener(Rol::Agente) {
-            Err(FalloCredencial::Acunar { causa, .. }) => {
-                assert_eq!(causa, causas::APP_SOLO_GITHUB);
-            }
-            otro => panic!("{otro:?}"),
-        }
-        // Atada, con una clave que no existe: fallo al acunar, no «falta».
+        assert_eq!(c.obtener(Rol::Agente), Ok(Secreto::nuevo("tok-agente")));
+        // ...y si no lo hay, `app-solo-github` nombrando la variable del
+        // token de ese rol; nunca el token de otro rol (aqui, persona).
+        let solo_app = [
+            ("TC2_TOKEN_PERSONA", "tok-persona"),
+            ("TC2_TOKEN_REVISOR", "tok-rev"),
+            ("TC2_APP_AGENTE_ID", "123"),
+            ("TC2_APP_AGENTE_CLAVE", "/no/existe/clave.pem"),
+        ];
+        let c = de_entorno_con(lector(&solo_app), true);
+        assert_eq!(
+            c.obtener(Rol::Agente),
+            Err(FalloCredencial::Acunar {
+                causa: causas::APP_SOLO_GITHUB,
+                detalle: "TC2_TOKEN_AGENTE".to_owned(),
+            })
+        );
+        // Atada, con una clave que no existe: fallo al acunar, no «falta»,
+        // y el token de la variable no se usa en GitHub.
         let mut c = de_entorno_con(lector(&todo), true);
         c.atar_github(&Base::github(), "o/r");
         match c.obtener(Rol::Agente) {
@@ -369,6 +422,13 @@ mod tests {
             vec![
                 ("TC2_APP_AGENTE_ID", "12 3"),
                 ("TC2_APP_AGENTE_CLAVE", "/x.pem"),
+            ],
+            // Id numerico con ceros a la izquierda: `iss` seria JSON
+            // invalido (MENOR-2 de la ronda 1 de TASK-047).
+            vec![
+                ("TC2_APP_AGENTE_ID", "0123"),
+                ("TC2_APP_AGENTE_CLAVE", "/x.pem"),
+                ("TC2_TOKEN_AGENTE", "t"),
             ],
         ] {
             let c = de_entorno_con(lector(&vars), true);

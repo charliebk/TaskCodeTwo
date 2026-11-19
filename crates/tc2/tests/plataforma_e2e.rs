@@ -37,7 +37,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::{Value, json};
 use tc2::contrato::Resultado;
 use tc2::plataforma::credenciales::de_entorno_con;
-use tc2::plataforma::http::Base;
+use tc2::plataforma::http::{Base, Cliente, Metodo};
 use tc2::plataforma::{
     AutorGit, Credenciales, CredencialesApp, CredencialesFijas, GitHub, ModeloPuertas, Personas,
     Plataforma, Proveedor, Rol, Secreto,
@@ -554,16 +554,20 @@ fn persona_aprueba_pr_del_agente() {
     assert_eq!(pr["user"]["type"], "Bot");
 
     // La App no puede aprobar su propio PR (no verificado en F1-6).
-    let (e, v) = arnes
-        .intentar_con(
-            &agente_git::en_claro(Proveedor::GitHub, &token_app),
-            "POST",
-            &format!("https://api.github.com/repos/{repo}/pulls/{n}/reviews"),
-            Some(
-                json!({"event": "APPROVE", "body": "auto-aprobacion de la App (tiene que fallar)"}),
-            ),
+    // Con el `Cliente` de la biblioteca, que recibe el `Secreto` sin
+    // exponerlo (MEN-5 de la ronda 1 de TASK-047).
+    let cuerpo =
+        json!({"event": "APPROVE", "body": "auto-aprobacion de la App (tiene que fallar)"})
+            .to_string();
+    let r = Cliente::nuevo(Base::github())
+        .llamar(
+            Metodo::Post,
+            &format!("/repos/{repo}/pulls/{n}/reviews"),
+            Some(&token_app),
+            Some(&cuerpo),
         )
         .expect("red");
+    let (e, v) = (r.estado, r.cuerpo);
     eprintln!("  auto-aprobacion de la App: {e} {v}");
     assert!(
         (400..500).contains(&e),

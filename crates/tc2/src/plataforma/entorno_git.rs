@@ -60,8 +60,10 @@ fn usuario(p: Proveedor) -> &'static str {
 
 /// Variables para que `git` hable con `url_remoto` (p. ej.
 /// `https://github.com/`; la cabecera solo va a las URL que empiezan asi)
-/// con `token` y firme como `autor`. Ocupan las entradas 0 de
-/// `GIT_CONFIG_*`: no se combinan con otras definidas igual.
+/// con `token` y firme como `autor`. La cabecera es un lote de una entrada
+/// de `GIT_CONFIG_*` numerado desde 0: [`crate::git::Git::con_entorno_extra`]
+/// lo renumera tras las entradas que ya tengan el puerto y el proceso, sin
+/// pisarlas. Pasadas a otro `Command` a mano, ocupan la entrada 0.
 pub fn entorno_git(
     proveedor: Proveedor,
     url_remoto: &str,

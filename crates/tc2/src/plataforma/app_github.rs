@@ -26,6 +26,7 @@ use serde::Deserialize;
 
 use super::credenciales::{Credenciales, FalloCredencial, Rol, Secreto, causas, id_valido};
 use super::errores::sanear;
+use super::github::repo_valido;
 use super::http::{Base, Cliente, FalloHttp, Metodo, Respuesta};
 
 /// Antes de `expires_at` se deja de usar un token y se pide otro (los
@@ -69,6 +70,10 @@ struct InstalacionApi {
 struct TokenApi {
     token: String,
     expires_at: String,
+    /// Permisos que concede de verdad (GitHub los devuelve; si faltan en la
+    /// respuesta no se puede comprobar y se acepta).
+    #[serde(default)]
+    permissions: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Deserialize)]
@@ -206,16 +211,7 @@ impl CredencialesApp {
     ) -> Result<Respuesta, FalloCredencial> {
         self.cliente
             .llamar(metodo, ruta, Some(jwt), cuerpo)
-            .map_err(|f| match f {
-                FalloHttp::Sinred(m) => FalloCredencial::Acunar {
-                    causa: causas::SINRED,
-                    detalle: sanear(&m),
-                },
-                otro => FalloCredencial::Acunar {
-                    causa: causas::RESPUESTA_INESPERADA,
-                    detalle: sanear(&format!("{otro:?}")),
-                },
-            })
+            .map_err(|f| fallo_transporte(&f))
     }
 
     /// Id de la instalacion de la App en el repo (una vez por proceso).
@@ -270,6 +266,14 @@ impl CredencialesApp {
                 detalle: "token".to_owned(),
             });
         }
+        if let Some(concedidos) = &t.permissions
+            && let Some(falta) = permiso_que_falta(self.rol, concedidos)
+        {
+            return Err(FalloCredencial::Acunar {
+                causa: causas::PERMISOS_NO_CONCEDIDOS,
+                detalle: falta,
+            });
+        }
         Ok((Secreto::nuevo(t.token), expira))
     }
 }
@@ -306,17 +310,51 @@ fn ahora() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// `dueno/repo` con la misma forma que exige el adaptador.
-fn repo_valido(repo: &str) -> bool {
-    let partes: Vec<&str> = repo.split('/').collect();
-    partes.len() == 2
-        && partes.iter().all(|p| {
-            !p.is_empty()
-                && *p != "."
-                && *p != ".."
-                && p.bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b))
+/// Primer permiso del rol que el token no concede con el nivel pedido
+/// (`write` cubre `read`), como `permiso:nivel`.
+fn permiso_que_falta(
+    rol: Rol,
+    concedidos: &std::collections::BTreeMap<String, String>,
+) -> Option<String> {
+    permisos(rol)
+        .unwrap_or_default()
+        .iter()
+        .find(|(k, v)| {
+            let dado = concedidos.get(*k).map(String::as_str);
+            !(dado == Some(*v) || (*v == "read" && dado == Some("write")))
         })
+        .map(|(k, v)| format!("{k}:{v}"))
+}
+
+/// Fallo del transporte al pedir el token: sin red, `sinred`; TLS, `tls`
+/// (el diagnostico dice que revisar); el resto, `respuesta-inesperada` con
+/// un detalle legible (nunca el `Debug` de la variante).
+fn fallo_transporte(f: &FalloHttp) -> FalloCredencial {
+    let (causa, detalle) = match f {
+        FalloHttp::Sinred(m) => (causas::SINRED, sanear(m)),
+        FalloHttp::Tls(m) => (causas::TLS, sanear(m)),
+        FalloHttp::RespuestaInvalida(m) => (
+            causas::RESPUESTA_INESPERADA,
+            sanear(&format!("respuesta ilegible: {m}")),
+        ),
+        FalloHttp::CuerpoGrande => (
+            causas::RESPUESTA_INESPERADA,
+            "respuesta demasiado grande".to_owned(),
+        ),
+        FalloHttp::Redireccion(e) => (
+            causas::RESPUESTA_INESPERADA,
+            format!("redireccion {e}: revisa la URL de la API"),
+        ),
+        FalloHttp::Rechazada(_) => (
+            causas::RESPUESTA_INESPERADA,
+            "ruta rechazada antes de la red".to_owned(),
+        ),
+        FalloHttp::Otro(m) => (
+            causas::RESPUESTA_INESPERADA,
+            sanear(&format!("cliente HTTP: {m}")),
+        ),
+    };
+    FalloCredencial::Acunar { causa, detalle }
 }
 
 /// Fallo por el estado HTTP: 401 es el JWT, 404 la instalacion, 422 los
@@ -351,10 +389,18 @@ fn leer_pem(pem: &str) -> Result<RsaKeyPair, FalloCredencial> {
         causa: causas::CLAVE_ILEGIBLE,
         detalle: detalle.to_owned(),
     };
-    let mut lineas = pem.lines().map(str::trim).skip_while(|l| l.is_empty());
+    // Un BOM UTF-8 (`Set-Content -Encoding utf8` de Windows PowerShell 5.1)
+    // y el texto antes de `-----BEGIN` (comentarios, como admite RFC 7468)
+    // se ignoran.
+    let mut lineas = pem
+        .trim_start_matches('\u{feff}')
+        .lines()
+        .map(str::trim)
+        .skip_while(|l| !l.starts_with("-----BEGIN "));
     let etiqueta = lineas
         .next()
-        .and_then(|l| l.strip_prefix("-----BEGIN "))
+        .ok_or_else(|| ilegible("pem sin -----BEGIN"))?
+        .strip_prefix("-----BEGIN ")
         .and_then(|l| l.strip_suffix("-----"))
         .ok_or_else(|| ilegible("pem"))?
         .to_owned();

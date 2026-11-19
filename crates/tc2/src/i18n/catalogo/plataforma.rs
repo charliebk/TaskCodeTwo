@@ -106,6 +106,14 @@ crate::i18n::textos! {
         es: "la GitHub App de {rol} no consiguio su token de instalacion ({causa}: {detalle}): revisa {variables}, que la App este instalada en el repo y que tenga los permisos del rol",
         en: "the {rol} GitHub App did not get its installation token ({causa}: {detalle}): check {variables}, that the App is installed on the repo and that it has the role permissions",
     }
+    APP_SOLO_GITHUB {
+        es: "en GitLab la GitHub App de {rol} no sirve ({variables} solo valen en GitHub): define {variable} con un token de proyecto o de cuenta de servicio de {rol}",
+        en: "on GitLab the {rol} GitHub App does not apply ({variables} only work on GitHub): set {variable} to a project or service account token for {rol}",
+    }
+    APP_TLS {
+        es: "la GitHub App de {rol} no consiguio su token por un fallo de TLS ({detalle}): si la red usa un proxy con su propia CA, instalala en el almacen de certificados del sistema; revisa tambien la hora del equipo",
+        en: "the {rol} GitHub App did not get its token because of a TLS failure ({detalle}): if the network uses a proxy with its own CA, install it in the system certificate store; also check the machine clock",
+    }
     SOLO_TERMINAL {
         es: " (el de persona solo se usa desde un terminal interactivo)",
         en: " (the persona one is only used from an interactive terminal)",

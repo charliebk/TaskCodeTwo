@@ -16,6 +16,7 @@
 
 mod comun;
 
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -30,7 +31,7 @@ use tc2::git;
 use tc2::plataforma::credenciales::de_entorno_con;
 use tc2::plataforma::http::Base;
 use tc2::plataforma::{
-    AutorGit, Credenciales, CredencialesApp, FalloCredencial, GitHub, Personas, Plataforma,
+    AutorGit, Credenciales, CredencialesApp, FalloCredencial, GitHub, GitLab, Personas, Plataforma,
     Proveedor, Rol, Secreto, entorno_git,
 };
 
@@ -355,4 +356,411 @@ fn el_entorno_git_del_agente_lleva_cabecera_y_autor_sin_token_en_argv() {
         assert!(!texto.contains(TOKEN), "token en {donde}: {texto}");
         assert!(!texto.contains(&basica), "cabecera en {donde}: {texto}");
     }
+}
+
+// --- Ronda 1 de revision de TASK-047 (IMP-1, MEN-1, MEN-2, MEN-4,
+// MENOR-1, MENOR-3, MENOR-4) ---
+
+/// `2026-11-19T10:00:00Z` de unos segundos desde 1970 (algoritmo de dias
+/// civiles de H. Hinnant; el `expires_at` que da GitHub).
+fn iso(segundos: u64) -> String {
+    let dias = i64::try_from(segundos / 86_400).unwrap();
+    let resto = segundos % 86_400;
+    let z = dias + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let dia = doy - (153 * mp + 2) / 5 + 1;
+    let mes = if mp < 10 { mp + 3 } else { mp - 9 };
+    let anio = yoe + era * 400 + i64::from(mes <= 2);
+    format!(
+        "{anio:04}-{mes:02}-{dia:02}T{:02}:{:02}:{:02}Z",
+        resto / 3600,
+        resto % 3600 / 60,
+        resto % 60
+    )
+}
+
+#[test]
+fn iso_formatea_como_github() {
+    assert_eq!(iso(0), "1970-01-01T00:00:00Z");
+    assert_eq!(iso(951_782_400), "2000-02-29T00:00:00Z");
+    assert_eq!(iso(4_070_908_800), "2099-01-01T00:00:00Z");
+}
+
+/// La causa de un fallo al acunar, o panico si no lo es.
+fn causa(r: Result<Secreto, FalloCredencial>) -> (&'static str, String) {
+    match r {
+        Err(FalloCredencial::Acunar { causa, detalle }) => (causa, detalle),
+        otro => panic!("se esperaba un fallo al acunar: {otro:?}"),
+    }
+}
+
+fn app_del_agente(pem: &str, base: &str) -> CredencialesApp {
+    CredencialesApp::nueva(APP, pem, Base::nueva(base).unwrap(), "o/r", Rol::Agente).unwrap()
+}
+
+/// Un puerto local en el que no escucha nadie.
+fn puerto_cerrado() -> u16 {
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    l.local_addr().unwrap().port()
+}
+
+/// IMP-1 / MENOR-3: el token se renueva cuando le quedan menos de
+/// [`tc2::plataforma::app_github::MARGEN`] (5 min) y se reutiliza si le
+/// quedan mas.
+#[test]
+fn el_token_que_vence_dentro_del_margen_se_renueva_y_el_de_fuera_no() {
+    let _serie = serie();
+    let f = Fixture::nueva("app-margen");
+    let (ruta, _) = clave_rsa(&f.raiz);
+    let pem = std::fs::read_to_string(&ruta).unwrap();
+    assert_eq!(tc2::plataforma::app_github::MARGEN, 300);
+    let t0 = ahora();
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/installation",
+        Simulada::json(200, r#"{"id":77}"#),
+    );
+    // Vence en 4 min (dentro del margen): la segunda llamada lo renueva. El
+    // segundo vence en 10 min (fuera): la tercera lo reutiliza.
+    for (token, vida) in [("ghs_cuatro", 240), ("ghs_diez", 600)] {
+        mock.responder(
+            "POST",
+            "/app/installations/77/access_tokens",
+            Simulada::json(
+                201,
+                &format!(r#"{{"token":"{token}","expires_at":"{}"}}"#, iso(t0 + vida)),
+            ),
+        );
+    }
+    let app = app_del_agente(&pem, &mock.base());
+    assert_eq!(app.obtener(Rol::Agente), Ok(Secreto::nuevo("ghs_cuatro")));
+    assert_eq!(app.obtener(Rol::Agente), Ok(Secreto::nuevo("ghs_diez")));
+    assert_eq!(app.obtener(Rol::Agente), Ok(Secreto::nuevo("ghs_diez")));
+    let posts = mock
+        .recibidas()
+        .iter()
+        .filter(|r| r.linea.starts_with("POST"))
+        .count();
+    assert_eq!(posts, 2, "renueva el de 4 min y reutiliza el de 10");
+}
+
+/// IMP-1 / MENOR-3: un 404 de `access_tokens` (App reinstalada con otro id)
+/// olvida la instalacion y la siguiente llamada la vuelve a buscar.
+#[test]
+fn un_404_al_pedir_el_token_olvida_la_instalacion() {
+    let _serie = serie();
+    let f = Fixture::nueva("app-reinstalada");
+    let (ruta, _) = clave_rsa(&f.raiz);
+    let pem = std::fs::read_to_string(&ruta).unwrap();
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/installation",
+        Simulada::json(200, r#"{"id":5}"#),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/installation",
+        Simulada::json(200, r#"{"id":6}"#),
+    );
+    mock.responder(
+        "POST",
+        "/app/installations/5/access_tokens",
+        Simulada::json(404, r#"{"message":"Not Found"}"#),
+    );
+    mock.responder(
+        "POST",
+        "/app/installations/6/access_tokens",
+        Simulada::json(
+            201,
+            r#"{"token":"ghs_nueva","expires_at":"2099-01-01T00:00:00Z"}"#,
+        ),
+    );
+    let app = app_del_agente(&pem, &mock.base());
+    assert_eq!(causa(app.obtener(Rol::Agente)).0, "sin-instalacion");
+    assert_eq!(app.obtener(Rol::Agente), Ok(Secreto::nuevo("ghs_nueva")));
+    let lineas: Vec<String> = mock.recibidas().into_iter().map(|r| r.linea).collect();
+    assert_eq!(
+        lineas,
+        [
+            "GET /repos/o/r/installation",
+            "POST /app/installations/5/access_tokens",
+            "GET /repos/o/r/installation",
+            "POST /app/installations/6/access_tokens",
+        ]
+    );
+}
+
+/// IMP-1 / MENOR-3: cada fallo al acunar sale con su causa del contrato de
+/// la adenda F6-1.
+#[test]
+fn cada_fallo_al_acunar_tiene_su_causa() {
+    let _serie = serie();
+    let f = Fixture::nueva("app-causas");
+    let (ruta, _) = clave_rsa(&f.raiz);
+    let pem = std::fs::read_to_string(&ruta).unwrap();
+    let instalada = || {
+        let mock = Mock::nuevo();
+        mock.responder(
+            "GET",
+            "/repos/o/r/installation",
+            Simulada::json(200, r#"{"id":3}"#),
+        );
+        mock
+    };
+    let token = |cuerpo: &str| {
+        let mock = instalada();
+        mock.responder(
+            "POST",
+            "/app/installations/3/access_tokens",
+            Simulada::json(201, cuerpo),
+        );
+        mock
+    };
+
+    // 401 del JWT.
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/installation",
+        Simulada::json(401, r#"{"message":"Bad credentials"}"#),
+    );
+    let (c, d) = causa(app_del_agente(&pem, &mock.base()).obtener(Rol::Agente));
+    assert_eq!(
+        (c, d.as_str()),
+        ("jwt-rechazado", "HTTP 401 Bad credentials")
+    );
+
+    // 422: la instalacion no concede los permisos pedidos.
+    let mock = instalada();
+    mock.responder(
+        "POST",
+        "/app/installations/3/access_tokens",
+        Simulada::json(422, r#"{"message":"permissions"}"#),
+    );
+    let (c, _) = causa(app_del_agente(&pem, &mock.base()).obtener(Rol::Agente));
+    assert_eq!(c, "permisos-no-concedidos");
+
+    // 201, pero con menos permisos de los pedidos: tampoco vale.
+    let mock = token(
+        r#"{"token":"ghs_x","expires_at":"2099-01-01T00:00:00Z","permissions":{
+            "contents":"read","pull_requests":"write","checks":"read",
+            "statuses":"read","metadata":"read"}}"#,
+    );
+    let (c, d) = causa(app_del_agente(&pem, &mock.base()).obtener(Rol::Agente));
+    assert_eq!(
+        (c, d.as_str()),
+        ("permisos-no-concedidos", "contents:write")
+    );
+    // Con todos (write cubre read), si.
+    let mock = token(
+        r#"{"token":"ghs_x","expires_at":"2099-01-01T00:00:00Z","permissions":{
+            "contents":"write","pull_requests":"write","checks":"write",
+            "statuses":"read","metadata":"read"}}"#,
+    );
+    assert_eq!(
+        app_del_agente(&pem, &mock.base()).obtener(Rol::Agente),
+        Ok(Secreto::nuevo("ghs_x"))
+    );
+
+    // Otro estado, o un 201 sin la forma esperada.
+    let mock = Mock::nuevo();
+    mock.responder(
+        "GET",
+        "/repos/o/r/installation",
+        Simulada::json(500, r#"{"message":"boom"}"#),
+    );
+    let (c, _) = causa(app_del_agente(&pem, &mock.base()).obtener(Rol::Agente));
+    assert_eq!(c, "respuesta-inesperada");
+    let mock = token(r#"{"sin":"token"}"#);
+    let (c, _) = causa(app_del_agente(&pem, &mock.base()).obtener(Rol::Agente));
+    assert_eq!(c, "respuesta-inesperada");
+
+    // Sin red.
+    let base = format!("http://127.0.0.1:{}", puerto_cerrado());
+    let (c, _) = causa(app_del_agente(&pem, &base).obtener(Rol::Agente));
+    assert_eq!(c, "sinred");
+}
+
+/// IMP-1 / MENOR-3, por el adaptador: sin red al acunar sale `sinred` (no
+/// `denegada motivo=credenciales`).
+#[test]
+fn el_adaptador_traduce_sinred_al_acunar() {
+    let _serie = serie();
+    let f = Fixture::nueva("app-sinred");
+    let (ruta, _) = clave_rsa(&f.raiz);
+    let clave = ruta.to_str().unwrap().to_owned();
+    let vars = move |v: &str| match v {
+        "TC2_APP_AGENTE_ID" => Some(APP.to_owned()),
+        "TC2_APP_AGENTE_CLAVE" => Some(clave.clone()),
+        _ => None,
+    };
+    let salida = |base: String| {
+        let gh = GitHub::nuevo(
+            Base::nueva(&base).unwrap(),
+            "o/r",
+            Box::new(de_entorno_con(&vars, false)),
+            Personas::default(),
+        )
+        .unwrap();
+        gh.prs_abiertos(Rol::Agente).unwrap_err().salida(false)
+    };
+
+    let s = salida(format!("http://127.0.0.1:{}", puerto_cerrado()));
+    assert!(s.stdout.starts_with("prs-abiertos sinred "), "{}", s.stdout);
+    assert!(s.stdout.contains("causa=sinred"), "{}", s.stdout);
+}
+
+/// MEN-1 / MENOR-1: con la App del agente configurada y un destino GitLab,
+/// se usa `TC2_TOKEN_AGENTE` (nunca el de otro rol); sin el, el diagnostico
+/// dice que en GitLab la App no sirve y que hay que definirlo.
+#[test]
+fn en_gitlab_la_app_cede_al_token_del_mismo_rol() {
+    let _serie = serie();
+    let app = [
+        ("TC2_APP_AGENTE_ID", APP),
+        ("TC2_APP_AGENTE_CLAVE", "/no/existe/app.pem"),
+    ];
+    let con_token = |extra: &[(&'static str, &'static str)]| {
+        let vars: Vec<(&str, &str)> = app.iter().chain(extra).copied().collect();
+        move |v: &str| {
+            vars.iter()
+                .find(|(k, _)| *k == v)
+                .map(|(_, x)| (*x).to_owned())
+        }
+    };
+    let gitlab = |mock: &Mock, vars| {
+        GitLab::nuevo(
+            Base::nueva(&format!("{}/api/v4", mock.base())).unwrap(),
+            "o/r",
+            Box::new(de_entorno_con(vars, true)),
+            Personas::default(),
+        )
+        .unwrap()
+    };
+
+    let mock = Mock::nuevo();
+    let gl = gitlab(
+        &mock,
+        con_token(&[
+            ("TC2_TOKEN_AGENTE", "glpat-agente"),
+            ("TC2_TOKEN_PERSONA", "glpat-persona"),
+        ]),
+    );
+    let _ = gl.prs_abiertos(Rol::Agente);
+    let r = mock.recibidas();
+    assert!(!r.is_empty(), "no llego a la API");
+    assert!(
+        r.iter()
+            .all(|x| x.autorizacion.as_deref() == Some("Bearer glpat-agente")),
+        "{r:?}"
+    );
+
+    // Sin token del agente: no se prueba con el de persona.
+    let mock = Mock::nuevo();
+    let gl = gitlab(&mock, con_token(&[("TC2_TOKEN_PERSONA", "glpat-persona")]));
+    let s = gl.prs_abiertos(Rol::Agente).unwrap_err().salida(false);
+    assert_eq!(
+        (s.stdout.as_str(), s.codigo),
+        (
+            "prs-abiertos denegada motivo=credenciales rol=agente causa=app-solo-github\n",
+            8
+        )
+    );
+    assert!(s.stderr.contains("en GitLab"), "{}", s.stderr);
+    assert!(s.stderr.contains("define TC2_TOKEN_AGENTE"), "{}", s.stderr);
+    assert!(mock.recibidas().is_empty());
+}
+
+/// MEN-2: el PEM se lee aunque traiga BOM UTF-8 o texto antes de
+/// `-----BEGIN`; sin `-----BEGIN`, el detalle lo dice.
+#[test]
+fn el_pem_admite_bom_y_texto_antes_del_begin() {
+    let f = Fixture::nueva("app-pem-bom");
+    let (ruta, _) = clave_rsa(&f.raiz);
+    let pem = std::fs::read_to_string(&ruta).unwrap();
+    let base = Base::nueva("http://127.0.0.1:9").unwrap();
+    for variante in [
+        format!("\u{feff}{pem}"),
+        format!("# clave de la App del agente\r\n\r\n{pem}"),
+        format!("\u{feff}Bag Attributes\n{}", pem.replace('\n', "\r\n")),
+    ] {
+        CredencialesApp::nueva(APP, &variante, base.clone(), "o/r", Rol::Agente)
+            .unwrap_or_else(|e| panic!("{e:?}: {variante:.40}"));
+    }
+    let e = CredencialesApp::nueva(APP, "\u{feff}sin cabecera\n", base, "o/r", Rol::Agente)
+        .unwrap_err();
+    assert_eq!(
+        e,
+        FalloCredencial::Acunar {
+            causa: "clave-ilegible",
+            detalle: "pem sin -----BEGIN".to_owned(),
+        }
+    );
+}
+
+/// MEN-4 / MENOR-5: la cabecera del agente no pisa entradas `GIT_CONFIG_*`
+/// anteriores del puerto, ni `con_entorno` la pisa a ella, en ningun orden.
+#[test]
+fn el_entorno_git_del_agente_se_acumula_con_otras_entradas_de_config() {
+    const TOKEN: &str = "ghs_acumulado";
+    let _serie = serie();
+    let f = Fixture::nueva("git-acumula");
+    let (_bare, clon) = f.remoto_y_clon();
+    let mock = Mock::nuevo();
+    let autor = AutorGit::bot_github("taskcode-agente", None);
+    let previa: Vec<(std::ffi::OsString, std::ffi::OsString)> = vec![
+        ("GIT_CONFIG_COUNT".into(), "1".into()),
+        ("GIT_CONFIG_KEY_0".into(), "i18n.commitEncoding".into()),
+        ("GIT_CONFIG_VALUE_0".into(), "ISO-8859-1".into()),
+    ];
+    // Previa, la del agente y, despues, `con_entorno` con otra variable.
+    let g = f
+        .git()
+        .con_entorno_extra(previa)
+        .con_entorno_extra(entorno_git(
+            Proveedor::GitHub,
+            &format!("{}/", mock.base()),
+            &Secreto::nuevo(TOKEN),
+            &autor,
+        ))
+        .con_entorno(vec![("TC2_OTRA".into(), "x".into())]);
+
+    let i =
+        git::crear_rama_y_worktree(&g, &clon, "TASK-047", "feature", "agente", "origin/develop");
+    assert!(i.resultado.es_exito(), "{}", i.linea());
+    let wt = clon.join(".taskcodetwo/worktrees/TASK-047");
+    escribir(&wt, "a.txt", "del agente\n");
+    let i = git::guardar(&g, &wt, "feat(TASK-047): commit del agente", &["a.txt"]);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    // La entrada previa sigue viva: el commit lleva su codificacion.
+    let objeto = f.crudo(&wt, &["cat-file", "-p", "HEAD"]);
+    assert!(objeto.contains("\nencoding ISO-8859-1\n"), "{objeto}");
+
+    // Y la cabecera del agente tambien.
+    f.crudo(
+        &clon,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            &format!("{}/o/r.git", mock.base()),
+        ],
+    );
+    let _ = git::push(&g, &wt, &[Duration::ZERO, Duration::ZERO]);
+    let basica = STANDARD.encode(format!("x-access-token:{TOKEN}"));
+    let refs = mock
+        .recibidas()
+        .into_iter()
+        .find(|r| r.linea.starts_with("GET /o/r.git/info/refs"))
+        .expect("git no llego al remoto");
+    assert_eq!(
+        refs.autorizacion.as_deref(),
+        Some(format!("Basic {basica}").as_str())
+    );
 }

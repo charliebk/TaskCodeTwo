@@ -48,28 +48,6 @@ impl Clon {
     }
 }
 
-/// El token en claro, para las llamadas del arnes con la identidad del
-/// agente (la biblioteca no lo expone: se saca de la cabecera de git).
-pub fn en_claro(proveedor: Proveedor, token: &Secreto) -> String {
-    use base64::Engine as _;
-    let autor = AutorGit {
-        nombre: String::new(),
-        correo: String::new(),
-    };
-    let env = entorno_git(proveedor, "https://x/", token, &autor);
-    let valor = env
-        .iter()
-        .find(|(k, _)| k == "GIT_CONFIG_VALUE_0")
-        .and_then(|(_, v)| v.to_str())
-        .and_then(|v| v.strip_prefix("Authorization: Basic "))
-        .unwrap();
-    let par = base64::engine::general_purpose::STANDARD
-        .decode(valor)
-        .unwrap();
-    let par = String::from_utf8(par).unwrap();
-    par.split_once(':').unwrap().1.to_owned()
-}
-
 /// Clona `base` de `url_repo` (con el token del agente: tambien prueba que
 /// el agente lee por git), crea `rama` con un commit de `autor` y la empuja
 /// con `tc2::git::push`. Devuelve el clon y el sha del commit.

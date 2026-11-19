@@ -216,6 +216,10 @@ const ENTORNO_FIJO: [(&str, &str); 6] = [
 pub struct Git {
     binario: OsString,
     entorno_extra: Vec<(OsString, OsString)>,
+    /// Entradas de config de ambito «command» (`GIT_CONFIG_KEY_<n>` y
+    /// `GIT_CONFIG_VALUE_<n>`) como pares `(clave, valor)`: se numeran al
+    /// lanzar, a continuacion de las que ya traiga el proceso.
+    config: Vec<(OsString, OsString)>,
     registro: RefCell<Vec<String>>,
 }
 
@@ -231,6 +235,7 @@ impl Git {
         Self {
             binario: OsString::from("git"),
             entorno_extra: Vec::new(),
+            config: Vec::new(),
             registro: RefCell::new(Vec::new()),
         }
     }
@@ -246,20 +251,26 @@ impl Git {
     }
 
     /// Anade variables de entorno a cada llamada (los tests aislan asi la
-    /// configuracion del usuario sin tocar el entorno del proceso).
+    /// configuracion del usuario sin tocar el entorno del proceso). Igual
+    /// que [`Git::con_entorno_extra`]: acumula, no sustituye, asi que el
+    /// orden de las dos no importa.
     #[must_use]
-    pub fn con_entorno(mut self, vars: Vec<(OsString, OsString)>) -> Self {
-        self.entorno_extra = vars;
-        self
+    pub fn con_entorno(self, vars: Vec<(OsString, OsString)>) -> Self {
+        self.con_entorno_extra(vars)
     }
 
     /// Anade variables a las que ya tenga el puerto, sin quitarlas: el
     /// entorno del agente de F6-1 (`plataforma::entorno_git`: cabecera de
     /// autenticacion por `GIT_CONFIG_*` y autor), que asi nunca pasa por la
-    /// linea de ordenes ni por el registro.
+    /// linea de ordenes ni por el registro. Las entradas `GIT_CONFIG_COUNT`,
+    /// `GIT_CONFIG_KEY_<n>` y `GIT_CONFIG_VALUE_<n>` se acumulan: cada lote
+    /// se numera a continuacion de los anteriores y de las que ya traiga el
+    /// proceso, sin pisar ninguna.
     #[must_use]
     pub fn con_entorno_extra(mut self, vars: Vec<(OsString, OsString)>) -> Self {
-        self.entorno_extra.extend(vars);
+        let (resto, config) = separar_config(vars);
+        self.entorno_extra.extend(resto);
+        self.config.extend(config);
         self
     }
 
@@ -468,6 +479,15 @@ impl Git {
         for (k, v) in &self.entorno_extra {
             cmd.env(k, v);
         }
+        if !self.config.is_empty() {
+            let previas = std::env::var("GIT_CONFIG_COUNT")
+                .ok()
+                .and_then(|n| n.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            for (k, v) in numerar_config(previas, &self.config) {
+                cmd.env(k, v);
+            }
+        }
         if let Some(i) = indice {
             cmd.env("GIT_INDEX_FILE", i);
         }
@@ -601,6 +621,58 @@ fn es_prohibido(sub: Subcomando, a: &str) -> bool {
     }
 }
 
+/// Variable de entorno (o entrada de config) `(nombre, valor)`.
+type Par = (OsString, OsString);
+
+/// Separa de `vars` las entradas de config de ambito «command»: devuelve las
+/// demas variables y los pares `(clave, valor)` de `GIT_CONFIG_KEY_<n>` y
+/// `GIT_CONFIG_VALUE_<n>` para `n` menor que `GIT_CONFIG_COUNT`, en orden
+/// (las que git no leeria, por encima de la cuenta o sin pareja, se
+/// descartan).
+fn separar_config(vars: Vec<Par>) -> (Vec<Par>, Vec<Par>) {
+    let mut resto = Vec::new();
+    let mut cuenta = 0usize;
+    let mut claves = std::collections::BTreeMap::new();
+    let mut valores = std::collections::BTreeMap::new();
+    for (k, v) in vars {
+        let nombre = k.to_str().unwrap_or_default();
+        if nombre == "GIT_CONFIG_COUNT" {
+            cuenta = v.to_str().and_then(|n| n.trim().parse().ok()).unwrap_or(0);
+        } else if let Some(n) = nombre
+            .strip_prefix("GIT_CONFIG_KEY_")
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            claves.insert(n, v);
+        } else if let Some(n) = nombre
+            .strip_prefix("GIT_CONFIG_VALUE_")
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            valores.insert(n, v);
+        } else {
+            resto.push((k, v));
+        }
+    }
+    let config = (0..cuenta)
+        .filter_map(|n| Some((claves.remove(&n)?, valores.remove(&n)?)))
+        .collect();
+    (resto, config)
+}
+
+/// Variables `GIT_CONFIG_*` de `config` numeradas tras las `previas` que ya
+/// trae el proceso, con la cuenta total.
+fn numerar_config(previas: usize, config: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    let mut vars = vec![(
+        OsString::from("GIT_CONFIG_COUNT"),
+        OsString::from((previas + config.len()).to_string()),
+    )];
+    for (i, (k, v)) in config.iter().enumerate() {
+        let n = previas + i;
+        vars.push((OsString::from(format!("GIT_CONFIG_KEY_{n}")), k.clone()));
+        vars.push((OsString::from(format!("GIT_CONFIG_VALUE_{n}")), v.clone()));
+    }
+    vars
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -611,8 +683,53 @@ mod tests {
         Git {
             binario: OsString::from("no-existe-este-git"),
             entorno_extra: Vec::new(),
+            config: Vec::new(),
             registro: RefCell::new(Vec::new()),
         }
+    }
+
+    fn par(k: &str, v: &str) -> (OsString, OsString) {
+        (OsString::from(k), OsString::from(v))
+    }
+
+    /// MEN-4 / MENOR-5 de la ronda 1 de TASK-047: los lotes de
+    /// `GIT_CONFIG_*` se acumulan en cualquier orden y se numeran tras los
+    /// que ya trae el proceso, sin pisar ninguno.
+    #[test]
+    fn las_entradas_de_config_se_acumulan_y_se_numeran_tras_las_previas() {
+        let g = Git::nuevo()
+            .con_entorno_extra(vec![
+                par("GIT_CONFIG_COUNT", "1"),
+                par("GIT_CONFIG_KEY_0", "a.b"),
+                par("GIT_CONFIG_VALUE_0", "1"),
+                par("OTRA", "x"),
+            ])
+            .con_entorno(vec![
+                par("GIT_CONFIG_COUNT", "2"),
+                par("GIT_CONFIG_KEY_0", "c.d"),
+                par("GIT_CONFIG_VALUE_0", "2"),
+                par("GIT_CONFIG_KEY_1", "e.f"),
+                par("GIT_CONFIG_VALUE_1", "3"),
+                // Fuera de la cuenta: git no la leeria.
+                par("GIT_CONFIG_KEY_5", "no.vale"),
+            ]);
+        assert_eq!(g.entorno_extra, vec![par("OTRA", "x")]);
+        assert_eq!(
+            g.config,
+            vec![par("a.b", "1"), par("c.d", "2"), par("e.f", "3")]
+        );
+        assert_eq!(
+            numerar_config(2, &g.config),
+            vec![
+                par("GIT_CONFIG_COUNT", "5"),
+                par("GIT_CONFIG_KEY_2", "a.b"),
+                par("GIT_CONFIG_VALUE_2", "1"),
+                par("GIT_CONFIG_KEY_3", "c.d"),
+                par("GIT_CONFIG_VALUE_3", "2"),
+                par("GIT_CONFIG_KEY_4", "e.f"),
+                par("GIT_CONFIG_VALUE_4", "3"),
+            ]
+        );
     }
 
     #[test]

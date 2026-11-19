@@ -95,8 +95,17 @@ impl Conexion {
                     .variables_app()
                     .map(|(a, b)| format!("{a}, {b}"))
                     .unwrap_or_default();
-                let m = Mensaje::nuevo(&t::APP_SIN_TOKEN)
+                // Cada causa con su accion: fuera de GitHub hace falta el
+                // token del rol; TLS es del almacen de certificados; el
+                // resto, de la App.
+                let texto = match causa {
+                    causas::APP_SOLO_GITHUB => &t::APP_SOLO_GITHUB,
+                    causas::TLS => &t::APP_TLS,
+                    _ => &t::APP_SIN_TOKEN,
+                };
+                let m = Mensaje::nuevo(texto)
                     .con("rol", rol.nombre())
+                    .con("variable", rol.variable())
                     .con("causa", causa)
                     .con("detalle", errores::sanear(&detalle))
                     .con("variables", variables);
