@@ -215,13 +215,13 @@ jobs:
             checks=$(gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=verificacion -f app_id=15368 -f filter=latest --jq '.check_runs[] | select(.app.id == 15368 and .name == "verificacion" and .conclusion == "success") | @base64') \
               || { echo "commit $c: sin lectura de check-runs; no cuenta"; continue; }
             for ch in $checks; do
-              url=$(printf '%s' "$ch" | base64 -d | jq -r '.details_url // ""')
-              id=${url##*/actions/runs/}
-              id=${id%%/*}
-              case "$id" in ''|*[!0-9]*) echo "commit $c: details_url sin ejecucion: $url"; continue ;; esac
-              llama=$(gh api --method GET "repos/$REPO/actions/runs/$id" --jq "$filtro_run") || llama=0
+              # GitHub ignora el details_url de un check-run de GITHUB_TOKEN
+              # (E2E de F5-2): la ejecucion sale de su check suite.
+              suite=$(printf '%s' "$ch" | base64 -d | jq -r '.check_suite.id // ""')
+              case "$suite" in ''|*[!0-9]*) echo "commit $c: check-run sin check suite; no cuenta"; continue ;; esac
+              llama=$(gh api --method GET "repos/$REPO/actions/runs" -f check_suite_id="$suite" --jq "[.workflow_runs[] | $filtro_run] | add // 0") || llama=0
               if [ "$llama" = 0 ]; then
-                echo "commit $c: la ejecucion $id no llama a este workflow en $VERSION; no cuenta"
+                echo "commit $c: la ejecucion de la suite $suite no llama a este workflow en $VERSION; no cuenta"
                 continue
               fi
               printf '%s' "$ch" | base64 -d | jq -r '.output.summary // ""' | tr -d '\r' \
