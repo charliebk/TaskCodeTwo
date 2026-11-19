@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-041-f5-1-workflow-reutilizable-de-github-act
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F5-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-19T14:53:00Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T14:58:44Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T14:58:46Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
