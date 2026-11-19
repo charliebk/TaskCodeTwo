@@ -212,7 +212,10 @@ jobs:
           lineas="$RUNNER_TEMP/lineas-cache.txt"
           : > "$lineas"
           for c in $commits; do
-            checks=$(gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=verificacion -f app_id=15368 -f filter=latest --jq '.check_runs[] | select(.app.id == 15368 and .name == "verificacion" and .conclusion == "success") | @base64') \
+            # filter=all: "Re-run all jobs" saca de `latest` (y de la suite)
+            # el check-run del intento anterior (E2E de F5-2). El mas reciente
+            # primero.
+            checks=$(gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=verificacion -f app_id=15368 -f filter=all --jq '.check_runs | sort_by(.completed_at) | reverse | .[] | select(.app.id == 15368 and .name == "verificacion" and .conclusion == "success") | @base64') \
               || { echo "commit $c: sin lectura de check-runs; no cuenta"; continue; }
             for ch in $checks; do
               # GitHub ignora el details_url de un check-run de GITHUB_TOKEN
