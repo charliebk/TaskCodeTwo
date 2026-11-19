@@ -25,6 +25,8 @@
 
 #[cfg(test)]
 mod instaladores;
+#[cfg(test)]
+mod workflows;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
