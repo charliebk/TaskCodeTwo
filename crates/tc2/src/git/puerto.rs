@@ -274,6 +274,21 @@ impl Git {
         self
     }
 
+    /// Un puerto nuevo con el binario y el entorno de este mas `vars` (como
+    /// [`Git::con_entorno_extra`]) y el registro vacio: el entorno del agente
+    /// para una sola peticion (el `push` de `review`, F6-2) sin tocar el
+    /// puerto con el que corre la transaccion.
+    #[must_use]
+    pub fn derivado(&self, vars: Vec<(OsString, OsString)>) -> Self {
+        Self {
+            binario: self.binario.clone(),
+            entorno_extra: self.entorno_extra.clone(),
+            config: self.config.clone(),
+            registro: RefCell::new(Vec::new()),
+        }
+        .con_entorno_extra(vars)
+    }
+
     /// Copia del registro: una linea `git <subcomando> <args>` por llamada
     /// ejecutada.
     pub fn registro(&self) -> Vec<String> {

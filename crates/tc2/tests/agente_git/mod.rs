@@ -4,6 +4,10 @@
 //! agente). La configuracion de git del usuario queda fuera (ni su ayudante
 //! de credenciales ni su firma): si el push sale, es por el token del
 //! agente. Carpeta temporal bajo `std::env::temp_dir()`, borrada al soltar.
+//!
+//! F6-2 (TASK-048): [`preparar_rama`] deja la rama con su commit sin
+//! empujarla, para que la empuje `tc2::revision::publicar` con el entorno
+//! que da el adaptador (`entorno-push`).
 
 #![allow(dead_code)]
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
@@ -21,6 +25,9 @@ pub struct Clon {
     raiz: PathBuf,
     pub dir: PathBuf,
     env: Vec<(OsString, OsString)>,
+    /// Solo el aislamiento de la configuracion del usuario, sin token: el
+    /// entorno base del puerto `Git` de F6-2.
+    pub aislado: Vec<(OsString, OsString)>,
 }
 
 impl Drop for Clon {
@@ -49,9 +56,9 @@ impl Clon {
 }
 
 /// Clona `base` de `url_repo` (con el token del agente: tambien prueba que
-/// el agente lee por git), crea `rama` con un commit de `autor` y la empuja
-/// con `tc2::git::push`. Devuelve el clon y el sha del commit.
-pub fn publicar_rama(
+/// el agente lee por git) y crea `rama` con un commit de `autor`, sin
+/// empujarla. Devuelve el clon y el sha del commit.
+pub fn preparar_rama(
     proveedor: Proveedor,
     url_repo: &str,
     prefijo: &str,
@@ -68,15 +75,17 @@ pub fn publicar_rama(
     std::fs::create_dir_all(&raiz).unwrap();
     let config = raiz.join("gitconfig");
     std::fs::write(&config, "[core]\n\tautocrlf = false\n").unwrap();
-    let mut env: Vec<(OsString, OsString)> = vec![
+    let aislado: Vec<(OsString, OsString)> = vec![
         ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
         ("GIT_CONFIG_GLOBAL".into(), config.into_os_string()),
     ];
-    env.extend(entorno_git(proveedor, prefijo, token, autor));
+    let mut env = aislado.clone();
+    env.extend(entorno_git(proveedor, prefijo, token, Some(autor)));
     let clon = Clon {
         dir: raiz.join("clon"),
         raiz,
         env,
+        aislado,
     };
     clon.git(&clon.raiz, &["init", "-q", "-b", base, "clon"]);
     clon.git(&clon.dir, &["remote", "add", "origin", url_repo]);
@@ -94,6 +103,19 @@ pub fn publicar_rama(
         &["commit", "-q", "-m", "e2e: commit del agente (TASK-047)"],
     );
     let sha = clon.git(&clon.dir, &["rev-parse", "HEAD"]);
+    (clon, sha)
+}
+
+/// Como [`preparar_rama`], y empuja la rama con `tc2::git::push`.
+pub fn publicar_rama(
+    proveedor: Proveedor,
+    url_repo: &str,
+    prefijo: &str,
+    token: &Secreto,
+    autor: &AutorGit,
+    ramas: (&str, &str),
+) -> (Clon, String) {
+    let (clon, sha) = preparar_rama(proveedor, url_repo, prefijo, token, autor, ramas);
     let g = Git::nuevo().con_entorno(clon.env.clone());
     let i = git::push(&g, &clon.dir, &git::ESPERAS_PUSH);
     eprintln!("  {}", i.linea());

@@ -741,6 +741,13 @@ impl Plataforma for GitHub {
         Some(Proveedor::GitHub)
     }
 
+    fn entorno_push(
+        &self,
+        url_remoto: &str,
+    ) -> Paso<Vec<(std::ffi::OsString, std::ffi::OsString)>> {
+        super::entorno_git::entorno_push(&self.con, url_remoto)
+    }
+
     fn leer_plan(&self, rol: Rol) -> Paso<PlanObservado> {
         if rol == Rol::Revisor {
             return Err(rol_no_valido(LEER_PLAN, rol));

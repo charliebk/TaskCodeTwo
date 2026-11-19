@@ -401,6 +401,24 @@ pub trait Plataforma {
     /// el que ya haya abierto (`sin-cambios`).
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe;
 
+    /// `entorno-push` (agente; adenda F6-2 a F1-4 y F1-6): las variables de
+    /// entorno para que `git` empuje a `url_remoto` con el token del agente
+    /// ([`entorno_git::entorno_push`]: cabecera limitada a esa URL, sin
+    /// autor). El token no sale del adaptador mas que en esa cabecera. Por
+    /// defecto (adaptadores de prueba), `rechazada motivo=no-soportada`.
+    fn entorno_push(
+        &self,
+        url_remoto: &str,
+    ) -> Paso<Vec<(std::ffi::OsString, std::ffi::OsString)>> {
+        let _ = url_remoto;
+        Err(Informe::nuevo(
+            entorno_git::ENTORNO_PUSH,
+            crate::contrato::Resultado::Rechazada,
+        )
+        .con("motivo", "no-soportada")
+        .diagnostico(&crate::i18n::catalogo::plataforma::ENTORNO_PUSH_NO_SOPORTADO))
+    }
+
     /// `estado-puertas` (agente o persona): checks con su origen,
     /// aprobaciones de personas y rama al dia.
     fn estado_puertas(&self, rol: Rol, pr: u64, modelo: &ModeloPuertas) -> Informe;

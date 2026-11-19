@@ -20,7 +20,7 @@
 //! (aviso de solape de `start`, F3-11) y [`ciclo`]
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
 //! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1;
-//! `approve`, F4-2). Las capas
+//! `approve`, F4-2) y [`revision`] (`review`, F6-2). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -47,6 +47,7 @@ pub mod plan;
 pub mod plataforma;
 pub mod progreso;
 pub mod recursos;
+pub mod revision;
 pub mod roadmap;
 pub mod siguiente;
 pub mod situacion;
@@ -208,6 +209,12 @@ where
             let (json, resto) = con_json(resto);
             de_una_tarea(plan::aprobar::NOMBRE, (json, idioma), |e| {
                 plan::orden_approve(&resto, e)
+            })
+        }
+        [orden, resto @ ..] if orden == revision::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(revision::NOMBRE, (json, idioma), |e| {
+                orden_review(&resto, e)
             })
         }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
@@ -493,6 +500,26 @@ fn transicion(
     orden(&e)
 }
 
+/// `review [--json] TASK-NNN` (F6-2): el entorno de `start` mas el
+/// adaptador de la plataforma de `origin` (la deteccion de `start`, la lista
+/// de personas de la base y los tokens o la App del agente del proceso);
+/// `review` le pide siempre con el rol de agente.
+fn orden_review(args: &[String], e: &toma::Entorno<'_>) -> Informe {
+    let conectar = || -> plataforma::Paso<Box<dyn plataforma::Plataforma>> {
+        let destino = identidad::destino_de(e.git, e.dir)?;
+        let personas = identidad::personas_de_base(e.git, e.dir)?;
+        identidad::adaptador(destino, plataforma::de_entorno(), personas)
+    };
+    revision::orden(
+        args,
+        &revision::Entorno {
+            base: e,
+            conectar: &conectar,
+            esperas: &git::ESPERAS_PUSH,
+        },
+    )
+}
+
 /// `estimar [--json] [TASK-NNN | --error TASK-NNN]` (F3-13) en la carpeta
 /// actual. Sin `--json` y con exito, la linea para la persona va detras de
 /// la de contrato (como mucho 5 lineas, F1-4 decision 4).
@@ -575,6 +602,7 @@ fn catalogo(anotacion: &str) -> Option<Box<dyn estado::Operacion>> {
         .or_else(|| roadmap::desde_anotacion(anotacion))
         .or_else(|| toma::desde_anotacion(anotacion))
         .or_else(|| ciclo::desde_anotacion(anotacion))
+        .or_else(|| revision::desde_anotacion(anotacion))
 }
 
 /// `new "<titulo>" [campos de RF-01]`: alta de una tarea con su ID reservado
