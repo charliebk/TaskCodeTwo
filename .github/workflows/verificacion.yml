@@ -5,7 +5,9 @@
 #   - buscar (ejecuta, Linux, contents: read): elige los perfiles del evento
 #     (F1-7, decision 4). La busqueda en la cache por arbol llega con F5-2.
 #   - ejecutar (ejecuta, matriz por perfil, runner del perfil, sin secretos):
-#     corre `comando argumentos-<perfil>` en el shell que declara el proyecto.
+#     corre `comando argumentos-<perfil>` en el shell que declara el proyecto
+#     y sube el informe JSON de `TC2_INFORME` (F5-4) como artefacto
+#     `informe-verificacion-<perfil>`, si el comando lo escribio.
 #   - verificacion (privilegio, sin checkout): suma los resultados y publica el
 #     check-run `verificacion` con GITHUB_TOKEN (App github-actions, 15368).
 #
@@ -145,8 +147,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # TC2_INFORME (F5-4): el comando escribe ahi su informe JSON, si sabe;
+      # la plataforma solo lo sube. `runner` no existe en el `env` del job.
       - name: comando del proyecto, perfil ${{ matrix.perfil }}
+        env:
+          TC2_INFORME: ${{ runner.temp }}/informe-verificacion.json
         run: ${{ inputs.comando }} ${{ inputs[format('argumentos-{0}', matrix.perfil)] }}
+      - name: informe de verificacion, perfil ${{ matrix.perfil }}
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: informe-verificacion-${{ matrix.perfil }}
+          path: ${{ runner.temp }}/informe-verificacion.json
+          if-no-files-found: ignore
 
   verificacion:
     name: verificacion
@@ -168,7 +181,13 @@ jobs:
         run: |
           set -eu
           if [ "$RESULTADO" = success ]; then conclusion=success; else conclusion=failure; fi
-          resumen="perfiles=$PERFILES resultado=$RESULTADO ejecucion=$EJECUCION"
+          # Nombres de los artefactos del informe JSON (F5-4), uno por perfil;
+          # el publicador no los abre: el informe lo escribe codigo del PR.
+          informes=""
+          for p in $(printf '%s' "$PERFILES" | tr -d '[]"' | tr ',' ' '); do
+            informes="${informes:+$informes,}informe-verificacion-$p"
+          done
+          resumen="perfiles=$PERFILES resultado=$RESULTADO informe=$informes ejecucion=$EJECUCION"
           gh api --method POST "repos/$REPO/check-runs" \
             -f name=verificacion -f head_sha="$HEAD_SHA" -f status=completed \
             -f conclusion="$conclusion" -f details_url="$EJECUCION" \

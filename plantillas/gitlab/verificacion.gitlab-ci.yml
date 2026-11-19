@@ -13,6 +13,8 @@
 #         comando: scripts/verificar.sh
 # Fuera de F5-1 (D4): carril, estado de revision-ia y ci_config_path en otro
 # proyecto. La linea de la cache por arbol ira en un artefacto del job (D3, F5-2).
+# Informe JSON (F5-4): el comando lo escribe en TC2_INFORME y cada job lo sube
+# como artefacto informe-verificacion-<perfil> (when: always).
 # Guia: docs/ci/verificacion-reutilizable.md.
 spec:
   inputs:
@@ -63,6 +65,13 @@ variables:
   interruptible: false
   variables:
     RAMA_BASE: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    # F5-4: el comando escribe ahi su informe JSON, si sabe; el job lo sube.
+    TC2_INFORME: $CI_PROJECT_DIR/.tc2/informe-verificacion.json
+  artifacts:
+    name: informe-verificacion-$TC2_PERFIL
+    when: always
+    paths:
+      - .tc2/informe-verificacion.json
 
 verificacion-rapida:
   extends: .tc2-verificacion

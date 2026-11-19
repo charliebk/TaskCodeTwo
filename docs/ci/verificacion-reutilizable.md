@@ -9,9 +9,10 @@ decisión 1; RR-15): no conocen sus pasos, sus grupos ni sus herramientas.
 | GitHub Actions | [`.github/workflows/verificacion.yml`](../../.github/workflows/verificacion.yml) (`on: workflow_call`) | un job del proyecto con `uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>` |
 | GitLab CI | [`plantillas/gitlab/verificacion.gitlab-ci.yml`](../../plantillas/gitlab/verificacion.gitlab-ci.yml) (`spec:inputs`) | `include: remote` a la URL raw de la plantilla fijada por SHA |
 
-Fuera de F5-1: la caché por árbol y la línea `arbol=` (F5-2), el informe JSON
-para el revisor (F5-4), el runner propio (F5-5), `carril` y `revision-ia`
-(F6), y la definición de CI en otro proyecto de GitLab (F2-9).
+Fuera de F5-1: la caché por árbol y la línea `arbol=` (F5-2), el runner
+propio (F5-5), `carril` y `revision-ia` (F6), y la definición de CI en otro
+proyecto de GitLab (F2-9). El informe JSON para el revisor (F5-4) se describe
+más abajo.
 
 ## Entradas
 
@@ -147,9 +148,10 @@ quiere evitar el pipeline de rama duplicado con el de MR, lo pone en su
 `cargo test` (y por tanto en `cargo xtask verificar --perfil rapida`). Sobre el
 workflow: eventos admitidos (`workflow_call`, `pull_request`, `push`,
 `merge_group`, `workflow_dispatch`), `permissions` arriba y en cada job (sin
-`write-all`), la única acción admitida es `actions/checkout` fijada por SHA y
-con `persist-credentials: false` (sin `ref:` ni `repository:` en un job que
-escribe), ningún `secrets: inherit`, ningún secreto en un job sin escritura y
+`write-all`), las únicas acciones admitidas son `actions/checkout` fijada por
+SHA y con `persist-credentials: false` (sin `ref:` ni `repository:` en un job
+que escribe) y `actions/upload-artifact` fijada por SHA y solo en un job sin
+escritura (F5-4), ningún `secrets: inherit`, ningún secreto en un job sin escritura y
 ningún `github.event.*`, `github.head_ref` ni `toJSON(github…)` en `run:`
 (también con corchetes, `github['event']`, `secrets['X']`, o con espacios);
 `env` y `defaults` de la raíz sin secretos (y `defaults` sin datos del evento);
@@ -159,6 +161,34 @@ ningún `secrets:`, ninguna variable que escribe el autor (`CI_COMMIT_MESSAGE`,
 variable de job. El lector falla en cerrado: lo que no entiende (sangría
 inesperada, continuación de un escalar) es un error, no se descarta. Cada
 regla tiene su mutación negativa en las pruebas.
+
+## Informe JSON (F5-4)
+
+TASK-044. El comando de verificación del proyecto escribe, si sabe, un informe
+JSON en la ruta de la variable **`TC2_INFORME`**, también cuando acaba en rojo.
+La plataforma solo lo transporta (F1-7, decisión 1: no conoce los pasos):
+
+| Plataforma | `TC2_INFORME` | Transporte |
+|---|---|---|
+| GitHub | `${{ runner.temp }}/informe-verificacion.json` (env del paso) | `actions/upload-artifact` con `if: always()` e `if-no-files-found: ignore`, artefacto `informe-verificacion-<perfil>`; el publicador añade `informe=informe-verificacion-<perfil>[,…]` a `output.summary` |
+| GitLab | `$CI_PROJECT_DIR/.tc2/informe-verificacion.json` | `artifacts: {name: informe-verificacion-$TC2_PERFIL, when: always, paths: [.tc2/informe-verificacion.json]}` |
+
+- **Contrato**: [`crates/tc2/esquemas/informe-verificacion.schema.json`](../../crates/tc2/esquemas/informe-verificacion.schema.json),
+  `version: 1`: `perfil`, `resultado` (`verde`/`rojo`), `commit` (40 hex o
+  `null`), `inicio` y `fin` (UTC), `pasos[{nombre, resultado, segundos}]` y
+  `tests{total, fallidos}` opcional (F1-11, práctica 8). Una clave desconocida
+  u otra versión es error.
+- **Lector**: `tc2::verificacion::informe::leer` y `seccion_revisor(&informe,
+  artefacto)`, el texto con el que el revisor IA (F6-3) cita el informe y se
+  compromete a no relanzar los pasos en verde.
+- **Productor**: `cargo xtask verificar` (fmt, clippy, test y, en `completa`,
+  reproducible), sin recuento de tests. Su prueba compara el JSON con los
+  fixtures `crates/tc2/tests/fixtures/informe-verificacion/` que lee tc2.
+- **Quién decide**: el informe lo escribe código del PR; es detalle para citar.
+  El hecho autoritativo para no repetir la suite es el check `verificacion` de
+  `github-actions` (`app_id` 15368). Si el comando no escribe el informe, no
+  hay artefacto y el revisor solo tiene el resumen del check, que basta para no
+  relanzar un perfil en verde. El publicador no abre el artefacto.
 
 ## Divergencias con los ADR
 
@@ -192,6 +222,22 @@ regla tiene su mutación negativa en las pruebas.
    ejecutores en la misma máquina (que compartirían `target/`) quedan para
    F5-5. Comprobado solo por la prueba `la_concurrencia_es_por_pr_o_ref`; no se
    reprodujo en el E2E.
+7. **Segunda acción en la lista blanca** (F5-4, D3): F1-8 y esta guía decían
+   que la única acción admitida es `actions/checkout`. Se admite también
+   `actions/upload-artifact`, fijada por SHA y solo en clase ejecuta (sin
+   escritura ni secretos), porque el artefacto es el canal que F1-8 fija para
+   el revisor y existe en las dos plataformas (RR-15).
+8. **E2E del informe pendiente** (F5-4, D6): TASK-044 no hace push. Se valida
+   en local (pruebas de xtask y tc2) y la plantilla con la API `ci/lint` de
+   GitLab (contenido en línea, entradas sustituidas por valores de ejemplo y
+   sin la cabecera `spec`). La ejecución real en GitHub (artefacto presente,
+   `informe=` en el resumen) y la descarga del artefacto de otro run con
+   `actions: read` se hacen en TASK-049, que consume el informe.
+9. **"No repite tests"** (criterio 1): solo es comprobable con el revisor de
+   F6-3. TASK-049 debe usar `seccion_revisor` y demostrarlo.
+10. **ToolsaWeb y OpenDockTrading** no producen el informe hasta migrar (F9):
+    su `.estado/verificar-ultima.json` tiene otra forma. Hasta entonces solo
+    existe el resumen del check.
 
 ## Prueba E2E (2026-11-19, workflow y plantilla en `790b72d`)
 

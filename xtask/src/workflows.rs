@@ -9,9 +9,10 @@
 //!   `repository_dispatch`, `workflow_run`, comentarios...);
 //! - bloque `permissions` arriba y en cada job, sin `write-all` ni
 //!   `read-all`; un job con algun `write` es de clase privilegio;
-//! - acciones admitidas: solo `actions/checkout`, fijada por SHA y con
+//! - acciones admitidas: `actions/checkout`, fijada por SHA y con
 //!   `persist-credentials: false`; en clase privilegio, sin `ref:` ni
-//!   `repository:`;
+//!   `repository:`; y `actions/upload-artifact` (informe de F5-4), fijada
+//!   por SHA y solo en clase ejecuta;
 //! - ni `secrets: inherit`, ni secretos en clase ejecuta, ni
 //!   `github.event.*`, `github.head_ref` o `toJSON(github...)` en `run:`
 //!   (los datos del evento se pasan por `env:`).
@@ -323,7 +324,11 @@ const EVENTOS_ADMITIDOS: [&str; 5] = [
     "workflow_dispatch",
 ];
 
-const ACCIONES_ADMITIDAS: [&str; 1] = ["actions/checkout"];
+/// Subida del informe JSON (F5-4): solo en clase ejecuta (sin escritura ni
+/// secretos), fijada por SHA.
+const SUBIDA: &str = "actions/upload-artifact";
+
+const ACCIONES_ADMITIDAS: [&str; 2] = ["actions/checkout", SUBIDA];
 
 /// Datos del evento que el autor del PR controla: nunca dentro de `run:`.
 /// Se buscan sobre el valor normalizado (ver `normalizar`).
@@ -496,6 +501,12 @@ fn lint_github(texto: &str) -> Vec<String> {
             }
             if !es_sha(version) {
                 errores.push(format!("job {nombre}: {accion} sin fijar por SHA"));
+            }
+            if accion == SUBIDA {
+                if privilegio {
+                    errores.push(format!("job {nombre}: {SUBIDA} en clase privilegio"));
+                }
+                continue;
             }
             let con = paso.get("with");
             let opcion = |k: &str| con.and_then(|w| w.get(k));
@@ -989,6 +1000,89 @@ fn la_concurrencia_es_por_pr_o_ref() {
     assert!(
         grupo.contains("github.event.pull_request.number || github.ref"),
         "{grupo}"
+    );
+}
+
+/// F5-4: `ejecutar` sube el informe aunque el comando falle, el publicador
+/// nombra los artefactos en el resumen, la plantilla los guarda siempre y la
+/// subida no se admite en un job que escribe.
+#[test]
+fn el_informe_se_sube_siempre_y_solo_desde_ejecutar() {
+    let raiz = yaml(&leer(WORKFLOW));
+    let job = |n: &str| raiz.get("jobs").and_then(|j| j.get(n));
+    let pasos = |n: &str| match job(n).and_then(|j| j.get("steps")) {
+        Some(Nodo::Lista(p)) => p.clone(),
+        _ => Vec::new(),
+    };
+    let subida = pasos("ejecutar")
+        .into_iter()
+        .find(|p| {
+            p.get("uses")
+                .and_then(Nodo::texto)
+                .is_some_and(|u| u.starts_with("actions/upload-artifact@"))
+        })
+        .unwrap_or_else(|| panic!("ejecutar no sube el informe"));
+    assert_eq!(subida.get("if").and_then(Nodo::texto), Some("always()"));
+    let con = |k: &str| {
+        subida
+            .get("with")
+            .and_then(|w| w.get(k))
+            .and_then(Nodo::texto)
+    };
+    assert_eq!(
+        con("name"),
+        Some("informe-verificacion-${{ matrix.perfil }}")
+    );
+    assert_eq!(con("if-no-files-found"), Some("ignore"));
+    let publicar = pasos("verificacion")
+        .first()
+        .and_then(|p| p.get("run"))
+        .and_then(Nodo::texto)
+        .map(str::to_owned)
+        .unwrap_or_default();
+    assert!(publicar.contains("informe=$informes"), "{publicar}");
+
+    let texto = leer(PLANTILLA);
+    let (_, cuerpo) = plantilla(&texto);
+    let artefactos = cuerpo
+        .get(".tc2-verificacion")
+        .and_then(|b| b.get("artifacts"));
+    assert_eq!(
+        artefactos.and_then(|a| a.get("when")).and_then(Nodo::texto),
+        Some("always")
+    );
+    assert!(
+        cuerpo
+            .get(".tc2-verificacion")
+            .and_then(|b| b.get("variables"))
+            .and_then(|v| v.get("TC2_INFORME"))
+            .is_some()
+    );
+
+    let en_privilegio = BUENO.replacen(
+        "      - env:\n          GH_TOKEN",
+        "      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02\n      - env:\n          GH_TOKEN",
+        1,
+    );
+    assert_ne!(en_privilegio, BUENO);
+    let errores = lint_github(&en_privilegio);
+    assert!(
+        errores
+            .iter()
+            .any(|e| e.contains("job publicar: actions/upload-artifact en clase privilegio")),
+        "{errores:?}"
+    );
+    let sin_sha = BUENO.replacen(
+        "      - run: echo \"$TITULO\"",
+        "      - uses: actions/upload-artifact@v4",
+        1,
+    );
+    assert!(
+        lint_github(&sin_sha)
+            .iter()
+            .any(|e| e.contains("actions/upload-artifact sin fijar por SHA")),
+        "{:?}",
+        lint_github(&sin_sha)
     );
 }
 
