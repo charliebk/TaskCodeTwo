@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-038-f4-3-aprobacion-de-un-hito-en-lote
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F4-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F4-
 |---|---|---|---|---|
 | 2026-11-19T06:28:20Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T06:32:55Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T06:32:57Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
