@@ -102,6 +102,10 @@ crate::i18n::textos! {
         es: "esta operacion corre con la identidad de {rol}: define {variable}{extra}",
         en: "this operation runs with the {rol} identity: set {variable}{extra}",
     }
+    APP_SIN_TOKEN {
+        es: "la GitHub App de {rol} no consiguio su token de instalacion ({causa}: {detalle}): revisa {variables}, que la App este instalada en el repo y que tenga los permisos del rol",
+        en: "the {rol} GitHub App did not get its installation token ({causa}: {detalle}): check {variables}, that the App is installed on the repo and that it has the role permissions",
+    }
     SOLO_TERMINAL {
         es: " (el de persona solo se usa desde un terminal interactivo)",
         en: " (the persona one is only used from an interactive terminal)",

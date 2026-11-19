@@ -325,6 +325,9 @@ impl GitHub {
                 .con("motivo", "repo-invalido")
                 .diagnostico(&t::REPO_GITHUB));
         }
+        // Una GitHub App necesita el repo para pedir su instalacion (F6-1).
+        let mut credenciales = credenciales;
+        credenciales.atar_github(&base, repo);
         Ok(Self {
             con: Conexion::nueva(base, Proveedor::GitHub, credenciales, personas),
             repo: repo.to_owned(),

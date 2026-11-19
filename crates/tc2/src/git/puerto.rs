@@ -253,6 +253,16 @@ impl Git {
         self
     }
 
+    /// Anade variables a las que ya tenga el puerto, sin quitarlas: el
+    /// entorno del agente de F6-1 (`plataforma::entorno_git`: cabecera de
+    /// autenticacion por `GIT_CONFIG_*` y autor), que asi nunca pasa por la
+    /// linea de ordenes ni por el registro.
+    #[must_use]
+    pub fn con_entorno_extra(mut self, vars: Vec<(OsString, OsString)>) -> Self {
+        self.entorno_extra.extend(vars);
+        self
+    }
+
     /// Copia del registro: una linea `git <subcomando> <args>` por llamada
     /// ejecutada.
     pub fn registro(&self) -> Vec<String> {

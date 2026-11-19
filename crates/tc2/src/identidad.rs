@@ -30,8 +30,8 @@ use crate::i18n::catalogo::identidad as t;
 use crate::i18n::{Mensaje, Texto};
 use crate::plataforma::personas::RUTA as RUTA_PERSONAS;
 use crate::plataforma::{
-    Credenciales, CredencialesEntorno, Destino, GitHub, GitLab, Personas, Plataforma, PrAbierto,
-    Proveedor, Rol, Usuario, detectar,
+    Credenciales, Destino, GitHub, GitLab, Personas, Plataforma, PrAbierto, Proveedor, Rol,
+    Usuario, de_entorno, detectar,
 };
 use crate::tarea::Asignado;
 
@@ -571,15 +571,17 @@ pub fn conectar_produccion<'a>(
     move |personas: &Personas| {
         // La misma deteccion que `identidad` y `start` (D6 de TASK-033).
         let destino = destino_de(g, dir).map_err(|_| Consulta::NoConfigurada)?;
-        let credenciales = CredencialesEntorno;
-        let rol = if credenciales.token(Rol::Persona).is_some() {
+        // `tiene` no habla con la red: una App del agente cuenta como
+        // identidad aunque su token se acune despues (F6-1).
+        let credenciales = de_entorno();
+        let rol = if credenciales.tiene(Rol::Persona) {
             Rol::Persona
-        } else if credenciales.token(Rol::Agente).is_some() {
+        } else if credenciales.tiene(Rol::Agente) {
             Rol::Agente
         } else {
             return Err(Consulta::SinCredenciales);
         };
-        let plataforma = adaptador(destino, Box::new(credenciales), personas.clone())
+        let plataforma = adaptador(destino, credenciales, personas.clone())
             .map_err(|_| Consulta::NoConfigurada)?;
         Ok(Conectada { plataforma, rol })
     }

@@ -14,17 +14,35 @@
 //! del puerto: `aplicar-puertas` es de F3-1) y deja el proyecto como estaba:
 //! cierra los MR que no se mergean, borra las ramas y quita la proteccion.
 //! Los commits que llegan a `develop` se quedan (como en el E2E de F2-6).
+//!
+//! F6-1 (TASK-047), `persona_aprueba_mr_del_agente`: el agente es una cuenta
+//! de servicio (o un token de proyecto) con rol Developer y la persona, la
+//! cuenta de `TC2_E2E_GITLAB_TOKEN`. Variables:
+//!
+//! - `TC2_E2E_GITLAB_PROYECTO`: `grupo/proyecto` (puede cambiar; no se fija
+//!   en el codigo).
+//! - `TC2_E2E_GITLAB_TOKEN`: token de la persona (aprueba, cierra y limpia).
+//! - `TC2_E2E_GITLAB_TOKEN_AGENTE`: token de la cuenta de servicio del
+//!   agente.
+//!
+//! ```text
+//! TC2_E2E_GITLAB_PROYECTO=grupo/proyecto TC2_E2E_GITLAB_TOKEN=... TC2_E2E_GITLAB_TOKEN_AGENTE=... cargo test -p tc2 --test plataforma_gitlab_e2e persona_aprueba_mr_del_agente -- --ignored --nocapture --test-threads=1
+//! ```
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+
+mod agente_git;
 
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 use tc2::contrato::{Informe, Resultado};
+use tc2::plataforma::credenciales::de_entorno_con;
 use tc2::plataforma::http::Base;
 use tc2::plataforma::{
-    CredencialesFijas, GitLab, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
+    AutorGit, CredencialesFijas, GitLab, ModeloPuertas, Personas, Plataforma, Proveedor, Rol,
+    Secreto,
 };
 
 const API: &str = "https://gitlab.com/api/v4";
@@ -177,6 +195,32 @@ impl Arnes {
             &format!("/merge_requests/{n}"),
             Some(json!({"state_event": "close"})),
         );
+    }
+
+    /// Llamada con otro token (el del agente en F6-1) a una ruta de la API.
+    fn intentar_con(
+        &self,
+        token: &str,
+        metodo: &str,
+        ruta: &str,
+        cuerpo: Option<Value>,
+    ) -> Option<(u16, Value)> {
+        let url = format!("{API}{ruta}");
+        let auth = format!("Bearer {token}");
+        let p = match metodo {
+            "GET" => self.agente.get(&url).header("Authorization", &auth).call(),
+            "POST" => self
+                .agente
+                .post(&url)
+                .header("Authorization", &auth)
+                .header("Content-Type", "application/json")
+                .send(cuerpo.unwrap_or_else(|| json!({})).to_string()),
+            _ => return None,
+        };
+        let mut r = p.ok()?;
+        let estado = r.status().as_u16();
+        let texto = r.body_mut().read_to_string().unwrap_or_default();
+        Some((estado, serde_json::from_str(&texto).unwrap_or(Value::Null)))
     }
 
     fn usuario(&self) -> u64 {
@@ -491,4 +535,123 @@ fn puertas_reales_contra_gitlab() {
             "estado-puertas esperando pr={n} aprobaciones=0 ignoradas=0 falta=aprobacion,al-dia"
         )
     );
+}
+
+/// (c) F6-1: el agente, con su cuenta de servicio, empuja una rama por git
+/// con su token (fuera la configuracion de git del usuario) y abre el MR;
+/// si GitLab le deja aprobarlo, esa aprobacion no cuenta; la persona lo
+/// aprueba y `estado-puertas` con la persona cuenta la suya.
+#[test]
+#[ignore = "E2E: escribe en el proyecto de pruebas de GitLab (TC2_E2E_GITLAB_PROYECTO, TC2_E2E_GITLAB_TOKEN, TC2_E2E_GITLAB_TOKEN_AGENTE)"]
+fn persona_aprueba_mr_del_agente() {
+    let arnes = Arnes::nuevo();
+    let (proyecto, token) = (arnes.e.proyecto.clone(), arnes.e.token.clone());
+    let token_agente =
+        std::env::var("TC2_E2E_GITLAB_TOKEN_AGENTE").expect("define TC2_E2E_GITLAB_TOKEN_AGENTE");
+    let yo = arnes.usuario();
+    let vars = |v: &str| match v {
+        "TC2_TOKEN_AGENTE" => Some(token_agente.clone()),
+        "TC2_TOKEN_PERSONA" => Some(token.clone()),
+        _ => None,
+    };
+    let gl = GitLab::nuevo(
+        Base::nueva(API).unwrap(),
+        &proyecto,
+        Box::new(de_entorno_con(vars, true)),
+        Personas::nuevas([yo]),
+    )
+    .unwrap();
+
+    // La identidad del agente es una cuenta `bot: true`, distinta de la
+    // persona.
+    let agente = gl.identidad(Rol::Agente).unwrap();
+    eprintln!(
+        "  agente: login={} id={} tipo={}",
+        agente.login, agente.id, agente.tipo
+    );
+    assert_ne!(agente.id, yo, "el agente tiene que ser otra cuenta");
+    assert_eq!(agente.tipo, "Bot", "la cuenta del agente no es bot");
+    let (e, u) = arnes
+        .intentar_con(&token_agente, "GET", "/user", None)
+        .expect("red");
+    assert_eq!(e, 200, "{u}");
+    let correo = ["commit_email", "email"]
+        .iter()
+        .find_map(|k| u[*k].as_str().filter(|c| !c.is_empty()))
+        .map_or_else(
+            || format!("{}@noreply.gitlab.com", agente.login),
+            str::to_owned,
+        );
+    let autor = AutorGit {
+        nombre: agente.login.clone(),
+        correo,
+    };
+
+    let limpieza = Limpieza::nueva(&arnes);
+    let rama = format!("e2e/agente-{}", sufijo());
+    limpieza.rama(&rama);
+    let (_clon, sha) = agente_git::publicar_rama(
+        Proveedor::GitLab,
+        &format!("https://gitlab.com/{proyecto}.git"),
+        "https://gitlab.com/",
+        &Secreto::nuevo(token_agente.clone()),
+        &autor,
+        ("main", &rama),
+    );
+    let (e, c) = arnes.api("GET", &format!("/repository/commits/{sha}"), None);
+    assert_eq!(e, 200, "{c}");
+    eprintln!("  commit {sha}: autor={}", c["author_name"]);
+    assert_eq!(c["author_name"], agente.login.as_str());
+
+    let i = gl.abrir_pr(&rama, "main", "E2E TASK-047", "MR del agente (F6-1)");
+    assert_eq!(i.resultado, Resultado::Ok, "{}", ver(&i));
+    ver(&i);
+    let n = i.valor("pr").unwrap().to_owned();
+    limpieza.mr(&n);
+    let num: u64 = n.parse().unwrap();
+    let (e, mr) = arnes.api("GET", &format!("/merge_requests/{n}"), None);
+    assert_eq!(e, 200, "{mr}");
+    assert_eq!(mr["author"]["id"], agente.id, "el MR lo abre el agente");
+
+    // El agente intenta aprobar su propio MR: si GitLab lo deja (Free deja
+    // aprobar al autor), no cuenta.
+    let m = modelo(&[]);
+    let (e, v) = arnes
+        .intentar_con(
+            &token_agente,
+            "POST",
+            &format!(
+                "/projects/{}/merge_requests/{n}/approve",
+                proyecto.replace('/', "%2F")
+            ),
+            None,
+        )
+        .expect("red");
+    eprintln!(
+        "  auto-aprobacion del agente: {e} {}",
+        v.get("message").unwrap_or(&Value::Null)
+    );
+    let i = esperar(
+        || gl.estado_puertas(Rol::Persona, num, &m),
+        |l| l.contains("aprobaciones="),
+    );
+    assert!(i.contains("aprobaciones=0"), "{i}");
+    if e == 201 {
+        assert!(i.contains("ignoradas=1"), "{i}");
+    }
+
+    // La persona aprueba.
+    let (e, v) = arnes.api(
+        "POST",
+        &format!("/merge_requests/{n}/approve"),
+        Some(json!({})),
+    );
+    assert_eq!(e, 201, "{v}");
+    let i = gl.estado_puertas(Rol::Persona, num, &m);
+    assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
+    ver(&i);
+    let i = gl.estado_puertas(Rol::Agente, num, &m);
+    assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
+
+    drop(limpieza);
 }

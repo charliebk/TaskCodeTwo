@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use serde::de::DeserializeOwned;
 
-use super::credenciales::{Credenciales, Rol, Secreto};
+use super::credenciales::{Credenciales, FalloCredencial, Rol, Secreto, causas};
 use super::errores::{self, Permiso};
 use super::http::{Base, Cliente, Metodo, Respuesta};
 use super::{Paso, Personas, Proveedor, Usuario};
@@ -72,21 +72,43 @@ impl Conexion {
     }
 
     /// Token del rol, o el rechazo dirigido si falta (nunca se prueba con el
-    /// de otro rol).
+    /// de otro rol). Una App que no consigue su token (F6-1) no es «falta»:
+    /// `denegada motivo=credenciales causa=<causa>`, o `sinred`.
     pub fn token(&self, op: &str, rol: Rol) -> Paso<Secreto> {
-        self.credenciales.token(rol).ok_or_else(|| {
-            let m = Mensaje::nuevo(&t::FALTA_IDENTIDAD)
-                .con("rol", rol.nombre())
-                .con("variable", rol.variable());
-            let m = if rol == Rol::Persona {
-                m.con_mensaje("extra", &t::SOLO_TERMINAL)
-            } else {
-                m.con("extra", "")
-            };
-            Informe::nuevo(op, Resultado::Rechazada)
-                .con("motivo", "identidad")
-                .con("falta", rol.nombre())
-                .diagnostico(m)
+        self.credenciales.obtener(rol).map_err(|f| match f {
+            FalloCredencial::Falta => {
+                let m = Mensaje::nuevo(&t::FALTA_IDENTIDAD)
+                    .con("rol", rol.nombre())
+                    .con("variable", rol.variable());
+                let m = if rol == Rol::Persona {
+                    m.con_mensaje("extra", &t::SOLO_TERMINAL)
+                } else {
+                    m.con("extra", "")
+                };
+                Informe::nuevo(op, Resultado::Rechazada)
+                    .con("motivo", "identidad")
+                    .con("falta", rol.nombre())
+                    .diagnostico(m)
+            }
+            FalloCredencial::Acunar { causa, detalle } => {
+                let variables = rol
+                    .variables_app()
+                    .map(|(a, b)| format!("{a}, {b}"))
+                    .unwrap_or_default();
+                let m = Mensaje::nuevo(&t::APP_SIN_TOKEN)
+                    .con("rol", rol.nombre())
+                    .con("causa", causa)
+                    .con("detalle", errores::sanear(&detalle))
+                    .con("variables", variables);
+                let i = if causa == causas::SINRED {
+                    Informe::nuevo(op, Resultado::Sinred)
+                } else {
+                    Informe::nuevo(op, Resultado::Denegada).con("motivo", "credenciales")
+                };
+                i.con("rol", rol.nombre())
+                    .con("causa", causa)
+                    .diagnostico(m)
+            }
         })
     }
 
