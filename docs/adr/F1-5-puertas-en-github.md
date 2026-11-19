@@ -639,7 +639,9 @@ plan da `rechazada motivo=plan`. GitLab: `POST /protected_branches` y
 `POST /protected_tags` con niveles explícitos (nunca el valor por defecto
 de la API), `PUT /projects/:id` con `merge_method=merge` y
 `only_allow_merge_if_pipeline_succeeds=true` cuando se crea `develop` o
-`main`, y en Premium una regla de aprobación `taskcodetwo-aprobacion` si no
+`main`, y también cuando su protección ya es la del modelo y solo faltan
+esos ajustes (completar una puerta que quedó a medias; cambia los ajustes de
+merge del proyecto aunque se hubieran puesto a mano, nunca la protección), y en Premium una regla de aprobación `taskcodetwo-aprobacion` si no
 hay ninguna que pida al menos una; en Free, la línea lleva
 `sin-aprobaciones=si`. Nunca `DELETE` ni `PATCH` (el cliente HTTP no los
 tiene).
