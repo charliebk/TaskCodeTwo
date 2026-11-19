@@ -314,6 +314,22 @@ fn hashear(git: &Git, dir: &Path, op: &str, rutas: &str, n: usize) -> Paso<Vec<S
     }
 }
 
+/// Como se sella el commit de la rama de estado (F4-2).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Sello {
+    /// Sin firma: el de todas las operaciones salvo `approve`.
+    #[default]
+    Normal,
+    /// Firmado con la clave de quien lo lanza (`commit-tree -S`, con
+    /// `gpg.format` y `user.signingkey` de su configuracion) y con un
+    /// trailer `<clave>: <blob>` por cada `(clave, ruta)`, con el blob de
+    /// esa ruta en el arbol del propio commit (`Plan-Blob`, F1-6 D3).
+    Firmado {
+        /// `(clave del trailer, ruta en la rama de estado)`.
+        trailers: Vec<(&'static str, String)>,
+    },
+}
+
 /// Construye un commit con el arbol de `base` mas `cambios` y `base` como
 /// padre (sin padre si `base` es `None`: la raiz de la rama huerfana). No
 /// mueve ninguna rama. `None` si el arbol queda igual que el de `base`.
@@ -324,6 +340,21 @@ pub(crate) fn construir_commit(
     base: Option<&str>,
     cambios: &[Cambio],
     mensaje: &str,
+) -> Paso<Option<String>> {
+    construir_commit_sellado(git, dir, op, base, cambios, mensaje, &Sello::Normal)
+}
+
+/// Como [`construir_commit`], con el `sello`. Con [`Sello::Firmado`], si el
+/// arbol no cambia no se firma nada (`None` antes de `commit-tree`); si la
+/// firma falla, `rechazada motivo=firma` (no hay commit que publicar).
+pub(crate) fn construir_commit_sellado(
+    git: &Git,
+    dir: &Path,
+    op: &str,
+    base: Option<&str>,
+    cambios: &[Cambio],
+    mensaje: &str,
+    sello: &Sello,
 ) -> Paso<Option<String>> {
     if let Some(malo) = cambios.iter().find(|c| !ruta_valida(&c.ruta)) {
         return Err(Informe::nuevo(op, Resultado::Error)
@@ -384,9 +415,35 @@ pub(crate) fn construir_commit(
     if let Some(b) = base {
         args.extend(["-p", b]);
     }
-    args.extend(["-m", mensaje]);
-    let sha = exigir(git, dir, op, Subcomando::CommitTree, &args)?;
-    Ok(Some(sha.trim().to_owned()))
+    let Sello::Firmado { trailers } = sello else {
+        args.extend(["-m", mensaje]);
+        let sha = exigir(git, dir, op, Subcomando::CommitTree, &args)?;
+        return Ok(Some(sha.trim().to_owned()));
+    };
+    let mut sellado = mensaje.to_owned();
+    for (clave, ruta) in trailers {
+        // El blob del arbol de este mismo commit, no el de la base.
+        let blob = exigir(
+            git,
+            dir,
+            op,
+            Subcomando::RevParse,
+            &["--verify", "--end-of-options", &format!("{arbol}:{ruta}")],
+        )?;
+        sellado.push_str(&format!("{clave}: {}\n", blob.trim()));
+    }
+    args.extend(["-m", &sellado]);
+    let s = git.ejecutar_firmado(dir, &args).map_err(|e| {
+        Informe::nuevo(op, Resultado::Error)
+            .con("git", Subcomando::CommitTree.nombre())
+            .diagnostico(e.mensaje())
+    })?;
+    if !s.exito() {
+        return Err(Informe::nuevo(op, Resultado::Rechazada)
+            .con("motivo", "firma")
+            .diagnostico(Mensaje::nuevo(&txt::FIRMA_FALLO).con("error", s.primera_linea_error())));
+    }
+    Ok(Some(s.stdout.trim().to_owned()))
 }
 
 /// Si `origin` esta configurado. `ls-remote --get-url` no habla con el
@@ -589,6 +646,75 @@ mod tests_stdin {
                 .any(|l| l.starts_with("git commit-tree")),
             "{:?}",
             git.registro()
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// MEN-2 de TASK-037: con un cambio que modifica el fichero del
+    /// trailer, `Plan-Blob` es el blob del arbol del propio commit (el
+    /// nuevo), no el de la base. Firma real con una clave SSH desechable y
+    /// la configuracion aislada.
+    #[test]
+    fn plan_blob_es_el_del_arbol_del_propio_commit() {
+        let d = repo("plan-blob");
+        let clave = d.join("clave");
+        let k = std::process::Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "prueba", "-f"])
+            .arg(&clave)
+            .output()
+            .unwrap();
+        assert!(k.status.success(), "{}", String::from_utf8_lossy(&k.stderr));
+        let config = d.join("gitconfig");
+        std::fs::write(
+            &config,
+            format!(
+                "[user]\n\tname = Prueba\n\temail = prueba@example.com\n[gpg]\n\tformat = ssh\n[user]\n\tsigningkey = {}\n",
+                clave.to_string_lossy().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        let git = Git::nuevo().con_entorno(vec![
+            ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
+            ("GIT_CONFIG_GLOBAL".into(), config.into_os_string()),
+        ]);
+        let base = construir_commit(
+            &git,
+            &d,
+            "prueba",
+            None,
+            &[Cambio::nuevo("plan.md", "v1\n")],
+            "base\n",
+        )
+        .unwrap()
+        .unwrap();
+        let sello = Sello::Firmado {
+            trailers: vec![("Plan-Blob", "plan.md".to_owned())],
+        };
+        let sha = construir_commit_sellado(
+            &git,
+            &d,
+            "prueba",
+            Some(&base),
+            &[Cambio::nuevo("plan.md", "v2\n")],
+            "estado: approve\n\nOperacion: approve|x\n",
+            &sello,
+        )
+        .unwrap()
+        .unwrap();
+        let blob = |r: &str| {
+            exigir(&git, &d, "prueba", Subcomando::RevParse, &[r])
+                .unwrap()
+                .trim()
+                .to_owned()
+        };
+        let nuevo = blob(&format!("{sha}:plan.md"));
+        let viejo = blob(&format!("{base}:plan.md"));
+        assert_ne!(nuevo, viejo);
+        let cuerpo = exigir(&git, &d, "prueba", Subcomando::CatFile, &["-p", &sha]).unwrap();
+        assert!(cuerpo.contains("gpgsig "), "{cuerpo}");
+        assert!(
+            cuerpo.ends_with(&format!("Operacion: approve|x\nPlan-Blob: {nuevo}\n")),
+            "{cuerpo}"
         );
         let _ = std::fs::remove_dir_all(&d);
     }

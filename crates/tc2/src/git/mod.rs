@@ -19,7 +19,7 @@ mod tag;
 mod worktree;
 
 pub use diff::{diff_tarea, ficheros_de_rama};
-pub use estado::Cambio;
+pub use estado::{Cambio, Sello};
 pub use guardar::guardar;
 pub use puerto::{ErrorGit, Git, PREFIJO_REFS_PROPIAS, SalidaCruda, SalidaGit, Subcomando};
 pub use rama::{

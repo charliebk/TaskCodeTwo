@@ -19,7 +19,8 @@
 //! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`solape`]
 //! (aviso de solape de `start`, F3-11) y [`ciclo`]
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
-//! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1). Las capas
+//! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1;
+//! `approve`, F4-2). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -203,6 +204,12 @@ where
             let (json, resto) = con_json(resto);
             de_una_tarea(plan::NOMBRE, (json, idioma), |e| plan::orden(&resto, e))
         }
+        [orden, resto @ ..] if orden == plan::aprobar::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(plan::aprobar::NOMBRE, (json, idioma), |e| {
+                plan::orden_approve(&resto, e)
+            })
+        }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_estimar(&resto, json, idioma)
@@ -353,8 +360,8 @@ fn orden_identidad(args: &[String]) -> Informe {
 }
 
 /// Una orden sobre una tarea (`start`, F3-6; `descartar`, `pausa` y
-/// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10; `plan`, F4-1) en la
-/// carpeta actual:
+/// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10; `plan`, F4-1;
+/// `approve`, F4-2) en la carpeta actual:
 /// quien la lanza sale de
 /// [`identidad::resolver`] con el terminal y los tokens del proceso.
 ///
@@ -1010,6 +1017,57 @@ mod tests {
             assert_ne!(es.stderr, en.stderr, "{args:?}");
             assert_eq!(es.stderr.lines().count(), 1, "{args:?}");
         }
+    }
+
+    /// TASK-037: `approve` mal llamado es `uso` (2) sin leer nada;
+    /// `--decidido-por automatico` no existe en la 2.0 (F1-10 decision 6).
+    #[test]
+    fn approve_mal_llamado_es_uso() {
+        for (args, motivo) in [
+            (vec!["approve"], "sin-id"),
+            (vec!["approve", "TASK-1"], "id-invalido"),
+            (vec!["approve", "TASK-001", "x"], "argumentos-de-mas"),
+            (
+                vec!["approve", "TASK-001", "--pedir-cambios"],
+                "sin-fichero",
+            ),
+            (
+                vec![
+                    "approve",
+                    "TASK-001",
+                    "--pedir-cambios",
+                    "a",
+                    "--pedir-cambios",
+                    "b",
+                ],
+                "argumentos-de-mas",
+            ),
+            (
+                vec!["approve", "TASK-001", "--decidido-por", "automatico"],
+                "decidido-por",
+            ),
+            (
+                vec!["approve", "TASK-001", "--decidido-por=automatico"],
+                "decidido-por",
+            ),
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!((es.codigo, en.codigo), (2, 2), "{args:?}");
+            assert_eq!(
+                es.stdout,
+                format!("approve uso motivo={motivo}\n"),
+                "{args:?}"
+            );
+            assert_eq!(es.stdout, en.stdout);
+            assert_ne!(es.stderr, en.stderr, "{args:?}");
+            assert_eq!(es.stderr.lines().count(), 1, "{args:?}");
+        }
+        let s = ejecutar_en(
+            Idioma::Es,
+            ["approve", "TASK-001", "--decidido-por", "automatico"],
+        );
+        assert!(s.stderr.contains("decision 6"), "{}", s.stderr);
     }
 
     #[test]

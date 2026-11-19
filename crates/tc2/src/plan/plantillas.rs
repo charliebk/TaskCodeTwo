@@ -72,6 +72,14 @@ pub fn nombre_peticion_redaccion(ronda: u32) -> String {
     format!("peticion-plan-{ronda}.md")
 }
 
+/// `cambios-pedidos-<ronda>.md`: lo que la persona pide cambiar del plan
+/// de esa ronda (`tc2 approve --pedir-cambios`). Es el testigo de que la
+/// ronda esta cerrada: el siguiente `plan` abre la siguiente (D1a de
+/// TASK-037).
+pub fn nombre_cambios_pedidos(ronda: u32) -> String {
+    format!("cambios-pedidos-{ronda}.md")
+}
+
 /// `TASK-NNN/planificacion/plan-final.md`.
 pub fn ruta_plan_final(id: &str) -> String {
     format!("{id}/{PLANIFICACION}/{PLAN_FINAL}")
@@ -195,14 +203,19 @@ fn bloque_complejidad(d: &Datos<'_>, roles: &[Rol]) -> String {
 }
 
 /// Bloque de una ronda 2 o posterior: puede haber un plan de una ronda
-/// anterior (o solo el esqueleto, si nadie lo guardo).
+/// anterior (o solo el esqueleto, si nadie lo guardo) y los cambios que la
+/// persona pidio sobre ella (`cambios-pedidos-<n-1>.md`, de
+/// `tc2 approve --pedir-cambios`). Las plantillas no leen el estado, asi
+/// que la ruta se da siempre, con «si existe».
 fn replanificacion(d: &Datos<'_>) -> String {
     if d.ronda <= 1 {
         return String::new();
     }
     format!(
-        "## Esto es una re-planificacion, no un primer pase\n\nPuede existir un plan de una ronda anterior en `{}` (si solo trae el esqueleto, nadie lo guardo todavia) y el juego de roles ha cambiado desde entonces (por ejemplo, subio el carril). **Leelo antes que nada.** Si trae un plan, incorpora lo nuevo al que ya hay en vez de replantearlo desde el enunciado como si fuera la primera vez; en cualquier caso **devuelve el plan COMPLETO**: tu respuesta sustituye al fichero entero.\n\nSi el enfoque entero esta mal, eso NO se arregla aqui: dilo en el plan y que alguien decida si se replantea.\n\n",
-        ruta_plan_final(d.id)
+        "## Esto es una re-planificacion, no un primer pase\n\nPuede existir un plan de una ronda anterior en `{}` (si solo trae el esqueleto, nadie lo guardo todavia), y desde entonces ha cambiado el juego de roles (por ejemplo, subio el carril) o la persona pidio cambios sobre ese plan. **Leelo antes que nada.** Si existe `{}`, son los cambios que pidio la persona en la ronda {}: **atiendelos todos** y di en el plan como queda cada uno. Si trae un plan, incorpora lo nuevo al que ya hay en vez de replantearlo desde el enunciado como si fuera la primera vez; en cualquier caso **devuelve el plan COMPLETO**: tu respuesta sustituye al fichero entero.\n\nSi el enfoque entero esta mal, eso NO se arregla aqui: dilo en el plan y que alguien decida si se replantea.\n\n",
+        ruta_plan_final(d.id),
+        ruta_brainstorm(d.id, &nombre_cambios_pedidos(d.ronda - 1)),
+        d.ronda - 1
     )
 }
 
@@ -423,6 +436,31 @@ mod tests {
             ),
             "{u}"
         );
+    }
+
+    /// MEN-2 de TASK-037: la peticion de la ronda n+1 (redaccion y
+    /// unificador) cita `cambios-pedidos-<n>.md`; la de la ronda 1, no.
+    #[test]
+    fn la_ronda_siguiente_cita_los_cambios_pedidos() {
+        let e = Enunciado {
+            objetivo: "Hacer algo".into(),
+            criterios: vec!["uno".into()],
+        };
+        let r = heuristica::resolver(None, &[], "feature", &[], &e);
+        let roles = seleccionar(2, &[]);
+        let ruta = "`TASK-007/planificacion/brainstorm/cambios-pedidos-2.md`";
+        let red = peticion_redaccion(&datos(&e, &r, 3), &roles[0]);
+        let uni = peticion_unificador(&datos(&e, &r, 3), &roles);
+        for p in [&red, &uni] {
+            assert!(
+                p.contains(&format!(
+                    "Si existe {ruta}, son los cambios que pidio la persona en la ronda 2"
+                )),
+                "{p}"
+            );
+        }
+        let primera = peticion_redaccion(&datos(&e, &r, 1), &roles[0]);
+        assert!(!primera.contains("cambios-pedidos"), "{primera}");
     }
 
     /// El esqueleto: «Lo que el rol no cubrio» con uno, «Desacuerdos» con

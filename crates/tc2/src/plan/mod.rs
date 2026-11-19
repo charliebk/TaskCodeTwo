@@ -17,10 +17,22 @@
 //!   rol ([`guardar`]). Destino y fichero se comprueban antes de leer el
 //!   estado (`uso`).
 //!
+//! - `approve [--json] TASK-NNN` (F4-2, RR-04): solo una persona (con
+//!   terminal y token verificado: [`crate::identidad::resolver`]); con el
+//!   agente o sin identidad, `rechazada motivo=identidad rol=persona` antes
+//!   de leer nada. Luego `fetch`, la configuracion y la operacion
+//!   [`Aprobar`], cuyo commit va firmado con la clave de la persona y con el
+//!   trailer `Plan-Blob`; si la firma falla, `rechazada motivo=firma` sin
+//!   publicar nada. `--decidido-por` no existe (F1-10 decision 6): `uso`.
+//! - `approve [--json] TASK-NNN --pedir-cambios <fichero>`: publica
+//!   `brainstorm/cambios-pedidos-<n>.md` en la ronda mayor y la cierra
+//!   ([`PedirCambios`], D1a); la puede lanzar tambien el agente.
+//!
 //! Lanzadas desde un worktree de tarea escriben el estado en el principal
 //! (lo localiza la transaccion). El entorno es el de `start`
 //! ([`crate::toma::Entorno`]).
 
+pub mod aprobar;
 pub mod guardar;
 pub mod heuristica;
 pub mod operacion;
@@ -39,6 +51,7 @@ use crate::i18n::catalogo::plan as txt;
 use crate::plataforma::errores::sanear;
 use crate::toma::Entorno;
 
+pub use aprobar::{Aprobar, PedirCambios};
 pub use guardar::{Guardar, destino_valido};
 pub use operacion::{Forma, Planificar, Resumen};
 
@@ -151,7 +164,120 @@ pub fn plan_en(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Informe {
     let i = match paso_plan(e, id, carril) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(i, id)
+    de_la_orden(NOMBRE, i, id)
+}
+
+fn uso_approve(motivo: &str) -> Informe {
+    Informe::nuevo(aprobar::NOMBRE, Resultado::Uso)
+        .con("motivo", motivo)
+        .diagnostico(&txt::USO_APPROVE)
+}
+
+/// `approve TASK-NNN [--pedir-cambios <fichero>]` (sin `--json`, que quita
+/// `lib.rs`). Nada se lee ni se escribe antes de comprobar los argumentos.
+pub fn orden_approve(args: &[String], e: &Entorno<'_>) -> Informe {
+    let Some((id, resto)) = args.split_first() else {
+        return uso_approve("sin-id");
+    };
+    if !git::es_id(id) {
+        return uso_approve("id-invalido");
+    }
+    let mut fichero = None;
+    let mut it = resto.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            // F1-10 decision 6: la parada `approve` firmado es fija.
+            x if x == "--decidido-por" || x.starts_with("--decidido-por=") => {
+                return Informe::nuevo(aprobar::NOMBRE, Resultado::Uso)
+                    .con("motivo", "decidido-por")
+                    .diagnostico(&txt::DECIDIDO_POR);
+            }
+            "--pedir-cambios" if fichero.is_none() => match it.next() {
+                Some(f) => fichero = Some(f),
+                None => return uso_approve("sin-fichero"),
+            },
+            _ => return uso_approve("argumentos-de-mas"),
+        }
+    }
+    match fichero {
+        None => aprobar_en(e, id),
+        Some(f) => match leer_fichero(&e.dir.join(f)) {
+            Ok(c) => pedir_cambios_en(e, id, &c),
+            Err(mut i) => {
+                aprobar::NOMBRE.clone_into(&mut i.comando);
+                i
+            }
+        },
+    }
+}
+
+/// `approve` de la tarea `id` en el repo de `e`.
+pub fn aprobar_en(e: &Entorno<'_>, id: &str) -> Informe {
+    let i = match paso_aprobar(e, id) {
+        Ok(i) | Err(i) => i,
+    };
+    de_la_orden(aprobar::NOMBRE, i, id)
+}
+
+/// `approve --pedir-cambios` de `contenido` en la tarea `id` del repo de
+/// `e`.
+pub fn pedir_cambios_en(e: &Entorno<'_>, id: &str, contenido: &str) -> Informe {
+    let i = match paso_pedir_cambios(e, id, contenido) {
+        Ok(i) | Err(i) => i,
+    };
+    de_la_orden(aprobar::NOMBRE, i, id)
+}
+
+/// `rechazada motivo=identidad rol=persona` (RR-04), con lo que diga el
+/// rechazo de la identidad si lo hubo (`cache=`, `cuenta=`...).
+fn sin_persona(rechazo: Option<Informe>) -> Informe {
+    let mut i = Informe::nuevo(aprobar::NOMBRE, Resultado::Rechazada)
+        .con("motivo", "identidad")
+        .con("rol", "persona")
+        .diagnostico(&txt::APROBAR_SIN_PERSONA);
+    for (k, v) in rechazo.map(|r| r.claves).unwrap_or_default() {
+        if k != "motivo" && k != "rol" {
+            i.claves.push((k, v));
+        }
+    }
+    i
+}
+
+fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
+    // Lo primero, quien: el agente (o sin identidad) no llega a leer ni a
+    // escribir nada.
+    let quien = match (e.quien)() {
+        Ok(q) => q,
+        Err(i) if i.resultado == Resultado::Rechazada => return Err(sin_persona(Some(i))),
+        Err(i) => return Err(i),
+    };
+    let Some(op) = Aprobar::nueva(id, &quien, e.ahora) else {
+        return Err(sin_persona(None));
+    };
+    traer(e.git, e.dir)?;
+    let op = op.con_config(&config_de_base(e.git, e.dir)?);
+    let t = escribir(e, &op);
+    match t.resultado {
+        Resultado::Ok | Resultado::SinCambios => Ok(t),
+        _ => Err(con_dueno(t, op.dueno())),
+    }
+}
+
+fn paso_pedir_cambios(e: &Entorno<'_>, id: &str, contenido: &str) -> Result<Informe, Informe> {
+    let quien = (e.quien)()?;
+    traer(e.git, e.dir)?;
+    let op = PedirCambios::nueva(id, &quien, contenido);
+    let t = escribir(e, &op);
+    match t.resultado {
+        Resultado::Ok | Resultado::SinCambios => {
+            let n = op.ronda().unwrap_or_default();
+            Ok(
+                t.con("cambios-pedidos", plantillas::nombre_cambios_pedidos(n))
+                    .con("ronda", n.to_string()),
+            )
+        }
+        _ => Err(con_dueno(t, op.dueno())),
+    }
 }
 
 /// `plan guardar` de `contenido` en `destino` (ya validado) de la tarea
@@ -160,7 +286,7 @@ pub fn guardar_en(e: &Entorno<'_>, id: &str, destino: &str, contenido: &str) -> 
     let i = match paso_guardar(e, id, destino, contenido) {
         Ok(i) | Err(i) => i,
     };
-    let mut i = de_la_orden(i, id);
+    let mut i = de_la_orden(NOMBRE, i, id);
     i.claves
         .insert(1, ("destino".to_owned(), Valor::Texto(destino.to_owned())));
     i
@@ -260,11 +386,11 @@ fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
     i
 }
 
-/// El informe como de la orden: el comando, `id=` el primero y sin la clave
-/// `operacion` de la transaccion. Un `sinred` sin `pendiente` dice
+/// El informe como de la orden `nombre`: el comando, `id=` el primero y sin
+/// la clave `operacion` de la transaccion. Un `sinred` sin `pendiente` dice
 /// `pendiente=no` (exige red).
-fn de_la_orden(mut i: Informe, id: &str) -> Informe {
-    NOMBRE.clone_into(&mut i.comando);
+fn de_la_orden(nombre: &str, mut i: Informe, id: &str) -> Informe {
+    nombre.clone_into(&mut i.comando);
     i.claves.retain(|(k, _)| k != "operacion" && k != "id");
     i.claves
         .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
@@ -278,6 +404,7 @@ fn de_la_orden(mut i: Informe, id: &str) -> Informe {
 mod tests {
     use super::*;
     use crate::i18n::Idioma;
+    use crate::identidad::Quien;
 
     /// Carpeta temporal propia del test: se borra al acabar.
     struct Carpeta(std::path::PathBuf);
@@ -285,6 +412,53 @@ mod tests {
     impl Drop for Carpeta {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
+        None
+    }
+
+    /// Criterio 1 de TASK-037 (unitario): con el agente o sin identidad,
+    /// `approve rechazada motivo=identidad rol=persona` y ni una llamada a
+    /// git (ni transaccion ni `commit-tree`); el rechazo de la identidad
+    /// conserva su `cache=`.
+    #[test]
+    fn approve_sin_persona_no_toca_nada() {
+        use crate::identidad::Cuenta;
+        use crate::plataforma::Proveedor;
+        let agente = || -> Result<Quien, Informe> {
+            Ok(Quien::Agente(Cuenta {
+                proveedor: Proveedor::GitHub,
+                id: 7,
+                login: "ana".to_owned(),
+            }))
+        };
+        let sin_cache = || -> Result<Quien, Informe> {
+            Err(Informe::nuevo("identidad", Resultado::Rechazada)
+                .con("motivo", "identidad")
+                .con("cache", "falta"))
+        };
+        let quienes: [&dyn Fn() -> Result<Quien, Informe>; 2] = [&agente, &sin_cache];
+        for (quien, esperado) in quienes.into_iter().zip([
+            "approve rechazada id=TASK-001 motivo=identidad rol=persona",
+            "approve rechazada id=TASK-001 motivo=identidad rol=persona cache=falta",
+        ]) {
+            let g = Git::nuevo();
+            let dir = std::env::temp_dir();
+            let e = Entorno {
+                dir: &dir,
+                git: &g,
+                quien,
+                catalogo: &sin_catalogo,
+                ahora: 0,
+            };
+            let i = orden_approve(&["TASK-001".to_owned()], &e);
+            assert_eq!(i.linea(), esperado);
+            assert_eq!(i.resultado.codigo(), 3);
+            assert!(g.registro().is_empty(), "{:?}", g.registro());
+            let d = i.diagnostico_en(Idioma::Es).unwrap_or_default();
+            assert!(d.contains("RR-04"), "{d}");
         }
     }
 
