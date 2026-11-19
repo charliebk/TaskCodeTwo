@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-047 — F6-1 Identidades: agente implementador · etiquetas: (sin etiquetas) · rama feature/task-047-f6-1-identidades-agente-implementador · terminada 2026-11-19 · tareas/04-terminadas/TASK-047/
 - TASK-038 — F4-3 Aprobacion de un hito en lote · etiquetas: (sin etiquetas) · rama feature/task-038-f4-3-aprobacion-de-un-hito-en-lote · terminada 2026-11-19 · tareas/04-terminadas/TASK-038/
 - TASK-037 — F4-2 approve con la identidad de la persona · etiquetas: (sin etiquetas) · rama feature/task-037-f4-2-approve-con-la-identidad-de-la-pers · terminada 2026-11-19 · tareas/04-terminadas/TASK-037/
 - TASK-036 — F4-1 plan con brainstorm de roles · etiquetas: (sin etiquetas) · rama feature/task-036-f4-1-plan-con-brainstorm-de-roles · terminada 2026-11-19 · tareas/04-terminadas/TASK-036/

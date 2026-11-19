@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-047-f6-1-identidades-agente-implementador
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Tarea F6-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-19T09:08:26Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T10:12:00Z | review | automatico | persona | 0.16.1 |
 | 2026-11-19T10:56:36Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T12:38:14Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -74,3 +75,10 @@ Divergencias y pendientes:
 - `identidad(Rol::Agente)` usa `GET /user`, que no vale con token de instalacion; hoy nadie lo llama asi (nota en la adenda).
 - Notas de la ronda 2 sin abrir ronda: la causa `tls` no tiene test; `separar_config` ignora GIT_CONFIG_KEY/VALUE sin GIT_CONFIG_COUNT valido; con `con_entorno` acumulando, `GIT_CONFIG_COUNT=0` ya no anula las del proceso.
 - En el grupo de GitLab queda otra cuenta de servicio sin uso (`service_account_group_70922564_...`); decision de Carlos.
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 210 min
+- Paso de la hora: 210 min reales frente a 120 estimados
+- Cierre (finish): 1537 s, de 2026-11-19T12:12:37Z a 2026-11-19T12:38:14Z
