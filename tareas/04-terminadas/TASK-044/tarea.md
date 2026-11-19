@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-044-f5-4-informe-de-verificacion-en-json-par
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Tarea F5-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-19T17:37:24Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T17:37:26Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T18:26:58Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T19:19:31Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -64,3 +65,10 @@ Evidencia (2026-11-19):
 C1: "lo cita" queda demostrado con `seccion_revisor`; "no repite tests" solo se comprueba con el revisor de F6-3: divergencia explicita para TASK-049, que debe usar `seccion_revisor`. Sin push en esta tarea (D6): la ejecucion real en GitHub (artefacto presente, `informe=` en el resumen, descarga con `actions: read`) se hace en TASK-049.
 
 Revision por pares, ronda 1: las dos aprobadas. MENORES aceptados como seguimiento para TASK-049: tope de tamano y de pasos al leer (un JSON de 96 MB se lee); en `pull_request` el `commit` del informe es el del merge, no `head.sha` (no exigir igualdad o pasar el head real); `tests: null` y las reglas descriptivas del esquema no casan del todo con el lector.
+
+## Duracion
+
+- Estimada: 80 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 102 min
+- Paso de la hora: 102 min reales frente a 80 estimados
+- Cierre (finish): 1384 s, de 2026-11-19T18:56:27Z a 2026-11-19T19:19:31Z

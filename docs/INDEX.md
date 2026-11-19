@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-044 — F5-4 Informe de verificacion en JSON para el revisor IA · etiquetas: (sin etiquetas) · rama feature/task-044-f5-4-informe-de-verificacion-en-json-par · terminada 2026-11-19 · tareas/04-terminadas/TASK-044/
 - TASK-041 — F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab · etiquetas: (sin etiquetas) · rama feature/task-041-f5-1-workflow-reutilizable-de-github-act · terminada 2026-11-19 · tareas/04-terminadas/TASK-041/
 - TASK-048 — F6-2 review: abre el PR contra develop con la identidad del agente · etiquetas: (sin etiquetas) · rama feature/task-048-f6-2-review-abre-el-pr-contra-develop-co · terminada 2026-11-19 · tareas/04-terminadas/TASK-048/
 - TASK-047 — F6-1 Identidades: agente implementador · etiquetas: (sin etiquetas) · rama feature/task-047-f6-1-identidades-agente-implementador · terminada 2026-11-19 · tareas/04-terminadas/TASK-047/
