@@ -6,10 +6,10 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-036-f4-1-plan-con-brainstorm-de-roles
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-19
 dependencias: [TASK-029]
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Tarea F4-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 - [ ] Mismos roles que la 0.16
 - [ ] uno en fix, todos en riesgo alto
 - [ ] Cumple lo que pide la tarea F4-1 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-19T02:39:23Z | plan | automatico | persona | 0.16.1 |

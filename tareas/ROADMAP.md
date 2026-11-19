@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-036, TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
+- **En marcha:** TASK-036 (en diseño)
+- **Listas para empezar:** TASK-041, TASK-046, TASK-047, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -122,7 +122,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 1 | TASK-036 | F4-1 plan con brainstorm de roles | — | TASK-029 | lista para empezar |
+| 1 | TASK-036 | F4-1 plan con brainstorm de roles | — | TASK-029 | ▶ en diseño |
 | 2 | TASK-037 | F4-2 approve con la identidad de la persona | — | TASK-007, TASK-036 | espera a TASK-036 |
 | 3 | TASK-038 | F4-3 Aprobacion de un hito en lote | — | TASK-037 | espera a TASK-037 |
 | 13 | TASK-085 | F4-6 plan propone skills, agentes y modelo por rol | — | TASK-036, TASK-049, TASK-080 | espera a TASK-036, TASK-049 |
