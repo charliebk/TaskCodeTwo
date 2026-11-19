@@ -204,7 +204,9 @@ sin mergear.
 | Stub con la forma de OpenDockTrading (no lee argumentos), mismo PR | [run 44551304248](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44551304248) | verde; `argumentos recibidos: []` |
 | ToolsaWeb, `workflow_dispatch` con `perfiles: completa pesada` | [run 44551659290](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44551659290) | verde; `--pesada` en su job, completa sin argumentos |
 | ToolsaWeb forzado a fallar (commit con `fallar.txt`) | [run 44552422966](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44552422966) | rojo: `completa` sale con 1 y el check `verificacion` en `failure` |
-| Plantilla de GitLab con `include: remote` por SHA | [pipeline 3089899840](https://gitlab.com/taskcodetwo-e2e/taskcodetwo-e2e-gitlab/-/pipelines/3089899840) | **no ejecutado**: «The pipeline failed due to the user not being verified» (0 jobs, 0 minutos) |
+| Plantilla de GitLab con `include: remote` por SHA (primer intento) | [pipeline 3089899840](https://gitlab.com/taskcodetwo-e2e/taskcodetwo-e2e-gitlab/-/pipelines/3089899840) | no ejecutado: «The pipeline failed due to the user not being verified» (0 jobs, 0 minutos) |
+| Plantilla de GitLab en `944a974`, push de rama con `perfiles: rapida` | [pipeline 3090338668](https://gitlab.com/taskcodetwo-e2e/taskcodetwo-e2e-gitlab/-/pipelines/3090338668) | verde: `verificacion-rapida` llama al stub con `--perfil rapida` (15 s); la regla lee `TC2_PERFILES` global |
+| La misma, stub forzado a fallar (`fallar.txt`) | [pipeline 3090341084](https://gitlab.com/taskcodetwo-e2e/taskcodetwo-e2e-gitlab/-/pipelines/3090341084) | rojo: `exit code 1` |
 
 `gh api --method GET repos/…/commits/<head>/check-runs?check_name=verificacion&app_id=15368`
 devuelve el check-run `verificacion` de la App `github-actions` (`app_id`
@@ -225,12 +227,10 @@ Suposiciones del plan:
   es válido. `TC2_PERFILES` era una variable del job y `rules:if` no ve las
   `variables:` de los jobs (revisión de la ronda 1): ahora es una variable
   **global** de la plantilla, que sí se evalúa en las reglas; el lint de
-  `workflows.rs` rechaza un `rules:if` que lea una variable de job. Que la
-  regla case en un pipeline real **no está verificado**: el lint con
-  `dry_run` también lo bloquea la verificación de identidad. **Ejecución
-  real: pendiente**;
-  GitLab.com exige verificar la identidad de la cuenta (teléfono o tarjeta)
-  para correr jobs en sus runners. Lo hace la persona; después basta un
-  pipeline verde y uno rojo con el mismo stub.
+  `workflows.rs` rechaza un `rules:if` que lea una variable de job. La
+  regla casa en un pipeline real: verificado el 2026-11-19 con un push de
+  rama y `perfiles: rapida` (pipelines 3090338668 en verde y 3090341084 en
+  rojo), tras verificar la persona la identidad de la cuenta en GitLab.com
+  (requisito de sus runners compartidos).
 - **`charliebk/TaskCodeTwo` público**: sí; el reutilizable se resolvió desde
   otro repo por SHA de una rama que no es `develop` ni `main`.
