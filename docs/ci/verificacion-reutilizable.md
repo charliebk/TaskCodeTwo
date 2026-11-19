@@ -234,9 +234,15 @@ arbol=<árbol de V> perfil=<p> runner=<r> clave=<k> local=<h> origen=<sha> reuti
 
 - `runner`: el `runner-<perfil>` declarado, sin comillas ni espacios (una
   lista de etiquetas, unida por comas).
-- `clave = sha256(perfil|runner|huella-arbol|versión del workflow)` (el `sha`
-  de `referenced_workflows` de la ejecución), con
-  `huella-arbol = sha256(git ls-tree -r HEAD -- <rutas>)` (o de nada sin rutas).
+- `clave = sha256(perfil|runner|huella-arbol|versión del workflow|órdenes)` (la
+  versión es el `sha` de `referenced_workflows` de la ejecución), con
+  `huella-arbol = sha256(git ls-tree -r HEAD -- <rutas>)` (o de nada sin rutas)
+  y `órdenes = sha256` del JSON `[comando, argumentos-<perfil>, shell,
+  huella-local]`: un verde de otras órdenes (p. ej. pasadas por `vars` o por
+  un `workflow_dispatch`) no se reutiliza. La regla de rutas usa
+  `git diff --no-renames`, para que mover un fichero fuera de
+  `.github/workflows/` o `.taskcode/` cuente como tocarlo (revisión de la
+  ronda 1).
 - `local = sha256` de lo que imprime `huella-local` en el runner del perfil.
 - `origen`: el commit (head del PR) donde se ejecutó de verdad; una línea
   reutilizada conserva el del candidato. `reutilizada de <commit>`: el commit

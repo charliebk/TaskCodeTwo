@@ -176,7 +176,10 @@ jobs:
           runners='{}'
           for p in $(printf '%s' "$PERFILES" | jq -r '.[]'); do
             r=$(printf '%s' "$ENTRADAS" | jq -r --arg p "$p" '.["runner-" + $p] | fromjson | if type == "array" then join(",") else tostring end' | tr -d ' ')
-            k=$(printf '%s|%s|%s|%s' "$p" "$r" "$huella" "$VERSION" | sha256sum | cut -d' ' -f1)
+            # Las ordenes entran en la clave: un verde de otro comando,
+            # argumentos, shell o huella local no se reutiliza.
+            ordenes=$(printf '%s' "$ENTRADAS" | jq -c --arg p "$p" '[.comando, .["argumentos-" + $p], .shell, .["huella-local"]]' | sha256sum | cut -d' ' -f1)
+            k=$(printf '%s|%s|%s|%s|%s' "$p" "$r" "$huella" "$VERSION" "$ordenes" | sha256sum | cut -d' ' -f1)
             claves=$(printf '%s' "$claves" | jq -c --arg p "$p" --arg k "$k" '. + {($p): $k}')
             runners=$(printf '%s' "$runners" | jq -c --arg p "$p" --arg r "$r" '. + {($p): $r}')
           done
@@ -194,7 +197,7 @@ jobs:
           # F1-8, decision 7: un PR que toca los workflows o .taskcode no
           # reutiliza nada, tampoco la linea de su head anterior.
           if git rev-parse -q --verify 'HEAD^1' > /dev/null; then
-            tocadas=$(git diff --name-only 'HEAD^1' HEAD | grep -E '^(\.github/workflows/|\.taskcode/)' || true)
+            tocadas=$(git diff --no-renames --name-only 'HEAD^1' HEAD | grep -E '^(\.github/workflows/|\.taskcode/)' || true)
             if [ -n "$tocadas" ]; then
               echo "Regla de rutas: el diff frente a la base toca $(printf '%s' "$tocadas" | tr '\n' ' '); sin acierto"
               echo "candidatos={}" >> "$GITHUB_OUTPUT"
