@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-048-f6-2-review-abre-el-pr-contra-develop-co
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F6-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 |---|---|---|---|---|
 | 2026-11-19T12:41:12Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T12:45:59Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T12:46:00Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
