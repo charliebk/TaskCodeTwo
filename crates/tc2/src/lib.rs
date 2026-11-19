@@ -55,6 +55,7 @@ pub mod solape;
 pub mod tablero;
 pub mod tarea;
 pub mod toma;
+pub mod verificacion;
 pub mod version;
 mod yaml;
 

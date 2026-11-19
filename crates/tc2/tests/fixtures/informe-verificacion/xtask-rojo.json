@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "perfil": "rapida",
+  "resultado": "rojo",
+  "commit": null,
+  "inicio": "2026-11-19T18:00:00Z",
+  "fin": "2026-11-19T18:00:43Z",
+  "pasos": [
+    { "nombre": "fmt", "resultado": "verde", "segundos": 1 },
+    { "nombre": "clippy", "resultado": "rojo", "segundos": 42 }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "perfil": "completa",
+  "resultado": "verde",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "inicio": "2026-11-19T17:30:57Z",
+  "fin": "2026-11-19T17:42:10Z",
+  "pasos": [
+    { "nombre": "fmt", "resultado": "verde", "segundos": 2 },
+    { "nombre": "clippy", "resultado": "verde", "segundos": 95 },
+    { "nombre": "test", "resultado": "verde", "segundos": 310 },
+    { "nombre": "reproducible", "resultado": "verde", "segundos": 266 }
+  ]
+}

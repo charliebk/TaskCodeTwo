@@ -6,6 +6,9 @@
 //! - `completa`: lo anterior y la comprobacion de build reproducible: copia el
 //!   arbol a dos rutas distintas, compila `tc2` en release en limpio en cada
 //!   una y exige el mismo sha256 (ADR F1-14). La CI solo la corre en Windows.
+//! - Con `TC2_INFORME=<ruta>` escribe ahi el informe JSON de F5-4 (pasos,
+//!   resultado y segundos), tambien en rojo; contrato en
+//!   `crates/tc2/esquemas/informe-verificacion.schema.json`.
 //!
 //! Distribucion (F2-10), las mismas ordenes en local y en `release.yml`:
 //!
@@ -250,28 +253,198 @@ fn escribir_sumas(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Corre los pasos del perfil y, con `TC2_INFORME`, escribe ahi el informe
+/// JSON de F5-4 (tambien en rojo).
 fn verificar(perfil: Perfil) -> Result<(), String> {
+    let destino = std::env::var_os("TC2_INFORME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from);
+    let inicio = segundos_unix();
+    let mut pasos = Vec::new();
+    let resultado = verificar_pasos(perfil, &mut pasos);
+    let Some(ruta) = destino else {
+        return resultado;
+    };
+    let informe = InformeVerificacion {
+        perfil,
+        verde: resultado.is_ok(),
+        commit: commit_actual(),
+        inicio,
+        fin: segundos_unix(),
+        pasos,
+    };
+    match (escribir_informe(&ruta, &informe.json()), resultado) {
+        (Ok(()), r) => {
+            println!("xtask: informe de verificacion en {}", ruta.display());
+            r
+        }
+        (Err(e), Ok(())) => Err(e),
+        (Err(e), Err(r)) => {
+            eprintln!("xtask: {e}");
+            Err(r)
+        }
+    }
+}
+
+fn verificar_pasos(perfil: Perfil, pasos: &mut Vec<PasoVerificacion>) -> Result<(), String> {
     guarda_rustflags()?;
     let raiz = raiz_workspace()?;
-    cargo(&raiz, &["fmt", "--all", "--check"], None)?;
-    cargo(
-        &raiz,
-        &[
-            "clippy",
-            "--workspace",
-            "--all-targets",
-            "--locked",
-            "--",
-            "-D",
-            "warnings",
-        ],
-        None,
-    )?;
-    cargo(&raiz, &["test", "--workspace", "--locked"], None)?;
+    paso(pasos, "fmt", || {
+        cargo(&raiz, &["fmt", "--all", "--check"], None)
+    })?;
+    paso(pasos, "clippy", || {
+        cargo(
+            &raiz,
+            &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--locked",
+                "--",
+                "-D",
+                "warnings",
+            ],
+            None,
+        )
+    })?;
+    paso(pasos, "test", || {
+        cargo(&raiz, &["test", "--workspace", "--locked"], None)
+    })?;
     if perfil == Perfil::Completa {
-        reproducible(&raiz)?;
+        paso(pasos, "reproducible", || reproducible(&raiz))?;
     }
     Ok(())
+}
+
+/// Corre un paso y anota su resultado y su duracion.
+fn paso(
+    pasos: &mut Vec<PasoVerificacion>,
+    nombre: &'static str,
+    f: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let t = std::time::Instant::now();
+    let r = f();
+    pasos.push(PasoVerificacion {
+        nombre,
+        verde: r.is_ok(),
+        segundos: t.elapsed().as_secs(),
+    });
+    r
+}
+
+// --- Informe de verificacion (F5-4) ------------------------------------------
+//
+// Contrato: crates/tc2/esquemas/informe-verificacion.schema.json (v1), que lee
+// `tc2::verificacion::informe`. Se escribe a mano: xtask no depende de tc2 ni
+// de serde. El test compara con el fixture que lee tc2.
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PasoVerificacion {
+    nombre: &'static str,
+    verde: bool,
+    segundos: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InformeVerificacion {
+    perfil: Perfil,
+    verde: bool,
+    commit: Option<String>,
+    /// Segundos desde la epoca Unix, en UTC.
+    inicio: u64,
+    fin: u64,
+    pasos: Vec<PasoVerificacion>,
+}
+
+impl Perfil {
+    fn nombre(self) -> &'static str {
+        match self {
+            Perfil::Rapida => "rapida",
+            Perfil::Completa => "completa",
+        }
+    }
+}
+
+fn resultado(verde: bool) -> &'static str {
+    if verde { "verde" } else { "rojo" }
+}
+
+impl InformeVerificacion {
+    fn json(&self) -> String {
+        let commit = self
+            .commit
+            .as_deref()
+            .map_or_else(|| "null".to_owned(), |c| format!("\"{c}\""));
+        let pasos: Vec<String> = self
+            .pasos
+            .iter()
+            .map(|p| {
+                format!(
+                    "    {{ \"nombre\": \"{}\", \"resultado\": \"{}\", \"segundos\": {} }}",
+                    p.nombre,
+                    resultado(p.verde),
+                    p.segundos
+                )
+            })
+            .collect();
+        format!(
+            "{{\n  \"version\": 1,\n  \"perfil\": \"{}\",\n  \"resultado\": \"{}\",\n  \"commit\": {commit},\n  \"inicio\": \"{}\",\n  \"fin\": \"{}\",\n  \"pasos\": [\n{}\n  ]\n}}\n",
+            self.perfil.nombre(),
+            resultado(self.verde),
+            fecha_utc(self.inicio),
+            fecha_utc(self.fin),
+            pasos.join(",\n")
+        )
+    }
+}
+
+fn escribir_informe(ruta: &Path, json: &str) -> Result<(), String> {
+    if let Some(padre) = ruta.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(padre).map_err(|e| format!("{}: {e}", padre.display()))?;
+    }
+    std::fs::write(ruta, json).map_err(|e| format!("informe {}: {e}", ruta.display()))
+}
+
+fn segundos_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// `git rev-parse HEAD`, solo si da 40 hex en minusculas.
+fn commit_actual() -> Option<String> {
+    let raiz = raiz_workspace().ok()?;
+    let salida = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(raiz)
+        .output()
+        .ok()?;
+    let texto = String::from_utf8(salida.stdout).ok()?;
+    let sha = texto.trim();
+    let hex = |c: char| c.is_ascii_digit() || ('a'..='f').contains(&c);
+    (salida.status.success() && sha.len() == 40 && sha.chars().all(hex)).then(|| sha.to_owned())
+}
+
+/// `AAAA-MM-DDTHH:MM:SSZ` de unos segundos Unix (algoritmo de dias civiles de
+/// H. Hinnant).
+fn fecha_utc(segundos: u64) -> String {
+    let dias = segundos / 86_400;
+    let resto = segundos % 86_400;
+    let z = dias + 719_468;
+    let era = z / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let dia = doy - (153 * mp + 2) / 5 + 1;
+    let mes = if mp < 10 { mp + 3 } else { mp - 9 };
+    let anio = yoe + era * 400 + u64::from(mes <= 2);
+    format!(
+        "{anio:04}-{mes:02}-{dia:02}T{:02}:{:02}:{:02}Z",
+        resto / 3600,
+        resto % 3600 / 60,
+        resto % 60
+    )
 }
 
 fn raiz_workspace() -> Result<PathBuf, String> {
@@ -486,6 +659,50 @@ mod tests {
             dir_target(&raiz, Some(absoluta.clone().into_os_string())),
             absoluta
         );
+    }
+
+    /// El informe de una ejecucion con pasos fijos es byte a byte el fixture
+    /// que lee `tc2::verificacion::informe` (contrato entre las dos cajas).
+    #[test]
+    fn el_informe_es_el_fixture_de_tc2() {
+        let fixture = |nombre: &str| {
+            let ruta = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../crates/tc2/tests/fixtures/informe-verificacion")
+                .join(nombre);
+            std::fs::read_to_string(&ruta)
+                .map(|t| t.replace("\r\n", "\n"))
+                .map_err(|e| format!("{}: {e}", ruta.display()))
+        };
+        let p = |nombre, verde, segundos| PasoVerificacion {
+            nombre,
+            verde,
+            segundos,
+        };
+        let verde = InformeVerificacion {
+            perfil: Perfil::Completa,
+            verde: true,
+            commit: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
+            inicio: 1_795_109_457,
+            fin: 1_795_110_130,
+            pasos: vec![
+                p("fmt", true, 2),
+                p("clippy", true, 95),
+                p("test", true, 310),
+                p("reproducible", true, 266),
+            ],
+        };
+        assert_eq!(Ok(verde.json()), fixture("xtask.json"));
+        let rojo = InformeVerificacion {
+            perfil: Perfil::Rapida,
+            verde: false,
+            commit: None,
+            inicio: 1_795_111_200,
+            fin: 1_795_111_243,
+            pasos: vec![p("fmt", true, 1), p("clippy", false, 42)],
+        };
+        assert_eq!(Ok(rojo.json()), fixture("xtask-rojo.json"));
+        assert_eq!(fecha_utc(0), "1970-01-01T00:00:00Z");
+        assert_eq!(fecha_utc(951_868_799), "2000-02-29T23:59:59Z");
     }
 
     #[test]

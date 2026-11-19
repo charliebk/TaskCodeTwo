@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Informe de verificacion de TaskCode 2, version 1 (F5-4)",
+  "description": "Lo escribe el comando de verificacion del proyecto en la ruta de TC2_INFORME, tambien en rojo; la CI lo sube como artefacto informe-verificacion-<perfil>. Lo lee tc2 (verificacion::informe::leer). Es detalle para citar: el hecho autoritativo es el check verificacion. Una clave desconocida falla cerrado.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "perfil", "resultado", "commit", "inicio", "fin", "pasos"],
+  "properties": {
+    "version": {
+      "description": "version del contrato; otra distinta de 1 es error",
+      "const": 1
+    },
+    "perfil": {
+      "description": "perfil de verificacion [F1-7 decision 4]",
+      "enum": ["rapida", "impacto", "completa", "pesada"]
+    },
+    "resultado": {
+      "description": "resultado de la ejecucion; verde exige todos los pasos en verde",
+      "enum": ["verde", "rojo"]
+    },
+    "commit": {
+      "description": "commit verificado (git rev-parse HEAD); null si no se pudo leer",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "inicio": {
+      "description": "inicio en UTC, AAAA-MM-DDTHH:MM:SSZ",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "fin": {
+      "description": "fin en UTC, AAAA-MM-DDTHH:MM:SSZ",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "pasos": {
+      "description": "pasos ejecutados, en orden; tras el primero en rojo no hay mas",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["nombre", "resultado", "segundos"],
+        "properties": {
+          "nombre": {
+            "description": "nombre del paso: minusculas, digitos, punto, guion y guion bajo",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "resultado": {
+            "enum": ["verde", "rojo"]
+          },
+          "segundos": {
+            "description": "duracion en segundos enteros",
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "tests": {
+      "description": "recuento de tests, opcional [F1-11 practica 8]; fallidos no supera total",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "fallidos"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "fallidos": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
