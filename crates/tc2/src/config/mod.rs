@@ -260,6 +260,17 @@ pub enum ModoFlujo {
     Automatico,
 }
 
+impl ModoFlujo {
+    /// Nombre en la configuracion y en la columna `modo` de `## Transiciones`.
+    pub fn nombre(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Semiautomatico => "semiautomatico",
+            Self::Automatico => "automatico",
+        }
+    }
+}
+
 /// `lote` (F1-16): sin cifras por defecto.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]

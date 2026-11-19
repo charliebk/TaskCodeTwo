@@ -19,7 +19,7 @@
 //! (`board` y `status`, F3-5) y [`toma`] (`start`, F3-6) y [`solape`]
 //! (aviso de solape de `start`, F3-11) y [`ciclo`]
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
-//! F3-10) y [`doctor`] (F3-8). Las capas
+//! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -42,6 +42,7 @@ pub mod importar;
 pub mod init;
 pub mod instalacion;
 pub mod inventario;
+pub mod plan;
 pub mod plataforma;
 pub mod progreso;
 pub mod recursos;
@@ -198,6 +199,10 @@ where
                 ciclo::orden_reasignar(&resto, e)
             })
         }
+        [orden, resto @ ..] if orden == plan::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            de_una_tarea(plan::NOMBRE, (json, idioma), |e| plan::orden(&resto, e))
+        }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_estimar(&resto, json, idioma)
@@ -348,7 +353,8 @@ fn orden_identidad(args: &[String]) -> Informe {
 }
 
 /// Una orden sobre una tarea (`start`, F3-6; `descartar`, `pausa` y
-/// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10) en la carpeta actual:
+/// `reanudar`, F3-7; `liberar` y `reasignar`, F3-10; `plan`, F4-1) en la
+/// carpeta actual:
 /// quien la lanza sale de
 /// [`identidad::resolver`] con el terminal y los tokens del proceso.
 ///
@@ -962,6 +968,48 @@ mod tests {
             s.stdout
         );
         assert!(s.stderr.starts_with("warning: "), "{}", s.stderr);
+    }
+
+    /// TASK-036: `plan` y `plan guardar` mal llamados son `uso` (2) sin
+    /// leer nada, con el diagnostico en los dos idiomas.
+    #[test]
+    fn plan_mal_llamado_es_uso() {
+        for (args, motivo) in [
+            (vec!["plan"], "sin-id"),
+            (vec!["plan", "TASK-1"], "id-invalido"),
+            (vec!["plan", "TASK-001", "--carril"], "carril-invalido"),
+            (
+                vec!["plan", "TASK-001", "--carril", "release"],
+                "carril-invalido",
+            ),
+            (
+                vec!["plan", "TASK-001", "--carril", "fix", "--carril", "fix"],
+                "argumentos-de-mas",
+            ),
+            (vec!["plan", "TASK-001", "x"], "argumentos-de-mas"),
+            (vec!["plan", "guardar"], "sin-id"),
+            (vec!["plan", "guardar", "TASK-001"], "sin-destino"),
+            (
+                vec!["plan", "guardar", "TASK-001", "plan-final.md"],
+                "sin-fichero",
+            ),
+            (
+                vec!["plan", "guardar", "TASK-001", "tarea.md", "f"],
+                "destino-invalido",
+            ),
+            (
+                vec!["plan", "guardar", "TASK-001", "plan-final.md", "f", "x"],
+                "argumentos-de-mas",
+            ),
+        ] {
+            let es = ejecutar_en(Idioma::Es, &args);
+            let en = ejecutar_en(Idioma::En, &args);
+            assert_eq!((es.codigo, en.codigo), (2, 2), "{args:?}");
+            assert_eq!(es.stdout, format!("plan uso motivo={motivo}\n"), "{args:?}");
+            assert_eq!(es.stdout, en.stdout);
+            assert_ne!(es.stderr, en.stderr, "{args:?}");
+            assert_eq!(es.stderr.lines().count(), 1, "{args:?}");
+        }
     }
 
     #[test]
