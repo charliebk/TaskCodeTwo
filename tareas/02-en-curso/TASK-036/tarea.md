@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-036-f4-1-plan-con-brainstorm-de-roles
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F4-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F3-
 |---|---|---|---|---|
 | 2026-11-19T02:39:23Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T02:48:23Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T02:48:25Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
