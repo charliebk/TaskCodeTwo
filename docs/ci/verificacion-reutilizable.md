@@ -204,11 +204,13 @@ F1-8, decisión 7), sin componentes nuevos: los tres jobs de siempre.
   ejecuta nada del PR): checkout del commit verificado `V` (el merge ref en un
   PR) con `fetch-depth: 3`; `V`, sus padres y sus abuelos (como mucho 7) salen
   de `git`. Para cada uno pide
-  `GET commits/{c}/check-runs?check_name=verificacion&app_id=15368&filter=latest`
-  y solo cuenta un check-run en verde cuya ejecución (`details_url` →
-  `GET actions/runs/{id}`) tenga en `referenced_workflows` este workflow
-  (`charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@…`) con el mismo
-  `sha` que `github.job_workflow_sha`. De su resumen toma las líneas `arbol=`
+  `GET commits/{c}/check-runs?check_name=verificacion&app_id=15368&filter=all`
+  (el más reciente primero) y solo cuenta un check-run en verde cuya
+  ejecución (su check suite →
+  `GET actions/runs?check_suite_id={id}`) tenga en `referenced_workflows` este
+  workflow (`charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@…`) con
+  el mismo `sha` que la ejecución actual (la versión del workflow, leída con
+  `GET actions/runs/{run_id}`). De su resumen toma las líneas `arbol=`
   con el árbol de `V` y el perfil, el runner y la clave actuales: son los
   candidatos de cada perfil, en el orden de los commits. Si el diff de `V`
   frente a su primer padre (la base) toca `.github/workflows/**` o
@@ -232,7 +234,8 @@ arbol=<árbol de V> perfil=<p> runner=<r> clave=<k> local=<h> origen=<sha> reuti
 
 - `runner`: el `runner-<perfil>` declarado, sin comillas ni espacios (una
   lista de etiquetas, unida por comas).
-- `clave = sha256(perfil|runner|huella-arbol|github.job_workflow_sha)`, con
+- `clave = sha256(perfil|runner|huella-arbol|versión del workflow)` (el `sha`
+  de `referenced_workflows` de la ejecución), con
   `huella-arbol = sha256(git ls-tree -r HEAD -- <rutas>)` (o de nada sin rutas).
 - `local = sha256` de lo que imprime `huella-local` en el runner del perfil.
 - `origen`: el commit (head del PR) donde se ejecutó de verdad; una línea
@@ -276,8 +279,9 @@ no hay línea.
    mismo repo llaman al reutilizable en el mismo commit, salen dos check-runs
    `verificacion` (uno por llamador) y GitHub puede listar el creado con
    `GITHUB_TOKEN` en la suite de otra ejecución (el rojo de un llamador
-   apareció en la lista de jobs del otro). Con `filter=latest` solo cuenta el
-   último: el proyecto declara un único llamador.
+   apareció en la lista de jobs del otro). El proyecto declara un único
+   llamador; desde F5-2 además `buscar` enlaza cada check-run con su ejecución
+   por la check suite, y con dos llamadores ese enlace dejaría de ser fiable.
 6. **Concurrencia por PR (o ref) y perfil**: el grupo es
    `verificacion-<repo>-<github.event.pull_request.number || github.ref>-<perfil>`
    (revisión de la ronda 1: por repo y perfil, un tercer PR cancelaba la
@@ -305,6 +309,43 @@ no hay línea.
 10. **ToolsaWeb y OpenDockTrading** no producen el informe hasta migrar (F9):
     su `.estado/verificar-ultima.json` tiene otra forma. Hasta entonces solo
     existe el resumen del check.
+11. **Versión del workflow en la clave** (F1-7, decisión 2; plan de F5-2):
+    `github.job_workflow_sha` llega vacío dentro del reutilizable (E2E). La
+    versión es el `sha` de `referenced_workflows` de la propia ejecución
+    (`GET actions/runs/{run_id}`, `actions: read`); si no hay exactamente uno,
+    no se busca y se verifica entero.
+12. **`filter=all` en vez de `filter=latest`** (F1-7, decisión 3): «Re-run all
+    jobs» saca de `latest` (y de la lista de la suite) el check-run del intento
+    anterior, así que con `latest` una re-ejecución no encontraba nada (E2E,
+    run 44607389843 intento 2). Se leen todos los del commit, el más reciente
+    primero. Una línea en verde de un intento anterior sigue siendo válida: el
+    resultado es función del árbol, la clave y la huella local.
+13. **Origen del check-run por su check suite, no por `details_url`** (F1-8,
+    decisión 7; D3 del plan): GitHub ignora el `details_url` de un check-run
+    creado con `GITHUB_TOKEN` (queda en `…/runs/<id del check-run>`). `buscar`
+    enlaza el check-run con su ejecución por `check_suite.id`
+    (`GET actions/runs?check_suite_id=`) y exige ahí este workflow en la misma
+    versión.
+14. **Huella local volátil en los runners de GitHub**: con `huella-local: uname
+    -sr` dos patas de la misma ejecución, y la misma pata entre intentos,
+    sacaron `local` distintos (imágenes con distinto kernel; runs 44607057098
+    y 44607389843): sin acierto. La huella local debe nombrar solo lo que de
+    verdad cambia el resultado (versiones de herramientas fijadas), no el
+    sistema del runner. Se documenta para F1-11.
+15. **PR del E2E a una rama base con el llamador, no a `main`**: la regla de
+    rutas rechaza toda línea si el PR toca `.github/workflows/**`, y el
+    llamador del E2E vive ahí; contra `main` (sin llamador) nunca habría
+    acierto. La base `cache-f5-2-base` lleva el mismo llamador que el PR.
+16. **Lint más estricto** (F1-8, decisión 1): un job que escribe ya no puede
+    hacer checkout (antes solo se prohibían `ref:` y `repository:`), y solo se
+    admiten lecturas de `contents`, `checks` y `actions`. El lector YAML
+    admite además `- |` (bloque literal como elemento de lista: el
+    `after_script` de GitLab).
+17. **GitLab: línea en un fichero del artefacto del informe** (D2): un job de
+    GitLab tiene un solo archivo de artefactos; la línea va en
+    `.tc2/cache-verificacion-<perfil>.txt` dentro de
+    `informe-verificacion-<perfil>`, sin la versión del workflow en la clave.
+    Sin pipeline real (D2): solo el lint de la plantilla.
 
 ## Prueba E2E (2026-11-19, workflow y plantilla en `790b72d`)
 
@@ -347,3 +388,46 @@ Suposiciones del plan:
   (requisito de sus runners compartidos).
 - **`charliebk/TaskCodeTwo` público**: sí; el reutilizable se resolvió desde
   otro repo por SHA de una rama que no es `develop` ni `main`.
+
+## Prueba E2E de la caché por árbol (2026-11-19, workflow en `132a9dd`)
+
+TASK-042, en `charliebk/taskcodetwo-e2e-github`: llamador único con un stub
+Linux (`sh scripts/verificar.sh`), `perfiles: completa pesada` (dos patas de
+la matriz) y `huella-local: echo e2e-f5-2`. PR #13 de `cache-f5-2` a
+`cache-f5-2-base` (rama base con el mismo llamador: ver divergencia 15),
+cerrado sin mergear y ramas borradas al terminar.
+
+| Caso | Ejecución | Paso del comando (completa / pesada) | Línea del perfil |
+|---|---|---|---|
+| (a) PR nuevo | [44607911390, intento 1](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44607911390/attempts/1) | `success` / `success` | `ejecutada` |
+| (a) «Re-run all jobs» (`gh run rerun`) | [44607911390, intento 2](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44607911390/attempts/2) | `skipped` / `skipped` | `reutilizada de 10d5e76` (el head) |
+| (b) commit vacío | [44608246992](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44608246992) | `skipped` / `skipped` | `reutilizada de 10d5e76` (el head anterior, abuelo de V) |
+| (c) cambiar `datos.txt` | [44608436324](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44608436324) | `success` / `success` | `ejecutada` |
+| (c) tocar `.github/workflows/verificacion.yml` | [44608660673](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44608660673) | `success` / `success` | `ejecutada` («Regla de rutas») |
+| (c) commit vacío tras tocar el workflow | [44608801152](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44608801152) | `success` / `success` | `ejecutada`: mismo árbol, pero la regla de rutas rechaza toda línea |
+
+Medición (criterio 1) con
+`medicion/medir.sh` de la carpeta de TASK-042 en `tareas/` (solo `gh api --method GET`;
+salida en `salida.txt` junto a él): por árbol y perfil, el paso del comando no
+salió `skipped` **una vez** en los árboles `5b30777` y `91a0f2f`; dos veces en
+`555e6b4`, el árbol cuyo PR toca `.github/workflows/**`, donde la regla de
+rutas obliga a verificar entero.
+
+Suposiciones del plan:
+
+- **`github.job_workflow_sha` en el reutilizable**: **falsa**, llega vacío
+  (run 44606759639, `version=` vacío). La versión se lee de
+  `referenced_workflows` de la propia ejecución (divergencia 11).
+- **Salidas con nombre fijo por perfil en la matriz**: confirmado; con dos
+  patas, el publicador recibió `local-completa` y `local-pesada` sin pisarse.
+- **Merge ref con `fetch-depth: 3`**: confirmado; da V, sus dos padres (la
+  base primero) y los abuelos, y el diff frente a `HEAD^1` es el del PR.
+- **Una re-ejecución deja el check anterior como `latest` en el head**:
+  **falsa**: «Re-run all jobs» saca el check-run del intento anterior de la
+  suite y de `filter=latest` (sigue existiendo por id y con `filter=all`)
+  (divergencia 12).
+- **`bash` en el runner del perfil**: solo se probó Linux; en Windows el paso
+  «cache por arbol» usa el `bash` de Git for Windows (no verificado aquí).
+- **`GET commits/{V}` sobre el merge ref desde el publicador**: funciona con
+  `contents: read`; el árbol coincidió con el de `buscar` en todas las
+  ejecuciones.

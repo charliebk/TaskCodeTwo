@@ -1,0 +1,21 @@
+ejecucion intento head arbol_head perfil paso_comando regla_rutas
+44607911390 1 10d5e76e32c2 5b30777d79feefc9fcb5a9149398c16a658af28f completa success no
+44607911390 1 10d5e76e32c2 5b30777d79feefc9fcb5a9149398c16a658af28f pesada success no
+44607911390 2 10d5e76e32c2 5b30777d79feefc9fcb5a9149398c16a658af28f completa skipped no
+44607911390 2 10d5e76e32c2 5b30777d79feefc9fcb5a9149398c16a658af28f pesada skipped no
+44608246992 1 510a3c88e616 5b30777d79feefc9fcb5a9149398c16a658af28f completa skipped no
+44608246992 1 510a3c88e616 5b30777d79feefc9fcb5a9149398c16a658af28f pesada skipped no
+44608436324 1 bcfd2085f070 91a0f2f1d5ca55c326ca79c4b366fdc584453ec1 completa success no
+44608436324 1 bcfd2085f070 91a0f2f1d5ca55c326ca79c4b366fdc584453ec1 pesada success no
+44608660673 1 d2b5ff4a42f5 555e6b4c47d56689d2982f564cb7a7f1755f1544 completa success si
+44608660673 1 d2b5ff4a42f5 555e6b4c47d56689d2982f564cb7a7f1755f1544 pesada success si
+44608801152 1 eb28add8022c 555e6b4c47d56689d2982f564cb7a7f1755f1544 completa success si
+44608801152 1 eb28add8022c 555e6b4c47d56689d2982f564cb7a7f1755f1544 pesada success si
+
+arbol_head perfil ejecuciones_del_comando regla_rutas veredicto
+555e6b4c47d56689d2982f564cb7a7f1755f1544 completa 2 si OK (regla de rutas)
+555e6b4c47d56689d2982f564cb7a7f1755f1544 pesada 2 si OK (regla de rutas)
+5b30777d79feefc9fcb5a9149398c16a658af28f completa 1 no OK
+5b30777d79feefc9fcb5a9149398c16a658af28f pesada 1 no OK
+91a0f2f1d5ca55c326ca79c4b366fdc584453ec1 completa 1 no OK
+91a0f2f1d5ca55c326ca79c4b366fdc584453ec1 pesada 1 no OK
