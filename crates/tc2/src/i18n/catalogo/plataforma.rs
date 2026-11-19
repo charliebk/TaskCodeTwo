@@ -290,4 +290,14 @@ crate::i18n::textos! {
         es: "caracter no permitido en la consulta",
         en: "character not allowed in the query",
     }
+
+    // --- aplicar-puertas (TASK-118) ---
+    APLICAR_NO_SOPORTADA {
+        es: "esta plataforma no admite aplicar las puertas desde tc2: aplicalas a mano con la propuesta de tc2 init --json",
+        en: "this platform does not support applying the gates from tc2: apply them by hand with the proposal from tc2 init --json",
+    }
+    CHECKS_SIN_ORIGEN_VISTO {
+        es: "no se han visto publicados por su origen en la cabeza de develop los checks {faltan}: exigirlos ahora bloquearia develop para todos. No se ha escrito nada en la plataforma; mergea en develop un PR en el que la CI y el revisor publiquen esos checks y repite tc2 init --aplicar-puertas",
+        en: "the checks {faltan} have not been seen published by their origin on the head of develop: requiring them now would block develop for everyone. Nothing was written on the platform; merge into develop a PR where the CI and the reviewer publish those checks and run tc2 init --aplicar-puertas again",
+    }
 }

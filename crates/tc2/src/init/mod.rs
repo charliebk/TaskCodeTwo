@@ -11,7 +11,14 @@
 //! (solo en un repo sin commits; con historia lo hace la persona), la rama
 //! de estado montada en `tareas/` y `personas.yml` con la persona del token.
 //! El workflow de CI queda como ranura `pendiente` hasta F5-1 y los rulesets
-//! `taskcodetwo-*` solo se proponen (`persona`): aplicarlos es de TASK-118.
+//! `taskcodetwo-*` solo se proponen (`persona`); con `--aplicar-puertas`
+//! (TASK-118) los que faltan se crean en la plataforma (`crea`), y lo que
+//! ya esta no se toca. La opcion exige antes de escribir nada, ni en el
+//! disco ni en la plataforma: el token y la lista de la persona
+//! (`personas.yml` ya existente), `develop` y `main` en `origin` sin nada
+//! local por delante, el origen de cada check (`plataforma.revisor_id`) y
+//! que cada check ya se haya visto publicado por su origen en `develop`; si
+//! algo falta, `init rechazada motivo=... [faltan=...]`.
 //! La status line de Claude Code (F3-12) tambien se propone, como
 //! `pendiente motivo=pegar-a-mano` con la orden exacta: `init` nunca lee ni
 //! escribe un `settings.json`.
@@ -29,16 +36,17 @@ mod inventario;
 use std::path::{Path, PathBuf};
 
 use crate::Salida;
-use crate::contrato::{Informe, LineaAccion, Resultado};
+use crate::contrato::{Informe, LineaAccion, Resultado, Valor};
 use crate::git::Git;
 use crate::i18n::catalogo::init as txt;
 use crate::i18n::{Idioma, Mensaje};
 use crate::plataforma::Credenciales;
+use crate::plataforma::puertas::Origenes;
 
 /// Nombre de la orden.
 pub const NOMBRE: &str = "init";
 
-/// Orden que aplicara las puertas (TASK-118).
+/// Orden que aplica las puertas (TASK-118).
 pub const ORDEN_PUERTAS: &str = "tc2 init --aplicar-puertas";
 
 /// Arreglo para un proyecto de la 0.16.
@@ -49,6 +57,9 @@ pub const ARREGLO_016: &str = "tc2 actualizar --simular";
 pub struct Opciones {
     /// Solo imprimir el plan.
     pub simular: bool,
+    /// Crear en la plataforma los rulesets `taskcodetwo-*` que falten
+    /// (TASK-118).
+    pub aplicar_puertas: bool,
 }
 
 /// Lee las opciones (sin `--json`).
@@ -57,6 +68,7 @@ pub fn leer_opciones(args: &[String]) -> Result<Opciones, Informe> {
     for a in args {
         match a.as_str() {
             "--simular" if !op.simular => op.simular = true,
+            "--aplicar-puertas" if !op.aplicar_puertas => op.aplicar_puertas = true,
             _ => {
                 return Err(Informe::nuevo(NOMBRE, Resultado::Uso)
                     .con("motivo", "argumentos")
@@ -137,6 +149,14 @@ pub(crate) enum Efecto {
         /// Worktree principal.
         principal: PathBuf,
     },
+    /// `aplicar-puertas` en la plataforma (TASK-118): todas las puertas que
+    /// falten, en lote; va en la primera linea `ruleset` que se crea.
+    AplicarPuertas {
+        /// El origen de cada check.
+        origenes: Origenes,
+        /// Claves que se anaden a la linea final (`sin-aprobaciones=si`).
+        notas: Vec<(&'static str, String)>,
+    },
 }
 
 /// Una linea del plan.
@@ -158,6 +178,8 @@ pub struct Accion {
     pub propuesta: Option<serde_json::Value>,
     /// Que decir a la persona si bloquea.
     pub(crate) diagnostico: Option<Mensaje>,
+    /// Si bloquea, lo que falta (`faltan=` de la linea final).
+    pub(crate) faltan: Vec<String>,
     /// Lo que se hace al aplicar.
     pub(crate) efecto: Efecto,
 }
@@ -178,6 +200,7 @@ impl Accion {
             orden: None,
             propuesta: None,
             diagnostico: None,
+            faltan: Vec::new(),
             efecto: Efecto::Ninguno,
         }
     }
@@ -345,31 +368,58 @@ pub(crate) fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
     }
 }
 
-/// El plan, sin aplicar nada.
+/// El plan, sin aplicar nada (sin `--aplicar-puertas`).
 pub fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
-    inventario::plan(c)
+    inventario::plan(c, false).map(|(v, _)| v)
+}
+
+/// Valores de la clave de lista `k` de un informe.
+fn lista(i: &Informe, k: &str) -> Vec<String> {
+    i.claves
+        .iter()
+        .find_map(|(x, v)| match v {
+            Valor::Lista(l) if x == k => Some(l.clone()),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 /// `init` con las opciones ya leidas.
 pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
-    let mut acciones = match plan(c) {
+    let (mut acciones, conexion) = match inventario::plan(c, op.aplicar_puertas) {
         Ok(v) => v,
         Err(i) => return Hecho::solo(i),
     };
-    let cuenta = |r: Resultado, acciones: &[Accion], cabeza: &[(&str, String)]| {
+    // Claves de las puertas para la linea final (`sin-aprobaciones=si`).
+    let notas: Vec<(&'static str, String)> = acciones
+        .iter()
+        .find_map(|a| match &a.efecto {
+            Efecto::AplicarPuertas { notas, .. } => Some(notas.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let cuenta = |r: Resultado, acciones: &[Accion], cabeza: &[(&str, Valor)]| {
         let n = |d: Decision| acciones.iter().filter(|a| a.decision == d).count();
         let mut i = Informe::nuevo(NOMBRE, r);
         for (k, v) in cabeza {
-            i = i.con(k, v.clone());
+            i.claves.push(((*k).to_owned(), v.clone()));
         }
         if op.simular {
             i = i.con("simular", "si");
         }
-        i.con("crea", n(Decision::Crea).to_string())
+        let mut i = i
+            .con("crea", n(Decision::Crea).to_string())
             .con("existe", n(Decision::Existe).to_string())
             .con("persona", n(Decision::Persona).to_string())
-            .con("pendiente", n(Decision::Pendiente).to_string())
+            .con("pendiente", n(Decision::Pendiente).to_string());
+        if r.es_exito() {
+            for (k, v) in &notas {
+                i = i.con(k, v.clone());
+            }
+        }
+        i
     };
+    let texto = |s: &str| Valor::Texto(s.to_owned());
     if let Some(b) = acciones
         .iter()
         .find(|a| a.decision == Decision::Rechaza)
@@ -381,11 +431,14 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
             a.motivo = Some("no-aplicada".to_owned());
         }
         let motivo = b.motivo.clone().unwrap_or_default();
-        let mut cabeza = vec![("motivo", motivo.clone())];
+        let mut cabeza = vec![("motivo", texto(&motivo))];
         if let Some(o) = &b.orden {
-            cabeza.push(("arreglo", o.clone()));
+            cabeza.push(("arreglo", texto(o)));
         }
-        cabeza.push(("ruta", b.ruta.clone()));
+        if !b.faltan.is_empty() {
+            cabeza.push(("faltan", Valor::Lista(b.faltan.clone())));
+        }
+        cabeza.push(("ruta", texto(&b.ruta)));
         let diag = b.diagnostico.clone().unwrap_or_else(|| {
             Mensaje::nuevo(&txt::BLOQUEADA)
                 .con("ruta", b.ruta.clone())
@@ -397,6 +450,8 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
     if !op.simular {
         // (ruta, error) del primer fallo; lo que venia detras no se aplica.
         let mut fallo: Option<(String, String)> = None;
+        // El informe de `aplicar-puertas`, si se lanzo.
+        let mut puertas: Option<Informe> = None;
         for a in acciones.iter_mut() {
             if a.decision != Decision::Crea {
                 continue;
@@ -406,19 +461,76 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
                 a.motivo = Some("no-aplicada".to_owned());
                 continue;
             }
-            if let Err(e) = aplicar::aplicar(&a.efecto, c) {
+            let r = match &a.efecto {
+                Efecto::AplicarPuertas { origenes, .. } => {
+                    let i = aplicar::puertas(&conexion, origenes);
+                    let r = if i.resultado.es_exito() {
+                        Ok(())
+                    } else {
+                        Err(i.diagnostico_en(Idioma::Es).unwrap_or_else(|| i.linea()))
+                    };
+                    puertas = Some(i);
+                    r
+                }
+                e => aplicar::aplicar(e, c),
+            };
+            if let Err(e) = r {
                 a.decision = Decision::Pendiente;
                 a.motivo = Some("error".to_owned());
                 fallo = Some((a.ruta.clone(), e));
             }
         }
+        let mut cabeza = Vec::new();
+        if let Some(i) = &puertas {
+            // Cada linea `ruleset` dice lo que de verdad paso: creada,
+            // existente (otro llego antes) o sin aplicar.
+            let (aplicadas, existentes, a_medias, faltan) = (
+                lista(i, "aplicadas"),
+                lista(i, "existentes"),
+                lista(i, "a-medias"),
+                lista(i, "faltan"),
+            );
+            for a in acciones.iter_mut().filter(|a| a.clase == "ruleset") {
+                if aplicadas.contains(&a.ruta) {
+                    a.decision = Decision::Crea;
+                    a.motivo = None;
+                } else if existentes.contains(&a.ruta) && a.decision != Decision::Existe {
+                    a.decision = Decision::Existe;
+                    a.motivo = None;
+                } else if faltan.contains(&a.ruta) {
+                    // La que fallo dice si quedo escrita en parte; las de
+                    // detras no se intentaron.
+                    a.decision = Decision::Pendiente;
+                    a.motivo = Some(
+                        if a_medias.contains(&a.ruta) {
+                            "a-medias"
+                        } else if faltan.first() == Some(&a.ruta) {
+                            "error"
+                        } else {
+                            "no-aplicada"
+                        }
+                        .to_owned(),
+                    );
+                }
+            }
+            if !i.resultado.es_exito() {
+                cabeza.push(("aplicadas", Valor::Lista(aplicadas)));
+                if !a_medias.is_empty() {
+                    cabeza.push(("a-medias", Valor::Lista(a_medias)));
+                }
+                cabeza.push(("faltan", Valor::Lista(faltan.clone())));
+                if let (Some(f), Some(primera)) = (fallo.as_mut(), faltan.first()) {
+                    f.0.clone_from(primera);
+                }
+            }
+        }
         if let Some((ruta, e)) = fallo {
-            let informe = cuenta(Resultado::Error, &acciones, &[("ruta", ruta.clone())])
-                .diagnostico(
-                    Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
-                        .con("ruta", ruta)
-                        .con("error", e),
-                );
+            cabeza.insert(0, ("ruta", texto(&ruta)));
+            let informe = cuenta(Resultado::Error, &acciones, &cabeza).diagnostico(
+                Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
+                    .con("ruta", ruta)
+                    .con("error", e),
+            );
             return Hecho { acciones, informe };
         }
     }
@@ -467,12 +579,27 @@ mod tests {
     #[test]
     fn opciones() {
         let v = |a: &[&str]| a.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
-        assert_eq!(leer_opciones(&v(&[])), Ok(Opciones { simular: false }));
+        assert_eq!(leer_opciones(&v(&[])), Ok(Opciones::default()));
         assert_eq!(
             leer_opciones(&v(&["--simular"])),
-            Ok(Opciones { simular: true })
+            Ok(Opciones {
+                simular: true,
+                aplicar_puertas: false
+            })
         );
-        for args in [v(&["--simular", "--simular"]), v(&["--dry-run"]), v(&["x"])] {
+        assert_eq!(
+            leer_opciones(&v(&["--aplicar-puertas", "--simular"])),
+            Ok(Opciones {
+                simular: true,
+                aplicar_puertas: true
+            })
+        );
+        for args in [
+            v(&["--simular", "--simular"]),
+            v(&["--aplicar-puertas", "--aplicar-puertas"]),
+            v(&["--dry-run"]),
+            v(&["x"]),
+        ] {
             let i = leer_opciones(&args).err();
             assert_eq!(
                 i.as_ref().map(|i| (i.resultado, i.valor("motivo"))),

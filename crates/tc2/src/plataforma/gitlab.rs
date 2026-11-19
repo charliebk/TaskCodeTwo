@@ -16,10 +16,11 @@ use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_v
 use super::credenciales::{Credenciales, Rol};
 use super::errores;
 use super::http::{Base, Metodo, codificar};
-use super::puertas::{self, EstadoCheck, Lecturas};
+use super::puertas::{self, EstadoCheck, Lecturas, Objetivo, Origenes, Puerta};
 use super::{
-    Clave, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma,
-    PrAbierto, Proveedor, ReglasLeidas, TierGitLab, Usuario,
+    Clave, Creada, EstadoPuerta, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado,
+    Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas, TierGitLab, Usuario,
+    aplicar_en_lote,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -55,6 +56,57 @@ const GARANTIAS_PREMIUM: [&str; 6] = ["G03", "G04", "G05", "G06", "G10", "G12"];
 /// Nivel de acceso de Maintainer.
 const MAINTAINER: u64 = 40;
 
+/// Nivel de acceso de Developer (el agente y el revisor, F1-13 D6).
+const DEVELOPER: u64 = 30;
+
+/// Nivel «nadie» (`No one`).
+const NADIE: u64 = 0;
+
+/// Regla de aprobacion que crea `aplicar-puertas` en Premium.
+const REGLA_APROBACION: &str = "taskcodetwo-aprobacion";
+
+/// Niveles que `aplicar-puertas` pone a una rama protegida, siempre
+/// explicitos (la API pone Maintainer si no se dan, y el agente, Developer,
+/// se quedaria sin push; riesgo 1 del plan de TASK-118).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Niveles {
+    push: u64,
+    merge: u64,
+}
+
+/// Los niveles de una puerta: `develop` y `main` (solo por MR) sin push y
+/// con merge solo de Maintainer (G01: el merge es de la persona); las ramas
+/// de tarea y la de estado, push y merge de Developer. Nunca force-push.
+fn niveles_de(p: &Puerta) -> Niveles {
+    if p.solo_pr.is_some() {
+        Niveles {
+            push: NADIE,
+            merge: MAINTAINER,
+        }
+    } else {
+        Niveles {
+            push: DEVELOPER,
+            merge: DEVELOPER,
+        }
+    }
+}
+
+/// El nombre de GitLab de un patron del modelo: sin `refs/heads/` ni
+/// `refs/tags/`, y `**` como `*` (el comodin de GitLab).
+fn nombre_gitlab(patron: &str) -> String {
+    patron
+        .trim_start_matches("refs/heads/")
+        .trim_start_matches("refs/tags/")
+        .replace("**", "*")
+}
+
+/// Si una lista de niveles es exactamente `nivel`, sin usuarios ni grupos.
+fn solo_nivel(v: &[NivelApi], nivel: u64) -> bool {
+    v.len() == 1
+        && v.iter()
+            .all(|n| n.access_level == nivel && n.user_id.is_none() && n.group_id.is_none())
+}
+
 /// Endpoints de la API que usa el adaptador (lista cerrada).
 enum Endpoint<'a> {
     Usuario,
@@ -75,6 +127,11 @@ enum Endpoint<'a> {
     Proyecto,
     Rama(&'a str),
     Namespace(u64),
+    CrearRamaProtegida,
+    TagsProtegidos,
+    CrearTagProtegido,
+    AjustesProyecto,
+    CrearReglaAprobacion,
 }
 
 impl Endpoint<'_> {
@@ -132,6 +189,14 @@ impl Endpoint<'_> {
                 Metodo::Get,
                 format!("{p}/repository/branches/{}", codificar(rama)),
             ),
+            // Escrituras de `aplicar-puertas` (TASK-118): solo crean; los
+            // ajustes de merge del proyecto, con `PUT` idempotente. Ningun
+            // `DELETE` ni `PATCH`.
+            Self::CrearRamaProtegida => (Metodo::Post, format!("{p}/protected_branches")),
+            Self::TagsProtegidos => (Metodo::Get, format!("{p}/protected_tags?per_page=100")),
+            Self::CrearTagProtegido => (Metodo::Post, format!("{p}/protected_tags")),
+            Self::AjustesProyecto => (Metodo::Put, p),
+            Self::CrearReglaAprobacion => (Metodo::Post, format!("{p}/approval_rules")),
         }
     }
 }
@@ -279,6 +344,9 @@ struct CommitApi {
 struct ProyectoApi {
     #[serde(default)]
     only_allow_merge_if_pipeline_succeeds: Option<bool>,
+    /// `merge`, `rebase_merge` o `ff` (solo con sesion).
+    #[serde(default)]
+    merge_method: Option<String>,
     #[serde(default)]
     namespace: Option<NamespaceRefApi>,
 }
@@ -297,6 +365,13 @@ struct NamespaceApi {
 #[derive(Deserialize)]
 struct RamaApi {
     commit: CommitApi,
+}
+
+#[derive(Deserialize)]
+struct TagProtegidoApi {
+    name: String,
+    #[serde(default, deserialize_with = "super::nulo_por_defecto")]
+    create_access_levels: Vec<NivelApi>,
 }
 
 /// Adaptador de GitLab para un proyecto.
@@ -906,6 +981,257 @@ impl Plataforma for GitLab {
         let n: NamespaceApi = self.con.parsear(LEER_PLAN, &r.cuerpo)?;
         Ok(PlanObservado::GitLab(
             n.plan.as_deref().and_then(TierGitLab::de_plan),
+        ))
+    }
+
+    fn preparar_puertas(&self, ps: &[Puerta], origenes: &Origenes) -> Paso<PuertasLeidas> {
+        self.leer_para_aplicar(ps, origenes).map(|(l, _)| l)
+    }
+
+    fn aplicar_puertas(&self, ps: &[Puerta], origenes: &Origenes) -> Informe {
+        let op = puertas::APLICAR_PUERTAS;
+        let rol = Rol::Persona;
+        let (leidas, pa) = match self.leer_para_aplicar(ps, origenes) {
+            Ok(x) => x,
+            Err(i) => return i,
+        };
+        let mut ajustes = pa.ajustes_bien;
+        let mut aprobacion = pa.con_aprobacion;
+        // Una escritura; 409 es «ya existe» (otro llego antes).
+        let crear = |ep: Endpoint<'_>, datos: serde_json::Value| -> Paso<bool> {
+            let r = self
+                .con
+                .pedir(op, rol, self.ep(&ep), Some(&datos.to_string()))?;
+            if r.exito() {
+                Ok(true)
+            } else if r.estado == 409 {
+                Ok(false)
+            } else {
+                Err(self.con.traducir(op, rol, PERMISO_MERGE, &r))
+            }
+        };
+        aplicar_en_lote(ps, &leidas, |p, escrito| {
+            let mut nueva = false;
+            match &p.objetivo {
+                Objetivo::Ramas(r) => {
+                    let n = niveles_de(p);
+                    for nombre in r.iter().map(|x| nombre_gitlab(x)) {
+                        if pa.ramas.contains(&nombre) {
+                            continue;
+                        }
+                        nueva |= crear(
+                            Endpoint::CrearRamaProtegida,
+                            serde_json::json!({
+                                "name": nombre,
+                                "push_access_level": n.push,
+                                "merge_access_level": n.merge,
+                                "allow_force_push": false,
+                            }),
+                        )?;
+                        *escrito |= nueva;
+                    }
+                }
+                Objetivo::Tags(t) => {
+                    for nombre in t.iter().map(|x| nombre_gitlab(x)) {
+                        if pa.tags.contains(&nombre) {
+                            continue;
+                        }
+                        nueva |= crear(
+                            Endpoint::CrearTagProtegido,
+                            serde_json::json!({
+                                "name": nombre,
+                                "create_access_level": DEVELOPER,
+                            }),
+                        )?;
+                        *escrito |= nueva;
+                    }
+                }
+            }
+            if let Some(pr) = p.solo_pr {
+                if !ajustes {
+                    let r = self.con.pedir(
+                        op,
+                        rol,
+                        self.ep(&Endpoint::AjustesProyecto),
+                        Some(
+                            &serde_json::json!({
+                                "merge_method": "merge",
+                                "only_allow_merge_if_pipeline_succeeds": true,
+                            })
+                            .to_string(),
+                        ),
+                    )?;
+                    if !r.exito() {
+                        return Err(self.con.traducir(op, rol, PERMISO_MERGE, &r));
+                    }
+                    ajustes = true;
+                    nueva = true;
+                    *escrito = true;
+                }
+                if pa.premium && !aprobacion {
+                    nueva |= crear(
+                        Endpoint::CrearReglaAprobacion,
+                        serde_json::json!({
+                            "name": REGLA_APROBACION,
+                            "approvals_required": pr.aprobaciones,
+                            "rule_type": "any_approver",
+                        }),
+                    )?;
+                    *escrito |= nueva;
+                    aprobacion = true;
+                }
+            }
+            Ok(if nueva {
+                Creada::Nueva
+            } else {
+                Creada::YaExistia
+            })
+        })
+    }
+}
+
+/// Lo leido por `aplicar-puertas` que la escritura necesita.
+struct ParaAplicar {
+    /// Nombres de las ramas protegidas.
+    ramas: Vec<String>,
+    /// Nombres de los tags protegidos.
+    tags: Vec<String>,
+    /// El proyecto ya mergea con merge commit y exige el pipeline.
+    ajustes_bien: bool,
+    /// Premium o Ultimate: hay reglas de aprobacion.
+    premium: bool,
+    /// Ya hay una regla de aprobacion que pide al menos una.
+    con_aprobacion: bool,
+}
+
+impl GitLab {
+    /// Las lecturas de `aplicar-puertas`: la persona de la lista, lo que ya
+    /// esta protegido, D2 (cada check ya publicado en la cabeza de
+    /// `develop`: `revision-ia` por el revisor, los del pipeline por
+    /// cualquiera), los ajustes del proyecto y el tier. Lo existente se
+    /// reconoce por la rama o el tag protegido, no por el nombre de una
+    /// regla de aprobacion.
+    fn leer_para_aplicar(
+        &self,
+        ps: &[Puerta],
+        origenes: &Origenes,
+    ) -> Paso<(PuertasLeidas, ParaAplicar)> {
+        let op = puertas::APLICAR_PUERTAS;
+        let rol = Rol::Persona;
+        self.exigir_persona(op)?;
+        let (_, ruta) = self.ep(&Endpoint::RamasProtegidas);
+        let ramas: Vec<RamaProtegidaApi> =
+            self.con
+                .leer_paginas(op, rol, PERMISO_MERGE, ruta, |c| self.con.parsear(op, c))?;
+        let (_, ruta) = self.ep(&Endpoint::TagsProtegidos);
+        let tags: Vec<TagProtegidoApi> =
+            self.con
+                .leer_paginas(op, rol, PERMISO_MERGE, ruta, |c| self.con.parsear(op, c))?;
+        let develop: RamaApi = self.con.leer(
+            op,
+            rol,
+            PERMISO_LECTURA,
+            self.ep(&Endpoint::Rama("develop")),
+        )?;
+        if !sha_valido(&develop.commit.id) {
+            return Err(self.con.invalida_por(op, &t::RAMA_DESTINO_O_SHA));
+        }
+        let (_, ruta) = self.ep(&Endpoint::Estados(&develop.commit.id));
+        let estados: Vec<EstadoApi> =
+            self.con
+                .leer_paginas(op, rol, PERMISO_LECTURA, ruta, |c| self.con.parsear(op, c))?;
+        let vistos: Vec<(String, u64)> =
+            estados.into_iter().map(|e| (e.name, e.author.id)).collect();
+        let faltan = puertas::no_vistos(origenes, &vistos);
+        if !faltan.is_empty() {
+            return Err(puertas::sin_origen_visto(faltan));
+        }
+        let proyecto: ProyectoApi =
+            self.con
+                .leer(op, rol, PERMISO_LECTURA, self.ep(&Endpoint::Proyecto))?;
+        let ajustes_bien = proyecto.merge_method.as_deref() == Some("merge")
+            && proyecto.only_allow_merge_if_pipeline_succeeds == Some(true);
+        let premium = matches!(
+            self.leer_plan(rol).map_err(|mut i| {
+                op.clone_into(&mut i.comando);
+                i
+            })?,
+            PlanObservado::GitLab(Some(t)) if t >= TierGitLab::Premium
+        );
+        let con_aprobacion = premium && {
+            let reglas: Vec<ReglaAprobacionApi> = self.con.leer(
+                op,
+                rol,
+                PERMISO_LECTURA,
+                self.ep(&Endpoint::ReglasAprobacion),
+            )?;
+            reglas.iter().any(|r| r.approvals_required >= 1)
+        };
+        let mut leidas = PuertasLeidas::default();
+        for p in ps {
+            let estado = match &p.objetivo {
+                Objetivo::Ramas(r) => {
+                    let n = niveles_de(p);
+                    let mut e = EstadoPuerta::Existe;
+                    for nombre in r.iter().map(|x| nombre_gitlab(x)) {
+                        match ramas.iter().find(|x| x.name == nombre) {
+                            None => e = EstadoPuerta::Falta,
+                            Some(x)
+                                if x.allow_force_push
+                                    || !solo_nivel(&x.push_access_levels, n.push)
+                                    || !solo_nivel(&x.merge_access_levels, n.merge) =>
+                            {
+                                if e != EstadoPuerta::Falta {
+                                    e = EstadoPuerta::Difiere;
+                                }
+                            }
+                            Some(_) => {}
+                        }
+                    }
+                    // Proteccion como la del modelo pero sin los ajustes de
+                    // merge del proyecto o sin la regla de aprobacion
+                    // (Premium): falta completarla, p. ej. tras un corte
+                    // entre proteger la rama y el `PUT`. Esas escrituras no
+                    // tocan la proteccion; `Difiere` queda para una
+                    // proteccion distinta del modelo, que no se toca.
+                    if e == EstadoPuerta::Existe
+                        && p.solo_pr.is_some()
+                        && (!ajustes_bien || (premium && !con_aprobacion))
+                    {
+                        e = EstadoPuerta::Falta;
+                    }
+                    e
+                }
+                Objetivo::Tags(t) => {
+                    let mut e = EstadoPuerta::Existe;
+                    for nombre in t.iter().map(|x| nombre_gitlab(x)) {
+                        match tags.iter().find(|x| x.name == nombre) {
+                            None => e = EstadoPuerta::Falta,
+                            Some(x) if !solo_nivel(&x.create_access_levels, DEVELOPER) => {
+                                if e != EstadoPuerta::Falta {
+                                    e = EstadoPuerta::Difiere;
+                                }
+                            }
+                            Some(_) => {}
+                        }
+                    }
+                    e
+                }
+            };
+            leidas.puertas.push((p.nombre_completo(), estado));
+        }
+        if !premium {
+            leidas.notas.push(("sin-aprobaciones", "si".to_owned()));
+        }
+        Ok((
+            leidas,
+            ParaAplicar {
+                ramas: ramas.into_iter().map(|r| r.name).collect(),
+                tags: tags.into_iter().map(|t| t.name).collect(),
+                ajustes_bien,
+                premium,
+                con_aprobacion,
+            },
         ))
     }
 }

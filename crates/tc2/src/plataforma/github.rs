@@ -15,10 +15,10 @@ use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_v
 use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
-use super::puertas::{self, EstadoCheck, Lecturas};
+use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
-    FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado, Plataforma, PrAbierto,
-    Proveedor, ReglasLeidas, Usuario,
+    Creada, EstadoPuerta, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado,
+    Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas, Usuario, aplicar_en_lote,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::i18n::catalogo::plataforma as t;
@@ -41,6 +41,10 @@ pub const PERMISO_LEER_PUERTAS: &str = "metadata:read";
 /// 2026-11-17).
 pub const PERMISO_CHECKS: &str = "checks:read";
 
+/// Permiso de `aplicar-puertas`: leer y crear rulesets (GitHub App:
+/// «Administration» write).
+pub const PERMISO_APLICAR_PUERTAS: &str = "administration:write";
+
 /// Permiso de `leer-permisos-ci`.
 pub const PERMISO_PERMISOS_CI: &str = "administration:read";
 
@@ -61,6 +65,7 @@ enum Endpoint<'a> {
     Merge(u64),
     ReglasRama(&'a str),
     Rulesets,
+    CrearRuleset,
     CheckRuns(&'a str),
     CheckRunsDeRama(&'a str),
     Reviews(u64),
@@ -90,6 +95,7 @@ impl Endpoint<'_> {
             Self::Merge(n) => (Metodo::Put, format!("{r}/pulls/{n}/merge")),
             Self::ReglasRama(rama) => (Metodo::Get, format!("{r}/rules/branches/{rama}")),
             Self::Rulesets => (Metodo::Get, format!("{r}/rulesets?per_page=100")),
+            Self::CrearRuleset => (Metodo::Post, format!("{r}/rulesets")),
             Self::CheckRuns(sha) => (
                 Metodo::Get,
                 format!("{r}/commits/{sha}/check-runs?per_page=100"),
@@ -742,6 +748,88 @@ impl Plataforma for GitHub {
             organizacion: r.owner.tipo == "Organization",
         })
     }
+
+    fn preparar_puertas(&self, ps: &[Puerta], origenes: &Origenes) -> Paso<PuertasLeidas> {
+        let op = puertas::APLICAR_PUERTAS;
+        self.exigir_persona(op)?;
+        // Sin rulesets en el plan (403 con aviso), `rechazada motivo=plan`.
+        let existentes = self.rulesets_de(op, Rol::Persona, PERMISO_APLICAR_PUERTAS)?;
+        // D2: cada check, ya publicado por su App en la cabeza de `develop`.
+        let (_, ruta) = self.ep(&Endpoint::CheckRunsDeRama("develop"));
+        let runs: Vec<CheckRunApi> =
+            self.con
+                .leer_paginas(op, Rol::Persona, PERMISO_CHECKS, ruta, |c| {
+                    self.con
+                        .parsear::<CheckRunsApi>(op, c)
+                        .map(|x| x.check_runs)
+                })?;
+        let vistos: Vec<(String, u64)> = runs
+            .into_iter()
+            .filter_map(|r| r.app.map(|a| (r.name, a.id)))
+            .collect();
+        let faltan = puertas::no_vistos(origenes, &vistos);
+        if !faltan.is_empty() {
+            return Err(puertas::sin_origen_visto(faltan));
+        }
+        // Lo existente se reconoce por el nombre y no se compara: no se
+        // toca (D3), asi que da igual si difiere.
+        Ok(PuertasLeidas {
+            puertas: ps
+                .iter()
+                .map(|p| {
+                    let n = p.nombre_completo();
+                    let e = if existentes.contains(&n) {
+                        EstadoPuerta::Existe
+                    } else {
+                        EstadoPuerta::Falta
+                    };
+                    (n, e)
+                })
+                .collect(),
+            notas: Vec::new(),
+        })
+    }
+
+    fn aplicar_puertas(&self, ps: &[Puerta], origenes: &Origenes) -> Informe {
+        let op = puertas::APLICAR_PUERTAS;
+        let leidas = match self.preparar_puertas(ps, origenes) {
+            Ok(l) => l,
+            Err(i) => return i,
+        };
+        aplicar_en_lote(ps, &leidas, |p, _escrito| {
+            let cuerpo = puertas::ruleset_github(p, Some(origenes));
+            if cuerpo.get("_nota").is_some() {
+                // Nunca se envia un check sin su `integration_id`.
+                return Err(puertas::sin_origen_visto(
+                    p.checks
+                        .iter()
+                        .filter(|c| origenes.de(c).is_none())
+                        .map(|c| (*c).to_owned())
+                        .collect(),
+                ));
+            }
+            let r = self.con.pedir(
+                op,
+                Rol::Persona,
+                self.ep(&Endpoint::CrearRuleset),
+                Some(&cuerpo.to_string()),
+            )?;
+            if r.exito() {
+                return Ok(Creada::Nueva);
+            }
+            // 422: el nombre ya existe si otro llego antes; se relee.
+            if r.estado == 422
+                && self
+                    .rulesets_de(op, Rol::Persona, PERMISO_APLICAR_PUERTAS)
+                    .is_ok_and(|v| v.contains(&p.nombre_completo()))
+            {
+                return Ok(Creada::YaExistia);
+            }
+            Err(self
+                .con
+                .traducir(op, Rol::Persona, PERMISO_APLICAR_PUERTAS, &r))
+        })
+    }
 }
 
 /// Rama y rol de `leer-puertas`.
@@ -779,6 +867,16 @@ impl GitHub {
         }
         let rulesets: Vec<RulesetApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
         Ok(Some(rulesets.into_iter().map(|r| r.name).collect()))
+    }
+
+    /// Los nombres de todos los rulesets del repo para `op`, paginados; el
+    /// 403 de plan es su `rechazada motivo=plan` (`errores::traducir`).
+    fn rulesets_de(&self, op: &str, rol: Rol, permiso: &'static str) -> Paso<Vec<String>> {
+        let (_, ruta) = self.ep(&Endpoint::Rulesets);
+        let rulesets: Vec<RulesetApi> = self
+            .con
+            .leer_paginas(op, rol, permiso, ruta, |c| self.con.parsear(op, c))?;
+        Ok(rulesets.into_iter().map(|r| r.name).collect())
     }
 
     /// Las reglas de `rama` con los `rulesets` ya leidos; los check-runs de

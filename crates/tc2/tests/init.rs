@@ -18,6 +18,7 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use comun::http_mock::{Mock, Recibida, Simulada, serie};
 use comun::{Fixture, escribir};
 use tc2::contrato::Resultado;
 use tc2::git::Git;
@@ -184,7 +185,13 @@ fn correr(
         git: g,
         credenciales,
     };
-    init(Opciones { simular }, &c)
+    init(
+        Opciones {
+            simular,
+            aplicar_puertas: false,
+        },
+        &c,
+    )
 }
 
 fn stdout(h: &Hecho) -> String {
@@ -1179,4 +1186,569 @@ fn init_y_desinstalar_se_reconocen() {
         lista.contains(" clase=gitignore dueno=taskcodetwo decision=persona"),
         "{lista}"
     );
+}
+
+// --- TASK-118: `tc2 init --aplicar-puertas` ---------------------------------
+//
+// Contra el doble HTTP comun (`comun::http_mock`), que acepta escrituras y
+// registra cada peticion con su cuerpo. El repo se deja como lo dejaria un
+// primer `init` sin la opcion: `develop` y `main` publicadas en el remoto
+// bare y `personas.yml` con la persona del token.
+
+/// Id del revisor IA (`plataforma.revisor_id`) en los tests.
+const REVISOR: u64 = 99001;
+
+/// `init` con `--aplicar-puertas`.
+fn aplicar(dir: &Path, g: &Git, simular: bool) -> Hecho {
+    let c = Contexto {
+        dir,
+        git: g,
+        credenciales: &con_token,
+    };
+    init(
+        Opciones {
+            simular,
+            aplicar_puertas: true,
+        },
+        &c,
+    )
+}
+
+/// Configuracion con la clave `plataforma` y, si se da, `revisor_id`.
+fn config_puertas(proveedor: &str, api: &str, revisor: Option<u64>) -> String {
+    let mut s =
+        format!("---\nformato: 2\nplataforma:\n  proveedor: \"{proveedor}\"\n  api: \"{api}\"\n");
+    if let Some(id) = revisor {
+        s.push_str(&format!("  revisor_id: {id}\n"));
+    }
+    s
+}
+
+/// Repo con `develop` y `main` ya en el remoto y `personas.yml` escrito por
+/// un primer `init` sin la opcion contra `mock`.
+fn repo_listo(f: &Fixture, config: &str) -> (PathBuf, Git) {
+    let repo = repo_vacio(f);
+    escribir(&repo, ".taskcode/config.yml", config);
+    let b = bare(f);
+    f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
+    let g = git_con_ssh(f, &b);
+    let h = correr(&repo, &g, false, &con_token);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{}", stdout(&h));
+    assert!(
+        repo.join(".taskcode").join("personas.yml").is_file(),
+        "{}",
+        stdout(&h)
+    );
+    (repo, g)
+}
+
+/// Escrituras (`POST`, `PUT`, `PATCH`, `DELETE`) que recibio el doble desde
+/// la peticion `desde`.
+fn escrituras(m: &Mock, desde: usize) -> Vec<Recibida> {
+    m.recibidas()
+        .into_iter()
+        .skip(desde)
+        .filter(|r| !r.linea.starts_with("GET "))
+        .collect()
+}
+
+/// GitHub con la persona 1001, los rulesets `rulesets` y los check-runs de
+/// la cabeza de `develop` publicados por `(nombre, app.id)`.
+fn github_mock(rulesets: &[&str], checks: &[(&str, u64)]) -> Mock {
+    let m = Mock::nuevo();
+    m.responder(
+        "GET",
+        "/user",
+        Simulada::json(200, r#"{"login":"carlos","id":1001,"type":"User"}"#),
+    );
+    let rs: Vec<serde_json::Value> = rulesets
+        .iter()
+        .enumerate()
+        .map(|(i, n)| serde_json::json!({"id": i + 1, "name": n}))
+        .collect();
+    m.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(200, &serde_json::Value::from(rs).to_string()),
+    );
+    m.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[]"),
+    );
+    let runs: Vec<serde_json::Value> = checks
+        .iter()
+        .map(|(n, app)| {
+            serde_json::json!({"name": n, "status": "completed", "conclusion": "success", "app": {"id": app}})
+        })
+        .collect();
+    m.responder(
+        "GET",
+        "/repos/o/r/commits/heads/develop/check-runs",
+        Simulada::json(
+            200,
+            &serde_json::json!({"total_count": runs.len(), "check_runs": runs}).to_string(),
+        ),
+    );
+    m.responder(
+        "POST",
+        "/repos/o/r/rulesets",
+        Simulada::json(201, r#"{"id":77}"#),
+    );
+    m
+}
+
+/// Los tres checks del modelo publicados por su origen en GitHub.
+const CHECKS_GITHUB: [(&str, u64); 3] = [
+    ("verificacion", 15368),
+    ("revision-ia", REVISOR),
+    ("carril", 15368),
+];
+
+/// `(ruta, decision, motivo)` de las lineas `ruleset`.
+fn rulesets_de(h: &Hecho) -> Vec<(String, &'static str, Option<String>)> {
+    de_clase(h, "ruleset")
+}
+
+/// Criterio 1 (GitHub): con los checks publicados por sus origenes, `init
+/// --aplicar-puertas` hace `POST /rulesets` de las que faltan, con el
+/// `integration_id` de cada check y sin `_nota`, y no toca la que ya
+/// existe. Una segunda ejecucion con las cinco ya creadas no escribe nada.
+#[test]
+fn aplicar_puertas_en_github_crea_las_que_faltan() {
+    let _serie = serie();
+    let m = github_mock(&["taskcodetwo-tareas", "de-la-persona"], &CHECKS_GITHUB);
+    let f = Fixture::nueva("init-puertas-gh");
+    let (repo, g) = repo_listo(&f, &config_puertas("github", &m.base(), Some(REVISOR)));
+    let antes = m.recibidas().len();
+
+    // `--simular` dice lo mismo sin escribir.
+    let sim = aplicar(&repo, &g, true);
+    assert_eq!(sim.informe.resultado, Resultado::Ok, "{}", stdout(&sim));
+    assert!(escrituras(&m, antes).is_empty());
+
+    let h = aplicar(&repo, &g, false);
+    let texto = stdout(&h);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{texto}");
+    let crea = |n: &str| (format!("taskcodetwo-{n}"), "crea", None);
+    assert_eq!(
+        rulesets_de(&h),
+        [
+            crea("develop"),
+            crea("main"),
+            crea("ramas-de-tarea"),
+            ("taskcodetwo-tareas".to_owned(), "existe", None),
+            crea("tags-version"),
+        ],
+        "{texto}"
+    );
+    assert_eq!(rulesets_de(&sim), rulesets_de(&h));
+    // Lo unico que crea esta ejecucion son los cuatro rulesets.
+    assert_eq!(h.informe.valor("crea"), Some("4"), "{texto}");
+    let posts = escrituras(&m, antes);
+    assert_eq!(posts.len(), 4, "{posts:?}");
+    let mut nombres = Vec::new();
+    for p in &posts {
+        assert_eq!(p.linea, "POST /repos/o/r/rulesets");
+        let v: serde_json::Value = serde_json::from_str(&p.cuerpo).unwrap();
+        assert!(v.get("_nota").is_none(), "{v}");
+        assert_eq!(v["bypass_actors"], serde_json::json!([]));
+        nombres.push(v["name"].as_str().unwrap().to_owned());
+        for r in v["rules"].as_array().unwrap() {
+            if r["type"] == "required_status_checks" {
+                for c in r["parameters"]["required_status_checks"]
+                    .as_array()
+                    .unwrap()
+                {
+                    let esperado = if c["context"] == "revision-ia" {
+                        REVISOR
+                    } else {
+                        15368
+                    };
+                    assert_eq!(c["integration_id"], esperado, "{v}");
+                }
+            }
+        }
+    }
+    assert_eq!(
+        nombres,
+        [
+            "taskcodetwo-develop",
+            "taskcodetwo-main",
+            "taskcodetwo-ramas-de-tarea",
+            "taskcodetwo-tags-version"
+        ]
+    );
+    // El ruleset ajeno y el existente no se tocan: ni PUT ni DELETE.
+    assert!(posts.iter().all(|p| p.linea.starts_with("POST ")));
+
+    // Segunda ejecucion, con las cinco ya en GitHub: ninguna escritura.
+    let m2 = github_mock(
+        &[
+            "taskcodetwo-develop",
+            "taskcodetwo-main",
+            "taskcodetwo-ramas-de-tarea",
+            "taskcodetwo-tareas",
+            "taskcodetwo-tags-version",
+        ],
+        &CHECKS_GITHUB,
+    );
+    escribir(
+        &repo,
+        ".taskcode/config.yml",
+        &config_puertas("github", &m2.base(), Some(REVISOR)),
+    );
+    let h2 = aplicar(&repo, &g, false);
+    assert_eq!(
+        h2.informe.resultado,
+        Resultado::SinCambios,
+        "{}",
+        stdout(&h2)
+    );
+    assert!(
+        rulesets_de(&h2).iter().all(|(_, d, _)| *d == "existe"),
+        "{}",
+        stdout(&h2)
+    );
+    assert!(escrituras(&m2, 0).is_empty(), "{:?}", escrituras(&m2, 0));
+}
+
+/// GitLab con la persona 1001 en Free, `main` ya protegida con los valores
+/// de GitLab al crear el proyecto (push y merge de Maintainer), los estados
+/// de la cabeza de `develop` publicados por `(nombre, author.id)` y las
+/// ramas y tags protegidos `protegidas` y `tags` (JSON).
+fn gitlab_mock(protegidas: &str, tags: &str, estados: &[(&str, u64)]) -> Mock {
+    gitlab_mock_con(protegidas, tags, estados, AJUSTES_FF)
+}
+
+/// Ajustes del proyecto recien creado: merge por fast-forward y sin exigir
+/// el pipeline.
+const AJUSTES_FF: &str =
+    r#"{"only_allow_merge_if_pipeline_succeeds":false,"merge_method":"ff","namespace":{"id":9}}"#;
+
+/// Ajustes del proyecto como los deja `aplicar-puertas`.
+const AJUSTES_BIEN: &str =
+    r#"{"only_allow_merge_if_pipeline_succeeds":true,"merge_method":"merge","namespace":{"id":9}}"#;
+
+/// Como [`gitlab_mock`], con los ajustes del proyecto `proyecto` (JSON).
+fn gitlab_mock_con(protegidas: &str, tags: &str, estados: &[(&str, u64)], proyecto: &str) -> Mock {
+    let m = Mock::nuevo();
+    let p = "/api/v4/projects/o%2Fr";
+    m.responder(
+        "GET",
+        "/api/v4/user",
+        Simulada::json(200, r#"{"username":"carlos","id":1001,"bot":false}"#),
+    );
+    m.responder(
+        "GET",
+        &format!("{p}/protected_branches"),
+        Simulada::json(200, protegidas),
+    );
+    m.responder(
+        "GET",
+        &format!("{p}/protected_tags"),
+        Simulada::json(200, tags),
+    );
+    m.responder(
+        "GET",
+        &format!("{p}/approval_rules"),
+        Simulada::json(200, "[]"),
+    );
+    m.responder("GET", p, Simulada::json(200, proyecto));
+    m.responder(
+        "GET",
+        "/api/v4/namespaces/9",
+        Simulada::json(200, r#"{"plan":"free"}"#),
+    );
+    let sha = "c".repeat(40);
+    m.responder(
+        "GET",
+        &format!("{p}/repository/branches/develop"),
+        Simulada::json(200, &format!(r#"{{"commit":{{"id":"{sha}"}}}}"#)),
+    );
+    let estados: Vec<serde_json::Value> = estados
+        .iter()
+        .enumerate()
+        .map(|(i, (n, a))| {
+            serde_json::json!({"id": i + 1, "name": n, "status": "success", "author": {"id": a}})
+        })
+        .collect();
+    m.responder(
+        "GET",
+        &format!("{p}/repository/commits/{sha}/statuses"),
+        Simulada::json(200, &serde_json::Value::from(estados).to_string()),
+    );
+    m.responder(
+        "POST",
+        &format!("{p}/protected_branches"),
+        Simulada::json(201, "{}"),
+    );
+    m.responder(
+        "POST",
+        &format!("{p}/protected_tags"),
+        Simulada::json(201, "{}"),
+    );
+    m.responder("PUT", p, Simulada::json(200, "{}"));
+    m
+}
+
+/// `main` como la protege GitLab al crear el proyecto.
+const MAIN_POR_DEFECTO: &str = r#"[{"name":"main","push_access_levels":[{"access_level":40}],"merge_access_levels":[{"access_level":40}],"allow_force_push":false}]"#;
+
+/// Criterio 1 (GitLab): ramas y tags protegidos con niveles explicitos
+/// (push de Developer y sin force-push en la rama de estado y las de tarea;
+/// `develop` sin push y merge de Maintainer), los ajustes de merge del
+/// proyecto, ninguna peticion `DELETE`, y `main`, ya protegida distinta,
+/// sale `existe motivo=difiere` sin tocarse. En Free, `sin-aprobaciones=si`.
+#[test]
+fn aplicar_puertas_en_gitlab_protege_con_niveles_explicitos() {
+    let _serie = serie();
+    let estados = [
+        ("verificacion", 3001),
+        ("carril", 3001),
+        ("revision-ia", REVISOR),
+    ];
+    let m = gitlab_mock(MAIN_POR_DEFECTO, "[]", &estados);
+    let f = Fixture::nueva("init-puertas-gl");
+    let api = format!("{}/api/v4", m.base());
+    let (repo, g) = repo_listo(&f, &config_puertas("gitlab", &api, Some(REVISOR)));
+    let antes = m.recibidas().len();
+    let h = aplicar(&repo, &g, false);
+    let texto = stdout(&h);
+    assert_eq!(h.informe.resultado, Resultado::Ok, "{texto}");
+    assert_eq!(h.informe.valor("sin-aprobaciones"), Some("si"), "{texto}");
+    let crea = |n: &str| (format!("taskcodetwo-{n}"), "crea", None);
+    assert_eq!(
+        rulesets_de(&h),
+        [
+            crea("develop"),
+            (
+                "taskcodetwo-main".to_owned(),
+                "existe",
+                Some("difiere".to_owned())
+            ),
+            crea("ramas-de-tarea"),
+            crea("tareas"),
+            crea("tags-version"),
+        ],
+        "{texto}"
+    );
+    let es = escrituras(&m, antes);
+    assert!(
+        es.iter()
+            .all(|r| !r.linea.starts_with("DELETE ") && !r.linea.starts_with("PATCH ")),
+        "{es:?}"
+    );
+    let ramas: BTreeMap<String, serde_json::Value> = es
+        .iter()
+        .filter(|r| r.linea == "POST /api/v4/projects/o%2Fr/protected_branches")
+        .map(|r| {
+            let v: serde_json::Value = serde_json::from_str(&r.cuerpo).unwrap();
+            (v["name"].as_str().unwrap().to_owned(), v)
+        })
+        .collect();
+    assert_eq!(
+        ramas.keys().map(String::as_str).collect::<Vec<_>>(),
+        [
+            "develop",
+            "feature/*",
+            "fix/*",
+            "hotfix/*",
+            "taskcodetwo/tareas"
+        ],
+        "{es:?}"
+    );
+    for (n, v) in &ramas {
+        assert_eq!(v["allow_force_push"], false, "{n}");
+        let (push, merge) = if n == "develop" { (0, 40) } else { (30, 30) };
+        assert_eq!(v["push_access_level"], push, "{n}: {v}");
+        assert_eq!(v["merge_access_level"], merge, "{n}: {v}");
+    }
+    let tags: Vec<serde_json::Value> = es
+        .iter()
+        .filter(|r| r.linea == "POST /api/v4/projects/o%2Fr/protected_tags")
+        .map(|r| serde_json::from_str(&r.cuerpo).unwrap())
+        .collect();
+    assert_eq!(
+        tags,
+        [serde_json::json!({"name": "v*", "create_access_level": 30})]
+    );
+    let ajustes: Vec<&Recibida> = es
+        .iter()
+        .filter(|r| r.linea == "PUT /api/v4/projects/o%2Fr")
+        .collect();
+    assert_eq!(ajustes.len(), 1, "{es:?}");
+    let v: serde_json::Value = serde_json::from_str(&ajustes[0].cuerpo).unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({"merge_method": "merge", "only_allow_merge_if_pipeline_succeeds": true})
+    );
+    // Nada sobre `main` ni sobre reglas de aprobacion (Free).
+    assert!(
+        es.iter()
+            .all(|r| !r.cuerpo.contains("\"main\"") && !r.linea.contains("approval_rules")),
+        "{es:?}"
+    );
+    assert_eq!(es.len(), 7, "{es:?}");
+
+    // Segunda ejecucion con todo ya protegido y los ajustes de merge ya
+    // puestos (sin ellos, `develop` se completaria): ninguna escritura.
+    let todo = r#"[
+      {"name":"main","push_access_levels":[{"access_level":40}],"merge_access_levels":[{"access_level":40}],"allow_force_push":false},
+      {"name":"develop","push_access_levels":[{"access_level":0}],"merge_access_levels":[{"access_level":40}],"allow_force_push":false},
+      {"name":"feature/*","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false},
+      {"name":"fix/*","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false},
+      {"name":"hotfix/*","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false},
+      {"name":"taskcodetwo/tareas","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false}
+    ]"#;
+    let m2 = gitlab_mock_con(
+        todo,
+        r#"[{"name":"v*","create_access_levels":[{"access_level":30}]}]"#,
+        &estados,
+        AJUSTES_BIEN,
+    );
+    escribir(
+        &repo,
+        ".taskcode/config.yml",
+        &config_puertas("gitlab", &format!("{}/api/v4", m2.base()), Some(REVISOR)),
+    );
+    let h2 = aplicar(&repo, &g, false);
+    assert_eq!(
+        h2.informe.resultado,
+        Resultado::SinCambios,
+        "{}",
+        stdout(&h2)
+    );
+    assert!(escrituras(&m2, 0).is_empty(), "{:?}", escrituras(&m2, 0));
+}
+
+/// Criterio 2: sin el origen de un check (`revisor_id` ausente o 0) o sin
+/// los checks ya publicados por su origen en `develop` (un `revision-ia`
+/// de otra App, `verificacion` sin publicar), la opcion se rechaza con el
+/// motivo y lo que falta, sin ninguna escritura en la plataforma ni en el
+/// disco.
+#[test]
+fn aplicar_puertas_sin_origen_se_rechaza_sin_escribir() {
+    let _serie = serie();
+    /// `(revisor_id, checks publicados, faltan=)`.
+    type Caso<'a> = (Option<u64>, Vec<(&'a str, u64)>, &'a str);
+    let casos: [Caso<'_>; 4] = [
+        (None, CHECKS_GITHUB.to_vec(), "revision-ia"),
+        (Some(0), CHECKS_GITHUB.to_vec(), "revision-ia"),
+        (
+            Some(REVISOR),
+            vec![
+                ("verificacion", 15368),
+                ("revision-ia", 4242),
+                ("carril", 15368),
+            ],
+            "revision-ia",
+        ),
+        (
+            Some(REVISOR),
+            vec![("verificacion", 4242), ("revision-ia", REVISOR)],
+            "verificacion,carril",
+        ),
+    ];
+    for (revisor, checks, faltan) in casos {
+        let m = github_mock(&[], &checks);
+        let f = Fixture::nueva("init-puertas-sin-origen");
+        let (repo, g) = repo_listo(&f, &config_puertas("github", &m.base(), revisor));
+        let antes = m.recibidas().len();
+        let disco = instantanea(&repo);
+        for simular in [true, false] {
+            let h = aplicar(&repo, &g, simular);
+            let s = h.salida_en(false, Idioma::Es);
+            assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", s.stdout);
+            let fin = s.stdout.lines().last().unwrap_or_default().to_owned();
+            assert!(
+                fin.starts_with(&format!(
+                    "init rechazada motivo=puertas-sin-origen faltan={faltan} ruta=taskcodetwo-develop "
+                )),
+                "{fin}"
+            );
+            assert!(
+                rulesets_de(&h)
+                    .iter()
+                    .all(|(_, d, m)| *d == "rechaza" && m.as_deref() == Some("puertas-sin-origen")),
+                "{}",
+                s.stdout
+            );
+            // El diagnostico dice que hacer.
+            assert!(
+                s.stderr.contains("tc2 init --aplicar-puertas"),
+                "{}",
+                s.stderr
+            );
+        }
+        assert!(
+            escrituras(&m, antes).is_empty(),
+            "{:?}",
+            escrituras(&m, antes)
+        );
+        assert_eq!(disco, instantanea(&repo));
+    }
+}
+
+/// Criterio 2 (resto de la precondicion): sin `personas.yml`, con `develop`
+/// sin publicar o con la persona fuera de la lista, la opcion se rechaza
+/// con su motivo y sin escribir en la plataforma.
+#[test]
+fn aplicar_puertas_exige_personas_ramas_y_persona() {
+    let _serie = serie();
+    let m = github_mock(&[], &CHECKS_GITHUB);
+    let config = config_puertas("github", &m.base(), Some(REVISOR));
+
+    // Sin `personas.yml` (repo con remoto pero sin el primer `init`).
+    let f = Fixture::nueva("init-puertas-personas");
+    let (repo, g) = repo_listo(&f, &config);
+    std::fs::remove_file(repo.join(".taskcode").join("personas.yml")).unwrap();
+    let h = aplicar(&repo, &g, false);
+    assert_eq!(
+        h.informe.valor("motivo"),
+        Some("sin-personas"),
+        "{}",
+        stdout(&h)
+    );
+    // `personas.yml` no se crea en esta ejecucion: el plan se rechaza entero.
+    assert!(!repo.join(".taskcode").join("personas.yml").exists());
+
+    // La persona del token no esta en la lista.
+    let f = Fixture::nueva("init-puertas-lista");
+    let (repo, g) = repo_listo(&f, &config);
+    escribir(
+        &repo,
+        ".taskcode/personas.yml",
+        "---\npersonas:\n  - {id: 7, login: \"otra\"}\n",
+    );
+    let h = aplicar(&repo, &g, false);
+    assert_eq!(
+        h.informe.valor("motivo"),
+        Some("sin-persona"),
+        "{}",
+        stdout(&h)
+    );
+
+    // `develop` con un commit local que `origin` no tiene.
+    let f = Fixture::nueva("init-puertas-delante");
+    let (repo, g) = repo_listo(&f, &config);
+    f.crudo(
+        &repo,
+        &[
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "local",
+            "--no-verify",
+        ],
+    );
+    let h = aplicar(&repo, &g, false);
+    assert_eq!(
+        h.informe.valor("motivo"),
+        Some("ramas-por-delante"),
+        "{}",
+        stdout(&h)
+    );
+    assert!(escrituras(&m, 0).is_empty(), "{:?}", escrituras(&m, 0));
 }
