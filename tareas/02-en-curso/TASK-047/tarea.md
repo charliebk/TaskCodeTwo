@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-047-f6-1-identidades-agente-implementador
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F6-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-19T08:52:15Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T09:08:21Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T09:08:26Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
