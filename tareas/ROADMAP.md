@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-043, TASK-045, TASK-046, TASK-049, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
+- **En marcha:** TASK-049 (en diseño)
+- **Listas para empezar:** TASK-043, TASK-045, TASK-046, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -153,7 +153,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 |---|---|---|---|---|---|
 | — | TASK-047 | F6-1 Identidades: agente implementador | — | TASK-007 | ✅ terminada |
 | — | TASK-048 | F6-2 review: abre el PR contra develop con la identidad del agente | — | TASK-021, TASK-047 | ✅ terminada |
-| 4 | TASK-049 | F6-3 Revisor en CI con las skills de dominio de la 0.16 | — | TASK-044, TASK-048 | lista para empezar |
+| 4 | TASK-049 | F6-3 Revisor en CI con las skills de dominio de la 0.16 | — | TASK-044, TASK-048 | ▶ en diseño |
 | 9 | TASK-050 | F6-4 Busqueda de errores | — | TASK-049 | espera a TASK-049 |
 | 10 | TASK-051 | F6-5 Hallazgos estructurados | — | TASK-050 | espera a TASK-050 |
 | 11 | TASK-052 | F6-6 Rondas incrementales | — | TASK-051 | espera a TASK-051 |

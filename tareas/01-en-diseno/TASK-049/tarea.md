@@ -6,10 +6,10 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-19
 dependencias: [TASK-044, TASK-048]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 ## Criterios de aceptacion
 - [ ] Un diff Rust + Vue lanza las dos de dominio
 - [ ] Cumple lo que pide la tarea F6-3 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-19T21:59:15Z | plan | automatico | persona | 0.16.1 |
