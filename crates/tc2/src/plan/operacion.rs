@@ -4,7 +4,8 @@
 //!
 //! - Quien: la tarea de otra persona se rechaza (`de-otra-persona`, o
 //!   `asignado-heredado`); estados de origen `planificada` y `en-diseno`; en
-//!   pausa, `pausada`.
+//!   pausa, `pausada`; con el plan ya aprobado, `plan-aprobado` (como
+//!   `plan guardar`).
 //! - El enunciado tiene que valer ([`Enunciado::validar`]): si no, se
 //!   rechaza con su motivo sin escribir nada.
 //! - Carril: el mayor de [`Carril::declarado`] por el tipo, el ya congelado
@@ -266,6 +267,10 @@ impl Operacion for Planificar {
         }
         if !PLANIFICABLES.contains(&t.estado.as_str()) {
             return Err(por_estado(&self.id, &t.estado, NOMBRE, &PLANIFICABLES));
+        }
+        // Como `plan guardar`: un plan aprobado no se replanifica.
+        if t.plan_aprobado {
+            return Err(self.rechazo("plan-aprobado", Mensaje::nuevo(&txt::PLAN_APROBADO)));
         }
         if cuerpo.en_pausa() {
             return Err(self.rechazo("pausada", Mensaje::nuevo(&txt::PAUSADA)));
@@ -556,17 +561,67 @@ mod tests {
                 "TASK-004/tarea.md",
                 md("feature", "planificada", &[]).replace("TASK-001", "TASK-004"),
             ),
+            (
+                "TASK-005/tarea.md",
+                md("feature", "en-diseno", &["a"])
+                    .replace("TASK-001", "TASK-005")
+                    .replace("plan_aprobado: false", "plan_aprobado: true"),
+            ),
+            (
+                "TASK-006/tarea.md",
+                md("feature", "planificada", &["a"]).replace("TASK-001", "TASK-006")
+                    + "| 2026-11-17T09:00:00Z | pausa | manual | agente | 0.1 |\n",
+            ),
         ]);
         for (id, esperado) in [
             ("TASK-001", "estado-no-valido"),
             ("TASK-002", "objetivo-vacio"),
             ("TASK-003", "de-otra-persona"),
             ("TASK-004", "criterio-vacio"),
+            ("TASK-005", "plan-aprobado"),
+            ("TASK-006", "pausada"),
             ("TASK-009", "no-existe"),
         ] {
             let op = Planificar::nueva(id, &ana(), None, &c, AHORA);
             assert_eq!(motivo(&op.aplicar(&e)), Some(esperado), "{id}");
         }
+    }
+
+    /// El tope de 1 rol de un `hotfix` va antes de
+    /// `politica_carriles.<carril>.roles_diseno`: la configuracion solo
+    /// endurece y sube un hotfix de funcionalidad a sus 3 roles.
+    #[test]
+    fn tope_de_hotfix_antes_de_la_politica() {
+        let mut c = Config::suelo();
+        c.politica_carriles.insert(
+            Carril::Funcionalidad,
+            crate::config::PoliticaCarril {
+                roles_diseno: Some(3),
+                plan_aprobado: None,
+                paradas_extra: Vec::new(),
+                revisoras_extra: Vec::new(),
+                lote: None,
+                perfil: None,
+            },
+        );
+        for (por_complejidad, tipo, config, esperado) in [
+            (4, "hotfix", &c, 3),
+            (4, "hotfix", &Config::suelo(), 1),
+            (4, "feature", &c, 4),
+            (0, "hotfix", &c, 3),
+        ] {
+            assert_eq!(
+                Carril::Funcionalidad.roles_diseno(por_complejidad, tipo, config),
+                esperado,
+                "{por_complejidad} {tipo}"
+            );
+        }
+        let md = md("hotfix", "planificada", &["a"])
+            .replace("complejidad: null", "complejidad: \"critica\"");
+        let e = estado(&[("TASK-001/tarea.md", md)]);
+        let op = Planificar::nueva("TASK-001", &ana(), None, &c, AHORA);
+        assert!(op.aplicar(&e).is_ok());
+        assert_eq!(op.resumen().map(|s| s.roles.len()), Some(3));
     }
 
     #[test]

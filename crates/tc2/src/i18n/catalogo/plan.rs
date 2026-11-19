@@ -2,8 +2,8 @@
 
 crate::i18n::textos! {
     USO_PLAN {
-        es: "uso: plan [--json] TASK-NNN [--carril errata|fix|funcionalidad|riesgo-alto] | plan guardar [--json] TASK-NNN <destino> <fichero>",
-        en: "usage: plan [--json] TASK-NNN [--carril errata|fix|funcionalidad|riesgo-alto] | plan guardar [--json] TASK-NNN <destination> <file>",
+        es: "uso: plan [--json] TASK-NNN [--carril fix|funcionalidad|riesgo-alto] | plan guardar [--json] TASK-NNN <destino> <fichero>",
+        en: "usage: plan [--json] TASK-NNN [--carril fix|funcionalidad|riesgo-alto] | plan guardar [--json] TASK-NNN <destination> <file>",
     }
     DESTINO_INVALIDO {
         es: "el destino {destino} no vale: solo plan-final.md o brainstorm/salida-<rol>-<n>.md, con <rol> uno de {roles}",

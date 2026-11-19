@@ -18,7 +18,7 @@
 //!   numero de roles por encima de la complejidad.
 
 use super::heuristica::{Enunciado, Resolucion};
-use super::roles::{Rol, UNIFICADOR};
+use super::roles::{ESCALERA, Rol, UNIFICADOR};
 use crate::carril::Carril;
 
 /// Carpeta de la planificacion dentro de la carpeta de la tarea.
@@ -141,7 +141,7 @@ fn enunciado(e: &Enunciado) -> String {
 
 /// Declarada frente a heuristica, siempre (tambien cuando coinciden), y el
 /// carril, que puede subir el numero.
-fn bloque_complejidad(d: &Datos<'_>, n: usize) -> String {
+fn bloque_complejidad(d: &Datos<'_>, roles: &[Rol]) -> String {
     let r = d.resolucion;
     let senales = if r.senales.is_empty() {
         "  (ninguna senal encontrada — el texto de la tarea no aporta ninguna)\n".to_owned()
@@ -167,25 +167,41 @@ fn bloque_complejidad(d: &Datos<'_>, n: usize) -> String {
     } else {
         ""
     };
+    // Los condicionales (rendimiento) cuentan en el numero final aunque no
+    // salgan de la escalera: se dice para que el numero cuadre.
+    let condicionales: Vec<&str> = roles
+        .iter()
+        .filter(|x| !ESCALERA.iter().any(|e| e.id == x.id))
+        .map(|x| x.titulo)
+        .collect();
+    let incluye = if condicionales.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "; incluye el rol condicional {}, que entra por las etiquetas o por `politica_carriles`",
+            condicionales.join(", ")
+        )
+    };
     format!(
-        "## Complejidad: declarada frente a heuristica\n\n- Declarada en la tarea: **{}**\n- Heuristica ({} puntos): **{}**\n- Senales encontradas:\n{senales}{tope}\n{veredicto}\n\nNumero final con el carril `{}`: {} (el carril y `politica_carriles` solo suben el numero).\n",
+        "## Complejidad: declarada frente a heuristica\n\n- Declarada en la tarea: **{}**\n- Heuristica ({} puntos): **{}**\n- Senales encontradas:\n{senales}{tope}\n{veredicto}\n\nNumero final con el carril `{}`: {}{incluye} (el carril y `politica_carriles` solo suben el numero).\n",
         r.declarado
             .as_deref()
             .unwrap_or("no declarada (decide la heuristica)"),
         r.puntos,
         r.heuristico,
         d.carril.nombre(),
-        plural(n)
+        plural(roles.len())
     )
 }
 
-/// Bloque de una ronda 2 o posterior: ya hay un plan de una ronda anterior.
+/// Bloque de una ronda 2 o posterior: puede haber un plan de una ronda
+/// anterior (o solo el esqueleto, si nadie lo guardo).
 fn replanificacion(d: &Datos<'_>) -> String {
     if d.ronda <= 1 {
         return String::new();
     }
     format!(
-        "## Esto es una re-planificacion, no un primer pase\n\nYa existe un plan en `{}` de una ronda anterior y el juego de roles ha cambiado desde entonces (por ejemplo, subio el carril). **Leelo antes que nada.** Incorpora lo nuevo al plan que ya hay, no lo replantees desde el enunciado como si fuera la primera vez, y **devuelve el plan COMPLETO**: tu respuesta sustituye al fichero entero.\n\nSi el enfoque entero esta mal, eso NO se arregla aqui: dilo en el plan y que alguien decida si se replantea.\n\n",
+        "## Esto es una re-planificacion, no un primer pase\n\nPuede existir un plan de una ronda anterior en `{}` (si solo trae el esqueleto, nadie lo guardo todavia) y el juego de roles ha cambiado desde entonces (por ejemplo, subio el carril). **Leelo antes que nada.** Si trae un plan, incorpora lo nuevo al que ya hay en vez de replantearlo desde el enunciado como si fuera la primera vez; en cualquier caso **devuelve el plan COMPLETO**: tu respuesta sustituye al fichero entero.\n\nSi el enfoque entero esta mal, eso NO se arregla aqui: dilo en el plan y que alguien decida si se replantea.\n\n",
         ruta_plan_final(d.id)
     )
 }
@@ -244,7 +260,7 @@ pub fn peticion_redaccion(d: &Datos<'_>, rol: &Rol) -> String {
         pregunta = rol.pregunta,
         mira = lista(rol.mira),
         no_mira = lista(rol.no_mira),
-        complejidad = bloque_complejidad(d, 1),
+        complejidad = bloque_complejidad(d, std::slice::from_ref(rol)),
         trae = que_trae(
             "- Lo que el rol no cubrio, contrastado contra los criterios de aceptacion.\n"
         ),
@@ -286,7 +302,7 @@ pub fn peticion_unificador(d: &Datos<'_>, roles: &[Rol]) -> String {
         cab = cabecera(d),
         orden = guardar(d.id, PLAN_FINAL),
         replan = replanificacion(d),
-        complejidad = bloque_complejidad(d, roles.len()),
+        complejidad = bloque_complejidad(d, roles),
         trae = que_trae(seccion),
         enun = enunciado(d.enunciado),
     )
@@ -394,7 +410,19 @@ mod tests {
             red.contains("re-planificacion")
                 && red.contains("tc2 plan guardar TASK-007 plan-final.md")
         );
-        assert!(red.contains("Numero final con el carril `funcionalidad`: 1 rol"));
+        assert!(red.contains("Numero final con el carril `funcionalidad`: 1 rol ("));
+        // La ronda 2 no da por hecho un plan guardado.
+        assert!(red.contains("Puede existir un plan de una ronda anterior"));
+        assert!(!red.contains("Ya existe un plan"));
+        // Con el condicional, el numero final lo dice.
+        let cinco = seleccionar(4, &["wasm".to_owned()]);
+        let u = peticion_unificador(&d, &cinco);
+        assert!(
+            u.contains(
+                "Numero final con el carril `funcionalidad`: 5 roles; incluye el rol condicional rendimiento,"
+            ),
+            "{u}"
+        );
     }
 
     /// El esqueleto: «Lo que el rol no cubrio» con uno, «Desacuerdos» con

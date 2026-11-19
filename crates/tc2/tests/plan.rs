@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use comun::{Fixture, escribir};
-use tc2::estado;
+use tc2::contrato::Resultado;
+use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta};
 use tc2::plataforma::Proveedor;
 
@@ -386,4 +387,103 @@ fn c3_plan_guardar_publica_y_rechaza_destinos_fuera_de_la_lista() {
         assert_eq!(out, "plan uso motivo=destino-invalido", "{destino}");
     }
     assert_eq!(f.huella(&bare, &a), antes);
+}
+
+/// Escribe en la rama de estado por la transaccion (como otra fase).
+struct Escribir {
+    ruta: String,
+    de: &'static str,
+    a: &'static str,
+}
+
+impl Operacion for Escribir {
+    fn nombre(&self) -> &str {
+        "escribir"
+    }
+    fn anotacion(&self) -> String {
+        format!("escribir|{}", self.ruta)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        let t = e.leer(&self.ruta)?.unwrap_or_default();
+        assert!(t.contains(self.de), "{t}");
+        Ok(vec![Cambio::nuevo(
+            self.ruta.clone(),
+            t.replacen(self.de, self.a, 1),
+        )])
+    }
+}
+
+fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
+    None
+}
+
+/// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
+fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
+    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let op = Escribir {
+        ruta: format!("{id}/tarea.md"),
+        de,
+        a,
+    };
+    let i = estado::transaccion(&Contexto::nuevo(&g, dir, &sin_catalogo, None), &op);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+}
+
+/// MEN-1 y MEN-2 de la revision: la tarea de otra persona no se guarda
+/// (`de-otra-persona` con su login); con el plan aprobado, ni `plan` ni
+/// `plan guardar` cambian nada (`plan-aprobado`).
+#[test]
+fn men_otra_persona_y_plan_aprobado() {
+    let f = Fixture::nueva("plan-men");
+    let (bare, a) = preparar(&f, &[FUNC]);
+    let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
+    assert_eq!(c, Some(0), "{out}");
+    let fuera = f.raiz.join("plan.md");
+    std::fs::write(&fuera, "# Plan\n").unwrap();
+    let ruta = fuera.to_str().unwrap();
+    editar(
+        &f,
+        &a,
+        "TASK-001",
+        "asignado_a: null",
+        "asignado_a: {id: 1002, login: \"beto\"}",
+    );
+    let p = punta(&f, &bare);
+    let (c, out) = tc2(
+        &f,
+        &a,
+        &["plan", "guardar", "TASK-001", "plan-final.md", ruta],
+    );
+    assert_eq!(c, Some(3), "{out}");
+    assert_eq!(valor(&out, "motivo"), Some("de-otra-persona"), "{out}");
+    assert_eq!(valor(&out, "asignado"), Some("beto"), "{out}");
+    assert_eq!(punta(&f, &bare), p);
+    editar(
+        &f,
+        &a,
+        "TASK-001",
+        "asignado_a: {id: 1002, login: \"beto\"}",
+        "asignado_a: {id: 1001, login: \"ana\"}",
+    );
+    editar(
+        &f,
+        &a,
+        "TASK-001",
+        "plan_aprobado: false",
+        "plan_aprobado: true",
+    );
+    let p = punta(&f, &bare);
+    for args in [
+        vec!["plan", "guardar", "TASK-001", "plan-final.md", ruta],
+        vec!["plan", "TASK-001"],
+        vec!["plan", "TASK-001", "--carril", "riesgo-alto"],
+    ] {
+        let (c, out) = tc2(&f, &a, &args);
+        assert_eq!(c, Some(3), "{args:?}: {out}");
+        assert_eq!(valor(&out, "motivo"), Some("plan-aprobado"), "{out}");
+    }
+    assert_eq!(punta(&f, &bare), p);
 }

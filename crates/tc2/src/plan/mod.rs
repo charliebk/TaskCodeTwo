@@ -36,6 +36,7 @@ use crate::estado::{self, Operacion};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
+use crate::plataforma::errores::sanear;
 use crate::toma::Entorno;
 
 pub use guardar::{Guardar, destino_valido};
@@ -98,7 +99,7 @@ fn orden_guardar(args: &[String], e: &Entorno<'_>) -> Informe {
             .con("motivo", "destino-invalido")
             .diagnostico(
                 Mensaje::nuevo(&txt::DESTINO_INVALIDO)
-                    .con("destino", crate::plataforma::errores::sanear(destino))
+                    .con("destino", sanear(destino))
                     .con("roles", nombres.join(", ")),
             );
     }
@@ -117,12 +118,12 @@ fn leer_fichero(ruta: &Path) -> Result<String, Informe> {
     let mal = |motivo: &str, m: Mensaje| {
         Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", motivo)
-            .diagnostico(m.con("ruta", ruta.display().to_string()))
+            .diagnostico(m.con("ruta", sanear(&ruta.display().to_string())))
     };
     let no_se_lee = |e: std::io::Error| {
         mal(
             "no-se-lee",
-            Mensaje::nuevo(&txt::NO_SE_LEE).con("error", e.to_string()),
+            Mensaje::nuevo(&txt::NO_SE_LEE).con("error", sanear(&e.to_string())),
         )
     };
     let f = std::fs::File::open(ruta).map_err(no_se_lee)?;
@@ -271,4 +272,72 @@ fn de_la_orden(mut i: Informe, id: &str) -> Informe {
         i = i.con("pendiente", "no");
     }
     i
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Idioma;
+
+    /// Carpeta temporal propia del test: se borra al acabar.
+    struct Carpeta(std::path::PathBuf);
+
+    impl Drop for Carpeta {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// El uso no anuncia `--carril errata`: `plan` nunca la acepta (todo
+    /// tipo declara fix o funcionalidad y el carril solo sube).
+    #[test]
+    fn el_uso_no_anuncia_errata() {
+        for t in [txt::USO_PLAN.es, txt::USO_PLAN.en] {
+            assert!(!t.contains("errata"), "{t}");
+            assert!(t.contains("--carril fix|funcionalidad|riesgo-alto"), "{t}");
+        }
+    }
+
+    /// `plan guardar` no publica un fichero vacio, que no es UTF-8 o de mas
+    /// de 1 MiB (`uso`); justo en el tope, si. El diagnostico va saneado:
+    /// una ruta con un salto de linea queda en una sola linea.
+    #[test]
+    fn fichero_vacio_no_utf8_grande_y_ruta_saneada() -> Result<(), std::io::Error> {
+        let raiz = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("plan-fichero-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(&raiz)?;
+        let _borrar = Carpeta(raiz.clone());
+        let tope = guardar::MAX_BYTES;
+        for (nombre, bytes, motivo) in [
+            ("vacio.md", b" \n\t\n".to_vec(), Some("vacio")),
+            ("binario.md", vec![b'a', 0xff, 0xfe], Some("no-utf8")),
+            ("grande.md", vec![b'a'; tope + 1], Some("grande")),
+            ("justo.md", vec![b'a'; tope], None),
+        ] {
+            let ruta = raiz.join(nombre);
+            std::fs::write(&ruta, bytes)?;
+            let r = leer_fichero(&ruta);
+            assert_eq!(
+                r.as_ref().err().and_then(|i| i.valor("motivo")),
+                motivo,
+                "{nombre}"
+            );
+            if let Err(i) = r {
+                assert_eq!(i.resultado, Resultado::Uso, "{nombre}");
+            }
+        }
+        let i = leer_fichero(&raiz.join("no\nexiste.md")).err();
+        assert_eq!(
+            i.as_ref().and_then(|i| i.valor("motivo")),
+            Some("no-se-lee")
+        );
+        let d = i
+            .and_then(|i| i.diagnostico)
+            .map(|m| m.texto(Idioma::Es))
+            .unwrap_or_default();
+        assert!(d.contains("no existe.md") && !d.contains('\n'), "{d}");
+        Ok(())
+    }
 }
