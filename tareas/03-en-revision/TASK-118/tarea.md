@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1769062
 tokens_implementacion: 34895921
-tokens_revision: 6461279
+tokens_revision: 11460158
 creado: 2026-11-17
 actualizado: 2026-11-19
 dependencias: []
@@ -50,6 +50,8 @@ TASK-028 (F3-1) solo propone los rulesets taskcodetwo-*. Aplicarlos exige los ch
 | 2026-11-19T00:54:24Z | implementacion | agente:a61e78c9f4a1bc6b5 | 200 | 680697 | 24484996 | 101388 | 17 | 25267281 | - | - |
 | 2026-11-19T01:10:19Z | revision | agente:a5991d3c8d5bc39b2 | 44 | 156428 | 2894895 | 18292 | 4 | 3069659 | 1 | rust-wasm-reviewer |
 | 2026-11-19T01:10:19Z | revision | agente:acfb29742fe2d94f3 | 50 | 168278 | 3198890 | 24402 | 1 | 3391620 | 1 | code-quality-reviewer |
+| 2026-11-19T02:09:18Z | revision | agente:a1b0bb07e5d9cc9a0 | 48 | 138083 | 2586534 | 27703 | 3 | 2752368 | 2 | code-quality-reviewer |
+| 2026-11-19T02:09:18Z | revision | agente:adf5364785fb9f4a1 | 36 | 149044 | 2068012 | 29419 | 9 | 2246511 | 2 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -57,3 +59,7 @@ TASK-028 (F3-1) solo propone los rulesets taskcodetwo-*. Aplicarlos exige los ch
 - code-quality-reviewer — a7f212e
 - rust-wasm-reviewer — ad859f7
 - code-quality-reviewer — ad859f7
+
+## Verificacion ligera
+
+- 2026-11-19T02:09:24Z: ronda 2; commit revisado 29d24a7abacf092fb86a6d23d91ddc0b2cc75977; commit verificado 23e21334d093cdf8bf326a4b8ce659dd8ef75c2e; ficheros: docs/adr/F1-5-puertas-en-github.md; corregidos: MEN-3; pendientes: ninguno
