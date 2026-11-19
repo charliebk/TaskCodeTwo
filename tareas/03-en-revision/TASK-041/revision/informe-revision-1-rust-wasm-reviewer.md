@@ -8,10 +8,10 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | corregido (944a974) | xtask/src/workflows.rs:145-164 (`leer_yaml`), 184-219 (`mapa`), 221-255 (`lista`) | implementacion |
-| IMP-2 | IMPORTANTE | corregido (944a974) | xtask/src/workflows.rs:441-447 (raiz sin inspeccionar), 377-383 y 465-474 (patrones) | implementacion |
-| IMP-3 | IMPORTANTE | corregido (944a974) | xtask/src/workflows.rs:705-711 (`la_plantilla_de_gitlab_rechaza_datos_del_autor_y_secretos`), `.gitattributes` | implementacion |
-| MEN-1 | MENOR | corregido (944a974) | xtask/src/workflows.rs:477-481 y 448-506 (jobs con `uses:` a nivel de job) | implementacion |
+| IMP-1 | IMPORTANTE | corregido | xtask/src/workflows.rs:145-164 (`leer_yaml`), 184-219 (`mapa`), 221-255 (`lista`) | implementacion |
+| IMP-2 | IMPORTANTE | corregido | xtask/src/workflows.rs:441-447 (raiz sin inspeccionar), 377-383 y 465-474 (patrones) | implementacion |
+| IMP-3 | IMPORTANTE | corregido | xtask/src/workflows.rs:705-711 (`la_plantilla_de_gitlab_rechaza_datos_del_autor_y_secretos`), `.gitattributes` | implementacion |
+| MEN-1 | MENOR | corregido | xtask/src/workflows.rs:477-481 y 448-506 (jobs con `uses:` a nivel de job) | implementacion |
 
 ### IMP-1 — el lector de YAML falla en abierto: lo que no entiende se descarta sin error
 

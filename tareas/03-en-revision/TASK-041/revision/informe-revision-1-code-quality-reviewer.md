@@ -18,10 +18,10 @@ Quedan dos IMPORTANTES: un test del lint que falla en un clon de Windows, y la p
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMPORTANTE-1 | IMPORTANTE | corregido (944a974) | xtask/src/workflows.rs:709 | implementacion |
-| IMPORTANTE-2 | IMPORTANTE | corregido (944a974 reglas; pipelines 3090338668 verde y 3090341084 rojo) | plantillas/gitlab/verificacion.gitlab-ci.yml:528 | implementacion |
-| IMPORTANTE-3 | IMPORTANTE | corregido (944a974) | .github/workflows/verificacion.yml:190 | plan |
-| MENOR-1 | MENOR | corregido (944a974) | docs/ci/verificacion-reutilizable.md:301 | implementacion |
+| IMPORTANTE-1 | IMPORTANTE | corregido | xtask/src/workflows.rs:709 | implementacion |
+| IMPORTANTE-2 | IMPORTANTE | corregido | plantillas/gitlab/verificacion.gitlab-ci.yml:528 | implementacion |
+| IMPORTANTE-3 | IMPORTANTE | corregido | .github/workflows/verificacion.yml:190 | plan |
+| MENOR-1 | MENOR | corregido | docs/ci/verificacion-reutilizable.md:301 | implementacion |
 
 ## Hallazgos
 
