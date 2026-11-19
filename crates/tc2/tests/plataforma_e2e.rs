@@ -26,6 +26,15 @@
 //! ```text
 //! TC2_E2E_REPO=dueno/repo TC2_E2E_TOKEN=... TC2_E2E_APP_ID=... TC2_E2E_APP_CLAVE=/ruta/app.pem cargo test -p tc2 --test plataforma_e2e persona_aprueba_pr_del_agente -- --ignored --nocapture --test-threads=1
 //! ```
+//!
+//! F6-2 (TASK-048), `review_abre_el_pr_del_agente_contra_develop`: las
+//! mismas variables (la persona solo prepara y limpia; el push y el PR los
+//! hace la App con `tc2::revision::publicar`). El repo necesita `develop`.
+//! Cierra el PR y borra la rama aunque falle a medias.
+//!
+//! ```text
+//! TC2_E2E_REPO=dueno/repo TC2_E2E_TOKEN=... TC2_E2E_APP_ID=... TC2_E2E_APP_CLAVE=/ruta/app.pem cargo test -p tc2 --test plataforma_e2e review_abre_el_pr_del_agente_contra_develop -- --ignored --nocapture --test-threads=1
+//! ```
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -592,5 +601,108 @@ fn persona_aprueba_pr_del_agente() {
     let i = gh.estado_puertas(Rol::Agente, num, &modelo);
     assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
 
+    drop(limpieza);
+}
+
+/// (d) F6-2 (TASK-048): lo que hace `review` con la plataforma, con la
+/// fabrica de produccion y solo la App del agente: empuja la rama con el
+/// entorno de `entorno-push` (sin la configuracion de git del usuario ni la
+/// cabecera de F6-1), abre el PR contra `develop` con el titulo y el cuerpo
+/// de la tarea (lo abre la App), repetir converge y `revision-ia` sale
+/// `pendiente` (nadie lo publica con el origen dado). No escribe en la rama
+/// de estado del repo de pruebas: ese paso lo cubre `tests/revision.rs`.
+/// Limpia el PR y la rama.
+#[test]
+#[ignore = "E2E: escribe en el repo de pruebas de GitHub (TC2_E2E_REPO, TC2_E2E_TOKEN, TC2_E2E_APP_ID, TC2_E2E_APP_CLAVE)"]
+fn review_abre_el_pr_del_agente_contra_develop() {
+    use tc2::git::{self, Git};
+    use tc2::revision::{self, Publicado};
+
+    let arnes = Arnes::nuevo();
+    let repo = arnes.e.repo.clone();
+    let app_id = std::env::var("TC2_E2E_APP_ID").expect("define TC2_E2E_APP_ID");
+    let clave = std::env::var("TC2_E2E_APP_CLAVE").expect("define TC2_E2E_APP_CLAVE");
+    let app = CredencialesApp::desde_fichero(
+        &app_id,
+        std::path::Path::new(&clave),
+        &Base::github(),
+        &repo,
+        Rol::Agente,
+    )
+    .unwrap();
+    let slug = app.slug().unwrap();
+    let bot = format!("{slug}[bot]");
+    let token_app = app.obtener(Rol::Agente).unwrap();
+
+    let limpieza = Limpieza::nueva(&arnes);
+    let rama = format!("e2e/review-{}", sufijo());
+    limpieza.rama(&rama);
+    let url = format!("https://github.com/{repo}.git");
+    let (clon, sha) = agente_git::preparar_rama(
+        Proveedor::GitHub,
+        &url,
+        "https://github.com/",
+        &token_app,
+        &AutorGit::bot_github(&slug, None),
+        ("develop", &rama),
+    );
+    let vars = |v: &str| match v {
+        "TC2_APP_AGENTE_ID" => Some(app_id.clone()),
+        "TC2_APP_AGENTE_CLAVE" => Some(clave.clone()),
+        _ => None,
+    };
+    let gh = GitHub::nuevo(
+        Base::github(),
+        &repo,
+        Box::new(de_entorno_con(vars, false)),
+        Personas::default(),
+    )
+    .unwrap();
+    let g = Git::nuevo().con_entorno(clon.aislado.clone());
+    let t = tc2::tarea::Tarea::nueva("TASK-999", "E2E de review (TASK-048)", "2026-11-19");
+    let (titulo, cuerpo) = (revision::titulo_pr(&t), revision::cuerpo_pr(&t));
+    let datos = (rama.as_str(), titulo.as_str(), cuerpo.as_str());
+
+    let p = revision::publicar(&gh, &g, &clon.dir, &url, datos, &git::ESPERAS_PUSH)
+        .unwrap_or_else(|i| panic!("{}", ver(&i)));
+    limpieza.pr(&p.pr.to_string());
+    eprintln!("  publicado: {p:?}");
+    assert!(p.empujado && p.abierto, "{p:?}");
+    assert_eq!(arnes.sha_de(&rama), sha, "el push no llego");
+    let (e, pr) = arnes.api("GET", &format!("/pulls/{}", p.pr), None);
+    assert_eq!(e, 200, "{pr}");
+    assert_eq!(pr["user"]["login"], bot.as_str(), "el PR lo abre la App");
+    assert_eq!(pr["user"]["type"], "Bot");
+    assert_eq!(pr["base"]["ref"], "develop");
+    assert_eq!(pr["title"], titulo.as_str());
+    assert_eq!(pr["body"], cuerpo.as_str());
+
+    // Repetir converge: nada que empujar y el PR ya abierto.
+    let q = revision::publicar(&gh, &g, &clon.dir, &url, datos, &git::ESPERAS_PUSH)
+        .unwrap_or_else(|i| panic!("{}", ver(&i)));
+    assert_eq!(
+        q,
+        Publicado {
+            pr: p.pr,
+            empujado: false,
+            abierto: false
+        }
+    );
+
+    // `revision-ia` con un origen que nadie usa: pendiente (o sin-revisor
+    // sin origen).
+    assert_eq!(revision::revision_ia(&gh, p.pr, None), "sin-revisor");
+    let mut ria = "";
+    for _ in 0..10 {
+        ria = revision::revision_ia(&gh, p.pr, Some(1));
+        if ria == "pendiente" {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    eprintln!("  revision-ia={ria}");
+    assert_eq!(ria, "pendiente");
+
+    drop(clon);
     drop(limpieza);
 }

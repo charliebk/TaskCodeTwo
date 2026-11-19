@@ -17,6 +17,7 @@ pub mod init;
 pub mod plan;
 pub mod plataforma;
 pub mod progreso;
+pub mod revision;
 pub mod roadmap;
 pub mod siguiente;
 pub mod tablero;
@@ -43,6 +44,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         plan::TODOS,
         plataforma::TODOS,
         progreso::TODOS,
+        revision::TODOS,
         roadmap::TODOS,
         siguiente::TODOS,
         tablero::TODOS,

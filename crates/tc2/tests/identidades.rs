@@ -298,7 +298,7 @@ fn el_entorno_git_del_agente_lleva_cabecera_y_autor_sin_token_en_argv() {
         Proveedor::GitHub,
         &format!("{}/", mock.base()),
         &Secreto::nuevo(TOKEN),
-        &autor,
+        Some(&autor),
     );
     extra.push((
         "GIT_TRACE".into(),
@@ -727,7 +727,7 @@ fn el_entorno_git_del_agente_se_acumula_con_otras_entradas_de_config() {
             Proveedor::GitHub,
             &format!("{}/", mock.base()),
             &Secreto::nuevo(TOKEN),
-            &autor,
+            Some(&autor),
         ))
         .con_entorno(vec![("TC2_OTRA".into(), "x".into())]);
 

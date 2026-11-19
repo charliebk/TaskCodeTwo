@@ -28,6 +28,15 @@
 //! ```text
 //! TC2_E2E_GITLAB_PROYECTO=grupo/proyecto TC2_E2E_GITLAB_TOKEN=... TC2_E2E_GITLAB_TOKEN_AGENTE=... cargo test -p tc2 --test plataforma_gitlab_e2e persona_aprueba_mr_del_agente -- --ignored --nocapture --test-threads=1
 //! ```
+//!
+//! F6-2 (TASK-048), `review_abre_el_mr_del_agente_contra_develop`: las
+//! mismas variables (la persona solo prepara y limpia; el push y el MR los
+//! hace el agente con `tc2::revision::publicar`). Cierra el MR, borra la
+//! rama y quita la proteccion de `develop` aunque falle a medias.
+//!
+//! ```text
+//! TC2_E2E_GITLAB_PROYECTO=grupo/proyecto TC2_E2E_GITLAB_TOKEN=... TC2_E2E_GITLAB_TOKEN_AGENTE=... cargo test -p tc2 --test plataforma_gitlab_e2e review_abre_el_mr_del_agente_contra_develop -- --ignored --nocapture --test-threads=1
+//! ```
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -653,5 +662,100 @@ fn persona_aprueba_mr_del_agente() {
     let i = gl.estado_puertas(Rol::Agente, num, &m);
     assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
 
+    drop(limpieza);
+}
+
+/// (d) F6-2 (TASK-048): lo que hace `review` con la plataforma, solo con el
+/// token del agente: empuja la rama con el entorno de `entorno-push`, abre
+/// el MR contra `develop` con el titulo y el cuerpo de la tarea (lo abre el
+/// agente), repetir converge y `revision-ia` sale `pendiente` con `develop`
+/// protegida (G01). No escribe en la rama de estado del proyecto: ese paso
+/// lo cubre `tests/revision.rs`. Limpia el MR, la rama y la proteccion.
+#[test]
+#[ignore = "E2E: escribe en el proyecto de pruebas de GitLab (TC2_E2E_GITLAB_PROYECTO, TC2_E2E_GITLAB_TOKEN, TC2_E2E_GITLAB_TOKEN_AGENTE)"]
+fn review_abre_el_mr_del_agente_contra_develop() {
+    use tc2::git::{self, Git};
+    use tc2::revision::{self, Publicado};
+
+    let arnes = Arnes::nuevo();
+    let proyecto = arnes.e.proyecto.clone();
+    let token_agente =
+        std::env::var("TC2_E2E_GITLAB_TOKEN_AGENTE").expect("define TC2_E2E_GITLAB_TOKEN_AGENTE");
+    let vars = |v: &str| match v {
+        "TC2_TOKEN_AGENTE" => Some(token_agente.clone()),
+        _ => None,
+    };
+    let gl = GitLab::nuevo(
+        Base::nueva(API).unwrap(),
+        &proyecto,
+        Box::new(de_entorno_con(vars, false)),
+        Personas::default(),
+    )
+    .unwrap();
+    let agente = gl.identidad(Rol::Agente).unwrap();
+    let autor = AutorGit {
+        nombre: agente.login.clone(),
+        correo: format!("{}@noreply.gitlab.com", agente.login),
+    };
+
+    let limpieza = Limpieza::nueva(&arnes);
+    limpieza.proteger();
+    let rama = format!("e2e/review-{}", sufijo());
+    limpieza.rama(&rama);
+    let url = format!("https://gitlab.com/{proyecto}.git");
+    let (clon, sha) = agente_git::preparar_rama(
+        Proveedor::GitLab,
+        &url,
+        "https://gitlab.com/",
+        &Secreto::nuevo(token_agente.clone()),
+        &autor,
+        ("develop", &rama),
+    );
+    let g = Git::nuevo().con_entorno(clon.aislado.clone());
+    let t = tc2::tarea::Tarea::nueva("TASK-999", "E2E de review (TASK-048)", "2026-11-19");
+    let (titulo, cuerpo) = (revision::titulo_pr(&t), revision::cuerpo_pr(&t));
+    let datos = (rama.as_str(), titulo.as_str(), cuerpo.as_str());
+
+    let p = revision::publicar(&gl, &g, &clon.dir, &url, datos, &git::ESPERAS_PUSH)
+        .unwrap_or_else(|i| panic!("{}", ver(&i)));
+    limpieza.mr(&p.pr.to_string());
+    eprintln!("  publicado: {p:?}");
+    assert!(p.empujado && p.abierto, "{p:?}");
+    let (e, c) = arnes.api("GET", &format!("/repository/branches/{}", cod(&rama)), None);
+    assert_eq!(e, 200, "{c}");
+    assert_eq!(c["commit"]["id"], sha.as_str(), "el push no llego");
+    let (e, mr) = arnes.api("GET", &format!("/merge_requests/{}", p.pr), None);
+    assert_eq!(e, 200, "{mr}");
+    assert_eq!(mr["author"]["id"], agente.id, "el MR lo abre el agente");
+    assert_eq!(mr["target_branch"], "develop");
+    assert_eq!(mr["title"], titulo.as_str());
+    assert_eq!(mr["description"], cuerpo.as_str());
+
+    // Repetir converge: nada que empujar y el MR ya abierto.
+    let q = revision::publicar(&gl, &g, &clon.dir, &url, datos, &git::ESPERAS_PUSH)
+        .unwrap_or_else(|i| panic!("{}", ver(&i)));
+    assert_eq!(
+        q,
+        Publicado {
+            pr: p.pr,
+            empujado: false,
+            abierto: false
+        }
+    );
+
+    // `revision-ia` con un origen que nadie usa: pendiente.
+    assert_eq!(revision::revision_ia(&gl, p.pr, None), "sin-revisor");
+    let mut ria = "";
+    for _ in 0..15 {
+        ria = revision::revision_ia(&gl, p.pr, Some(1));
+        if ria == "pendiente" {
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    eprintln!("  revision-ia={ria}");
+    assert_eq!(ria, "pendiente");
+
+    drop(clon);
     drop(limpieza);
 }

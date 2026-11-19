@@ -303,6 +303,16 @@ crate::i18n::textos! {
         en: "character not allowed in the query",
     }
 
+    // --- entorno-push (F6-2) ---
+    REMOTO_NO_HTTPS {
+        es: "el remoto origin no es una URL https://: el agente solo empuja con su token por https (por ssh empujaria tu identidad y por http el token iria en claro). Cambialo con git remote set-url origin https://... y repite",
+        en: "the origin remote is not an https:// URL: the agent only pushes with its token over https (over ssh it would push your identity and over http the token would travel in clear). Change it with git remote set-url origin https://... and try again",
+    }
+    ENTORNO_PUSH_NO_SOPORTADO {
+        es: "esta plataforma no da el entorno para que el agente empuje con su identidad",
+        en: "this platform does not provide the environment for the agent to push with its identity",
+    }
+
     // --- aplicar-puertas (TASK-118) ---
     APLICAR_NO_SOPORTADA {
         es: "esta plataforma no admite aplicar las puertas desde tc2: aplicalas a mano con la propuesta de tc2 init --json",
