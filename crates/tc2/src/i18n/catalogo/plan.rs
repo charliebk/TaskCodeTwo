@@ -63,8 +63,20 @@ crate::i18n::textos! {
         en: "{ruta} is larger than {max} bytes: it is not published",
     }
     USO_APPROVE {
-        es: "uso: approve [--json] TASK-NNN [--pedir-cambios <fichero>]",
-        en: "usage: approve [--json] TASK-NNN [--pedir-cambios <file>]",
+        es: "uso: approve [--json] TASK-NNN [--pedir-cambios <fichero>] | approve [--json] --hito <n>",
+        en: "usage: approve [--json] TASK-NNN [--pedir-cambios <file>] | approve [--json] --hito <n>",
+    }
+    HITO_VACIO {
+        es: "el hito {hito} no tiene ninguna tarea abierta: comprueba el numero con tc2 roadmap",
+        en: "milestone {hito} has no open task: check the number with tc2 roadmap",
+    }
+    HITO_DEMASIADAS {
+        es: "el hito {hito} tiene {n} planes por aprobar, mas que el tope de {max}: apruebalos uno a uno con tc2 approve TASK-NNN",
+        en: "milestone {hito} has {n} plans to approve, more than the limit of {max}: approve them one by one with tc2 approve TASK-NNN",
+    }
+    HITO_NO_LISTAS {
+        es: "{n} tareas del hito {hito} no se pueden aprobar (ver tareas=): no se ha aprobado ninguna; arreglalas y vuelve a lanzar tc2 approve --hito {hito}",
+        en: "{n} tasks of milestone {hito} cannot be approved (see tareas=): none was approved; fix them and run tc2 approve --hito {hito} again",
     }
     DECIDIDO_POR {
         es: "approve no admite --decidido-por: aprueba siempre una persona con su firma, en cualquier modo (ADR F1-10, decision 6)",

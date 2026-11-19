@@ -13,7 +13,13 @@
 //!   (D1a). No concede nada: la puede lanzar tambien el agente. No toca
 //!   `tarea.md` (como `plan guardar`, no es una fase).
 //!
-//! Las dos exigen red y nunca quedan pendientes (no tienen catalogo).
+//! - [`AprobarHito`] (F4-3): `approve --hito <n>`, los planes de todas las
+//!   tareas abiertas del sprint `n` aun sin aprobar, con las mismas
+//!   comprobaciones que [`Aprobar`] ([`aprobable`]), en un unico commit
+//!   firmado con un `Plan-Blob` por tarea. Todo o nada y con tope
+//!   ([`MAX_HITO`]).
+//!
+//! Las tres exigen red y nunca quedan pendientes (no tienen catalogo).
 
 use std::cell::RefCell;
 
@@ -22,12 +28,13 @@ use super::plantillas as p;
 use super::roles::{self, Rol};
 use crate::config::Config;
 use crate::estado::{
-    Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado, tarea_de,
+    Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado, tarea_de, tareas,
 };
-use crate::i18n::Mensaje;
+use crate::grafo::{DESCARTADA, TERMINADA};
 use crate::i18n::catalogo::plan as txt;
+use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
-use crate::tarea::{Asignado, Tarea, Transicion};
+use crate::tarea::{Asignado, Cuerpo, Documento, Tarea, Transicion};
 use crate::toma::instante;
 
 /// Nombre de la orden, de la operacion y de su fila.
@@ -85,10 +92,6 @@ impl Aprobar {
     /// `de-otra-persona`.
     pub fn dueno(&self) -> Option<String> {
         self.dueno.borrow().clone()
-    }
-
-    fn rechazo(&self, motivo: &str, m: Mensaje) -> Fallo {
-        Fallo::rechazada(motivo, m.con("id", self.id.as_str()))
     }
 }
 
@@ -164,52 +167,284 @@ impl Operacion for Aprobar {
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         *self.dueno.borrow_mut() = None;
-        let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
-            &self.id,
-            t.asignado_a.as_ref(),
-            &self.asignado,
-            NOMBRE,
-            ("de-otra-persona", &txt::APROBAR_DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
-        // Ya aprobado: nada que escribir ni que firmar otra vez.
-        if t.plan_aprobado {
-            return Ok(Vec::new());
-        }
-        if t.estado != EN_DISENO {
-            return Err(por_estado(&self.id, &t.estado, NOMBRE, &[EN_DISENO]));
-        }
-        if cuerpo.en_pausa() {
-            return Err(self.rechazo("pausada", Mensaje::nuevo(&txt::APROBAR_PAUSADA)));
-        }
-        let ruta = p::ruta_plan_final(&self.id);
-        let Some(plan) = estado.leer(&ruta)? else {
-            return Err(self.rechazo("sin-plan", Mensaje::nuevo(&txt::SIN_PLAN)));
-        };
-        if es_esqueleto(&plan, &t, &estado.rutas()) {
-            return Err(self.rechazo("plan-esqueleto", Mensaje::nuevo(&txt::PLAN_ESQUELETO)));
-        }
-        let modo = modo_congelado(&cuerpo).unwrap_or_else(|| self.modo.to_owned());
+        let (t, cuerpo) = tarea_de(estado, &self.id)?;
+        let plan = estado.leer(&p::ruta_plan_final(&self.id))?;
         let instante = instante(self.ahora);
-        t.plan_aprobado = true;
-        instante
-            .get(..10)
-            .unwrap_or_default()
-            .clone_into(&mut t.actualizado);
-        cuerpo.anadir_transicion(&Transicion {
-            fecha: &instante,
-            fase: FASE,
-            modo: &modo,
-            decidido_por: PERSONA,
-            version: crate::VERSION,
-        });
-        Ok(vec![Cambio::nuevo(
-            format!("{}/tarea.md", self.id),
-            t.escribir(&cuerpo),
-        )])
+        let quien = Aprobacion {
+            asignado: &self.asignado,
+            instante: &instante,
+            modo: self.modo,
+        };
+        match aprobable(
+            &self.id,
+            t,
+            cuerpo,
+            plan.as_deref(),
+            &estado.rutas(),
+            &quien,
+        ) {
+            Ok(cambio) => Ok(cambio.into_iter().collect()),
+            Err((fallo, dueno)) => {
+                *self.dueno.borrow_mut() = dueno;
+                Err(fallo)
+            }
+        }
+    }
+}
+
+/// Quien aprueba, cuando y con que modo por defecto: lo comun a todas las
+/// tareas de una aprobacion (una o un hito).
+struct Aprobacion<'a> {
+    asignado: &'a Asignado,
+    instante: &'a str,
+    modo: &'a str,
+}
+
+/// La aprobacion de la tarea `id` ya leida (`t`, `cuerpo`) con su
+/// `plan-final.md` (`None` si no existe): `Ok(None)` si ya estaba aprobada
+/// (nada que escribir), `Ok(Some)` con el `tarea.md` aprobado, o el rechazo
+/// con el login de quien la lleva si es de otra persona. Las comprobaciones
+/// y su orden son las de F4-2: otra persona, ya aprobada, estado, pausa,
+/// sin plan y esqueleto.
+fn aprobable(
+    id: &str,
+    mut t: Tarea,
+    mut cuerpo: Cuerpo,
+    plan: Option<&str>,
+    rutas: &[String],
+    a: &Aprobacion<'_>,
+) -> Result<Option<Cambio>, (Fallo, Option<String>)> {
+    let rechazo = |motivo: &str, m: Mensaje| (Fallo::rechazada(motivo, m.con("id", id)), None);
+    if let Some(r) = de_otra_persona(
+        id,
+        t.asignado_a.as_ref(),
+        a.asignado,
+        NOMBRE,
+        ("de-otra-persona", &txt::APROBAR_DE_OTRA_PERSONA),
+    ) {
+        return Err(r);
+    }
+    // Ya aprobado: nada que escribir ni que firmar otra vez.
+    if t.plan_aprobado {
+        return Ok(None);
+    }
+    if t.estado != EN_DISENO {
+        return Err((por_estado(id, &t.estado, NOMBRE, &[EN_DISENO]), None));
+    }
+    if cuerpo.en_pausa() {
+        return Err(rechazo("pausada", Mensaje::nuevo(&txt::APROBAR_PAUSADA)));
+    }
+    let Some(plan) = plan else {
+        return Err(rechazo("sin-plan", Mensaje::nuevo(&txt::SIN_PLAN)));
+    };
+    if es_esqueleto(plan, &t, rutas) {
+        return Err(rechazo(
+            "plan-esqueleto",
+            Mensaje::nuevo(&txt::PLAN_ESQUELETO),
+        ));
+    }
+    let modo = modo_congelado(&cuerpo).unwrap_or_else(|| a.modo.to_owned());
+    t.plan_aprobado = true;
+    a.instante
+        .get(..10)
+        .unwrap_or_default()
+        .clone_into(&mut t.actualizado);
+    cuerpo.anadir_transicion(&Transicion {
+        fecha: a.instante,
+        fase: FASE,
+        modo: &modo,
+        decidido_por: PERSONA,
+        version: crate::VERSION,
+    });
+    Ok(Some(Cambio::nuevo(
+        format!("{id}/tarea.md"),
+        t.escribir(&cuerpo),
+    )))
+}
+
+/// Tope de planes que aprueba un `approve --hito` (D5a de TASK-038): solo
+/// cuentan los que cambiarian.
+pub const MAX_HITO: usize = 20;
+
+/// Nombre de la operacion de `--hito` (en el commit).
+pub const NOMBRE_HITO: &str = "approve-hito";
+
+/// `approve --hito <n>` (F4-3): aprobar de una vez los planes de las tareas
+/// abiertas (ni `terminada` ni `descartada`) del sprint `n` que aun no lo
+/// estan, en un unico commit firmado con un `Plan-Blob` por tarea. Todo o
+/// nada: si alguna no se puede aprobar no se escribe ni se firma nada y
+/// [`AprobarHito::fallos`] dice cuales y por que.
+#[derive(Debug)]
+pub struct AprobarHito {
+    hito: u32,
+    asignado: Asignado,
+    ahora: u64,
+    modo: &'static str,
+    lote: RefCell<Vec<String>>,
+    fallos: RefCell<Vec<(String, String)>>,
+}
+
+impl AprobarHito {
+    /// `approve --hito <hito>` por `quien` en `ahora`; `None` si no es una
+    /// persona (RR-04). El modo por defecto es el de [`Aprobar::nueva`].
+    pub fn nueva(hito: u32, quien: &Quien, ahora: u64) -> Option<Self> {
+        let Quien::Persona(_) = quien else {
+            return None;
+        };
+        Some(Self {
+            hito,
+            asignado: quien.asignado(),
+            ahora,
+            modo: Config::suelo().modo_flujo.nombre(),
+            lote: RefCell::new(Vec::new()),
+            fallos: RefCell::new(Vec::new()),
+        })
+    }
+
+    /// El `modo_flujo` de la configuracion de la base (como
+    /// [`Aprobar::con_config`]).
+    #[must_use]
+    pub fn con_config(mut self, config: &Config) -> Self {
+        self.modo = config.modo_flujo.nombre();
+        self
+    }
+
+    /// Los IDs que aprobo el ultimo intento, en orden.
+    pub fn aprobadas(&self) -> Vec<String> {
+        self.lote.borrow().clone()
+    }
+
+    /// `(ID, motivo)` de las tareas que impidieron el ultimo intento
+    /// (`no-listas`), en orden.
+    pub fn fallos(&self) -> Vec<(String, String)> {
+        self.fallos.borrow().clone()
+    }
+
+    /// Rechazo del hito entero con `n` tareas (las que fallan o las que se
+    /// pasan del tope).
+    fn rechazo(&self, motivo: &str, m: &'static Texto, n: usize) -> Fallo {
+        Fallo::rechazada(
+            motivo,
+            Mensaje::nuevo(m)
+                .con("hito", self.hito.to_string())
+                .con("n", n.to_string())
+                .con("max", MAX_HITO.to_string()),
+        )
+    }
+}
+
+/// Lo que importa de un `tarea.md` para el lote: su sprint, si esta abierta
+/// y si ya esta aprobada. `None` si no se entiende (no se sabe su sprint):
+/// entonces cuenta como fallo `ilegible` del hito.
+fn del_hito(d: &Result<Documento, crate::tarea::ErrorTarea>) -> Option<(u32, bool, bool)> {
+    let abierta = |e: &str| e != TERMINADA && e != DESCARTADA;
+    match d.as_ref().ok()? {
+        Documento::Formato2(t, _) => Some((t.sprint, abierta(&t.estado), t.plan_aprobado)),
+        Documento::Formato1(t, _) => Some((t.sprint, abierta(&t.estado), t.plan_aprobado)),
+    }
+}
+
+impl Operacion for AprobarHito {
+    fn nombre(&self) -> &str {
+        NOMBRE_HITO
+    }
+
+    fn anotacion(&self) -> String {
+        format!(
+            "{NOMBRE_HITO}|{}|{}|{}",
+            self.hito,
+            self.asignado.id().unwrap_or_default(),
+            self.asignado.login().unwrap_or_default()
+        )
+    }
+
+    fn exige_red(&self) -> bool {
+        true
+    }
+
+    /// Un `Plan-Blob` por tarea del lote, en orden de ID. El lote lo fija
+    /// [`AprobarHito::aplicar`]: la transaccion vuelve a pedir el sello
+    /// despues de aplicar en cada intento.
+    fn sello(&self) -> Sello {
+        Sello::Firmado {
+            trailers: self
+                .lote
+                .borrow()
+                .iter()
+                .map(|id| (PLAN_BLOB, p::ruta_plan_final(id)))
+                .collect(),
+        }
+    }
+
+    fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        self.lote.borrow_mut().clear();
+        self.fallos.borrow_mut().clear();
+        let rutas = estado.rutas();
+        let mut abiertas = 0usize;
+        let mut candidatas = Vec::new();
+        // Fallar cerrado (MEN-1 de la revision): un `tarea.md` que no se
+        // entiende puede ser del hito, asi que impide aprobarlo (`ilegible`).
+        // `tareas` ya deja fuera las rutas que no son de una tarea.
+        let mut fallos = Vec::new();
+        for (ruta, doc) in tareas(estado, &rutas)? {
+            let id = ruta.split_once('/').map_or("", |(c, _)| c).to_owned();
+            let Some((sprint, abierta, aprobada)) = del_hito(&doc) else {
+                fallos.push((id, "ilegible".to_owned()));
+                continue;
+            };
+            if sprint != self.hito || !abierta {
+                continue;
+            }
+            abiertas += 1;
+            if !aprobada {
+                candidatas.push((id, doc));
+            }
+        }
+        if abiertas == 0 && fallos.is_empty() {
+            return Err(self.rechazo("hito-vacio", &txt::HITO_VACIO, 0));
+        }
+        if candidatas.len() > MAX_HITO {
+            return Err(self.rechazo("demasiadas", &txt::HITO_DEMASIADAS, candidatas.len()));
+        }
+        let planes: Vec<String> = candidatas
+            .iter()
+            .map(|(id, _)| p::ruta_plan_final(id))
+            .collect();
+        let planes = estado.leer_varios(&planes)?;
+        let instante = instante(self.ahora);
+        let quien = Aprobacion {
+            asignado: &self.asignado,
+            instante: &instante,
+            modo: self.modo,
+        };
+        let mut cambios = Vec::new();
+        let mut lote = Vec::new();
+        for ((id, doc), plan) in candidatas.into_iter().zip(planes) {
+            // `del_hito` solo deja pasar las que se entienden: la otra es
+            // una de la 0.16, que se convierte con `tc2 actualizar`.
+            let Ok(Documento::Formato2(t, c)) = doc else {
+                fallos.push((id, "formato-1".to_owned()));
+                continue;
+            };
+            match aprobable(&id, t, c, plan.as_deref(), &rutas, &quien) {
+                Ok(Some(c)) => {
+                    cambios.push(c);
+                    lote.push(id);
+                }
+                Ok(None) => {}
+                Err((Fallo::Rechazada { motivo, .. }, _)) => fallos.push((id, motivo)),
+                Err((e @ Fallo::Error(_), _)) => return Err(e),
+            }
+        }
+        if !fallos.is_empty() {
+            // En orden de ID, las ilegibles junto a las demas.
+            fallos.sort();
+            let n = fallos.len();
+            *self.fallos.borrow_mut() = fallos;
+            return Err(self.rechazo("no-listas", &txt::HITO_NO_LISTAS, n));
+        }
+        *self.lote.borrow_mut() = lote;
+        Ok(cambios)
     }
 }
 
@@ -519,5 +754,265 @@ mod tests {
         assert_eq!(motivo(&sin.aplicar(&e)), Some("sin-ronda"));
         let ya = PedirCambios::nueva("TASK-003", &agente, "x\n");
         assert_eq!(motivo(&ya.aplicar(&e)), Some("plan-aprobado"));
+    }
+
+    /// `tarea.md` de `id` en `estado` y en el sprint `sprint`.
+    fn md_sprint(id: &str, estado: &str, sprint: u32) -> String {
+        let Ok(Documento::Formato2(mut t, c)) = crate::tarea::leer(&md(id, "en-diseno")) else {
+            unreachable!()
+        };
+        estado.clone_into(&mut t.estado);
+        if estado == DESCARTADA {
+            t.motivo = Some("ya no hace falta".to_owned());
+        }
+        t.sprint = sprint;
+        let texto = t.escribir(&c);
+        assert!(crate::tarea::leer(&texto).is_ok(), "{texto}");
+        texto
+    }
+
+    fn id(n: usize) -> String {
+        format!("TASK-{n:03}")
+    }
+
+    fn plan_de(n: usize) -> String {
+        p::ruta_plan_final(&id(n))
+    }
+
+    fn hito(n: u32) -> AprobarHito {
+        AprobarHito::nueva(n, &persona(), AHORA)
+            .unwrap_or_else(|| unreachable!())
+            .con_config(&Config::suelo())
+    }
+
+    /// C2 de TASK-038: el agente no puede construir un `AprobarHito`
+    /// (RR-04); el sello es firmado y la anotacion lleva el hito.
+    #[test]
+    fn solo_una_persona_aprueba_un_hito() {
+        assert!(AprobarHito::nueva(4, &Quien::Agente(cuenta()), AHORA).is_none());
+        let op = hito(4);
+        assert!(op.exige_red());
+        assert_eq!(op.anotacion(), "approve-hito|4|7|ana");
+        assert_eq!(op.sello(), Sello::Firmado { trailers: vec![] });
+    }
+
+    /// C1 de TASK-038 (unitario): diez planes del sprint 4 de una vez, con
+    /// la misma fila e instante; la ya aprobada, la terminada y la de otro
+    /// sprint no entran; el sello lleva diez `Plan-Blob` en orden de ID.
+    #[test]
+    fn aplicar_hito_aprueba_diez() {
+        let mut m = BTreeMap::new();
+        for n in 1..=10 {
+            m.insert(
+                format!("{}/tarea.md", id(n)),
+                md_sprint(&id(n), "en-diseno", 4),
+            );
+            m.insert(plan_de(n), format!("# Plan {n}\n"));
+        }
+        m.insert(
+            "TASK-011/tarea.md".to_owned(),
+            md_sprint("TASK-011", "en-diseno", 4)
+                .replace("plan_aprobado: false", "plan_aprobado: true"),
+        );
+        m.insert(plan_de(11), "# Plan\n".to_owned());
+        m.insert(
+            "TASK-012/tarea.md".to_owned(),
+            md_sprint("TASK-012", "terminada", 4),
+        );
+        m.insert(
+            "TASK-013/tarea.md".to_owned(),
+            md_sprint("TASK-013", "en-diseno", 3),
+        );
+        m.insert(plan_de(13), "# Plan\n".to_owned());
+        let e = EnMemoria(m);
+        let op = hito(4);
+        let cambios = op.aplicar(&e).unwrap_or_default();
+        let esperadas: Vec<String> = (1..=10).map(id).collect();
+        let rutas: Vec<String> = cambios.iter().map(|c| c.ruta.clone()).collect();
+        assert_eq!(
+            rutas,
+            esperadas
+                .iter()
+                .map(|i| format!("{i}/tarea.md"))
+                .collect::<Vec<_>>()
+        );
+        let fila = format!(
+            "| 2026-11-19T10:20:30Z | approve | semiautomatico | persona | {} |\n",
+            crate::VERSION
+        );
+        for c in &cambios {
+            assert!(c.contenido.contains("\nplan_aprobado: true\n"), "{c:?}");
+            assert!(c.contenido.contains("\nactualizado: \"2026-11-19\"\n"));
+            assert!(c.contenido.ends_with(&fila), "{}", c.contenido);
+        }
+        assert_eq!(op.aprobadas(), esperadas);
+        assert!(op.fallos().is_empty());
+        assert_eq!(
+            op.sello(),
+            Sello::Firmado {
+                trailers: (1..=10).map(|n| (PLAN_BLOB, plan_de(n))).collect()
+            }
+        );
+    }
+
+    /// C1 de TASK-038 (unitario): todo o nada. Una sin plan y otra en pausa
+    /// rechazan el hito entero (`no-listas`, con las dos y su motivo, sin
+    /// lote ni trailers); otra persona tambien; sin abiertas, `hito-vacio`;
+    /// 21 por aprobar, `demasiadas`; todas aprobadas, nada que hacer.
+    #[test]
+    fn hito_todo_o_nada() {
+        let mut m = BTreeMap::new();
+        // Sprint 4: una lista, una sin plan, una en pausa.
+        m.insert(
+            "TASK-001/tarea.md".to_owned(),
+            md_sprint("TASK-001", "en-diseno", 4),
+        );
+        m.insert(plan_de(1), "# Plan\n".to_owned());
+        m.insert(
+            "TASK-002/tarea.md".to_owned(),
+            md_sprint("TASK-002", "planificada", 4),
+        );
+        m.insert(
+            "TASK-003/tarea.md".to_owned(),
+            md_sprint("TASK-003", "en-diseno", 4)
+                + "| 2026-11-18T10:00:00Z | pausa | manual | agente | 0.1 |\n",
+        );
+        m.insert(plan_de(3), "# Plan\n".to_owned());
+        // Sprint 5: solo terminadas o descartadas.
+        m.insert(
+            "TASK-004/tarea.md".to_owned(),
+            md_sprint("TASK-004", "terminada", 5),
+        );
+        m.insert(
+            "TASK-005/tarea.md".to_owned(),
+            md_sprint("TASK-005", "descartada", 5),
+        );
+        // Sprint 7: todas aprobadas.
+        m.insert(
+            "TASK-006/tarea.md".to_owned(),
+            md_sprint("TASK-006", "en-diseno", 7)
+                .replace("plan_aprobado: false", "plan_aprobado: true"),
+        );
+        // Sprint 8: la de otra persona.
+        m.insert(
+            "TASK-007/tarea.md".to_owned(),
+            md_sprint("TASK-007", "en-diseno", 8)
+                .replace("asignado_a: null", "asignado_a: {id: 9, login: \"beto\"}"),
+        );
+        m.insert(plan_de(7), "# Plan\n".to_owned());
+        // Sprint 6: 21 por aprobar.
+        for n in 100..121 {
+            m.insert(
+                format!("{}/tarea.md", id(n)),
+                md_sprint(&id(n), "en-diseno", 6),
+            );
+            m.insert(plan_de(n), "# Plan\n".to_owned());
+        }
+        let e = EnMemoria(m);
+
+        let op = hito(4);
+        let r = op.aplicar(&e);
+        assert_eq!(motivo(&r), Some("no-listas"), "{r:?}");
+        assert_eq!(
+            op.fallos(),
+            vec![
+                ("TASK-002".to_owned(), "estado-no-valido".to_owned()),
+                ("TASK-003".to_owned(), "pausada".to_owned()),
+            ]
+        );
+        assert!(op.aprobadas().is_empty());
+        assert_eq!(op.sello(), Sello::Firmado { trailers: vec![] });
+
+        assert_eq!(motivo(&hito(5).aplicar(&e)), Some("hito-vacio"));
+        assert_eq!(motivo(&hito(9).aplicar(&e)), Some("hito-vacio"));
+        assert_eq!(motivo(&hito(6).aplicar(&e)), Some("demasiadas"));
+        assert_eq!(hito(7).aplicar(&e), Ok(Vec::new()));
+        let op = hito(8);
+        assert_eq!(motivo(&op.aplicar(&e)), Some("no-listas"));
+        assert_eq!(
+            op.fallos(),
+            vec![("TASK-007".to_owned(), "de-otra-persona".to_owned())]
+        );
+
+        // Una en `en-diseno` sin plan-final.md: `sin-plan`.
+        let mut m = e.0.clone();
+        m.insert(
+            "TASK-002/tarea.md".to_owned(),
+            md_sprint("TASK-002", "en-diseno", 4),
+        );
+        m.remove(&plan_de(3));
+        m.insert(
+            "TASK-003/tarea.md".to_owned(),
+            md_sprint("TASK-003", "en-diseno", 4),
+        );
+        let op = hito(4);
+        assert_eq!(motivo(&op.aplicar(&EnMemoria(m))), Some("no-listas"));
+        assert_eq!(
+            op.fallos(),
+            vec![
+                ("TASK-002".to_owned(), "sin-plan".to_owned()),
+                ("TASK-003".to_owned(), "sin-plan".to_owned()),
+            ]
+        );
+    }
+
+    /// MEN-1 de la revision de TASK-038: un `tarea.md` que no se entiende
+    /// (no se sabe su sprint) falla cerrado: el hito se rechaza con
+    /// `no-listas` y `TASK-002:ilegible`, sin lote; tambien en lugar de
+    /// `hito-vacio`. Las rutas que no son de una tarea no cuentan.
+    #[test]
+    fn hito_con_tarea_ilegible_falla_cerrado() {
+        let mut m = BTreeMap::from([
+            (
+                "TASK-001/tarea.md".to_owned(),
+                md_sprint("TASK-001", "en-diseno", 4),
+            ),
+            (plan_de(1), "# Plan\n".to_owned()),
+            (
+                "TASK-002/tarea.md".to_owned(),
+                "basura sin cabecera\n".to_owned(),
+            ),
+            ("TASK-003/notas.md".to_owned(), "basura\n".to_owned()),
+            ("ROADMAP.md".to_owned(), "basura\n".to_owned()),
+        ]);
+        let op = hito(4);
+        let r = op.aplicar(&EnMemoria(m.clone()));
+        assert_eq!(motivo(&r), Some("no-listas"), "{r:?}");
+        assert_eq!(
+            op.fallos(),
+            vec![("TASK-002".to_owned(), "ilegible".to_owned())]
+        );
+        assert!(op.aprobadas().is_empty());
+        assert_eq!(op.sello(), Sello::Firmado { trailers: vec![] });
+        // Sin ninguna abierta del hito, la ilegible tampoco deja decir
+        // `hito-vacio`.
+        assert_eq!(
+            motivo(&hito(9).aplicar(&EnMemoria(m.clone()))),
+            Some("no-listas")
+        );
+        // Sin la ilegible, las rutas que no son de una tarea no estorban.
+        m.remove("TASK-002/tarea.md");
+        assert_eq!(hito(4).aplicar(&EnMemoria(m)).map(|c| c.len()), Ok(1));
+    }
+
+    /// Exactamente en el tope (20) si se aprueba.
+    #[test]
+    fn hito_justo_en_el_tope() {
+        let mut m = BTreeMap::new();
+        for n in 1..=MAX_HITO {
+            m.insert(
+                format!("{}/tarea.md", id(n)),
+                md_sprint(&id(n), "en-diseno", 4),
+            );
+            m.insert(plan_de(n), "# Plan\n".to_owned());
+        }
+        // D5a: una ya aprobada del mismo sprint no cuenta para el tope.
+        m.insert(
+            "TASK-099/tarea.md".to_owned(),
+            md_sprint("TASK-099", "en-diseno", 4)
+                .replace("plan_aprobado: false", "plan_aprobado: true"),
+        );
+        let op = hito(4);
+        assert_eq!(op.aplicar(&EnMemoria(m)).map(|c| c.len()), Ok(MAX_HITO));
     }
 }

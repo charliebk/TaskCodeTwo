@@ -916,3 +916,19 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
   midió; D4a no lo necesita.
 - Que el plan de ToolsaWeb sea privado y gratuito se toma de F1-5 D2a (403);
   no se repitió el GET.
+
+## Adenda (F4-3, TASK-038) — la firma previa al lote puede ser `approve --hito`
+
+- **D7a** exige que cada funcionalidad del lote tenga su `approve` firmado.
+  Esa firma puede ser la de `tc2 approve --hito <n>` (F4-3): la persona
+  aprueba antes de la noche todos los planes del hito en **un único commit
+  firmado** con un trailer `Plan-Blob` por tarea, todo o nada (si una tarea
+  abierta del hito no está lista, no se aprueba ninguna y la salida dice
+  cuáles y por qué) y con un tope de 20 planes por orden.
+- `planificar` no distingue de dónde viene la aprobación: para una tarea
+  cuenta `plan_aprobado: true` con el blob actual de su `plan-final.md`
+  entre los `Plan-Blob` del commit que lo puso (la regla 5 del contrato del
+  firmante, tal como queda en la adenda F4-3 de F1-6). Esa comprobación es
+  del check `carril` (F6) y no se implementa en F4-3.
+- No cambia F1-10: que una tarea de riesgo alto no entre en el lote afecta a
+  lanzarlo, no a aprobar su plan.

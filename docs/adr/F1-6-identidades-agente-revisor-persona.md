@@ -685,3 +685,47 @@ ADR. Lo que fija la implementación, con su evidencia en
   (`estado-no-valido`) o de otra persona (`de-otra-persona`).
 - La comprobación de la firma frente a la plataforma (reglas 1 a 5 de la
   decisión 3) sigue siendo del check `carril` (F6), no de `approve` (D3a).
+
+## Adenda (F4-3, TASK-038) — `tc2 approve --hito <n>`: N trailers en un commit
+
+- **Forma** (D1a): `tc2 approve [--json] --hito <n>` (`n` es el campo
+  `sprint`; vale `4` o `H4`). Aprueba de una vez los planes de las tareas
+  abiertas del sprint (ni `terminada` ni `descartada`) que aún no lo están,
+  con las mismas comprobaciones que `approve TASK-NNN` y la misma regla de
+  identidad: con el agente o sin identidad, `approve rechazada hito=<n>
+  motivo=identidad rol=persona` antes de lanzar git. Con un ID, con
+  `--pedir-cambios` o con un hito que no es un número, `uso`.
+- **Un commit firmado con N trailers** (D3a): el lote entero va en un único
+  `commit-tree -S` de la persona, con una línea `Plan-Blob: <blob>` por
+  tarea, en orden de ID, cada una con el blob de su
+  `TASK-NNN/planificacion/plan-final.md` en el árbol de ese mismo commit, y
+  la línea `Operacion: approve-hito|<n>|<id>|<login>`. El trailer no lleva
+  el ID de la tarea: dos planes idénticos comparten blob (el commit solo
+  cambia los `tarea.md` del lote y `ROADMAP.md`).
+- **Todo o nada** (D2a): si alguna tarea abierta del hito no se puede
+  aprobar (también una `planificada` sin plan), no se escribe ni se firma
+  nada: `rechazada motivo=no-listas tareas=ID:motivo,...` con los motivos
+  de F4-2. Sin ninguna abierta, `hito-vacio`; con más de 20 por aprobar,
+  `demasiadas max=20` (D5a: cuentan solo las que cambiarían); todas ya
+  aprobadas, `sin-cambios` sin firmar.
+- **Nombre y fecha** (D4a): cada tarea recibe la fila `| <instante> |
+  approve | <modo congelado> | persona | <versión> |` (el mismo instante
+  para todo el lote) y `actualizado`; el nombre está en la firma y en la
+  línea `Operacion:`.
+- **Regla 5 del contrato del firmante** (decisión 3): cuando el check
+  `carril` de F6 la implemente pasará a «**el blob actual de `plan-final.md`
+  está entre los trailers `Plan-Blob` del commit que pone `plan_aprobado:
+  true`**», en vez de «el trailer». Un commit de `approve TASK-NNN` tiene
+  uno; uno de `approve --hito`, varios. No se implementa aquí.
+- **Divergencia con el plan de TASK-038**: el plan suponía que la
+  transacción pide `sello()` después de `aplicar`; la pedía antes (para
+  decidir las pendientes). Como el lote solo se conoce en `aplicar`, la
+  transacción ahora vuelve a pedir el sello después de `aplicar` en cada
+  intento del CAS para construir el commit; el de antes solo decide si
+  entran las pendientes. Las operaciones que ya existían devuelven el mismo
+  sello las dos veces.
+- **Medido** (`tests/aprobar.rs`, Git de Windows, clave ed25519 desechable):
+  `approve --hito 4` con 10 tareas deja un solo commit nuevo, `git
+  verify-commit` lo valida y sus 10 `Plan-Blob` son los `rev-parse
+  <commit>:TASK-NNN/planificacion/plan-final.md`. **No verificado**: la
+  firma con una persona real y FIDO en Windows (como en F4-2).
