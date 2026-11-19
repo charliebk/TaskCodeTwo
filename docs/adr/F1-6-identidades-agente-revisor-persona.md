@@ -646,3 +646,42 @@ como riesgos sin prueba:
   quién mantiene la lista de personas (F1-10).
 - **GitLab**: si un token de proyecto puede quedar fuera de los aprobadores y
   publicar un estado que la regla de merge exija (F1-13).
+
+## Adenda (F4-2, TASK-037) — `tc2 approve` firmado con `Plan-Blob`
+
+`tc2 approve [--json] TASK-NNN` implementa la consecuencia de F4-2 de este
+ADR. Lo que fija la implementación, con su evidencia en
+`crates/tc2/tests/aprobar.rs` y los unitarios de `crates/tc2/src/plan/`:
+
+- **Identidad**: solo `Quien::Persona` (terminal, `GET /user` con el token de
+  persona y su `id` en la lista de personas de `origin/develop`). Con el
+  agente o con cualquier rechazo de la identidad, `approve rechazada
+  motivo=identidad rol=persona` antes de lanzar git (ni `fetch`, ni
+  transacción, ni `commit-tree`).
+- **Firma**: el commit de `approve` sale de `git commit-tree -S` (la única
+  forma firmada del puerto, adenda de TASK-037 en F1-4) con `gpg.format` y
+  `user.signingkey` de la configuración de la persona, y lleva el trailer
+  `Plan-Blob: <blob>` con el blob de `TASK-NNN/planificacion/plan-final.md`
+  en el árbol de ese mismo commit (`rev-parse <árbol>:<ruta>`). Si la firma
+  falla, `rechazada motivo=firma` y no se publica nada. En cada reintento
+  del CAS se vuelve a firmar. Las pendientes no entran en el commit firmado
+  (D4a): se publican con la siguiente operación normal.
+- **Medido en Windows (Git 2.56.0.windows.4)**: `commit-tree -S` firma con
+  `gpg.format=ssh` y una clave ed25519 desechable sin frase, y `git
+  verify-commit` la valida con `gpg.ssh.allowedSignersFile`. `commit-tree`
+  **no** respeta `commit.gpgSign=true` (es plumbing): ninguna otra operación
+  empieza a firmar por la configuración de la persona, y `approve` pasa `-S`
+  explícito. Sin `user.signingkey` git sale con 128; con una clave que no
+  existe, o con frase de paso y sin terminal, con 1 (los tres, `motivo=firma`).
+- **Terminal**: la entrada estándar de `commit-tree -S` se hereda, para que
+  `ssh-keygen` pueda pedir la frase de paso; stderr se captura (git ya
+  captura el de `ssh-keygen`, así que heredarlo no enseñaría el aviso FIDO) y
+  su primera línea va al diagnóstico. **No verificado**: la petición de la
+  frase de paso y el toque FIDO con una persona real en el terminal de
+  Windows.
+- **Ya aprobado**: `sin-cambios`, sin firmar otra vez. El esqueleto de
+  `plan-final.md` no se aprueba (`plan-esqueleto`); tampoco sin plan
+  (`sin-plan`), en pausa (`pausada`), fuera de `en-diseno`
+  (`estado-no-valido`) o de otra persona (`de-otra-persona`).
+- La comprobación de la firma frente a la plataforma (reglas 1 a 5 de la
+  decisión 3) sigue siendo del check `carril` (F6), no de `approve` (D3a).

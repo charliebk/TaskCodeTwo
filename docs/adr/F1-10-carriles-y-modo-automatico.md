@@ -724,3 +724,26 @@ Lo que el plan de TASK-036 no fijaba, o fija de otra forma:
 
 Evidencia: `crates/tc2/tests/plan.rs` y los unitarios de `carril.rs`
 (`roles_de_diseno_por_carril`) y de `crates/tc2/src/plan/`.
+
+## Adenda (F4-2, TASK-037) — `tc2 approve` y «pedir cambios»
+
+- **Parada fija**: `approve` no admite `--decidido-por` (ni `automatico` ni
+  otro): `uso motivo=decidido-por`. La fila es siempre `approve | <modo> |
+  persona`, con el modo congelado de la última fila `plan` (decisión 6; la
+  firma es de [F1-6](F1-6-identidades-agente-revisor-persona.md)).
+- **Carriles sin plan aprobado**: `approve` se admite en cualquier carril
+  con la tarea `en-diseno` (D2a: endurece, nunca baja).
+- **Pedir cambios cierra la ronda** (hueco de la adenda de F4-1, D1a):
+  `tc2 approve TASK-NNN --pedir-cambios <fichero>` publica
+  `brainstorm/cambios-pedidos-<n>.md` en la ronda mayor; con ese testigo la
+  ronda queda cerrada y el siguiente `plan`, aunque los roles sean los
+  mismos, abre la `n+1`. No concede nada, así que también lo puede lanzar
+  el agente. Divergencia con el plan de TASK-037: no escribe fila en
+  `## Transiciones` (como `plan guardar`, no es una fase; una fila `approve`
+  se leería como aprobación); quién lo pidió queda en la anotación del
+  commit. Repetir el mismo contenido es `sin-cambios`; otro contenido con la
+  ronda ya cerrada, `ronda-cerrada`.
+
+Evidencia: `crates/tc2/tests/aprobar.rs` y los unitarios de
+`crates/tc2/src/plan/aprobar.rs` y `operacion.rs`
+(`cambios_pedidos_cierran_la_ronda`).
