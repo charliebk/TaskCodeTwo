@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-041, TASK-046, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
+- **En marcha:** TASK-041 (en diseño)
+- **Listas para empezar:** TASK-046, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -138,7 +138,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 1 | TASK-041 | F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab | — | TASK-008 | lista para empezar |
+| 1 | TASK-041 | F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab | — | TASK-008 | ▶ en diseño |
 | 2 | TASK-042 | F5-2 Cache por SHA del arbol compartida | — | TASK-041 | espera a TASK-041 |
 | 3 | TASK-043 | F5-3 Verificacion por impacto como paso de CI y completa en la cola | — | TASK-041 | espera a TASK-041 |
 | 4 | TASK-044 | F5-4 Informe de verificacion en JSON para el revisor IA | — | TASK-041 | espera a TASK-041 |
