@@ -29,9 +29,23 @@ dependencias: [TASK-007, TASK-036]
 Tarea F4-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-6, F4-1.
 
 ## Criterios de aceptacion
-- [ ] Sin identidad de persona → rechazo
-- [ ] test
-- [ ] Cumple lo que pide la tarea F4-2 del plan y los requisitos que cita
+- [x] Sin identidad de persona → rechazo
+- [x] test
+- [x] Cumple lo que pide la tarea F4-2 del plan y los requisitos que cita
+
+## Resultado
+
+Hecho: `tc2 approve TASK-NNN` (operacion `Aprobar` en `plan/aprobar.rs`), que solo puede lanzar una persona: con `Quien::Agente` (sin TTY) o sin identidad, `approve rechazada motivo=identidad rol=persona` sin lanzar ningun git (la identidad va antes del `fetch`). El commit de `approve` va firmado (`commit-tree -S` por `Git::ejecutar_firmado`, la unica llamada que firma; el puerto prohibe `-S`/`--gpg-sign` en cualquier otro `commit-tree`, en `commit`, y `-s`/`--sign`/`-u` en `tag`) y lleva el trailer `Plan-Blob` con el blob de `plan-final.md` del arbol del propio commit (F1-6 decision 3). Sin firma, `rechazada motivo=firma` con el arreglo (configurar `gpg.format` y `user.signingkey`) y nada publicado. `--decidido-por automatico` da `uso` (F1-10 decision 6). Con `Sello::Firmado` las pendientes no entran en el commit firmado (D4a). Ya aprobado: `sin-cambios` sin volver a firmar. Plan esqueleto, otra persona, pausa o estado no valido: rechazada. `--pedir-cambios <fichero>` (D1a) publica `brainstorm/cambios-pedidos-<n>.md`, cierra la ronda y el siguiente `tc2 plan` abre la `n+1` citando ese fichero (cierra el hueco declarado en TASK-036). Adendas en F1-6, F1-4 y F1-10. `cargo xtask verificar --perfil rapida` en verde.
+
+Descubierto en Windows (Git 2.56.0.windows.4): `commit-tree -S` firma con `gpg.format=ssh` y una clave ed25519; `commit-tree` NO respeta `commit.gpgSign` (por eso el `-S` va explicito y ninguna otra operacion firma). La configuracion global de git de Carlos no tiene `gpg.format` ni `user.signingkey`: un `tc2 approve` real saldra `motivo=firma` hasta configurarlos.
+
+Divergencias con el plan (en las adendas): stderr de `commit-tree -S` capturado (stdin heredado para la frase de paso); `--pedir-cambios` no escribe fila en `## Transiciones` (quien lo pidio queda en la anotacion del commit); `Sello` vive en `git::estado`; el esqueleto se detecta comparando con `plan_final` para 0 a 5 roles.
+
+Implementado por un subagente con el plan aprobado (D1a-D4a); revisado por dos agentes independientes.
+
+No verificado: la frase de paso y el toque FIDO con una persona real en el terminal de Windows; el «Verified» de GitHub; el paso por el binario con `Quien::Persona` (necesita terminal y token reales; probado con la biblioteca).
+
+Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTANTES. Corregidos en 9399fbe: MEN-1 de los dos (D4a sin test; el test va en `tests/estado_casos.rs`, asi que `verificar-menores` lo deja en `menores-pendientes.md` aunque esta corregido por test); MEN-2 rust (test de `Plan-Blob` con un cambio en el fichero del trailer); MEN-3 rust (comentario del puerto y prohibicion de firmar en `commit`/`tag`); MEN-2 calidad (la re-planificacion cita `cambios-pedidos-<n-1>.md`); MEN-3 calidad (la adenda de F1-4 lista `no-se-lee`).
 
 ## Transiciones
 
