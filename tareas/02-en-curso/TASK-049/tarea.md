@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 |---|---|---|---|---|
 | 2026-11-19T21:59:15Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T22:23:19Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T22:23:21Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
