@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-038-f4-3-aprobacion-de-un-hito-en-lote
 asignado_a: charlie.bk@gmail.com
@@ -52,6 +52,7 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 | 2026-11-19T06:32:55Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T06:32:57Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T07:19:24Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T07:56:22Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -71,3 +72,10 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 ## Verificacion ligera
 
 - 2026-11-19T07:33:23Z: ronda 1; commit revisado 5ae20d8b11347556bddbfe0fe074e9827f4825f5; commit verificado 6eba76090902d1e281d93651d09a05028c5b1d9c; ficheros: crates/tc2/src/plan/aprobar.rs; corregidos: MEN-1, MEN-1; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 55 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 83 min
+- Paso de la hora: 83 min reales frente a 55 estimados
+- Cierre (finish): 1358 s, de 2026-11-19T07:33:44Z a 2026-11-19T07:56:22Z

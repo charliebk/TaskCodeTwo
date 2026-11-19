@@ -2,12 +2,11 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-19. No editar a mano.
 
-## Planificadas (00-planificadas) — 61
+## Planificadas (00-planificadas) — 60
 
 ```text
 ID        Titulo                                                                                           Asignado
 --------  -----------------------------------------------------------------------------------------------  -------------
-TASK-038  F4-3 Aprobacion de un hito en lote                                                               (sin asignar)
 TASK-039  F4-4 Orquestador del modo automatico                                                             (sin asignar)
 TASK-040  F4-5 Punto de relevo                                                                             (sin asignar)
 TASK-041  F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab                               (sin asignar)
@@ -70,7 +69,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 58
+## Terminadas (04-terminadas) — 59
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -112,6 +111,7 @@ TASK-034  F3-7 descartar y pausa                                                
 TASK-035  F3-8 doctor: entorno, rama de estado, permisos, rulesets y checks                                                   charlie.bk@gmail.com
 TASK-036  F4-1 plan con brainstorm de roles                                                                                   charlie.bk@gmail.com
 TASK-037  F4-2 approve con la identidad de la persona                                                                         charlie.bk@gmail.com
+TASK-038  F4-3 Aprobacion de un hito en lote                                                                                  charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol                                                     charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                                                           charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                                                                   charlie.bk@gmail.com
