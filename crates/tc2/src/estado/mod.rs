@@ -32,7 +32,7 @@ mod pendientes;
 mod tareas;
 mod transaccion;
 
-pub use crate::git::Cambio;
+pub use crate::git::{Cambio, Sello};
 pub use cerrojo::Cerrojo;
 pub use frescura::{Frescura, Marca, Remoto, hace, sincronizado_texto};
 pub(crate) use lectura::referencia_de_lectura;

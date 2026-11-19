@@ -50,6 +50,10 @@ crate::i18n::textos! {
         es: "git hash-object no devolvio un hash por fichero",
         en: "git hash-object did not return one hash per file",
     }
+    FIRMA_FALLO {
+        es: "git no pudo firmar el commit ({error}): configura gpg.format y user.signingkey con tu clave de firma y vuelve a lanzarlo desde tu terminal",
+        en: "git could not sign the commit ({error}): set gpg.format and user.signingkey to your signing key and run it again from your terminal",
+    }
 
     // Donde se lanza.
     LANZALO_EN_EL_WORKTREE {

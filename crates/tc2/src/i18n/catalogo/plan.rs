@@ -1,4 +1,5 @@
-//! Mensajes de `tc2 plan` y `tc2 plan guardar` (F4-1).
+//! Mensajes de `tc2 plan` y `tc2 plan guardar` (F4-1) y de `tc2 approve`
+//! (F4-2).
 
 crate::i18n::textos! {
     USO_PLAN {
@@ -60,5 +61,41 @@ crate::i18n::textos! {
     GRANDE {
         es: "{ruta} pasa de {max} bytes: no se publica",
         en: "{ruta} is larger than {max} bytes: it is not published",
+    }
+    USO_APPROVE {
+        es: "uso: approve [--json] TASK-NNN [--pedir-cambios <fichero>]",
+        en: "usage: approve [--json] TASK-NNN [--pedir-cambios <file>]",
+    }
+    DECIDIDO_POR {
+        es: "approve no admite --decidido-por: aprueba siempre una persona con su firma, en cualquier modo (ADR F1-10, decision 6)",
+        en: "approve does not accept --decidido-por: a person always approves with their signature, in any mode (ADR F1-10, decision 6)",
+    }
+    APROBAR_SIN_PERSONA {
+        es: "approve solo lo lanza una persona desde su terminal, con TC2_TOKEN_PERSONA y su clave de firma: el agente no aprueba (RR-04)",
+        en: "approve is only run by a person from their terminal, with TC2_TOKEN_PERSONA and their signing key: the agent does not approve (RR-04)",
+    }
+    APROBAR_DE_OTRA_PERSONA {
+        es: "la tarea {id} la lleva {login}: solo ella aprueba su plan (o pide que te la reasigne)",
+        en: "task {id} is taken by {login}: only they approve its plan (or ask to have it reassigned)",
+    }
+    APROBAR_PAUSADA {
+        es: "la tarea {id} esta en pausa: reanudala con tc2 reanudar {id} antes de aprobar su plan",
+        en: "task {id} is paused: resume it with tc2 reanudar {id} before approving its plan",
+    }
+    SIN_PLAN {
+        es: "la tarea {id} no tiene plan-final.md: lanza tc2 plan {id} y publica el plan con tc2 plan guardar",
+        en: "task {id} has no plan-final.md: run tc2 plan {id} and publish the plan with tc2 plan guardar",
+    }
+    PLAN_ESQUELETO {
+        es: "el plan-final.md de la tarea {id} es el esqueleto sin rellenar: publica el plan con tc2 plan guardar antes de aprobarlo",
+        en: "the plan-final.md of task {id} is the unfilled skeleton: publish the plan with tc2 plan guardar before approving it",
+    }
+    SIN_RONDA {
+        es: "la tarea {id} no tiene ninguna ronda de planificacion: lanza tc2 plan {id} antes de pedir cambios",
+        en: "task {id} has no planning round: run tc2 plan {id} before requesting changes",
+    }
+    RONDA_CERRADA {
+        es: "la ronda {ronda} de la tarea {id} ya tiene cambios pedidos: lanza tc2 plan {id} para abrir la siguiente",
+        en: "round {ronda} of task {id} already has requested changes: run tc2 plan {id} to open the next one",
     }
 }

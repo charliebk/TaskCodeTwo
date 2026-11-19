@@ -20,10 +20,11 @@
 //!   peticion por rol y `peticion-unificador-<n>.md`).
 //! - Ronda: la mayor con testigo (`peticion-unificador-<n>.md` o
 //!   `peticion-plan-<n>.md`) en `TASK-NNN/planificacion/brainstorm/`. Si sus
-//!   peticiones son exactamente las que tocan ahora, la ronda sigue abierta
-//!   y no se reescribe; si no (no hay ninguna, o cambio el juego de roles),
-//!   se abre la siguiente. Las rondas solo se anaden: la rama de estado no
-//!   borra ficheros.
+//!   peticiones son exactamente las que tocan ahora y no tiene cambios
+//!   pedidos (`cambios-pedidos-<n>.md`, de `approve --pedir-cambios`), la
+//!   ronda sigue abierta y no se reescribe; si no (no hay ninguna, cambio el
+//!   juego de roles o la persona pidio cambios), se abre la siguiente. Las
+//!   rondas solo se anaden: la rama de estado no borra ficheros.
 //! - `plan-final.md`: el esqueleto de F1-9 solo si no existe; uno que ya
 //!   existe no se pisa.
 //! - `tarea.md`: `estado: en-diseno`, `carril:`, `actualizado` y la fila
@@ -172,8 +173,10 @@ pub fn modo_congelado(cuerpo: &Cuerpo) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// Rondas con testigo y nombres por ronda de `TASK-NNN/planificacion/brainstorm/`.
-fn ronda_mayor(rutas: &[String], id: &str) -> (u32, Vec<String>) {
+/// La mayor ronda con testigo de `TASK-NNN/planificacion/brainstorm/`, sus
+/// peticiones (nombres, en orden) y si esta cerrada por
+/// `approve --pedir-cambios` (`cambios-pedidos-<n>.md`, D1a de TASK-037).
+pub(super) fn ronda_mayor(rutas: &[String], id: &str) -> (u32, Vec<String>, bool) {
     let prefijo = p::ruta_brainstorm(id, "");
     let nombres: Vec<&str> = rutas
         .iter()
@@ -197,7 +200,8 @@ fn ronda_mayor(rutas: &[String], id: &str) -> (u32, Vec<String>) {
         .map(|n| (*n).to_owned())
         .collect();
     de_r.sort();
-    (r, de_r)
+    let cerrada = r >= 1 && nombres.contains(&p::nombre_cambios_pedidos(r).as_str());
+    (r, de_r, cerrada)
 }
 
 /// Las peticiones de una ronda: nombre y contenido, en orden de nombre.
@@ -316,7 +320,7 @@ impl Operacion for Planificar {
         let instante = instante(self.ahora);
         let fecha = instante.get(..10).unwrap_or_default().to_owned();
         let rutas = estado.rutas();
-        let (mayor, de_mayor) = ronda_mayor(&rutas, &self.id);
+        let (mayor, de_mayor, cerrada) = ronda_mayor(&rutas, &self.id);
         let datos = |ronda: u32| Datos {
             id: &self.id,
             titulo: &t.titulo,
@@ -334,7 +338,9 @@ impl Operacion for Planificar {
                 .map(|(n, _)| n)
                 .collect()
         };
-        let abierta = mayor >= 1 && nombres(mayor) == de_mayor;
+        // Con cambios pedidos, la ronda esta cerrada aunque los roles sean
+        // los mismos: se abre la siguiente (D1a de TASK-037).
+        let abierta = mayor >= 1 && !cerrada && nombres(mayor) == de_mayor;
         let ronda = if abierta { mayor } else { mayor + 1 };
         let mut cambios = Vec::new();
         if !abierta {
@@ -540,6 +546,44 @@ mod tests {
                 .map(String::as_str),
             Some("mi plan\n")
         );
+    }
+
+    /// D1a de TASK-037: con `cambios-pedidos-1.md` la ronda 1 esta cerrada
+    /// y `plan` con los mismos roles abre la ronda 2 (sin pisar el plan);
+    /// sin el testigo, repetir no cambia nada. Un testigo de otra ronda no
+    /// cierra la mayor.
+    #[test]
+    fn cambios_pedidos_cierran_la_ronda() {
+        let c = Config::suelo();
+        let mut e = estado(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
+        let aplicar = |e: &mut EnMemoria| {
+            let op = Planificar::nueva("TASK-001", &ana(), None, &c, AHORA);
+            let r = op.aplicar(e);
+            for x in r.as_ref().map(Vec::as_slice).unwrap_or_default() {
+                e.0.insert(x.ruta.clone(), x.contenido.clone());
+            }
+            (r, op.resumen())
+        };
+        assert_eq!(rutas(&aplicar(&mut e).0).len(), 3);
+        assert_eq!(aplicar(&mut e).0, Ok(Vec::new()));
+        let b = "TASK-001/planificacion/brainstorm/";
+        e.0.insert(format!("{b}cambios-pedidos-0.md"), "x\n".into());
+        assert_eq!(aplicar(&mut e).0, Ok(Vec::new()));
+        e.0.insert(format!("{b}cambios-pedidos-1.md"), "cambia esto\n".into());
+        let (r, s) = aplicar(&mut e);
+        assert_eq!(
+            rutas(&r),
+            [
+                format!("{b}peticion-plan-2.md"),
+                "TASK-001/tarea.md".to_owned()
+            ]
+        );
+        assert_eq!(
+            s.map(|s| (s.ronda, s.peticiones)),
+            Some((2, vec!["peticion-plan-2.md".to_owned()]))
+        );
+        // La ronda 2 sigue abierta mientras nadie pida cambios en ella.
+        assert_eq!(aplicar(&mut e).0, Ok(Vec::new()));
     }
 
     /// Lo que no se planifica: enunciado que no vale, estado, otra persona.

@@ -18,7 +18,9 @@ use super::lectura::{Estado, Vista};
 use super::pendientes::{self, ANOTACION, Destino};
 use super::{CARPETA, OP, RAMA};
 use crate::contrato::{Informe, Resultado, corto};
-use crate::git::estado::{construir_commit, dir_comun, hay_remoto};
+use crate::git::estado::{
+    Sello, construir_commit, construir_commit_sellado, dir_comun, hay_remoto,
+};
 use crate::git::remoto::publicar;
 use crate::git::{
     Cambio, FalloRemoto, Git, REMOTO, Subcomando, commit_de, correr, es_ancestro, exigir,
@@ -65,6 +67,12 @@ pub trait Operacion {
     fn exige_red(&self) -> bool;
     /// Los cambios sobre `estado`, o por que no procede.
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo>;
+    /// Como se sella su commit (F4-2): [`Sello::Normal`] salvo `approve`,
+    /// que firma. Con [`Sello::Firmado`] las pendientes no entran en ese
+    /// commit (D4a de TASK-037): se publican con la siguiente operacion.
+    fn sello(&self) -> Sello {
+        Sello::Normal
+    }
 }
 
 /// Reconstruye una operacion desde su anotacion (`None`: desconocida).
@@ -312,7 +320,9 @@ fn intento(
     let mut vista = Vista::nueva(git, principal, base.clone())?;
     let mut anotaciones = Vec::new();
     let mut destinos = Vec::new();
-    if remoto {
+    let sello = op.sello();
+    // Un commit firmado lleva solo lo que firma la persona (D4a).
+    if remoto && sello == Sello::Normal {
         for p in pendientes::listar(git, principal)? {
             let reconstruida = p.anotacion.as_deref().and_then(|a| (c.catalogo)(a));
             let Some(o) = reconstruida else {
@@ -367,13 +377,14 @@ fn intento(
     }
 
     let mensaje = mensaje(op.nombre(), &anotaciones);
-    let Some(sha) = construir_commit(
+    let Some(sha) = construir_commit_sellado(
         git,
         principal,
         OP,
         base.as_deref(),
         &vista.cambios(),
         &mensaje,
+        &sello,
     )?
     else {
         let (publicadas, rechazadas) = pendientes::resolver(git, principal, &destinos)?;

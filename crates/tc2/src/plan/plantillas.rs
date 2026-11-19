@@ -72,6 +72,14 @@ pub fn nombre_peticion_redaccion(ronda: u32) -> String {
     format!("peticion-plan-{ronda}.md")
 }
 
+/// `cambios-pedidos-<ronda>.md`: lo que la persona pide cambiar del plan
+/// de esa ronda (`tc2 approve --pedir-cambios`). Es el testigo de que la
+/// ronda esta cerrada: el siguiente `plan` abre la siguiente (D1a de
+/// TASK-037).
+pub fn nombre_cambios_pedidos(ronda: u32) -> String {
+    format!("cambios-pedidos-{ronda}.md")
+}
+
 /// `TASK-NNN/planificacion/plan-final.md`.
 pub fn ruta_plan_final(id: &str) -> String {
     format!("{id}/{PLANIFICACION}/{PLAN_FINAL}")
