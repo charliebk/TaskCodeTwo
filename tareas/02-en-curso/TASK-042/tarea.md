@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-042-f5-2-cache-por-sha-del-arbol-compartida
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F5-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 |---|---|---|---|---|
 | 2026-11-19T19:19:46Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T20:06:12Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T20:06:14Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
