@@ -390,7 +390,7 @@ dependencias. Las fases 1 a 9 son tareas de TaskCodeTwo; la 0, del repo TaskCode
 
 | ID | Tarea | Criterio de aceptación | Dep. |
 |---|---|---|---|
-| F6-1 | Identidades: agente implementador (commits y PR/MR) y revisor (reviews y checks; nunca aprobar ni mergear), como GitHub App y como usuario bot o token de proyecto en GitLab | La persona aprueba un PR/MR del agente en GitHub y en GitLab | F1-6 |
+| F6-1 | Identidades: agente implementador (commits y PR/MR) y revisor (checks; nunca aprobar ni mergear; ver divergencia 6 y adenda F6-1 del ADR F1-6), como GitHub App y como usuario bot o token de proyecto en GitLab | La persona aprueba un PR/MR del agente en GitHub y en GitLab | F1-6 |
 | F6-2 | `review`: abre el PR contra `develop` con la identidad del agente y lanza el revisor | PR enlazado a la tarea; check `revision-ia` | F6-1, F2-6 |
 | F6-3 | Revisor en CI con las skills de dominio de la 0.16 (angular-vue, rust-wasm, C#, Java, genérica), enrutado por lo que toca el diff y con el modelo que fije F4-6 (RR-02, RR-17) | Un diff Rust + Vue lanza las dos de dominio | F6-2, F5-4 |
 | F6-4 | Búsqueda de errores: reproducción, mutantes y bordes con evidencia en cada hallazgo (RR-03) | Hallazgo sin evidencia = rechazado por el propio workflow | F6-3 |

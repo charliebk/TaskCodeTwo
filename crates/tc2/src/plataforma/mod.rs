@@ -11,9 +11,11 @@
 //! Se usa desde la biblioteca: el binario no gana subcomandos hasta que los
 //! comandos de fase (F6-2 `review`, F7 `finish`, F3-8 `doctor`) lo llamen.
 
+pub mod app_github;
 pub mod conexion;
 pub mod credenciales;
 pub mod deteccion;
+pub mod entorno_git;
 pub mod errores;
 pub mod github;
 pub mod gitlab;
@@ -21,8 +23,13 @@ pub mod http;
 pub mod personas;
 pub mod puertas;
 
-pub use credenciales::{Credenciales, CredencialesEntorno, CredencialesFijas, Rol, Secreto};
+pub use app_github::CredencialesApp;
+pub use credenciales::{
+    Credenciales, CredencialesDeEntorno, CredencialesFijas, FalloCredencial, Rol, Secreto,
+    de_entorno,
+};
 pub use deteccion::{Destino, detectar};
+pub use entorno_git::{AutorGit, entorno_git};
 pub use github::GitHub;
 pub use gitlab::GitLab;
 pub use personas::{Clave, Persona, Personas};

@@ -13,17 +13,34 @@
 //! con su propio cliente (no es parte del puerto: `aplicar-puertas` es de
 //! F3-1) y deja el repo como estaba: cierra los PR que no se mergean, borra
 //! las ramas y el ruleset.
+//!
+//! F6-1 (TASK-047), `persona_aprueba_pr_del_agente`: el agente es una GitHub
+//! App instalada en el repo de pruebas y la persona, la cuenta de
+//! `TC2_E2E_TOKEN`. Variables:
+//!
+//! - `TC2_E2E_REPO`: `dueno/repo` (el mismo de arriba).
+//! - `TC2_E2E_TOKEN`: token de la persona (aprueba, cierra y limpia).
+//! - `TC2_E2E_APP_ID`: id de la App del agente.
+//! - `TC2_E2E_APP_CLAVE`: ruta al PEM de la clave privada de esa App.
+//!
+//! ```text
+//! TC2_E2E_REPO=dueno/repo TC2_E2E_TOKEN=... TC2_E2E_APP_ID=... TC2_E2E_APP_CLAVE=/ruta/app.pem cargo test -p tc2 --test plataforma_e2e persona_aprueba_pr_del_agente -- --ignored --nocapture --test-threads=1
+//! ```
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+
+mod agente_git;
 
 use std::cell::{Cell, RefCell};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 use tc2::contrato::Resultado;
-use tc2::plataforma::http::Base;
+use tc2::plataforma::credenciales::de_entorno_con;
+use tc2::plataforma::http::{Base, Cliente, Metodo};
 use tc2::plataforma::{
-    CredencialesFijas, GitHub, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
+    AutorGit, Credenciales, CredencialesApp, CredencialesFijas, GitHub, ModeloPuertas, Personas,
+    Plataforma, Proveedor, Rol, Secreto,
 };
 
 struct Entorno {
@@ -68,7 +85,19 @@ impl Arnes {
     /// Como `api`, sin entrar en panico: para limpiar desde `Drop`.
     fn intentar(&self, metodo: &str, ruta: &str, cuerpo: Option<Value>) -> Option<(u16, Value)> {
         let url = format!("https://api.github.com/repos/{}{ruta}", self.e.repo);
-        let auth = format!("Bearer {}", self.e.token);
+        self.intentar_con(&self.e.token, metodo, &url, cuerpo)
+    }
+
+    /// Llamada a una URL completa con otro token (el de la App del agente
+    /// en F6-1).
+    fn intentar_con(
+        &self,
+        token: &str,
+        metodo: &str,
+        url: &str,
+        cuerpo: Option<Value>,
+    ) -> Option<(u16, Value)> {
+        let auth = format!("Bearer {token}");
         fn cab<B>(p: ureq::RequestBuilder<B>, auth: &str) -> ureq::RequestBuilder<B> {
             p.header("Authorization", auth)
                 .header("Accept", "application/vnd.github+json")
@@ -76,11 +105,11 @@ impl Arnes {
                 .header("User-Agent", "taskcodetwo-e2e")
         }
         let r = match (metodo, cuerpo) {
-            ("GET", _) => cab(self.agente.get(&url), &auth).call(),
-            ("DELETE", _) => cab(self.agente.delete(&url), &auth).call(),
-            ("POST", Some(c)) => cab(self.agente.post(&url), &auth).send(c.to_string()),
-            ("PUT", Some(c)) => cab(self.agente.put(&url), &auth).send(c.to_string()),
-            ("PATCH", Some(c)) => cab(self.agente.patch(&url), &auth).send(c.to_string()),
+            ("GET", _) => cab(self.agente.get(url), &auth).call(),
+            ("DELETE", _) => cab(self.agente.delete(url), &auth).call(),
+            ("POST", Some(c)) => cab(self.agente.post(url), &auth).send(c.to_string()),
+            ("PUT", Some(c)) => cab(self.agente.put(url), &auth).send(c.to_string()),
+            ("PATCH", Some(c)) => cab(self.agente.patch(url), &auth).send(c.to_string()),
             _ => return None,
         };
         let mut r = r.ok()?;
@@ -438,4 +467,130 @@ fn puertas_reales_contra_github() {
         !quedan.to_string().contains(&nombre),
         "el ruleset del E2E se ha borrado"
     );
+}
+
+/// (c) F6-1: el agente, como GitHub App, empuja una rama por git con su
+/// token de instalacion (fuera la configuracion de git del usuario) y abre
+/// el PR; la App no puede aprobar su propio PR; la persona lo aprueba y
+/// `estado-puertas` con la persona cuenta esa aprobacion.
+#[test]
+#[ignore = "E2E: escribe en el repo de pruebas de GitHub (TC2_E2E_REPO, TC2_E2E_TOKEN, TC2_E2E_APP_ID, TC2_E2E_APP_CLAVE)"]
+fn persona_aprueba_pr_del_agente() {
+    let arnes = Arnes::nuevo();
+    let (repo, token) = (arnes.e.repo.clone(), arnes.e.token.clone());
+    let app_id = std::env::var("TC2_E2E_APP_ID").expect("define TC2_E2E_APP_ID");
+    let clave = std::env::var("TC2_E2E_APP_CLAVE").expect("define TC2_E2E_APP_CLAVE");
+    let yo = adaptador(&repo, &token, Personas::default())
+        .identidad(Rol::Persona)
+        .unwrap();
+
+    // La App del agente: slug, cuenta [bot] y token de instalacion.
+    let app = CredencialesApp::desde_fichero(
+        &app_id,
+        std::path::Path::new(&clave),
+        &Base::github(),
+        &repo,
+        Rol::Agente,
+    )
+    .unwrap();
+    let slug = app.slug().unwrap();
+    let bot = format!("{slug}[bot]");
+    let (e, cuenta) = arnes
+        .intentar_con(
+            &token,
+            "GET",
+            &format!("https://api.github.com/users/{bot}"),
+            None,
+        )
+        .expect("red");
+    assert_eq!(e, 200, "{cuenta}");
+    assert_eq!(cuenta["type"], "Bot", "{cuenta}");
+    let token_app = app.obtener(Rol::Agente).unwrap();
+    let autor = AutorGit::bot_github(&slug, cuenta["id"].as_u64());
+
+    let limpieza = Limpieza::nueva(&arnes);
+    let rama = format!("e2e/agente-{}", sufijo());
+    limpieza.rama(&rama);
+    let (_clon, sha) = agente_git::publicar_rama(
+        Proveedor::GitHub,
+        &format!("https://github.com/{repo}.git"),
+        "https://github.com/",
+        &token_app,
+        &autor,
+        ("main", &rama),
+    );
+    let (e, c) = arnes.api("GET", &format!("/commits/{sha}"), None);
+    assert_eq!(e, 200, "{c}");
+    eprintln!(
+        "  commit {sha}: autor={} login={}",
+        c["commit"]["author"]["name"], c["author"]["login"]
+    );
+    assert_eq!(c["commit"]["author"]["name"], bot.as_str());
+
+    // El adaptador con la fabrica de produccion: App del agente y token de
+    // persona (con terminal).
+    let vars = |v: &str| match v {
+        "TC2_APP_AGENTE_ID" => Some(app_id.clone()),
+        "TC2_APP_AGENTE_CLAVE" => Some(clave.clone()),
+        "TC2_TOKEN_PERSONA" => Some(token.clone()),
+        _ => None,
+    };
+    let gh = GitHub::nuevo(
+        Base::github(),
+        &repo,
+        Box::new(de_entorno_con(vars, true)),
+        Personas::nuevas([yo.id]),
+    )
+    .unwrap();
+    let i = gh.abrir_pr(&rama, "main", "E2E TASK-047", "PR del agente (F6-1)");
+    assert_eq!(i.resultado, Resultado::Ok, "{}", ver(&i));
+    ver(&i);
+    let n = i.valor("pr").unwrap().to_owned();
+    limpieza.pr(&n);
+    let num: u64 = n.parse().unwrap();
+    let (e, pr) = arnes.api("GET", &format!("/pulls/{n}"), None);
+    assert_eq!(e, 200, "{pr}");
+    assert_eq!(pr["user"]["login"], bot.as_str(), "el PR lo abre la App");
+    assert_eq!(pr["user"]["type"], "Bot");
+
+    // La App no puede aprobar su propio PR (no verificado en F1-6).
+    // Con el `Cliente` de la biblioteca, que recibe el `Secreto` sin
+    // exponerlo (MEN-5 de la ronda 1 de TASK-047).
+    let cuerpo =
+        json!({"event": "APPROVE", "body": "auto-aprobacion de la App (tiene que fallar)"})
+            .to_string();
+    let r = Cliente::nuevo(Base::github())
+        .llamar(
+            Metodo::Post,
+            &format!("/repos/{repo}/pulls/{n}/reviews"),
+            Some(&token_app),
+            Some(&cuerpo),
+        )
+        .expect("red");
+    let (e, v) = (r.estado, r.cuerpo);
+    eprintln!("  auto-aprobacion de la App: {e} {v}");
+    assert!(
+        (400..500).contains(&e),
+        "la App aprobo su propio PR: {e} {v}"
+    );
+
+    let modelo = ModeloPuertas::default();
+    let i = gh.estado_puertas(Rol::Persona, num, &modelo);
+    assert_eq!(i.valor("aprobaciones"), Some("0"), "{}", ver(&i));
+
+    // La persona aprueba.
+    let (e, v) = arnes.api(
+        "POST",
+        &format!("/pulls/{n}/reviews"),
+        Some(json!({"event": "APPROVE", "body": "aprobado por la persona (E2E TASK-047)"})),
+    );
+    assert_eq!(e, 200, "{v}");
+    let i = gh.estado_puertas(Rol::Persona, num, &modelo);
+    assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
+    ver(&i);
+    // Y el agente ve lo mismo con su token de instalacion.
+    let i = gh.estado_puertas(Rol::Agente, num, &modelo);
+    assert_eq!(i.valor("aprobaciones"), Some("1"), "{}", ver(&i));
+
+    drop(limpieza);
 }

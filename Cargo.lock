@@ -605,7 +605,9 @@ dependencies = [
 name = "tc2"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "distribucion",
+ "ring",
  "serde",
  "serde-saphyr",
  "serde_json",

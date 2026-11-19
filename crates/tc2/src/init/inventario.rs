@@ -761,7 +761,7 @@ fn plataforma(
         Err(i) => return Ok(Err(motivo_de_deteccion(&i))),
     };
     let credenciales = (c.credenciales)();
-    if credenciales.token(Rol::Persona).is_none() {
+    if !credenciales.tiene(Rol::Persona) {
         return Ok(Err("sin-token".to_owned()));
     }
     // La lista de personas, si ya existe y vale: `aplicar-puertas` exige

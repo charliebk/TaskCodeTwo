@@ -353,7 +353,7 @@ fn orden_identidad(args: &[String]) -> Informe {
             dir: &dir,
             git: &g,
             tty: std::io::stdin().is_terminal(),
-            credenciales: Box::new(plataforma::CredencialesEntorno),
+            credenciales: plataforma::de_entorno(),
             ahora: identidad::ahora(),
         },
     )
@@ -479,7 +479,7 @@ fn transicion(
             dir,
             git: g,
             tty: std::io::stdin().is_terminal(),
-            credenciales: Box::new(plataforma::CredencialesEntorno),
+            credenciales: plataforma::de_entorno(),
             ahora,
         })
     };

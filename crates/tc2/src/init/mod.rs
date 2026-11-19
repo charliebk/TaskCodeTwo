@@ -562,8 +562,7 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
         }
     };
     let git = Git::nuevo();
-    let credenciales =
-        || -> Box<dyn Credenciales> { Box::new(crate::plataforma::CredencialesEntorno) };
+    let credenciales = || -> Box<dyn Credenciales> { crate::plataforma::de_entorno() };
     let c = Contexto {
         dir: &dir,
         git: &git,

@@ -30,6 +30,12 @@ ureq = { version = "3.5", default-features = false, features = ["rustls", "platf
 # F2-12: tabla de targets, sha256 y SHA256SUMS compartidos con xtask
 # (`tc2 version --json` y `tc2 actualizar --cli`).
 distribucion = { path = "../distribucion" }
+# F6-1: JWT RS256 de la GitHub App del agente (y del revisor) y la cabecera
+# basica de git. Ya estaban en el arbol (ring por rustls, base64 por ureq):
+# se declaran directas en la misma version de Cargo.lock, sin crates nuevos
+# (alternativa descartada: `jsonwebtoken`, que trae su propia cripto).
+ring = "0.17.14"
+base64 = "0.23.1"
 
 # Parser YAML de otra base de codigo (port de libyaml, como el PyYAML del PoC
 # de F1-9) para la ida y vuelta de los tests: con el de produccion seria
