@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-044-f5-4-informe-de-verificacion-en-json-par
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F5-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 |---|---|---|---|---|
 | 2026-11-19T17:30:57Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T17:37:24Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T17:37:26Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
