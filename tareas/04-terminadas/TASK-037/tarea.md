@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-037-f4-2-approve-con-la-identidad-de-la-pers
 asignado_a: charlie.bk@gmail.com
@@ -55,6 +55,7 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 | 2026-11-19T05:05:00Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-19T05:05:01Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T05:47:44Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T06:28:03Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -74,3 +75,10 @@ Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTA
 ## Verificacion ligera
 
 - 2026-11-19T06:07:10Z: ronda 1; commit revisado b9a6a55f86af56fe615da1af20a1480ea2d9ae0a; commit verificado 9399fbeb1b6a5e71ac294c11d53f0f9c2dbcaf11; ficheros: crates/tc2/src/git/estado.rs, crates/tc2/src/git/puerto.rs, crates/tc2/src/plan/plantillas.rs, crates/tc2/tests/aprobar.rs, crates/tc2/tests/estado_casos.rs, docs/adr/F1-4-operaciones-git-y-contrato-de-salida.md; corregidos: MEN-2, MEN-3, MEN-2, MEN-3; pendientes: MEN-1, MEN-1
+
+## Duracion
+
+- Estimada: 115 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 83 min
+- Paso de la hora: 83 min reales frente a 115 estimados
+- Cierre (finish): 1222 s, de 2026-11-19T06:07:41Z a 2026-11-19T06:28:03Z

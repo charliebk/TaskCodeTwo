@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-037 (feature) — F4-2 approve con la identidad de la persona (2026-11-19)
 - TASK-036 (feature) — F4-1 plan con brainstorm de roles (2026-11-19)
 - TASK-118 (feature) — Aplicar las puertas (rulesets) desde tc2 init (2026-11-19)
 - TASK-125 (fix) — Seguimiento de F3-10: quitar la copia vieja de la regla de actividad (2026-11-18)
