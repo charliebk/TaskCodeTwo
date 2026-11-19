@@ -18,6 +18,15 @@
 //!   `github.event.*`, `github.head_ref` o `toJSON(github...)` en `run:`
 //!   (los datos del evento se pasan por `env:`).
 //!
+//! El workflow del revisor IA (`revision-ia.yml`, F6-3) pasa el mismo lint
+//! con su perfil ([`REVISION`]): solo `workflow_call`; un job con
+//! `environment:` es de clase privilegio aunque su GITHUB_TOKEN no escriba
+//! (sus secretos estan ahi), y el unico entorno admitido es `revisor`;
+//! ningun job escribe con GITHUB_TOKEN (el check lo publica la App del
+//! revisor); y nada saca el head del PR: cada checkout lleva `ref:` sin
+//! `head`, y `run:` no lleva `git checkout`, `switch`, `worktree`, `restore`,
+//! `reset` ni `inputs.`.
+//!
 //! En la plantilla de GitLab se aplica lo que le corresponde: ningun
 //! `secrets:` y ninguna variable que escribe el autor del MR o del commit en
 //! `script:`. Ademas, las entradas de la plantilla son las del workflow.
@@ -405,7 +414,53 @@ fn es_sha(texto: &str) -> bool {
     texto.len() == 40 && texto.chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Lo que cambia entre los workflows de la lista blanca: el de verificacion
+/// (F5-1) y el del revisor IA (F6-3).
+struct Perfil {
+    /// Eventos admitidos.
+    eventos: &'static [&'static str],
+    /// Entornos de despliegue admitidos (`environment:` de un job). Un job
+    /// con entorno es de clase privilegio aunque su GITHUB_TOKEN no escriba:
+    /// sus secretos estan ahi (F6-3).
+    entornos: &'static [&'static str],
+    /// Ningun job escribe con GITHUB_TOKEN (lo que se publica va con una
+    /// App).
+    sin_escritura: bool,
+    /// Ningun checkout del head del PR (ni `ref:` con `head`, ni `git
+    /// checkout`, `switch`, `worktree`, `restore` o `reset` en `run:`), y
+    /// ninguna `inputs.` en `run:` (la rama del PR llega por una entrada).
+    sin_head: bool,
+}
+
+/// `verificacion.yml` (F5-1, F5-2).
+const VERIFICACION: Perfil = Perfil {
+    eventos: &EVENTOS_ADMITIDOS,
+    entornos: &[],
+    sin_escritura: false,
+    sin_head: false,
+};
+
+/// `revision-ia.yml` (F6-3): solo reutilizable, secretos solo en el job del
+/// entorno `revisor`, sin escritura del GITHUB_TOKEN y sin el head.
+const REVISION: Perfil = Perfil {
+    eventos: &["workflow_call"],
+    entornos: &["revisor"],
+    sin_escritura: true,
+    sin_head: true,
+};
+
+/// Ordenes de git que en `run:` cambiarian el arbol de trabajo a otro commit.
+const CAMBIAN_EL_ARBOL: [&str; 5] = ["checkout", "switch", "worktree", "restore", "reset"];
+
 fn lint_github(texto: &str) -> Vec<String> {
+    lint_con(texto, &VERIFICACION)
+}
+
+fn lint_revision(texto: &str) -> Vec<String> {
+    lint_con(texto, &REVISION)
+}
+
+fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
     let raiz = match leer_yaml(texto) {
         Ok(r) => r,
         Err(e) => return vec![e],
@@ -415,7 +470,7 @@ fn lint_github(texto: &str) -> Vec<String> {
         None => errores.push("sin bloque on".to_owned()),
         Some(on) => {
             for e in eventos(on) {
-                if !EVENTOS_ADMITIDOS.contains(&e.as_str()) {
+                if !perfil.eventos.contains(&e.as_str()) {
                     errores.push(format!("evento no admitido: {e}"));
                 }
             }
@@ -461,13 +516,24 @@ fn lint_github(texto: &str) -> Vec<String> {
         let Some(job) = jobs.get(nombre) else {
             continue;
         };
-        let privilegio = match escribe(job.get("permissions")) {
+        let escritura = match escribe(job.get("permissions")) {
             Ok(p) => p,
             Err(e) => {
                 errores.push(format!("job {nombre}: {e}"));
                 false
             }
         };
+        if escritura && perfil.sin_escritura {
+            errores.push(format!("job {nombre}: escritura con GITHUB_TOKEN"));
+        }
+        let entorno = job.get("environment");
+        if let Some(n) = entorno {
+            let valor = n.texto().or_else(|| n.get("name").and_then(Nodo::texto));
+            if !valor.is_some_and(|v| perfil.entornos.contains(&v)) {
+                errores.push(format!("job {nombre}: entorno no admitido: {valor:?}"));
+            }
+        }
+        let privilegio = escritura || entorno.is_some();
         if let Some(Nodo::Mapa(pares)) = job.get("permissions") {
             for (alcance, valor) in pares {
                 if valor.texto() == Some("read") && !LECTURAS_ADMITIDAS.contains(&alcance.as_str())
@@ -499,6 +565,24 @@ fn lint_github(texto: &str) -> Vec<String> {
                 for dato in DATOS_DEL_EVENTO {
                     if normalizado.contains(dato) {
                         errores.push(format!("job {nombre}: {dato} en run"));
+                    }
+                }
+                if perfil.sin_head {
+                    if normalizado.contains("inputs.") {
+                        errores.push(format!("job {nombre}: inputs. en run"));
+                    }
+                    // `git [-C dir] checkout ...`: la orden de git en
+                    // cualquier posicion de una linea que llama a git.
+                    for linea in valor.lines() {
+                        let t: Vec<&str> = linea.split_whitespace().collect();
+                        if !t.contains(&"git") {
+                            continue;
+                        }
+                        for orden in CAMBIAN_EL_ARBOL {
+                            if t.contains(&orden) {
+                                errores.push(format!("job {nombre}: git {orden} en run"));
+                            }
+                        }
                     }
                 }
             }
@@ -541,6 +625,17 @@ fn lint_github(texto: &str) -> Vec<String> {
                 errores.push(format!(
                     "job {nombre}: checkout con ref o repository en clase privilegio"
                 ));
+            }
+            // F6-3: la base y el plugin se sacan; el head del PR, nunca (sin
+            // `ref:` en un evento de PR sale el merge ref, codigo del PR).
+            if perfil.sin_head {
+                match opcion("ref").and_then(Nodo::texto) {
+                    Some(r) if normalizar(r).contains("head") => {
+                        errores.push(format!("job {nombre}: checkout del head del PR"));
+                    }
+                    Some(_) => {}
+                    None => errores.push(format!("job {nombre}: checkout sin ref fija")),
+                }
             }
         }
     }
@@ -1243,6 +1338,120 @@ fn las_reglas_de_gitlab_no_leen_variables_de_job() {
         errores
             .iter()
             .any(|e| e.contains("verificacion-rapida: rules:if lee la variable de job TC2_SOLO")),
+        "{errores:?}"
+    );
+}
+
+// --- Revisor IA (F6-3) -----------------------------------------------------------
+
+const REVISION_IA: &str = ".github/workflows/revision-ia.yml";
+
+/// El workflow del revisor pasa el lint con el perfil revision-ia: dos
+/// jobs, el publicador en el entorno `revisor`, sin checkout, con los tres
+/// secretos y sin escritura del GITHUB_TOKEN.
+#[test]
+fn el_workflow_del_revisor_pasa_el_lint() {
+    let texto = leer(REVISION_IA);
+    let raiz = yaml(&texto);
+    let jobs = raiz.get("jobs").map(Nodo::claves).unwrap_or_default();
+    assert_eq!(jobs, ["preparar", "publicar"]);
+    assert_eq!(lint_revision(&texto), Vec::<String>::new());
+    let publicar = raiz.get("jobs").and_then(|j| j.get("publicar"));
+    assert_eq!(
+        publicar
+            .and_then(|p| p.get("environment"))
+            .and_then(Nodo::texto),
+        Some("revisor")
+    );
+    let mut valores = Vec::new();
+    if let Some(p) = publicar {
+        p.escalares("", &mut valores);
+    }
+    for s in [
+        "TC2_APP_REVISOR_ID",
+        "TC2_APP_REVISOR_CLAVE",
+        "ANTHROPIC_API_KEY",
+    ] {
+        let buscado = format!("secrets.{}", s.to_ascii_lowercase());
+        let en_publicar = valores
+            .iter()
+            .any(|(_, v)| normalizar(v).contains(&buscado));
+        assert!(en_publicar, "falta el secreto {s} en publicar");
+    }
+    // Con el perfil de verificacion, el entorno y el evento no valen.
+    assert!(!lint_github(&texto).is_empty());
+}
+
+#[test]
+fn cada_mutacion_del_revisor_da_su_error() {
+    let texto = leer(REVISION_IA);
+    let casos: [(&str, &str, &str); 9] = [
+        (
+            "  workflow_call:\n",
+            "  pull_request:\n  workflow_call:\n",
+            "evento no admitido: pull_request",
+        ),
+        (
+            "          ref: ${{ inputs.base }}\n",
+            "          ref: ${{ inputs.head-sha }}\n",
+            "checkout del head del PR",
+        ),
+        (
+            "          ref: ${{ inputs.base }}\n",
+            "",
+            "checkout sin ref fija",
+        ),
+        (
+            "          git -C base fetch --no-tags -q origin \"$HEAD_SHA\"\n",
+            "          git -C base fetch --no-tags -q origin \"$HEAD_SHA\"\n          git -C base checkout \"$HEAD_SHA\"\n",
+            "git checkout en run",
+        ),
+        (
+            "    environment: revisor\n",
+            "",
+            "job publicar: secreto en clase ejecuta",
+        ),
+        (
+            "    environment: revisor\n",
+            "    environment: produccion\n",
+            "entorno no admitido",
+        ),
+        (
+            "    permissions:\n      actions: read\n    steps:\n      - name: Revisar",
+            "    permissions:\n      actions: read\n      checks: write\n    steps:\n      - name: Revisar",
+            "job publicar: escritura con GITHUB_TOKEN",
+        ),
+        (
+            "          FORZADA: ${{ inputs.tc2-sha }}\n",
+            "          FORZADA: ${{ secrets.ANTHROPIC_API_KEY }}\n",
+            "job preparar: secreto en clase ejecuta",
+        ),
+        (
+            "          set -eu\n          rustup toolchain install\n",
+            "          set -eu\n          echo ${{ inputs.rama }}\n          rustup toolchain install\n",
+            "inputs. en run",
+        ),
+    ];
+    for (original, mutado, esperado) in casos {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let errores = lint_revision(&texto.replacen(original, mutado, 1));
+        assert!(
+            errores.iter().any(|e| e.contains(esperado)),
+            "«{esperado}» no salio; errores: {errores:?}"
+        );
+    }
+    // Un checkout en el publicador: privilegio por el entorno.
+    let con_checkout = texto.replacen(
+        "    steps:\n      - name: Revisar",
+        "    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n        with:\n          persist-credentials: false\n          ref: develop\n      - name: Revisar",
+        1,
+    );
+    assert_ne!(con_checkout, texto);
+    let errores = lint_revision(&con_checkout);
+    assert!(
+        errores
+            .iter()
+            .any(|e| e.contains("job publicar: checkout en clase privilegio")),
         "{errores:?}"
     );
 }
