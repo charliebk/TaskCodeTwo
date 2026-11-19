@@ -334,7 +334,8 @@ impl AprobarHito {
 }
 
 /// Lo que importa de un `tarea.md` para el lote: su sprint, si esta abierta
-/// y si ya esta aprobada. `None` si no se entiende (no se sabe su sprint).
+/// y si ya esta aprobada. `None` si no se entiende (no se sabe su sprint):
+/// entonces cuenta como fallo `ilegible` del hito.
 fn del_hito(d: &Result<Documento, crate::tarea::ErrorTarea>) -> Option<(u32, bool, bool)> {
     let abierta = |e: &str| e != TERMINADA && e != DESCARTADA;
     match d.as_ref().ok()? {
@@ -381,8 +382,14 @@ impl Operacion for AprobarHito {
         let rutas = estado.rutas();
         let mut abiertas = 0usize;
         let mut candidatas = Vec::new();
+        // Fallar cerrado (MEN-1 de la revision): un `tarea.md` que no se
+        // entiende puede ser del hito, asi que impide aprobarlo (`ilegible`).
+        // `tareas` ya deja fuera las rutas que no son de una tarea.
+        let mut fallos = Vec::new();
         for (ruta, doc) in tareas(estado, &rutas)? {
+            let id = ruta.split_once('/').map_or("", |(c, _)| c).to_owned();
             let Some((sprint, abierta, aprobada)) = del_hito(&doc) else {
+                fallos.push((id, "ilegible".to_owned()));
                 continue;
             };
             if sprint != self.hito || !abierta {
@@ -390,11 +397,10 @@ impl Operacion for AprobarHito {
             }
             abiertas += 1;
             if !aprobada {
-                let id = ruta.split_once('/').map_or("", |(c, _)| c).to_owned();
                 candidatas.push((id, doc));
             }
         }
-        if abiertas == 0 {
+        if abiertas == 0 && fallos.is_empty() {
             return Err(self.rechazo("hito-vacio", &txt::HITO_VACIO, 0));
         }
         if candidatas.len() > MAX_HITO {
@@ -413,7 +419,6 @@ impl Operacion for AprobarHito {
         };
         let mut cambios = Vec::new();
         let mut lote = Vec::new();
-        let mut fallos = Vec::new();
         for ((id, doc), plan) in candidatas.into_iter().zip(planes) {
             // `del_hito` solo deja pasar las que se entienden: la otra es
             // una de la 0.16, que se convierte con `tc2 actualizar`.
@@ -432,6 +437,8 @@ impl Operacion for AprobarHito {
             }
         }
         if !fallos.is_empty() {
+            // En orden de ID, las ilegibles junto a las demas.
+            fallos.sort();
             let n = fallos.len();
             *self.fallos.borrow_mut() = fallos;
             return Err(self.rechazo("no-listas", &txt::HITO_NO_LISTAS, n));
@@ -947,6 +954,45 @@ mod tests {
                 ("TASK-003".to_owned(), "sin-plan".to_owned()),
             ]
         );
+    }
+
+    /// MEN-1 de la revision de TASK-038: un `tarea.md` que no se entiende
+    /// (no se sabe su sprint) falla cerrado: el hito se rechaza con
+    /// `no-listas` y `TASK-002:ilegible`, sin lote; tambien en lugar de
+    /// `hito-vacio`. Las rutas que no son de una tarea no cuentan.
+    #[test]
+    fn hito_con_tarea_ilegible_falla_cerrado() {
+        let mut m = BTreeMap::from([
+            (
+                "TASK-001/tarea.md".to_owned(),
+                md_sprint("TASK-001", "en-diseno", 4),
+            ),
+            (plan_de(1), "# Plan\n".to_owned()),
+            (
+                "TASK-002/tarea.md".to_owned(),
+                "basura sin cabecera\n".to_owned(),
+            ),
+            ("TASK-003/notas.md".to_owned(), "basura\n".to_owned()),
+            ("ROADMAP.md".to_owned(), "basura\n".to_owned()),
+        ]);
+        let op = hito(4);
+        let r = op.aplicar(&EnMemoria(m.clone()));
+        assert_eq!(motivo(&r), Some("no-listas"), "{r:?}");
+        assert_eq!(
+            op.fallos(),
+            vec![("TASK-002".to_owned(), "ilegible".to_owned())]
+        );
+        assert!(op.aprobadas().is_empty());
+        assert_eq!(op.sello(), Sello::Firmado { trailers: vec![] });
+        // Sin ninguna abierta del hito, la ilegible tampoco deja decir
+        // `hito-vacio`.
+        assert_eq!(
+            motivo(&hito(9).aplicar(&EnMemoria(m.clone()))),
+            Some("no-listas")
+        );
+        // Sin la ilegible, las rutas que no son de una tarea no estorban.
+        m.remove("TASK-002/tarea.md");
+        assert_eq!(hito(4).aplicar(&EnMemoria(m)).map(|c| c.len()), Ok(1));
     }
 
     /// Exactamente en el tope (20) si se aprueba.
