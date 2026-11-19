@@ -6,10 +6,10 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-037-f4-2-approve-con-la-identidad-de-la-pers
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-19
 dependencias: [TASK-007, TASK-036]
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Tarea F4-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - [ ] Sin identidad de persona → rechazo
 - [ ] test
 - [ ] Cumple lo que pide la tarea F4-2 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-19T04:59:16Z | plan | automatico | persona | 0.16.1 |
