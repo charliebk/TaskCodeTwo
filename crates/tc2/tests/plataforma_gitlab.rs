@@ -866,6 +866,11 @@ fn protecciones_de_gitlab() {
 /// los checks ya publicados en `develop`, y las reglas de aprobacion y los
 /// ajustes del proyecto que se den.
 fn gitlab_premium(reglas: &str, proyecto: &str) -> Mock {
+    gitlab_premium_con(reglas, proyecto, "[]", "[]")
+}
+
+/// Como [`gitlab_premium`], con las ramas y los tags protegidos que se den.
+fn gitlab_premium_con(reglas: &str, proyecto: &str, protegidas: &str, tags: &str) -> Mock {
     let sha = "c".repeat(40);
     let mock = Mock::nuevo();
     mock.responder(
@@ -874,8 +879,8 @@ fn gitlab_premium(reglas: &str, proyecto: &str) -> Mock {
         Simulada::json(200, r#"{"username":"carlos","id":1001,"bot":false}"#),
     );
     for (ruta, cuerpo) in [
-        ("/protected_branches", "[]".to_owned()),
-        ("/protected_tags", "[]".to_owned()),
+        ("/protected_branches", protegidas.to_owned()),
+        ("/protected_tags", tags.to_owned()),
         ("/approval_rules", reglas.to_owned()),
         ("", proyecto.to_owned()),
         (
@@ -976,4 +981,121 @@ fn aplicar_puertas_gitlab_premium_y_carrera() {
             .iter()
             .all(|r| !r.linea.starts_with("DELETE ") && !r.linea.starts_with("PATCH "))
     );
+}
+
+/// Revision 1, IMP-1: un corte entre proteger `develop` y el `PUT` de los
+/// ajustes de merge deja `develop` a medias; la repeticion ve la proteccion
+/// igual que el modelo y completa los ajustes y la regla de aprobacion
+/// (Premium) en vez de darla por distinta, y una tercera no escribe nada.
+#[test]
+fn aplicar_puertas_gitlab_corte_tras_proteger_converge() {
+    use tc2::plataforma::puertas::{modelo as puertas, origenes};
+    let _serie = serie();
+    let o = origenes(Proveedor::GitLab, Some(2002)).unwrap();
+    let ff = r#"{"only_allow_merge_if_pipeline_succeeds":false,"merge_method":"ff","namespace":{"id":9}}"#;
+    let bien = r#"{"only_allow_merge_if_pipeline_succeeds":true,"merge_method":"merge","namespace":{"id":9}}"#;
+    let sin_regla = r#"[{"name":"All Members","approvals_required":0}]"#;
+    let escrituras = |m: &Mock| -> Vec<String> {
+        m.recibidas()
+            .into_iter()
+            .filter(|r| !r.linea.starts_with("GET "))
+            .map(|r| r.linea)
+            .collect()
+    };
+    let rama = |n: &str, push: u64, merge: u64| {
+        format!(
+            r#"{{"name":"{n}","push_access_levels":[{{"access_level":{push}}}],"merge_access_levels":[{{"access_level":{merge}}}],"allow_force_push":false}}"#
+        )
+    };
+
+    // Ronda 1: `develop` queda protegida y el PUT da 500.
+    let m = gitlab_premium_con(sin_regla, ff, "[]", "[]");
+    m.responder(
+        "POST",
+        &format!("{P}/protected_branches"),
+        Simulada::json(201, "{}"),
+    );
+    m.responder("PUT", P, Simulada::json(500, r#"{"message":"x"}"#));
+    let i = gitlab(&m, &[Rol::Persona]).aplicar_puertas(&puertas(), &o);
+    assert_eq!(
+        i.linea(),
+        "aplicar-puertas error motivo=http estado=500 aplicadas= a-medias=taskcodetwo-develop faltan=taskcodetwo-develop,taskcodetwo-main,taskcodetwo-ramas-de-tarea,taskcodetwo-tareas,taskcodetwo-tags-version"
+    );
+    assert_eq!(
+        escrituras(&m),
+        [format!("POST {P}/protected_branches"), format!("PUT {P}")]
+    );
+
+    // Ronda 2: `develop` ya protegida como el modelo; faltan los ajustes,
+    // la regla y las demas puertas.
+    let m = gitlab_premium_con(
+        sin_regla,
+        ff,
+        &format!("[{}]", rama("develop", 0, 40)),
+        "[]",
+    );
+    for ruta in ["/protected_branches", "/protected_tags", "/approval_rules"] {
+        m.responder("POST", &format!("{P}{ruta}"), Simulada::json(201, "{}"));
+    }
+    m.responder("PUT", P, Simulada::json(200, "{}"));
+    let gl = gitlab(&m, &[Rol::Persona]);
+    let leidas = gl.preparar_puertas(&puertas(), &o).unwrap();
+    assert!(
+        leidas
+            .con_estado(tc2::plataforma::EstadoPuerta::Difiere)
+            .is_empty(),
+        "{leidas:?}"
+    );
+    let i = gl.aplicar_puertas(&puertas(), &o);
+    assert_eq!(
+        i.linea(),
+        "aplicar-puertas ok aplicadas=taskcodetwo-develop,taskcodetwo-main,taskcodetwo-ramas-de-tarea,taskcodetwo-tareas,taskcodetwo-tags-version existentes="
+    );
+    let es = escrituras(&m);
+    assert_eq!(
+        es.iter().filter(|l| **l == format!("PUT {P}")).count(),
+        1,
+        "{es:?}"
+    );
+    assert_eq!(
+        es.iter()
+            .filter(|l| **l == format!("POST {P}/approval_rules"))
+            .count(),
+        1,
+        "{es:?}"
+    );
+    let ramas: Vec<String> = m
+        .recibidas()
+        .into_iter()
+        .filter(|r| r.linea == format!("POST {P}/protected_branches"))
+        .map(|r| r.cuerpo)
+        .collect();
+    assert!(
+        ramas.iter().all(|c| !c.contains("\"develop\"")),
+        "{ramas:?}"
+    );
+    assert!(
+        es.iter()
+            .all(|l| l.starts_with("POST ") || l.starts_with("PUT "))
+    );
+
+    // Ronda 3: todo completo, ninguna escritura.
+    let todas = [
+        rama("develop", 0, 40),
+        rama("main", 0, 40),
+        rama("feature/*", 30, 30),
+        rama("fix/*", 30, 30),
+        rama("hotfix/*", 30, 30),
+        rama("taskcodetwo/tareas", 30, 30),
+    ]
+    .join(",");
+    let m = gitlab_premium_con(
+        r#"[{"name":"taskcodetwo-aprobacion","approvals_required":1}]"#,
+        bien,
+        &format!("[{todas}]"),
+        r#"[{"name":"v*","create_access_levels":[{"access_level":30}]}]"#,
+    );
+    let i = gitlab(&m, &[Rol::Persona]).aplicar_puertas(&puertas(), &o);
+    assert_eq!(i.resultado, Resultado::SinCambios, "{}", i.linea());
+    assert!(escrituras(&m).is_empty(), "{:?}", escrituras(&m));
 }

@@ -1010,7 +1010,7 @@ impl Plataforma for GitLab {
                 Err(self.con.traducir(op, rol, PERMISO_MERGE, &r))
             }
         };
-        aplicar_en_lote(ps, &leidas, |p| {
+        aplicar_en_lote(ps, &leidas, |p, escrito| {
             let mut nueva = false;
             match &p.objetivo {
                 Objetivo::Ramas(r) => {
@@ -1028,6 +1028,7 @@ impl Plataforma for GitLab {
                                 "allow_force_push": false,
                             }),
                         )?;
+                        *escrito |= nueva;
                     }
                 }
                 Objetivo::Tags(t) => {
@@ -1042,6 +1043,7 @@ impl Plataforma for GitLab {
                                 "create_access_level": DEVELOPER,
                             }),
                         )?;
+                        *escrito |= nueva;
                     }
                 }
             }
@@ -1064,6 +1066,7 @@ impl Plataforma for GitLab {
                     }
                     ajustes = true;
                     nueva = true;
+                    *escrito = true;
                 }
                 if pa.premium && !aprobacion {
                     nueva |= crear(
@@ -1074,6 +1077,7 @@ impl Plataforma for GitLab {
                             "rule_type": "any_approver",
                         }),
                     )?;
+                    *escrito |= nueva;
                     aprobacion = true;
                 }
             }
@@ -1184,11 +1188,17 @@ impl GitLab {
                             Some(_) => {}
                         }
                     }
+                    // Proteccion como la del modelo pero sin los ajustes de
+                    // merge del proyecto o sin la regla de aprobacion
+                    // (Premium): falta completarla, p. ej. tras un corte
+                    // entre proteger la rama y el `PUT`. Esas escrituras no
+                    // tocan la proteccion; `Difiere` queda para una
+                    // proteccion distinta del modelo, que no se toca.
                     if e == EstadoPuerta::Existe
                         && p.solo_pr.is_some()
                         && (!ajustes_bien || (premium && !con_aprobacion))
                     {
-                        e = EstadoPuerta::Difiere;
+                        e = EstadoPuerta::Falta;
                     }
                     e
                 }

@@ -323,13 +323,17 @@ pub(crate) enum Creada {
     YaExistia,
 }
 
-/// Escribe las puertas que faltan de `leidas`, una a una, con `crear`. Un
-/// fallo corta: la linea dice `aplicadas=` y `faltan=`, y repetirla
-/// converge (lo creado sale como existente). Nunca reescribe ni borra.
+/// Escribe las puertas que faltan de `leidas`, una a una, con `crear`, que
+/// marca en su `bool` si ya escribio algo de esa puerta (en GitLab una
+/// puerta son varias escrituras). Un fallo corta: la linea dice
+/// `aplicadas=` (las completas), `a-medias=` (la que quedo escrita en
+/// parte, si la hay) y `faltan=` (las que no estan completas, con esa), y
+/// repetirla converge: lo creado sale como existente y lo que le falta a
+/// una puerta a medias se completa. Nunca reescribe ni borra.
 pub(crate) fn aplicar_en_lote(
     puertas: &[puertas::Puerta],
     leidas: &PuertasLeidas,
-    mut crear: impl FnMut(&puertas::Puerta) -> Paso<Creada>,
+    mut crear: impl FnMut(&puertas::Puerta, &mut bool) -> Paso<Creada>,
 ) -> Informe {
     let mut aplicadas = Vec::new();
     let mut existentes = leidas.con_estado(EstadoPuerta::Existe);
@@ -344,15 +348,18 @@ pub(crate) fn aplicar_en_lote(
         })
         .collect();
     for (k, p) in faltan.iter().enumerate() {
-        match crear(p) {
+        let mut escrito = false;
+        match crear(p, &mut escrito) {
             Ok(Creada::Nueva) => aplicadas.push(p.nombre_completo()),
             Ok(Creada::YaExistia) => existentes.push(p.nombre_completo()),
             Err(mut i) => {
                 puertas::APLICAR_PUERTAS.clone_into(&mut i.comando);
                 let resto = faltan[k..].iter().map(|p| p.nombre_completo()).collect();
-                return i
-                    .con_lista("aplicadas", aplicadas)
-                    .con_lista("faltan", resto);
+                i = i.con_lista("aplicadas", aplicadas);
+                if escrito {
+                    i = i.con_lista("a-medias", vec![p.nombre_completo()]);
+                }
+                return i.con_lista("faltan", resto);
             }
         }
     }

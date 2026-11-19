@@ -484,9 +484,10 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
         if let Some(i) = &puertas {
             // Cada linea `ruleset` dice lo que de verdad paso: creada,
             // existente (otro llego antes) o sin aplicar.
-            let (aplicadas, existentes, faltan) = (
+            let (aplicadas, existentes, a_medias, faltan) = (
                 lista(i, "aplicadas"),
                 lista(i, "existentes"),
+                lista(i, "a-medias"),
                 lista(i, "faltan"),
             );
             for a in acciones.iter_mut().filter(|a| a.clase == "ruleset") {
@@ -497,14 +498,26 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
                     a.decision = Decision::Existe;
                     a.motivo = None;
                 } else if faltan.contains(&a.ruta) {
+                    // La que fallo dice si quedo escrita en parte; las de
+                    // detras no se intentaron.
                     a.decision = Decision::Pendiente;
-                    if a.motivo.as_deref() != Some("error") {
-                        a.motivo = Some("no-aplicada".to_owned());
-                    }
+                    a.motivo = Some(
+                        if a_medias.contains(&a.ruta) {
+                            "a-medias"
+                        } else if faltan.first() == Some(&a.ruta) {
+                            "error"
+                        } else {
+                            "no-aplicada"
+                        }
+                        .to_owned(),
+                    );
                 }
             }
             if !i.resultado.es_exito() {
                 cabeza.push(("aplicadas", Valor::Lista(aplicadas)));
+                if !a_medias.is_empty() {
+                    cabeza.push(("a-medias", Valor::Lista(a_medias)));
+                }
                 cabeza.push(("faltan", Valor::Lista(faltan.clone())));
                 if let (Some(f), Some(primera)) = (fallo.as_mut(), faltan.first()) {
                     f.0.clone_from(primera);

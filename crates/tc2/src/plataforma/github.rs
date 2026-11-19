@@ -796,7 +796,7 @@ impl Plataforma for GitHub {
             Ok(l) => l,
             Err(i) => return i,
         };
-        aplicar_en_lote(ps, &leidas, |p| {
+        aplicar_en_lote(ps, &leidas, |p, _escrito| {
             let cuerpo = puertas::ruleset_github(p, Some(origenes));
             if cuerpo.get("_nota").is_some() {
                 // Nunca se envia un check sin su `integration_id`.

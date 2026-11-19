@@ -625,9 +625,15 @@ lecturas) y `aplicar_puertas` (en lote), con implementación por defecto
 `aplicar-puertas rechazada motivo=no-soportada`. `aplicar_puertas` primero
 repite todas las comprobaciones de `preparar_puertas` y solo después
 escribe; crea las puertas que faltan, una a una, y si un fallo corta a mitad
-la línea dice `aplicadas=` y `faltan=`. Repetirla converge: lo ya creado
-sale como existente. Un 422 de GitHub o un 409 de GitLab al crear es «otro
-llegó antes» y cuenta como existente. GitHub: `POST /repos/{r}/rulesets`
+la línea dice `aplicadas=` (las completas), `a-medias=` (la que quedó
+escrita en parte, p. ej. en GitLab una rama ya protegida sin los ajustes de
+merge) y `faltan=`. Repetirla converge: lo ya creado sale como existente y
+a una puerta de GitLab cuya protección ya es la del modelo se le completan
+los ajustes de merge y la regla de aprobación (escrituras que no tocan la
+protección). Un 422 de GitHub al crear solo cuenta como «otro llegó antes»
+(existente) si la relectura de `GET /rulesets` ya trae ese nombre; si no, es
+un error. Un 409 de GitLab al proteger una rama o un tag cuenta como
+existente. GitHub: `POST /repos/{r}/rulesets`
 con el JSON de la PoC C, `integration_id` por check y sin `_nota`; el 403 de
 plan da `rechazada motivo=plan`. GitLab: `POST /protected_branches` y
 `POST /protected_tags` con niveles explícitos (nunca el valor por defecto
