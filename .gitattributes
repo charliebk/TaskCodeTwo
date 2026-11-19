@@ -5,6 +5,10 @@
 *.rs text eol=lf
 *.toml text eol=lf
 Cargo.lock text eol=lf
+# Workflows y plantillas de CI: el lint de xtask/src/workflows.rs los lee y
+# sus pruebas buscan lineas literales (TASK-041).
+*.yml text eol=lf
+*.yaml text eol=lf
 # Esquema publicado de la configuracion (F2-7): se compara byte a byte con
 # el que genera el codigo.
 crates/tc2/esquemas/*.json text eol=lf

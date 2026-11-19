@@ -33,6 +33,13 @@ se elige el runner.
 | GitLab: `tags-<perfil>` | `[]` | Etiquetas del runner del perfil |
 | GitLab: `stage` | `test` | Etapa de los jobs |
 
+> **Aviso:** `comando` y `argumentos-*` se interpolan tal cual en la línea del
+> shell (`run:` en GitHub, `script:` en GitLab). Son literales que escribe el
+> proyecto: **nunca** les pases datos del evento (`${{ github.head_ref }}`, el
+> título del PR, `$CI_COMMIT_REF_NAME`…), porque quien nombra la rama o escribe
+> el título ejecutaría código en el runner. El lint de lista blanca revisa el
+> workflow y la plantilla, no al llamador: esto no lo detecta.
+
 **Perfil según el evento** (F1-7, decisión 4), si `perfiles` va vacío:
 
 | Evento | GitHub | GitLab |
@@ -143,9 +150,14 @@ workflow: eventos admitidos (`workflow_call`, `pull_request`, `push`,
 `write-all`), la única acción admitida es `actions/checkout` fijada por SHA y
 con `persist-credentials: false` (sin `ref:` ni `repository:` en un job que
 escribe), ningún `secrets: inherit`, ningún secreto en un job sin escritura y
-ningún `github.event.*`, `github.head_ref` ni `toJSON(github…)` en `run:`. Sobre
-la plantilla: `spec:inputs`, ningún `secrets:` y ninguna variable que escribe
-el autor (`CI_COMMIT_MESSAGE`, `CI_MERGE_REQUEST_TITLE`…) en `script:`. Cada
+ningún `github.event.*`, `github.head_ref` ni `toJSON(github…)` en `run:`
+(también con corchetes, `github['event']`, `secrets['X']`, o con espacios);
+`env` y `defaults` de la raíz sin secretos (y `defaults` sin datos del evento);
+un `uses:` a nivel de job fijado por SHA. Sobre la plantilla: `spec:inputs`,
+ningún `secrets:`, ninguna variable que escribe el autor (`CI_COMMIT_MESSAGE`,
+`CI_MERGE_REQUEST_TITLE`…) en `script:` y ningún `rules:if` que lea una
+variable de job. El lector falla en cerrado: lo que no entiende (sangría
+inesperada, continuación de un escalar) es un error, no se descarta. Cada
 regla tiene su mutación negativa en las pruebas.
 
 ## Divergencias con los ADR
@@ -169,11 +181,17 @@ regla tiene su mutación negativa en las pruebas.
    `GITHUB_TOKEN` en la suite de otra ejecución (el rojo de un llamador
    apareció en la lista de jobs del otro). Con `filter=latest` solo cuenta el
    último: el proyecto declara un único llamador.
-6. **Concurrencia por repo y perfil**: con `cancel-in-progress: false` GitHub
-   sigue cancelando la ejecución *pendiente* más antigua del grupo cuando llega
-   otra; ese PR queda con `ejecutar` cancelado y `verificacion` en rojo, y hay
-   que relanzarlo. Es el precio de no compartir `target/` en un runner propio
-   (no se reprodujo en el E2E).
+6. **Concurrencia por PR (o ref) y perfil**: el grupo es
+   `verificacion-<repo>-<github.event.pull_request.number || github.ref>-<perfil>`
+   (revisión de la ronda 1: por repo y perfil, un tercer PR cancelaba la
+   ejecución pendiente de otro y lo dejaba en rojo sin culpa). Ahora solo se
+   encolan las ejecuciones del mismo PR; con `cancel-in-progress: false` GitHub
+   cancela la pendiente más antigua del grupo cuando llega una tercera, que es
+   un commit ya superado del mismo PR. PR distintos corren en paralelo: un
+   runner propio con un único ejecutor los serializa por sí mismo, y varios
+   ejecutores en la misma máquina (que compartirían `target/`) quedan para
+   F5-5. Comprobado solo por la prueba `la_concurrencia_es_por_pr_o_ref`; no se
+   reprodujo en el E2E.
 
 ## Prueba E2E (2026-11-19, workflow y plantilla en `790b72d`)
 
@@ -204,9 +222,13 @@ Suposiciones del plan:
 - **`spec:inputs` con `include: remote` en GitLab.com Free**: verificado con
   la API de lint (`POST /projects/:id/ci/lint`, `include_merged_yaml`): las
   entradas se interpolan, los cuatro jobs salen con su `script` y `tags: []`
-  es válido. Que `rules:if` lea `TC2_PERFILES` (variable del job) **no está
-  verificado**: el lint con `dry_run` también lo bloquea la verificación de
-  identidad. **Ejecución real: pendiente**;
+  es válido. `TC2_PERFILES` era una variable del job y `rules:if` no ve las
+  `variables:` de los jobs (revisión de la ronda 1): ahora es una variable
+  **global** de la plantilla, que sí se evalúa en las reglas; el lint de
+  `workflows.rs` rechaza un `rules:if` que lea una variable de job. Que la
+  regla case en un pipeline real **no está verificado**: el lint con
+  `dry_run` también lo bloquea la verificación de identidad. **Ejecución
+  real: pendiente**;
   GitLab.com exige verificar la identidad de la cuenta (teléfono o tarjeta)
   para correr jobs en sus runners. Lo hace la persona; después basta un
   pipeline verde y uno rojo con el mismo stub.

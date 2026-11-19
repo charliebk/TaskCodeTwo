@@ -53,11 +53,15 @@ spec:
       description: Etapa de los jobs de verificacion
       default: test
 ---
+# Global, no del job: `rules:if` se evalua al crear el pipeline y no ve las
+# `variables:` de los jobs.
+variables:
+  TC2_PERFILES: " $[[ inputs.perfiles ]] "
+
 .tc2-verificacion:
   stage: $[[ inputs.stage ]]
   interruptible: false
   variables:
-    TC2_PERFILES: " $[[ inputs.perfiles ]] "
     RAMA_BASE: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
 
 verificacion-rapida:

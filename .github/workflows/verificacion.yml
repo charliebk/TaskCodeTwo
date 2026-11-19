@@ -128,11 +128,12 @@ jobs:
       fail-fast: false
       matrix:
         perfil: ${{ fromJSON(needs.buscar.outputs.perfiles) }}
-    # Un runner propio comparte target/ entre ejecuciones: una sola por repo y
-    # perfil. Ojo: con cancel-in-progress false GitHub sigue cancelando la
-    # pendiente mas antigua si llega una tercera (docs/ci).
+    # Una ejecucion a la vez por PR (o ref) y perfil: los push seguidos al
+    # mismo PR se encolan y los de otros PR no se cancelan entre si. Con
+    # cancel-in-progress false GitHub cancela la pendiente mas antigua del
+    # mismo grupo si llega una tercera, que ya esta obsoleta (docs/ci).
     concurrency:
-      group: verificacion-${{ github.repository }}-${{ matrix.perfil }}
+      group: verificacion-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.perfil }}
       cancel-in-progress: false
     defaults:
       run:
