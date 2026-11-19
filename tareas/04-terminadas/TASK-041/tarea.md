@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-041-f5-1-workflow-reutilizable-de-github-act
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Tarea F5-1 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-19T14:58:46Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T15:46:43Z | review | automatico | persona | 0.16.1 |
 | 2026-11-19T16:48:47Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T17:29:20Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -70,3 +71,10 @@ Revision por pares:
 - Ronda 2: las dos aprobadas. MENOR nuevos aceptados como seguimiento: push a rama de PR y `pull_request` en grupos de concurrencia distintos; `uses: ./...` local rechazado por no llevar SHA (falso positivo conservador).
 
 Divergencias (en la guia): argumentos por perfil frente a F1-7 decision 1 (D1); `carril`, `revision-ia` y `ci_config_path` fuera de la plantilla, frente a F1-13 (D4); linea de cache de GitLab en artefacto (D3, F5-2); un solo llamador por repo (dos llamadores publican dos check-runs `verificacion`); la concurrencia va por PR o ref.
+
+## Duracion
+
+- Estimada: 100 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 151 min
+- Paso de la hora: 151 min reales frente a 100 estimados
+- Cierre (finish): 2124 s, de 2026-11-19T16:53:56Z a 2026-11-19T17:29:20Z

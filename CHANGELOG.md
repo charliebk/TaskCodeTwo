@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-041 (feature) — F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab (2026-11-19)
 - TASK-048 (feature) — F6-2 review: abre el PR contra develop con la identidad del agente (2026-11-19)
 - TASK-047 (feature) — F6-1 Identidades: agente implementador (2026-11-19)
 - TASK-038 (feature) — F4-3 Aprobacion de un hito en lote (2026-11-19)
