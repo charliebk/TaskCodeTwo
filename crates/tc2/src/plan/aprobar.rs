@@ -960,6 +960,12 @@ mod tests {
             );
             m.insert(plan_de(n), "# Plan\n".to_owned());
         }
+        // D5a: una ya aprobada del mismo sprint no cuenta para el tope.
+        m.insert(
+            "TASK-099/tarea.md".to_owned(),
+            md_sprint("TASK-099", "en-diseno", 4)
+                .replace("plan_aprobado: false", "plan_aprobado: true"),
+        );
         let op = hito(4);
         assert_eq!(op.aplicar(&EnMemoria(m)).map(|c| c.len()), Ok(MAX_HITO));
     }
