@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-042-f5-2-cache-por-sha-del-arbol-compartida
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Tarea F5-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-19T20:06:14Z | start | automatico | persona | 0.16.1 |
 | 2026-11-19T20:59:49Z | review | automatico | persona | 0.16.1 |
 | 2026-11-19T21:05:32Z | review | automatico | persona | 0.16.1 |
+| 2026-11-19T21:31:39Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -70,3 +71,10 @@ Revision por pares:
 - Ronda 2: code-quality-reviewer aprobada.
 
 Divergencias (en la guia): `github.job_workflow_sha` llega vacio en el reutilizable y la version se lee de `referenced_workflows`; GitHub ignora el `details_url` de un check-run creado con `GITHUB_TOKEN` y el enlace se hace por `check_suite_id`; un re-run saca el check anterior de `latest` y se busca con `filter=all`; una huella local volatil (`uname -sr`) impide el acierto (F1-11); el E2E uso una rama base con el mismo llamador para no tocar siempre los workflows; cola de merge sin probar (exige organizacion); `bash` en runner Windows sin probar.
+
+## Duracion
+
+- Estimada: 110 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 85 min
+- Paso de la hora: 85 min reales frente a 110 estimados
+- Cierre (finish): 1316 s, de 2026-11-19T21:09:43Z a 2026-11-19T21:31:39Z

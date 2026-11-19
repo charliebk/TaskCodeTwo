@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-042 (feature) — F5-2 Cache por SHA del arbol compartida (2026-11-19)
 - TASK-044 (feature) — F5-4 Informe de verificacion en JSON para el revisor IA (2026-11-19)
 - TASK-041 (feature) — F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab (2026-11-19)
 - TASK-048 (feature) — F6-2 review: abre el PR contra develop con la identidad del agente (2026-11-19)
