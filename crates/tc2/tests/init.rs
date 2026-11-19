@@ -1418,6 +1418,20 @@ fn aplicar_puertas_en_github_crea_las_que_faltan() {
 /// de la cabeza de `develop` publicados por `(nombre, author.id)` y las
 /// ramas y tags protegidos `protegidas` y `tags` (JSON).
 fn gitlab_mock(protegidas: &str, tags: &str, estados: &[(&str, u64)]) -> Mock {
+    gitlab_mock_con(protegidas, tags, estados, AJUSTES_FF)
+}
+
+/// Ajustes del proyecto recien creado: merge por fast-forward y sin exigir
+/// el pipeline.
+const AJUSTES_FF: &str =
+    r#"{"only_allow_merge_if_pipeline_succeeds":false,"merge_method":"ff","namespace":{"id":9}}"#;
+
+/// Ajustes del proyecto como los deja `aplicar-puertas`.
+const AJUSTES_BIEN: &str =
+    r#"{"only_allow_merge_if_pipeline_succeeds":true,"merge_method":"merge","namespace":{"id":9}}"#;
+
+/// Como [`gitlab_mock`], con los ajustes del proyecto `proyecto` (JSON).
+fn gitlab_mock_con(protegidas: &str, tags: &str, estados: &[(&str, u64)], proyecto: &str) -> Mock {
     let m = Mock::nuevo();
     let p = "/api/v4/projects/o%2Fr";
     m.responder(
@@ -1440,14 +1454,7 @@ fn gitlab_mock(protegidas: &str, tags: &str, estados: &[(&str, u64)]) -> Mock {
         &format!("{p}/approval_rules"),
         Simulada::json(200, "[]"),
     );
-    m.responder(
-        "GET",
-        p,
-        Simulada::json(
-            200,
-            r#"{"only_allow_merge_if_pipeline_succeeds":false,"merge_method":"ff","namespace":{"id":9}}"#,
-        ),
-    );
+    m.responder("GET", p, Simulada::json(200, proyecto));
     m.responder(
         "GET",
         "/api/v4/namespaces/9",
@@ -1584,7 +1591,8 @@ fn aplicar_puertas_en_gitlab_protege_con_niveles_explicitos() {
     );
     assert_eq!(es.len(), 7, "{es:?}");
 
-    // Segunda ejecucion con todo ya protegido: ninguna escritura.
+    // Segunda ejecucion con todo ya protegido y los ajustes de merge ya
+    // puestos (sin ellos, `develop` se completaria): ninguna escritura.
     let todo = r#"[
       {"name":"main","push_access_levels":[{"access_level":40}],"merge_access_levels":[{"access_level":40}],"allow_force_push":false},
       {"name":"develop","push_access_levels":[{"access_level":0}],"merge_access_levels":[{"access_level":40}],"allow_force_push":false},
@@ -1593,10 +1601,11 @@ fn aplicar_puertas_en_gitlab_protege_con_niveles_explicitos() {
       {"name":"hotfix/*","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false},
       {"name":"taskcodetwo/tareas","push_access_levels":[{"access_level":30}],"merge_access_levels":[{"access_level":30}],"allow_force_push":false}
     ]"#;
-    let m2 = gitlab_mock(
+    let m2 = gitlab_mock_con(
         todo,
         r#"[{"name":"v*","create_access_levels":[{"access_level":30}]}]"#,
         &estados,
+        AJUSTES_BIEN,
     );
     escribir(
         &repo,
