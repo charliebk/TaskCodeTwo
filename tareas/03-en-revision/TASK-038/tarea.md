@@ -29,8 +29,20 @@ Aprobación de un hito en lote
 Tarea F4-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F4-2.
 
 ## Criterios de aceptacion
-- [ ] Diez planes aprobados de una vez, con nombre y fecha
-- [ ] Cumple lo que pide la tarea F4-3 del plan y los requisitos que cita
+- [x] Diez planes aprobados de una vez, con nombre y fecha
+- [x] Cumple lo que pide la tarea F4-3 del plan y los requisitos que cita
+
+## Resultado
+
+Hecho: `tc2 approve --hito <n>` (operacion `AprobarHito` en `plan/aprobar.rs`; `n` = campo `sprint`, acepta `4` o `H4`) aprueba de una vez los planes de las tareas abiertas del hito en un unico commit firmado con un trailer `Plan-Blob` por tarea (blob del arbol del propio commit), todo o nada (D2a): si alguna no se puede aprobar, `rechazada motivo=no-listas tareas=ID:motivo,...` y no se firma nada. Nombre y fecha (D4a): la fila `approve | <modo> | persona` con el mismo instante en cada tarea, y el nombre en la firma y en la linea `Operacion: approve-hito|<n>|<id>|<login>` del commit. Tope de 20 tareas que cambiarian (D5a). Solo persona (RR-04): sin ella, `rechazada motivo=identidad rol=persona` sin lanzar git. `aprobable` se extrajo de `Aprobar::aplicar` sin cambiar su contrato (los tests de F4-2 no se editaron). Adendas F4-3 en F1-6 (N trailers; la regla 5 del check `carril` de F6 pasara a «el blob actual esta entre los trailers») y F1-16 (D7a). `cargo xtask verificar --perfil rapida` en verde.
+
+Divergencia con el plan: en `estado/transaccion.rs` el sello se pedia antes de `aplicar`; ahora el primero solo decide las pendientes y se vuelve a pedir justo antes de `construir_commit_sellado` en cada intento del CAS (las demas operaciones devuelven el mismo sello las dos veces; documentado en el trait y en la adenda).
+
+Implementado por un subagente con el plan aprobado (D1a-D5a); revisado por dos agentes independientes.
+
+No verificado: la firma con una persona real y FIDO en Windows; el CAS con el lote cambiando entre dos intentos.
+
+Revision ronda 1: aprobada con correcciones por los dos, sin CRITICOS ni IMPORTANTES. MEN-1 (los dos): un `tarea.md` ilegible se saltaba en silencio y el lote se firmaba sin el; corregido en 6eba760 fallando cerrado (cuenta como `ilegible` en el todo o nada), con test y verificado con `verificar-menores`.
 
 ## Transiciones
 
