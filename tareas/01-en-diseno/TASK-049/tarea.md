@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 998648
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -39,3 +39,10 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-19T21:59:15Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-19T22:23:19Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-19T22:23:18Z | diseno | agente:a7d15d7dc5efda9d6 | 40 | 71750 | 909469 | 17389 | 32 | 998648 | - | - |
