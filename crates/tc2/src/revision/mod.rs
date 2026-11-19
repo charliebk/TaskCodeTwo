@@ -24,7 +24,9 @@
 //! rama.
 //!
 //! Linea: `review ok id=TASK-NNN rama=<r> pr=<n> estado=en-revision
-//! revision-ia=<ok|pendiente|fallo|sin-revisor|sin-leer>`. Repetirla sin
+//! revision-ia=<ok|pendiente|fallo|sin-revisor|sin-leer> revisoras=<ids>
+//! modelo=<m> reglas=<ids> avisos=<...>` (la seleccion de F6-3, anotada en
+//! `roles.revision`). Repetirla sin
 //! nada nuevo sale `sin-cambios`.
 
 pub mod operacion;
@@ -39,10 +41,11 @@ use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::revision as txt;
 use crate::plataforma::{ModeloPuertas, Paso, Plataforma, Rol};
+use crate::seleccion;
 use crate::tarea::Tarea;
 use crate::toma;
 
-pub use operacion::{EN_REVISION, Revisar, desde_anotacion};
+pub use operacion::{AnotacionRevision, EN_REVISION, Revisar, desde_anotacion};
 
 /// Nombre de la orden y de la operacion de la rama de estado.
 pub const NOMBRE: &str = "review";
@@ -67,6 +70,9 @@ pub struct Entorno<'a> {
     pub conectar: &'a Conectar<'a>,
     /// Reintentos del push (en produccion, [`git::ESPERAS_PUSH`]).
     pub esperas: &'a [Duration],
+    /// Carpeta de Claude Code para el inventario de la seleccion (F6-3);
+    /// `None`, solo lo del proyecto en la base y lo integrado.
+    pub claude: Option<&'a Path>,
 }
 
 /// `review TASK-NNN` (sin `--json`, que quita `lib.rs`).
@@ -227,8 +233,8 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
         });
     }
-    let t = match estado::tarea_de(&vista, id) {
-        Ok((t, _)) => t,
+    let (t, cuerpo) = match estado::tarea_de(&vista, id) {
+        Ok(tc) => tc,
         Err(Fallo::Rechazada {
             motivo,
             diagnostico,
@@ -270,7 +276,10 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     let Some(url) = git::estado::url_origin(g, &wt, NOMBRE)? else {
         return Err(rechazada("plataforma", Mensaje::nuevo(&txt::SIN_ORIGIN)));
     };
-    // 4. Push y PR con el agente.
+    // 4. La seleccion de revision (F6-3), con el diff de la rama y lo de la
+    // base; no cambia nada si falla: lo dice en `avisos`.
+    let sel = seleccion_de(g, &principal, &rama, (&t, &cuerpo), e.claude);
+    // 5. Push y PR con el agente.
     let p = (e.conectar)()?;
     let publicado = publicar(
         p.as_ref(),
@@ -281,11 +290,15 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         e.esperas,
     )?;
     let pr = publicado.pr.to_string();
-    // 5. El estado, con el PR ya abierto.
+    // 6. El estado, con el PR ya abierto (y la seleccion en `roles.revision`).
     let personas = crate::roadmap::personas(g, dir);
     let generar = crate::roadmap::generador(&personas);
     let ctx = estado::Contexto::nuevo(g, dir, e.base.catalogo, Some(&generar));
-    let op = Revisar::nueva(id, &quien, ahora);
+    let op = Revisar::nueva(id, &quien, ahora).con_seleccion(AnotacionRevision {
+        agente: sel.agentes.first().cloned(),
+        modelo: sel.modelo.clone(),
+        skills: sel.revisoras.clone(),
+    });
     let tr = estado::transaccion(&ctx, &op);
     match tr.resultado {
         Resultado::Ok | Resultado::SinCambios => {}
@@ -297,7 +310,7 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             return Err(tr);
         }
     }
-    // 6. `revision-ia`, leido con el agente.
+    // 7. `revision-ia`, leido con el agente.
     let revisor = config::de_base(g, &principal)
         .ok()
         .and_then(|c| c.plataforma)
@@ -314,7 +327,49 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         .con("rama", rama.as_str())
         .con("pr", pr)
         .con("estado", EN_REVISION)
-        .con(REVISION_IA, ria))
+        .con(REVISION_IA, ria)
+        .con_lista("revisoras", sel.revisoras)
+        .con("modelo", sel.modelo)
+        .con_lista("reglas", sel.reglas)
+        .con_lista("avisos", sel.avisos))
+}
+
+/// La seleccion de revision de la tarea `t` en la rama `rama` (F6-3): rutas
+/// de `git diff --no-renames origin/develop...<rama>`, inventario y catalogo
+/// de [`seleccion::orden::fuentes`], carril y complejidad de
+/// [`seleccion::orden::de_tarea`] y `modelos_permitidos` de la base. Lo que
+/// no se puede leer sale en `avisos` (`sin-diff`, `sin-base`...).
+pub fn seleccion_de(
+    g: &Git,
+    principal: &Path,
+    rama: &str,
+    (t, cuerpo): (&Tarea, &crate::tarea::Cuerpo),
+    claude: Option<&Path>,
+) -> seleccion::Seleccion {
+    let mut avisos = Vec::new();
+    let rutas: Vec<String> = git::ficheros_de_rama(g, principal, NOMBRE, config::BASE, rama)
+        .map(|r| r.into_iter().collect())
+        .unwrap_or_else(|_| {
+            avisos.push("sin-diff".to_owned());
+            Vec::new()
+        });
+    let f = seleccion::orden::fuentes(g, principal, claude, &[]);
+    avisos.extend(f.avisos.iter().cloned());
+    let (carril, cx) = seleccion::orden::de_tarea(t, cuerpo);
+    let cfg = config::de_base(g, principal).unwrap_or_else(|_| {
+        avisos.push("config-de-base-no-leida".to_owned());
+        config::Config::suelo()
+    });
+    let ctx = seleccion::Contexto {
+        carril,
+        complejidad: Some(cx),
+        modelos_permitidos: &cfg.seleccion.modelos_permitidos,
+        ronda: 1,
+    };
+    let mut s = seleccion::revision(&rutas, &f.catalogo, &f.inventario, &ctx).unwrap_or_default();
+    avisos.append(&mut s.avisos);
+    s.avisos = avisos;
+    s
 }
 
 #[cfg(test)]
