@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-037-f4-2-approve-con-la-identidad-de-la-pers
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F4-2 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-19T04:59:16Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-19T05:05:00Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-19T05:05:01Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
