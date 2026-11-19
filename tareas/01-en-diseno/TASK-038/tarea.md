@@ -6,10 +6,10 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-038-f4-3-aprobacion-de-un-hito-en-lote
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-19
 dependencias: [TASK-037]
 ---
 ## Objetivo
@@ -31,3 +31,9 @@ Tarea F4-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F4-
 ## Criterios de aceptacion
 - [ ] Diez planes aprobados de una vez, con nombre y fecha
 - [ ] Cumple lo que pide la tarea F4-3 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-19T06:28:20Z | plan | automatico | persona | 0.16.1 |
