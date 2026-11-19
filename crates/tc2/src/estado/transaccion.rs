@@ -70,6 +70,9 @@ pub trait Operacion {
     /// Como se sella su commit (F4-2): [`Sello::Normal`] salvo `approve`,
     /// que firma. Con [`Sello::Firmado`] las pendientes no entran en ese
     /// commit (D4a de TASK-037): se publican con la siguiente operacion.
+    /// En cada intento se pide antes de [`Operacion::aplicar`] (solo cuenta
+    /// si es [`Sello::Normal`]) y otra vez despues, para construir el
+    /// commit: los trailers pueden salir de lo que decidio `aplicar` (F4-3).
     fn sello(&self) -> Sello {
         Sello::Normal
     }
@@ -320,9 +323,9 @@ fn intento(
     let mut vista = Vista::nueva(git, principal, base.clone())?;
     let mut anotaciones = Vec::new();
     let mut destinos = Vec::new();
-    let sello = op.sello();
+    let firmado = op.sello() != Sello::Normal;
     // Un commit firmado lleva solo lo que firma la persona (D4a).
-    if remoto && sello == Sello::Normal {
+    if remoto && !firmado {
         for p in pendientes::listar(git, principal)? {
             let reconstruida = p.anotacion.as_deref().and_then(|a| (c.catalogo)(a));
             let Some(o) = reconstruida else {
@@ -377,6 +380,10 @@ fn intento(
     }
 
     let mensaje = mensaje(op.nombre(), &anotaciones);
+    // El sello otra vez, ya aplicada la operacion en este intento: sus
+    // trailers pueden depender de lo que decidio `aplicar` (el lote de
+    // `approve --hito`, F4-3). El de antes solo decide las pendientes.
+    let sello = op.sello();
     let Some(sha) = construir_commit_sellado(
         git,
         principal,

@@ -27,6 +27,13 @@
 //! - `approve [--json] TASK-NNN --pedir-cambios <fichero>`: publica
 //!   `brainstorm/cambios-pedidos-<n>.md` en la ronda mayor y la cierra
 //!   ([`PedirCambios`], D1a); la puede lanzar tambien el agente.
+//! - `approve [--json] --hito <n>` (F4-3): como `approve` (persona primero,
+//!   `fetch`, configuracion), con [`aprobar::AprobarHito`]: los planes de
+//!   las tareas abiertas del sprint `n` (`4` o `H4`) en un unico commit
+//!   firmado, todo o nada. Linea: `approve ok hito= commit= ...
+//!   aprobadas=`; si alguna no esta lista, `rechazada motivo=no-listas
+//!   tareas=ID:motivo,...`; tambien `hito-vacio` y `demasiadas max=20`. Con
+//!   un ID, con `--pedir-cambios` o con un hito que no es un numero, `uso`.
 //!
 //! Lanzadas desde un worktree de tarea escriben el estado en el principal
 //! (lo localiza la transaccion). El entorno es el de `start`
@@ -51,7 +58,7 @@ use crate::i18n::catalogo::plan as txt;
 use crate::plataforma::errores::sanear;
 use crate::toma::Entorno;
 
-pub use aprobar::{Aprobar, PedirCambios};
+pub use aprobar::{Aprobar, AprobarHito, PedirCambios};
 pub use guardar::{Guardar, destino_valido};
 pub use operacion::{Forma, Planificar, Resumen};
 
@@ -179,6 +186,9 @@ pub fn orden_approve(args: &[String], e: &Entorno<'_>) -> Informe {
     let Some((id, resto)) = args.split_first() else {
         return uso_approve("sin-id");
     };
+    if id == HITO {
+        return orden_approve_hito(resto, e);
+    }
     if !git::es_id(id) {
         return uso_approve("id-invalido");
     }
@@ -187,11 +197,9 @@ pub fn orden_approve(args: &[String], e: &Entorno<'_>) -> Informe {
     while let Some(a) = it.next() {
         match a.as_str() {
             // F1-10 decision 6: la parada `approve` firmado es fija.
-            x if x == "--decidido-por" || x.starts_with("--decidido-por=") => {
-                return Informe::nuevo(aprobar::NOMBRE, Resultado::Uso)
-                    .con("motivo", "decidido-por")
-                    .diagnostico(&txt::DECIDIDO_POR);
-            }
+            x if es_decidido_por(x) => return decidido_por(),
+            // Un hito o una tarea, no las dos cosas.
+            x if x == HITO || x.starts_with("--hito=") => return uso_approve("hito-con-id"),
             "--pedir-cambios" if fichero.is_none() => match it.next() {
                 Some(f) => fichero = Some(f),
                 None => return uso_approve("sin-fichero"),
@@ -208,6 +216,98 @@ pub fn orden_approve(args: &[String], e: &Entorno<'_>) -> Informe {
                 i
             }
         },
+    }
+}
+
+/// Opcion de `approve` que aprueba un hito entero (F4-3).
+const HITO: &str = "--hito";
+
+fn es_decidido_por(a: &str) -> bool {
+    a == "--decidido-por" || a.starts_with("--decidido-por=")
+}
+
+fn decidido_por() -> Informe {
+    Informe::nuevo(aprobar::NOMBRE, Resultado::Uso)
+        .con("motivo", "decidido-por")
+        .diagnostico(&txt::DECIDIDO_POR)
+}
+
+/// El numero de hito de `--hito`: `4` o `H4` (como lo escribe el
+/// roadmap).
+fn numero_de_hito(a: &str) -> Option<u32> {
+    let cifras = a.strip_prefix(['H', 'h']).unwrap_or(a);
+    if cifras.is_empty() || !cifras.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    cifras.parse().ok()
+}
+
+/// `approve --hito <n>`: sin ID ni `--pedir-cambios` (`uso`).
+fn orden_approve_hito(args: &[String], e: &Entorno<'_>) -> Informe {
+    let Some((n, resto)) = args.split_first() else {
+        return uso_approve("sin-hito");
+    };
+    let Some(hito) = numero_de_hito(n) else {
+        return uso_approve("hito-invalido");
+    };
+    match resto.first().map(String::as_str) {
+        None => aprobar_hito_en(e, hito),
+        Some(x) if es_decidido_por(x) => decidido_por(),
+        Some(x) if git::es_id(x) => uso_approve("hito-con-id"),
+        Some("--pedir-cambios") => uso_approve("hito-con-pedir-cambios"),
+        Some(_) => uso_approve("argumentos-de-mas"),
+    }
+}
+
+/// `approve --hito <hito>` en el repo de `e` (F4-3): la linea lleva
+/// `hito=` primero, `aprobadas=` con el lote y, si alguna tarea no esta
+/// lista, `tareas=ID:motivo,...`.
+pub fn aprobar_hito_en(e: &Entorno<'_>, hito: u32) -> Informe {
+    let mut i = match paso_aprobar_hito(e, hito) {
+        Ok(i) | Err(i) => i,
+    };
+    aprobar::NOMBRE.clone_into(&mut i.comando);
+    i.claves
+        .retain(|(k, _)| k != "operacion" && k != "id" && k != "hito");
+    i.claves
+        .insert(0, ("hito".to_owned(), Valor::Texto(hito.to_string())));
+    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
+        i = i.con("pendiente", "no");
+    }
+    i
+}
+
+fn paso_aprobar_hito(e: &Entorno<'_>, hito: u32) -> Result<Informe, Informe> {
+    // Como `approve`: quien, lo primero.
+    let quien = match (e.quien)() {
+        Ok(q) => q,
+        Err(i) if i.resultado == Resultado::Rechazada => return Err(sin_persona(Some(i))),
+        Err(i) => return Err(i),
+    };
+    let Some(op) = aprobar::AprobarHito::nueva(hito, &quien, e.ahora) else {
+        return Err(sin_persona(None));
+    };
+    traer(e.git, e.dir)?;
+    let op = op.con_config(&config_de_base(e.git, e.dir)?);
+    let t = escribir(e, &op);
+    match t.resultado {
+        Resultado::Ok => Ok(t.con_lista("aprobadas", op.aprobadas())),
+        Resultado::SinCambios => Ok(t),
+        Resultado::Rechazada => {
+            let t = match t.valor("motivo") {
+                Some("no-listas") => t.con_lista(
+                    "tareas",
+                    op.fallos()
+                        .into_iter()
+                        .map(|(id, m)| format!("{id}:{m}"))
+                        .collect(),
+                ),
+                Some("demasiadas") => t.con("max", aprobar::MAX_HITO.to_string()),
+                _ => t,
+            };
+            Err(t)
+        }
+        _ => Err(t),
     }
 }
 
@@ -459,6 +559,68 @@ mod tests {
             assert!(g.registro().is_empty(), "{:?}", g.registro());
             let d = i.diagnostico_en(Idioma::Es).unwrap_or_default();
             assert!(d.contains("RR-04"), "{d}");
+        }
+    }
+
+    /// C2 de TASK-038 (unitario): `approve --hito` con el agente es
+    /// `rechazada motivo=identidad rol=persona` sin una llamada a git; mal
+    /// llamado, `uso` sin preguntar siquiera quien es.
+    #[test]
+    fn approve_hito_sin_persona_o_mal_llamado_no_toca_nada() {
+        use crate::identidad::Cuenta;
+        use crate::plataforma::Proveedor;
+        let agente = || -> Result<Quien, Informe> {
+            Ok(Quien::Agente(Cuenta {
+                proveedor: Proveedor::GitHub,
+                id: 7,
+                login: "ana".to_owned(),
+            }))
+        };
+        type Quienes<'a> = &'a dyn Fn() -> Result<Quien, Informe>;
+        let nadie = || -> Result<Quien, Informe> { unreachable!() };
+        let casos: [(&[&str], Quienes<'_>, &str); 7] = [
+            (
+                &["--hito", "4"],
+                &agente,
+                "approve rechazada hito=4 motivo=identidad rol=persona",
+            ),
+            (
+                &["--hito", "H4"],
+                &agente,
+                "approve rechazada hito=4 motivo=identidad rol=persona",
+            ),
+            (&["--hito", "x"], &nadie, "approve uso motivo=hito-invalido"),
+            (
+                &["--hito", "-1"],
+                &nadie,
+                "approve uso motivo=hito-invalido",
+            ),
+            (&["--hito"], &nadie, "approve uso motivo=sin-hito"),
+            (
+                &["TASK-001", "--hito=4"],
+                &nadie,
+                "approve uso motivo=hito-con-id",
+            ),
+            (
+                &["--hito", "4", "--decidido-por", "automatico"],
+                &nadie,
+                "approve uso motivo=decidido-por",
+            ),
+        ];
+        for (args, quien, esperado) in casos {
+            let g = Git::nuevo();
+            let dir = std::env::temp_dir();
+            let e = Entorno {
+                dir: &dir,
+                git: &g,
+                quien,
+                catalogo: &sin_catalogo,
+                ahora: 0,
+            };
+            let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
+            let i = orden_approve(&args, &e);
+            assert_eq!(i.linea(), esperado, "{args:?}");
+            assert!(g.registro().is_empty(), "{:?}", g.registro());
         }
     }
 
