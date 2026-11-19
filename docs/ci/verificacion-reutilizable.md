@@ -163,3 +163,52 @@ regla tiene su mutación negativa en las pruebas.
    Moverlo a `workflow_run` lo sacaría del contexto del PR y obligaría a buscar
    el head por la API; se reconsidera con F5-2 si el resumen empieza a leer
    datos del PR.
+5. **Un solo llamador por repo** (observado en el E2E): si dos workflows del
+   mismo repo llaman al reutilizable en el mismo commit, salen dos check-runs
+   `verificacion` (uno por llamador) y GitHub puede listar el creado con
+   `GITHUB_TOKEN` en la suite de otra ejecución (el rojo de un llamador
+   apareció en la lista de jobs del otro). Con `filter=latest` solo cuenta el
+   último: el proyecto declara un único llamador.
+6. **Concurrencia por repo y perfil**: con `cancel-in-progress: false` GitHub
+   sigue cancelando la ejecución *pendiente* más antigua del grupo cuando llega
+   otra; ese PR queda con `ejecutar` cancelado y `verificacion` en rojo, y hay
+   que relanzarlo. Es el precio de no compartir `target/` en un runner propio
+   (no se reprodujo en el E2E).
+
+## Prueba E2E (2026-11-19, workflow y plantilla en `790b72d`)
+
+Repos de prueba públicos, ramas `ci-f5-1` borradas al terminar y PR cerrado
+sin mergear.
+
+| Caso | Dónde | Resultado |
+|---|---|---|
+| Stub con el contrato de ToolsaWeb (`scripts\verificar.bat`, `shell: cmd`, `windows-latest`, `argumentos-completa: ""`), PR a `main` | [run 44551304303](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44551304303) | verde; `RAMA_BASE=main`, perfil completa |
+| Stub con la forma de OpenDockTrading (no lee argumentos), mismo PR | [run 44551304248](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44551304248) | verde; `argumentos recibidos: []` |
+| ToolsaWeb, `workflow_dispatch` con `perfiles: completa pesada` | [run 44551659290](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44551659290) | verde; `--pesada` en su job, completa sin argumentos |
+| ToolsaWeb forzado a fallar (commit con `fallar.txt`) | [run 44552422966](https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44552422966) | rojo: `completa` sale con 1 y el check `verificacion` en `failure` |
+| Plantilla de GitLab con `include: remote` por SHA | [pipeline 3089899840](https://gitlab.com/taskcodetwo-e2e/taskcodetwo-e2e-gitlab/-/pipelines/3089899840) | **no ejecutado**: «The pipeline failed due to the user not being verified» (0 jobs, 0 minutos) |
+
+`gh api --method GET repos/…/commits/<head>/check-runs?check_name=verificacion&app_id=15368`
+devuelve el check-run `verificacion` de la App `github-actions` (`app_id`
+15368) en el **head** del PR (el workflow corre sobre el merge ref), con
+`output.summary` escrito; los jobs salen como `verificacion / buscar`,
+`verificacion / completa` y `verificacion / verificacion`.
+
+Suposiciones del plan:
+
+- **Nombre del check de un reutilizable**: confirmado `<job que llama> /
+  <job llamado>`; por eso el publicador crea además el check-run
+  `verificacion` con ese nombre exacto (D2).
+- **Shell por entrada**: `defaults.run.shell: ${{ inputs.shell }}` funciona
+  (el paso corrió con `cmd.EXE /D /E:ON /V:OFF /S /C "CALL "{0}""`).
+- **`spec:inputs` con `include: remote` en GitLab.com Free**: verificado con
+  la API de lint (`POST /projects/:id/ci/lint`, `include_merged_yaml`): las
+  entradas se interpolan, los cuatro jobs salen con su `script` y `tags: []`
+  es válido. Que `rules:if` lea `TC2_PERFILES` (variable del job) **no está
+  verificado**: el lint con `dry_run` también lo bloquea la verificación de
+  identidad. **Ejecución real: pendiente**;
+  GitLab.com exige verificar la identidad de la cuenta (teléfono o tarjeta)
+  para correr jobs en sus runners. Lo hace la persona; después basta un
+  pipeline verde y uno rojo con el mismo stub.
+- **`charliebk/TaskCodeTwo` público**: sí; el reutilizable se resolvió desde
+  otro repo por SHA de una rama que no es `develop` ni `main`.
