@@ -12,9 +12,13 @@
 #       inputs:
 #         comando: scripts/verificar.sh
 # Fuera de F5-1 (D4): carril, estado de revision-ia y ci_config_path en otro
-# proyecto. La linea de la cache por arbol ira en un artefacto del job (D3, F5-2).
+# proyecto.
 # Informe JSON (F5-4): el comando lo escribe en TC2_INFORME y cada job lo sube
 # como artefacto informe-verificacion-<perfil> (when: always).
+# Cache por arbol (F5-2, D2): solo se escribe la linea `arbol=` del perfil en
+# verde, en el fichero .tc2/cache-verificacion-<perfil>.txt del mismo
+# artefacto (un job tiene un solo archivo de artefactos). Sin busqueda: en
+# GitLab cada pipeline verifica entero (degradacion declarada, RR-15).
 # Guia: docs/ci/verificacion-reutilizable.md.
 spec:
   inputs:
@@ -51,6 +55,12 @@ spec:
     perfiles:
       description: Perfiles forzados separados por espacios (tambien en push de rama)
       default: ""
+    huella-arbol:
+      description: Rutas versionadas que entran en la clave de la cache, separadas por espacios
+      default: ""
+    huella-local:
+      description: Orden que imprime lo que la suite lee fuera del arbol en el runner del perfil
+      default: ""
     stage:
       description: Etapa de los jobs de verificacion
       default: test
@@ -67,11 +77,32 @@ variables:
     RAMA_BASE: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     # F5-4: el comando escribe ahi su informe JSON, si sabe; el job lo sube.
     TC2_INFORME: $CI_PROJECT_DIR/.tc2/informe-verificacion.json
+    TC2_HUELLA_ARBOL: "$[[ inputs.huella-arbol ]]"
+    TC2_HUELLA_LOCAL: "$[[ inputs.huella-local ]]"
+  # F5-2: la linea `arbol=` solo si el comando salio en verde. Va en
+  # after_script (sh), que no cambia el estado del job: en un runner sin sh
+  # no hay linea, pero el resultado del perfil es el mismo. `runner` son las
+  # etiquetas del runner; la version del workflow va vacia (GitLab no la da).
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = success ]; then
+        mkdir -p .tc2
+        arbol=$(git rev-parse 'HEAD^{tree}')
+        huella=""
+        if [ -n "$TC2_HUELLA_ARBOL" ]; then huella=$(git ls-tree -r HEAD -- $TC2_HUELLA_ARBOL); fi
+        huella=$(printf '%s' "$huella" | sha256sum | cut -d' ' -f1)
+        runner=$(printf '%s' "$CI_RUNNER_TAGS" | tr -d '[]" ')
+        clave=$(printf '%s|%s|%s|%s' "$TC2_PERFIL" "$runner" "$huella" "" | sha256sum | cut -d' ' -f1)
+        if [ -n "$TC2_HUELLA_LOCAL" ]; then sh -c "$TC2_HUELLA_LOCAL" > .tc2/huella-local.txt; else : > .tc2/huella-local.txt; fi
+        local_h=$(sha256sum .tc2/huella-local.txt | cut -d' ' -f1)
+        echo "arbol=$arbol perfil=$TC2_PERFIL runner=$runner clave=$clave local=$local_h origen=$CI_COMMIT_SHA ejecutada" | tee ".tc2/cache-verificacion-$TC2_PERFIL.txt"
+      fi
   artifacts:
     name: informe-verificacion-$TC2_PERFIL
     when: always
     paths:
       - .tc2/informe-verificacion.json
+      - .tc2/cache-verificacion-*.txt
 
 verificacion-rapida:
   extends: .tc2-verificacion

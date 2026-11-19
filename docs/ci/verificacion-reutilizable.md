@@ -9,10 +9,9 @@ decisión 1; RR-15): no conocen sus pasos, sus grupos ni sus herramientas.
 | GitHub Actions | [`.github/workflows/verificacion.yml`](../../.github/workflows/verificacion.yml) (`on: workflow_call`) | un job del proyecto con `uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>` |
 | GitLab CI | [`plantillas/gitlab/verificacion.gitlab-ci.yml`](../../plantillas/gitlab/verificacion.gitlab-ci.yml) (`spec:inputs`) | `include: remote` a la URL raw de la plantilla fijada por SHA |
 
-Fuera de F5-1: la caché por árbol y la línea `arbol=` (F5-2), el runner
-propio (F5-5), `carril` y `revision-ia` (F6), y la definición de CI en otro
-proyecto de GitLab (F2-9). El informe JSON para el revisor (F5-4) se describe
-más abajo.
+Fuera de F5-1: el runner propio (F5-5), `carril` y `revision-ia` (F6), y la
+definición de CI en otro proyecto de GitLab (F2-9). El informe JSON para el
+revisor (F5-4) y la caché por árbol (F5-2) se describen más abajo.
 
 ## Entradas
 
@@ -29,6 +28,8 @@ se elige el runner.
 | `argumentos-completa` | `--perfil completa` | Ídem; vacío (`""`) llama al comando sin argumentos |
 | `argumentos-pesada` | `--perfil pesada` | Ídem |
 | `perfiles` | `""` (los del evento) | Perfiles forzados, separados por espacios |
+| `huella-arbol` | `""` | Rutas versionadas que entran en la clave de la caché (lockfiles, toolchain), separadas por espacios (F5-2) |
+| `huella-local` | `""` | Orden que imprime lo que la suite lee fuera del árbol en el runner del perfil (F5-2); vacía, `local = sha256("")` |
 | GitHub: `runner-<perfil>` | `'"ubuntu-latest"'` | `runs-on` del perfil, en JSON: una cadena o una lista de etiquetas (`'["self-hosted","windows","toolsaweb"]'`) |
 | GitHub: `shell` | `bash` | Shell en el que corre el comando (`cmd` para un `.bat`) |
 | GitLab: `tags-<perfil>` | `[]` | Etiquetas del runner del perfil |
@@ -67,8 +68,9 @@ Resultado: código de salida (0 verde, otro rojo).
 - **GitLab**: un job `verificacion-<perfil>` por perfil del evento; el estado
   es el del pipeline.
 
-El job que llama tiene que conceder `checks: write` (un workflow reutilizable
-no puede tener más permisos que su llamador). En un PR desde un fork el
+El job que llama tiene que conceder `contents: read`, `checks: write` y
+`actions: read` (un workflow reutilizable no puede tener más permisos que su
+llamador; `actions: read` lo pide `buscar` desde F5-2). En un PR desde un fork el
 `GITHUB_TOKEN` es de solo lectura: el publicador falla y el PR queda en rojo
 (falla cerrado).
 
@@ -90,6 +92,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      actions: read
     uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>
     with:
       comando: scripts\verificar.bat
@@ -117,6 +120,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      actions: read
     uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>
     with:
       comando: scripts\verificar.bat
@@ -148,9 +152,10 @@ quiere evitar el pipeline de rama duplicado con el de MR, lo pone en su
 `cargo test` (y por tanto en `cargo xtask verificar --perfil rapida`). Sobre el
 workflow: eventos admitidos (`workflow_call`, `pull_request`, `push`,
 `merge_group`, `workflow_dispatch`), `permissions` arriba y en cada job (sin
-`write-all`), las únicas acciones admitidas son `actions/checkout` fijada por
-SHA y con `persist-credentials: false` (sin `ref:` ni `repository:` en un job
-que escribe) y `actions/upload-artifact` fijada por SHA y solo en un job sin
+`write-all`; de lectura solo `contents`, `checks` y `actions`, F5-2), las
+únicas acciones admitidas son `actions/checkout` fijada por
+SHA, con `persist-credentials: false` y nunca en un job que escribe (F5-2:
+antes solo se prohibían `ref:` y `repository:`) y `actions/upload-artifact` fijada por SHA y solo en un job sin
 escritura (F5-4), ningún `secrets: inherit`, ningún secreto en un job sin escritura y
 ningún `github.event.*`, `github.head_ref` ni `toJSON(github…)` en `run:`
 (también con corchetes, `github['event']`, `secrets['X']`, o con espacios);
@@ -189,6 +194,68 @@ La plataforma solo lo transporta (F1-7, decisión 1: no conoce los pasos):
   `github-actions` (`app_id` 15368). Si el comando no escribe el informe, no
   hay artefacto y el revisor solo tiene el resumen del check, que basta para no
   relanzar un perfil en verde. El publicador no abre el artefacto.
+
+## Caché por árbol (F5-2)
+
+TASK-042. Cero repeticiones sobre el mismo árbol (F1-7, decisiones 2 y 3;
+F1-8, decisión 7), sin componentes nuevos: los tres jobs de siempre.
+
+- **`buscar`** (Linux; `contents`, `checks` y `actions` de lectura; no
+  ejecuta nada del PR): checkout del commit verificado `V` (el merge ref en un
+  PR) con `fetch-depth: 3`; `V`, sus padres y sus abuelos (como mucho 7) salen
+  de `git`. Para cada uno pide
+  `GET commits/{c}/check-runs?check_name=verificacion&app_id=15368&filter=latest`
+  y solo cuenta un check-run en verde cuya ejecución (`details_url` →
+  `GET actions/runs/{id}`) tenga en `referenced_workflows` este workflow
+  (`charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@…`) con el mismo
+  `sha` que `github.job_workflow_sha`. De su resumen toma las líneas `arbol=`
+  con el árbol de `V` y el perfil, el runner y la clave actuales: son los
+  candidatos de cada perfil, en el orden de los commits. Si el diff de `V`
+  frente a su primer padre (la base) toca `.github/workflows/**` o
+  `.taskcode/**`, no hay candidatos.
+- **`ejecutar`** (runner del perfil): calcula la huella local (la orden de
+  `huella-local` en el shell del proyecto, y `sha256sum` en `bash`); el primer
+  candidato con el mismo `local` es el **acierto** y el paso del comando sale
+  `skipped`. Corre siempre en el runner del perfil: un runner propio caído deja
+  el check pendiente aunque haya candidato (falla cerrado).
+- **`verificacion`** (publicador): lee el árbol de `V` con `GET commits/{V}`;
+  si no es el de `buscar`, el check sale rojo y sin líneas. Con el resultado en
+  verde añade al resumen una línea por perfil.
+
+**La línea** (contrato para F8-1), una por perfil, debajo de la de siempre
+(`perfiles= resultado= informe= ejecucion=`):
+
+```
+arbol=<árbol de V> perfil=<p> runner=<r> clave=<k> local=<h> origen=<sha> ejecutada
+arbol=<árbol de V> perfil=<p> runner=<r> clave=<k> local=<h> origen=<sha> reutilizada de <commit>
+```
+
+- `runner`: el `runner-<perfil>` declarado, sin comillas ni espacios (una
+  lista de etiquetas, unida por comas).
+- `clave = sha256(perfil|runner|huella-arbol|github.job_workflow_sha)`, con
+  `huella-arbol = sha256(git ls-tree -r HEAD -- <rutas>)` (o de nada sin rutas).
+- `local = sha256` de lo que imprime `huella-local` en el runner del perfil.
+- `origen`: el commit (head del PR) donde se ejecutó de verdad; una línea
+  reutilizada conserva el del candidato. `reutilizada de <commit>`: el commit
+  en cuyo check estaba la línea que dio el acierto.
+
+**Cómo leer un acierto**: en el job `<llamador> / <perfil>`, el paso «cache
+por arbol» dice `reutilizada de <commit>` y el paso del comando sale
+`skipped`; en el check `verificacion`, la línea del perfil termina en
+`reutilizada de <commit>`. Solo cuenta un check en verde: una línea de un
+check rojo no es candidata.
+
+**Coste**: hasta 7 lecturas de check-runs más una de la ejecución por cada
+check en verde encontrado, y una de `commits/{V}` en el publicador. Un acierto
+despierta igualmente el runner del perfil (huella local).
+
+**GitLab** (D2): sin búsqueda; cada pipeline verifica entero (degradación
+declarada, RR-15). Con el comando en verde, `after_script` escribe la línea
+(`origen=$CI_COMMIT_SHA ejecutada`, `runner` = `CI_RUNNER_TAGS`, versión vacía en
+la clave) en `.tc2/cache-verificacion-<perfil>.txt`, dentro del artefacto
+`informe-verificacion-<perfil>` (un job de GitLab tiene un solo archivo de
+artefactos). `after_script` no cambia el estado del job: en un runner sin `sh`
+no hay línea.
 
 ## Divergencias con los ADR
 

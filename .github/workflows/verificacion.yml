@@ -1,20 +1,27 @@
-# Workflow reutilizable de verificacion (TASK-041, F5-1; ADR F1-7 y F1-8).
+# Workflow reutilizable de verificacion (TASK-041, F5-1; TASK-042, F5-2;
+# ADR F1-7 y F1-8).
 #
 # Solo llama al comando de verificacion del proyecto: no conoce sus pasos ni
 # sus grupos. Tres jobs, cada uno en su clase de F1-8:
-#   - buscar (ejecuta, Linux, contents: read): elige los perfiles del evento
-#     (F1-7, decision 4). La busqueda en la cache por arbol llega con F5-2.
+#   - buscar (Linux, solo lectura: contents, checks y actions): elige los
+#     perfiles del evento (F1-7, decision 4) y busca en los check-runs
+#     `verificacion` del commit verificado V, sus padres y sus abuelos las
+#     lineas `arbol=` candidatas de cada perfil (F1-7, decision 3; F5-2). No
+#     ejecuta nada del PR: solo lee el arbol con git.
 #   - ejecutar (ejecuta, matriz por perfil, runner del perfil, sin secretos):
-#     corre `comando argumentos-<perfil>` en el shell que declara el proyecto
-#     y sube el informe JSON de `TC2_INFORME` (F5-4) como artefacto
-#     `informe-verificacion-<perfil>`, si el comando lo escribio.
-#   - verificacion (privilegio, sin checkout): suma los resultados y publica el
-#     check-run `verificacion` con GITHUB_TOKEN (App github-actions, 15368).
+#     calcula la huella local, y si un candidato tiene la misma se salta el
+#     comando (paso `skipped`); si no, corre `comando argumentos-<perfil>` en
+#     el shell que declara el proyecto y sube el informe JSON de `TC2_INFORME`
+#     (F5-4) como artefacto `informe-verificacion-<perfil>`, si se escribio.
+#   - verificacion (privilegio, sin checkout): lee el arbol de V por la API,
+#     suma los resultados y publica el check-run `verificacion` con
+#     GITHUB_TOKEN (App github-actions, 15368), con una linea `arbol=` por
+#     perfil (F1-8, decision 7).
 #
-# Uso desde el proyecto (fijado por SHA, nunca por rama):
+# Uso desde el proyecto (fijado por SHA, nunca por rama; un solo llamador):
 #   jobs:
 #     verificacion:
-#       permissions: { contents: read, checks: write }
+#       permissions: { contents: read, checks: write, actions: read }
 #       uses: charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@<sha>
 #       with:
 #         comando: scripts\verificar.bat
@@ -71,6 +78,14 @@ on:
         description: Perfiles separados por espacios; vacio, los del evento (F1-7, decision 4)
         type: string
         default: ""
+      huella-arbol:
+        description: Rutas versionadas que entran en la clave de la cache (lockfiles, toolchain), separadas por espacios (F1-7, decision 2)
+        type: string
+        default: ""
+      huella-local:
+        description: Orden que imprime lo que la suite lee fuera del arbol en el runner del perfil (F1-7, decision 2); vacia, sha256 de nada
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -81,8 +96,14 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      checks: read
+      actions: read
     outputs:
       perfiles: ${{ steps.perfiles.outputs.perfiles }}
+      arbol: ${{ steps.candidatos.outputs.arbol }}
+      claves: ${{ steps.candidatos.outputs.claves }}
+      runners: ${{ steps.candidatos.outputs.runners }}
+      candidatos: ${{ steps.candidatos.outputs.candidatos }}
     steps:
       - name: Perfiles del evento
         id: perfiles
@@ -118,6 +139,100 @@ jobs:
           done
           echo "perfiles=[$lista]" >> "$GITHUB_OUTPUT"
           echo "Perfiles de este evento ($EVENTO): [${lista}]"
+      # V, sus padres y sus abuelos con sus arboles: profundidad 3 basta.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.perfiles.outputs.perfiles != '[]'
+        with:
+          persist-credentials: false
+          fetch-depth: 3
+      # F1-7, decision 3, y F1-8, decision 7. Candidato = linea `arbol=` de un
+      # check-run `verificacion` en verde de github-actions (15368), publicado
+      # por una ejecucion que llama a este workflow en esta misma version, con
+      # el arbol de V y el perfil, el runner y la clave actuales.
+      - name: Candidatos de la cache por arbol
+        id: candidatos
+        if: steps.perfiles.outputs.perfiles != '[]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PERFILES: ${{ steps.perfiles.outputs.perfiles }}
+          VERSION: ${{ github.job_workflow_sha }}
+          ENTRADAS: ${{ toJSON(inputs) }}
+        run: |
+          set -eu
+          v=$(git rev-parse HEAD)
+          arbol=$(git rev-parse 'HEAD^{tree}')
+          rutas=$(printf '%s' "$ENTRADAS" | jq -r '.["huella-arbol"] // ""')
+          huella=""
+          if [ -n "$rutas" ]; then
+            # shellcheck disable=SC2086 # rutas separadas por espacios
+            huella=$(git ls-tree -r HEAD -- $rutas)
+          fi
+          huella=$(printf '%s' "$huella" | sha256sum | cut -d' ' -f1)
+          claves='{}'
+          runners='{}'
+          for p in $(printf '%s' "$PERFILES" | jq -r '.[]'); do
+            r=$(printf '%s' "$ENTRADAS" | jq -r --arg p "$p" '.["runner-" + $p] | fromjson | if type == "array" then join(",") else tostring end' | tr -d ' ')
+            k=$(printf '%s|%s|%s|%s' "$p" "$r" "$huella" "$VERSION" | sha256sum | cut -d' ' -f1)
+            claves=$(printf '%s' "$claves" | jq -c --arg p "$p" --arg k "$k" '. + {($p): $k}')
+            runners=$(printf '%s' "$runners" | jq -c --arg p "$p" --arg r "$r" '. + {($p): $r}')
+          done
+          {
+            echo "arbol=$arbol"
+            echo "claves=$claves"
+            echo "runners=$runners"
+          } >> "$GITHUB_OUTPUT"
+          echo "V=$v arbol=$arbol version=$VERSION claves=$claves runners=$runners"
+          if [ -z "$VERSION" ]; then
+            echo "::warning::github.job_workflow_sha vacio: sin busqueda, se verifica entero"
+            echo "candidatos={}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # F1-8, decision 7: un PR que toca los workflows o .taskcode no
+          # reutiliza nada, tampoco la linea de su head anterior.
+          if git rev-parse -q --verify 'HEAD^1' > /dev/null; then
+            tocadas=$(git diff --name-only 'HEAD^1' HEAD | grep -E '^(\.github/workflows/|\.taskcode/)' || true)
+            if [ -n "$tocadas" ]; then
+              echo "Regla de rutas: el diff frente a la base toca $(printf '%s' "$tocadas" | tr '\n' ' '); sin acierto"
+              echo "candidatos={}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          # V, sus padres y los padres de estos, en ese orden (como mucho 7).
+          padres=$(git rev-list --parents -n 1 "$v" | cut -d' ' -f2- -s)
+          commits="$v $padres"
+          for p in $padres; do
+            commits="$commits $(git rev-list --parents -n 1 "$p" | cut -d' ' -f2- -s)"
+          done
+          commits=$(printf '%s\n' $commits | awk 'NF && !visto[$0]++' | head -n 7)
+          filtro_run="[.referenced_workflows[]? | select((.path | startswith(\"charliebk/TaskCodeTwo/.github/workflows/verificacion.yml@\")) and .sha == \"$VERSION\")] | length"
+          lineas="$RUNNER_TEMP/lineas-cache.txt"
+          : > "$lineas"
+          for c in $commits; do
+            checks=$(gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=verificacion -f app_id=15368 -f filter=latest --jq '.check_runs[] | select(.app.id == 15368 and .name == "verificacion" and .conclusion == "success") | @base64') \
+              || { echo "commit $c: sin lectura de check-runs; no cuenta"; continue; }
+            for ch in $checks; do
+              url=$(printf '%s' "$ch" | base64 -d | jq -r '.details_url // ""')
+              id=${url##*/actions/runs/}
+              id=${id%%/*}
+              case "$id" in ''|*[!0-9]*) echo "commit $c: details_url sin ejecucion: $url"; continue ;; esac
+              llama=$(gh api --method GET "repos/$REPO/actions/runs/$id" --jq "$filtro_run") || llama=0
+              if [ "$llama" = 0 ]; then
+                echo "commit $c: la ejecucion $id no llama a este workflow en $VERSION; no cuenta"
+                continue
+              fi
+              printf '%s' "$ch" | base64 -d | jq -r '.output.summary // ""' | tr -d '\r' \
+                | awk -v a="$arbol" -v de="$c" '/^arbol=/ { split("", f); for (i = 1; i <= NF; i++) { n = index($i, "="); if (n > 1) f[substr($i, 1, n - 1)] = substr($i, n + 1) } if (f["arbol"] == a) print f["perfil"], f["runner"], f["clave"], f["local"], f["origen"], de }' >> "$lineas"
+            done
+          done
+          candidatos=$(jq -R -s -c --argjson claves "$claves" --argjson runners "$runners" '
+            [split("\n")[] | select(length > 0) | split(" ")
+             | {perfil: .[0], runner: .[1], clave: .[2], local: .[3], origen: .[4], de: .[5]}
+             | select($claves[.perfil] == .clave and $runners[.perfil] == .runner)]
+            | reduce .[] as $x ({}; .[$x.perfil] += [{local: $x.local, origen: $x.origen, de: $x.de}])' "$lineas")
+          echo "candidatos=$candidatos" >> "$GITHUB_OUTPUT"
+          echo "Commits consultados: $(printf '%s' "$commits" | tr '\n' ' ')"
+          echo "Candidatos: $candidatos"
 
   ejecutar:
     name: ${{ matrix.perfil }}
@@ -137,6 +252,21 @@ jobs:
     concurrency:
       group: verificacion-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.perfil }}
       cancel-in-progress: false
+    # Una salida con nombre propio por perfil: cada pata de la matriz escribe
+    # solo las suyas (F5-2).
+    outputs:
+      local-rapida: ${{ steps.cache.outputs.local-rapida }}
+      local-impacto: ${{ steps.cache.outputs.local-impacto }}
+      local-completa: ${{ steps.cache.outputs.local-completa }}
+      local-pesada: ${{ steps.cache.outputs.local-pesada }}
+      de-rapida: ${{ steps.cache.outputs.de-rapida }}
+      de-impacto: ${{ steps.cache.outputs.de-impacto }}
+      de-completa: ${{ steps.cache.outputs.de-completa }}
+      de-pesada: ${{ steps.cache.outputs.de-pesada }}
+      origen-rapida: ${{ steps.cache.outputs.origen-rapida }}
+      origen-impacto: ${{ steps.cache.outputs.origen-impacto }}
+      origen-completa: ${{ steps.cache.outputs.origen-completa }}
+      origen-pesada: ${{ steps.cache.outputs.origen-pesada }}
     defaults:
       run:
         shell: ${{ inputs.shell }}
@@ -147,9 +277,39 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # F1-7, decision 2: la huella local solo se calcula en el runner del
+      # perfil, con el shell del proyecto.
+      - name: huella local, perfil ${{ matrix.perfil }}
+        if: inputs.huella-local != ''
+        run: ${{ inputs.huella-local }} > "${{ runner.temp }}/huella-local.txt"
+      - name: cache por arbol, perfil ${{ matrix.perfil }}
+        id: cache
+        shell: bash
+        env:
+          CANDIDATOS: ${{ needs.buscar.outputs.candidatos }}
+          HUELLA: ${{ runner.temp }}/huella-local.txt
+        run: |
+          set -eu
+          touch "$HUELLA"
+          huella=$(sha256sum "$HUELLA" | cut -d' ' -f1)
+          acierto=$(printf '%s' "$CANDIDATOS" | jq -r --arg p "$TC2_PERFIL" --arg l "$huella" '[.[$p][]? | select(.local == $l)][0] // empty | "\(.de) \(.origen)"')
+          de=${acierto%% *}
+          origen=${acierto#* }
+          {
+            echo "local-$TC2_PERFIL=$huella"
+            echo "de-$TC2_PERFIL=$de"
+            echo "origen-$TC2_PERFIL=$origen"
+            if [ -n "$de" ]; then echo "acierto=si"; else echo "acierto=no"; fi
+          } >> "$GITHUB_OUTPUT"
+          if [ -n "$de" ]; then
+            echo "Perfil $TC2_PERFIL: reutilizada de $de (origen $origen, local $huella)"
+          else
+            echo "Perfil $TC2_PERFIL: sin acierto (local $huella); se ejecuta el comando"
+          fi
       # TC2_INFORME (F5-4): el comando escribe ahi su informe JSON, si sabe;
       # la plataforma solo lo sube. `runner` no existe en el `env` del job.
       - name: comando del proyecto, perfil ${{ matrix.perfil }}
+        if: steps.cache.outputs.acierto != 'si'
         env:
           TC2_INFORME: ${{ runner.temp }}/informe-verificacion.json
         run: ${{ inputs.comando }} ${{ inputs[format('argumentos-{0}', matrix.perfil)] }}
@@ -169,14 +329,20 @@ jobs:
     timeout-minutes: 5
     permissions:
       checks: write
+      contents: read
     steps:
       - name: Publicar el check verificacion
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          V: ${{ github.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RESULTADO: ${{ needs.ejecutar.result }}
           PERFILES: ${{ needs.buscar.outputs.perfiles }}
+          ARBOL_BUSCAR: ${{ needs.buscar.outputs.arbol }}
+          CLAVES: ${{ needs.buscar.outputs.claves }}
+          RUNNERS: ${{ needs.buscar.outputs.runners }}
+          SALIDAS: ${{ toJSON(needs.ejecutar.outputs) }}
           EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -eu
@@ -188,6 +354,29 @@ jobs:
             informes="${informes:+$informes,}informe-verificacion-$p"
           done
           resumen="perfiles=$PERFILES resultado=$RESULTADO informe=$informes ejecucion=$EJECUCION"
+          # F1-8, decision 7: el arbol lo lee el publicador por la API; si no
+          # es el de buscar, no se escribe ninguna linea y el check sale rojo.
+          arbol=$(gh api --method GET "repos/$REPO/commits/$V" --jq '.commit.tree.sha')
+          if [ "$arbol" != "$ARBOL_BUSCAR" ]; then
+            echo "verificacion: arbol de $V por la API ($arbol) distinto del de buscar ($ARBOL_BUSCAR)" >&2
+            conclusion=failure
+          elif [ "$conclusion" = success ]; then
+            for p in $(printf '%s' "$PERFILES" | tr -d '[]"' | tr ',' ' '); do
+              campo() { printf '%s' "$SALIDAS" | jq -r --arg k "$1-$p" '.[$k] // ""'; }
+              huella=$(campo local)
+              de=$(campo de)
+              origen=$(campo origen)
+              if [ -z "$huella" ]; then
+                echo "verificacion: el perfil $p no dejo su huella local; sin linea" >&2
+                continue
+              fi
+              if [ -n "$de" ]; then estado="reutilizada de $de"; else estado=ejecutada; origen=$HEAD_SHA; fi
+              r=$(printf '%s' "$RUNNERS" | jq -r --arg p "$p" '.[$p]')
+              k=$(printf '%s' "$CLAVES" | jq -r --arg p "$p" '.[$p]')
+              resumen="$resumen
+          arbol=$arbol perfil=$p runner=$r clave=$k local=$huella origen=$origen $estado"
+            done
+          fi
           gh api --method POST "repos/$REPO/check-runs" \
             -f name=verificacion -f head_sha="$HEAD_SHA" -f status=completed \
             -f conclusion="$conclusion" -f details_url="$EJECUCION" \
