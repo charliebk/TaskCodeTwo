@@ -691,3 +691,36 @@ Este ADR se planificó con un solo rol (arquitectura); quedan sin cubrir:
 - La salida de `siguiente --json` con los campos nuevos y lo que pinta el
   check `carril`: diseño, sin implementación (F4-4, F6).
 - `taskctl doctor` no se ejecutó en la implementación de esta tarea.
+
+## Adenda (F4-1, TASK-036) — `tc2 plan` y `tc2 plan guardar`
+
+`plan` congela el carril declarado y el modo y lanza los roles de la columna
+«Roles de diseño» (`Carril::roles_diseno` en `crates/tc2/src/carril.rs`).
+Lo que el plan de TASK-036 no fijaba, o fija de otra forma:
+
+- **Orden del tope de `hotfix` y de la configuración**: el tope de 1 rol de
+  un `hotfix` (fuera de riesgo alto) se aplica antes y
+  `politica_carriles.<carril>.roles_diseno` después, porque la
+  configuración solo endurece (decisión 2). El plan los citaba al revés.
+- **`roles_diseno: 5`**: el esquema admite hasta 5 y la escalera tiene 4; el
+  quinto es el condicional (rendimiento) aunque ninguna etiqueta lo pida.
+- **Modo congelado**: el de la última fila `plan` de `## Transiciones`; la
+  primera vez, `modo_flujo` de la base. No hay campo nuevo en el
+  frontmatter.
+- **Rondas**: solo se añaden (la rama de estado no borra). Una ronda nueva se
+  abre cuando cambia el juego de roles (por ejemplo, al subir el carril con
+  `--carril`); repetir `plan` con los mismos roles y el mismo carril es
+  `sin-cambios`. Volver a planificar con los mismos roles tras «pedir
+  cambios» queda para `approve` (TASK-037), que tendrá que cerrar la ronda.
+  `plan-final.md` solo se escribe si no existe: el esqueleto no se rehace al
+  cambiar de roles.
+- **Sin catálogo**: `plan` y `plan guardar` exigen red y nunca quedan
+  pendientes (como `import`), así que no se reconstruyen desde su anotación.
+- **Rechazos añadidos**: `plan` rechaza una tarea en pausa (`pausada`) y los
+  huecos de la plantilla cuentan como objetivo o criterio vacíos; `plan
+  guardar` exige la petición del rol cuya salida guarda (`sin-peticion`),
+  rechaza un fichero vacío y pasa CRLF a LF. Su línea es `plan ...
+  destino=...`.
+
+Evidencia: `crates/tc2/tests/plan.rs` y los unitarios de `carril.rs`
+(`roles_de_diseno_por_carril`) y de `crates/tc2/src/plan/`.
