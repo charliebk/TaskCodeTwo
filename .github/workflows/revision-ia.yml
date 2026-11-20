@@ -210,10 +210,14 @@ jobs:
             job=$(gh api --method GET "repos/$REPO/actions/runs/$VRUN/jobs" -f per_page=100 --jq '[.jobs[] | select(.name == env.PERFIL or (.name | endswith(" / " + env.PERFIL)))] | first | .id // ""') || job=""
             case "$job" in
               ''|*[!0-9]*) job="" ;;
-              *) origen=$(gh api "repos/$REPO/actions/jobs/$job/logs" | tr -d '\r' | sed -nE "s/^[^ ]+ Perfil $PERFIL: reutilizada de [0-9a-f]{40} \(origen ([0-9a-f]{40}),.*/\1/p" | tail -n 1) || origen="" ;;
+              # Con curl y no con `gh api`: el log trae secuencias de escape
+              # ANSI y las versiones nuevas de gh se niegan a volcarlo sin
+              # --allow-escape-sequences, que las antiguas no conocen (E2E de
+              # TASK-137). La redireccion al log no recibe la cabecera.
+              *) origen=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$GITHUB_API_URL/repos/$REPO/actions/jobs/$job/logs" | tr -d '\r' | sed -nE "s/^[^ ]+ Perfil $PERFIL: reutilizada de [0-9a-f]{40} \(origen ([0-9a-f]{40}),.*/\1/p" | tail -n 1) || origen="" ;;
             esac
             if [ -z "$origen" ]; then
-              echo "sin artefacto $nombre en el run $VRUN"
+              echo "sin artefacto $nombre en el run $VRUN ni linea de reutilizacion en el log de su job ${job:-(sin job del perfil)}"
               exit 0
             fi
             wf=$(gh api --method GET "repos/$REPO/actions/runs/$VRUN" --jq '.workflow_id') || wf=""
