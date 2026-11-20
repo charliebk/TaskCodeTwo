@@ -47,8 +47,8 @@ se elige el runner.
 
 | Evento | GitHub | GitLab |
 |---|---|---|
-| PR / MR a cualquier rama | completa | completa (`verificacion-completa`) |
-| PR / MR a cualquier rama, con `cola-de-merge: true` | impacto | impacto (`verificacion-impacto`) |
+| PR / MR que no es la release | completa | completa (`verificacion-completa`) |
+| PR / MR que no es la release, con `cola-de-merge: true` | impacto | impacto (`verificacion-impacto`) |
 | PR / MR de `develop` a `main` (release), con o sin cola | completa y pesada | completa y pesada |
 | `merge_group` / pipeline de `merge_train` | completa | completa con `cola-de-merge: true`; sin ella, la del MR (completa) |
 | `workflow_dispatch` | completa | — |
