@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-137-f6-3-seguimiento-revision-ia-cita-el-inf
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -37,3 +37,4 @@ Cuando verificacion reutiliza un perfil de la cache por arbol (F5-2), su run no 
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-20T14:01:02Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-20T14:44:08Z | approve | automatico | persona | 0.16.1 |
