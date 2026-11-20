@@ -6,10 +6,10 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-137-f6-3-seguimiento-revision-ia-cita-el-inf
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -31,3 +31,9 @@ Cuando verificacion reutiliza un perfil de la cache por arbol (F5-2), su run no 
 - [ ] Si el informe del origen ha caducado o no se encuentra, el check lo dice y las revisoras van sin seccion, como hoy
 - [ ] docs/ci/revision-ia.md (Limites conocidos) actualizado
 - [ ] El lint de xtask/src/workflows.rs sigue en verde
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-20T14:01:02Z | plan | automatico | persona | 0.16.1 |

@@ -42,8 +42,8 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** ninguna
-- **Listas para empezar:** TASK-043, TASK-045, TASK-046, TASK-085, TASK-050, TASK-053, TASK-137, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
+- **En marcha:** TASK-137 (en diseño)
+- **Listas para empezar:** TASK-043, TASK-045, TASK-046, TASK-085, TASK-050, TASK-053, TASK-056, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
 
@@ -158,7 +158,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 9 | TASK-051 | F6-5 Hallazgos estructurados | — | TASK-050 | espera a TASK-050 |
 | 10 | TASK-052 | F6-6 Rondas incrementales | — | TASK-051 | espera a TASK-051 |
 | 11 | TASK-053 | F6-7 Defensa contra prompt injection en PR y tareas | — | TASK-009, TASK-049 | lista para empezar |
-| 12 | TASK-137 | F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache | — | — | lista para empezar |
+| 12 | TASK-137 | F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache | — | — | ▶ en diseño |
 
 ## H7 — Integración y publicación
 
