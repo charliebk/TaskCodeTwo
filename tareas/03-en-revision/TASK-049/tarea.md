@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 998648
 tokens_implementacion: 45593290
-tokens_revision: 3439990
+tokens_revision: 6840056
 creado: 2026-11-14
 actualizado: 2026-11-20
 dependencias: [TASK-044, TASK-048]
@@ -62,6 +62,7 @@ Divergencias halladas en el E2E (corregidas y documentadas):
 Revision por pares:
 - Ronda 1: rust-wasm-reviewer aprobada (MEN-1, tope de stdin); code-quality-reviewer cambios-solicitados (IMP-1 rutas no ASCII, IMP-2 fetch sin credencial, MEN-3 pipefail, MEN-4 artefacto ausente, MEN-5 cerca del diff). Todo corregido en e399b23.
 - Ronda 2, tras el E2E: rust-wasm-reviewer aprobada-con-correcciones (IMP-1 `expect` que rompia clippy, MEN-1 dos huecos del test); code-quality-reviewer aprobada (MEN-1 clave en el motivo de error, MEN-2 limites de la excepcion sin documentar, MEN-3 `sin-cuerpo` y recorte por bytes). Todo corregido en 9c14787.
+- Ronda 3 (extra, acotada a 9c14787): rust-wasm-reviewer y code-quality-reviewer aprobada, sin hallazgos (clippy -D warnings limpio, 29 tests de xtask, mutaciones de los asserts nuevos en rojo, motivo de error probado con clave, sin error, no JSON y 250 tildes).
 
 ## Rondas extra
 
@@ -87,3 +88,5 @@ Revision por pares:
 | 2026-11-20T00:26:36Z | implementacion | agente:a26939dbbe09eb062 | 248 | 422570 | 34426743 | 134762 | 68 | 34984323 | - | - |
 | 2026-11-20T13:11:42Z | revision | agente:a36f7278c0863ff4c | 36 | 117665 | 1825100 | 10773 | 4 | 1953574 | 2 | rust-wasm-reviewer |
 | 2026-11-20T13:11:42Z | revision | agente:abca2794732b167b2 | 28 | 120494 | 1353502 | 12392 | 2 | 1486416 | 2 | code-quality-reviewer |
+| 2026-11-20T13:17:24Z | revision | agente:a6ca23dd30b9cf77f | 42 | 119028 | 2008837 | 21109 | 2 | 2149016 | 3 | rust-wasm-reviewer |
+| 2026-11-20T13:17:24Z | revision | agente:ace6396f2f01a22a1 | 26 | 105562 | 1131385 | 14077 | 2 | 1251050 | 3 | code-quality-reviewer |
