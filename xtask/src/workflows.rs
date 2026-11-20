@@ -1383,37 +1383,83 @@ fn las_reglas_de_gitlab_no_leen_variables_de_job() {
 
 const REVISION_IA: &str = ".github/workflows/revision-ia.yml";
 
-/// El workflow del revisor pasa el lint con el perfil revision-ia: dos
-/// jobs, el publicador en el entorno `revisor`, sin checkout, con los tres
-/// secretos y sin escritura del GITHUB_TOKEN.
+/// El workflow del revisor pasa el lint con el perfil revision-ia: cuatro
+/// jobs (F6-4); `consultar` y `publicar` en el entorno `revisor`, sin
+/// checkout, cada uno solo con su secreto; `preparar` y `validar` sin
+/// secretos; `validar` corre `tc2 hallazgos validar` y `publicar` lee
+/// `revision-ia-hallazgos`, no las respuestas del modelo en bruto.
 #[test]
 fn el_workflow_del_revisor_pasa_el_lint() {
     let texto = leer(REVISION_IA);
     let raiz = yaml(&texto);
     let jobs = raiz.get("jobs").map(Nodo::claves).unwrap_or_default();
-    assert_eq!(jobs, ["preparar", "publicar"]);
+    assert_eq!(jobs, ["preparar", "consultar", "validar", "publicar"]);
     assert_eq!(lint_revision(&texto), Vec::<String>::new());
-    let publicar = raiz.get("jobs").and_then(|j| j.get("publicar"));
-    assert_eq!(
-        publicar
-            .and_then(|p| p.get("environment"))
-            .and_then(Nodo::texto),
-        Some("revisor")
-    );
-    let mut valores = Vec::new();
-    if let Some(p) = publicar {
-        p.escalares("", &mut valores);
-    }
-    for s in [
-        "TC2_APP_REVISOR_ID",
-        "TC2_APP_REVISOR_CLAVE",
-        "ANTHROPIC_API_KEY",
-    ] {
+    let job = |n: &str| raiz.get("jobs").and_then(|j| j.get(n));
+    let valores = |n: &str| -> Vec<String> {
+        let mut v = Vec::new();
+        if let Some(j) = job(n) {
+            j.escalares("", &mut v);
+        }
+        v.iter().map(|(_, x)| normalizar(x)).collect()
+    };
+    let usa = |n: &str, buscado: &str| valores(n).iter().any(|v| v.contains(buscado));
+    let entorno = |n: &str| {
+        job(n)
+            .and_then(|j| j.get("environment"))
+            .and_then(Nodo::texto)
+    };
+    assert_eq!(entorno("consultar"), Some("revisor"));
+    assert_eq!(entorno("publicar"), Some("revisor"));
+    assert_eq!(entorno("preparar"), None);
+    assert_eq!(entorno("validar"), None);
+    let secretos = [
+        ("ANTHROPIC_API_KEY", "consultar"),
+        ("TC2_APP_REVISOR_ID", "publicar"),
+        ("TC2_APP_REVISOR_CLAVE", "publicar"),
+    ];
+    for (s, dueno) in secretos {
         let buscado = format!("secrets.{}", s.to_ascii_lowercase());
-        let en_publicar = valores
+        for n in jobs.iter().copied() {
+            assert_eq!(usa(n, &buscado), n == dueno, "{s} en {n}");
+        }
+    }
+    for n in ["preparar", "validar"] {
+        assert!(!usa(n, "secrets."), "secreto en {n}");
+    }
+    // validar valida con tc2 y sube el artefacto que lee publicar.
+    let runs_de = |n: &str| -> Vec<String> {
+        let mut v = Vec::new();
+        if let Some(j) = job(n) {
+            j.escalares("", &mut v);
+        }
+        v.iter()
+            .filter(|(k, _)| *k == "run")
+            .map(|(_, x)| (*x).to_owned())
+            .collect()
+    };
+    assert!(
+        runs_de("validar")
             .iter()
-            .any(|(_, v)| normalizar(v).contains(&buscado));
-        assert!(en_publicar, "falta el secreto {s} en publicar");
+            .any(|r| r.contains("tc2 hallazgos validar"))
+    );
+    assert!(usa("validar", "revision-ia-hallazgos"));
+    assert!(
+        runs_de("preparar")
+            .iter()
+            .any(|r| r.contains("tc2 hallazgos instrucciones"))
+    );
+    // publicar: solo el artefacto validado, nunca las respuestas en bruto.
+    assert!(usa("publicar", "revision-ia-hallazgos"));
+    assert!(!usa("publicar", "revision-ia-prompts"));
+    assert!(!usa("publicar", "needs.consultar.outputs"));
+    assert!(!usa("publicar", "api.anthropic.com"));
+    // Lo que viene de otro job (las respuestas del modelo) entra por env,
+    // nunca interpolado en run.
+    for n in jobs.iter().copied() {
+        for r in runs_de(n) {
+            assert!(!normalizar(&r).contains("needs."), "needs. en run de {n}");
+        }
     }
     // Con el perfil de verificacion, el entorno y el evento no valen.
     assert!(!lint_github(&texto).is_empty());
@@ -1422,7 +1468,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
 #[test]
 fn cada_mutacion_del_revisor_da_su_error() {
     let texto = leer(REVISION_IA);
-    let casos: [(&str, &str, &str); 9] = [
+    let casos: [(&str, &str, &str); 11] = [
         (
             "  workflow_call:\n",
             "  pull_request:\n  workflow_call:\n",
@@ -1446,6 +1492,11 @@ fn cada_mutacion_del_revisor_da_su_error() {
         (
             "    environment: revisor\n",
             "",
+            "job consultar: secreto en clase ejecuta",
+        ),
+        (
+            "    timeout-minutes: 15\n    environment: revisor\n",
+            "    timeout-minutes: 15\n",
             "job publicar: secreto en clase ejecuta",
         ),
         (
@@ -1454,9 +1505,14 @@ fn cada_mutacion_del_revisor_da_su_error() {
             "entorno no admitido",
         ),
         (
-            "    permissions:\n      actions: read\n    steps:\n      - name: Revisar",
-            "    permissions:\n      actions: read\n      checks: write\n    steps:\n      - name: Revisar",
+            "    permissions:\n      actions: read\n    steps:\n      - name: Publicar",
+            "    permissions:\n      actions: read\n      checks: write\n    steps:\n      - name: Publicar",
             "job publicar: escritura con GITHUB_TOKEN",
+        ),
+        (
+            "          CONSULTAR: ${{ needs.consultar.result }}\n          R0:",
+            "          CONSULTAR: ${{ needs.consultar.result }}\n          CLAVE: ${{ secrets.ANTHROPIC_API_KEY }}\n          R0:",
+            "job validar: secreto en clase ejecuta",
         ),
         (
             "          FORZADA: ${{ inputs.tc2-sha }}\n",
@@ -1479,8 +1535,8 @@ fn cada_mutacion_del_revisor_da_su_error() {
     }
     // Un checkout en el publicador: privilegio por el entorno.
     let con_checkout = texto.replacen(
-        "    steps:\n      - name: Revisar",
-        "    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n        with:\n          persist-credentials: false\n          ref: develop\n      - name: Revisar",
+        "    steps:\n      - name: Publicar",
+        "    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n        with:\n          persist-credentials: false\n          ref: develop\n      - name: Publicar",
         1,
     );
     assert_ne!(con_checkout, texto);
@@ -1489,6 +1545,20 @@ fn cada_mutacion_del_revisor_da_su_error() {
         errores
             .iter()
             .any(|e| e.contains("job publicar: checkout en clase privilegio")),
+        "{errores:?}"
+    );
+    // consultar no sube artefactos: es de clase privilegio.
+    let con_subida = texto.replacen(
+        "          done < \"$dir/prompts/lista.tsv\"\n\n  validar:\n",
+        "          done < \"$dir/prompts/lista.tsv\"\n      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02\n        with:\n          name: x\n          path: y\n\n  validar:\n",
+        1,
+    );
+    assert_ne!(con_subida, texto);
+    let errores = lint_revision(&con_subida);
+    assert!(
+        errores
+            .iter()
+            .any(|e| e.contains("job consultar: actions/upload-artifact en clase privilegio")),
         "{errores:?}"
     );
 }
