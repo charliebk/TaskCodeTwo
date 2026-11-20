@@ -344,17 +344,64 @@ impl Diff {
 }
 
 /// La ruta de una linea `+++ `: sin el tabulador final que git pone a las
-/// rutas con espacios, sin comillas y sin `b/`; `None` si es `/dev/null`.
+/// rutas con espacios, sin comillas (decodificando los escapes de git) y sin
+/// `b/`; `None` si es `/dev/null`.
 fn ruta_nueva(r: &str) -> Option<String> {
     let r = r.trim_end_matches('\t');
     if r == "/dev/null" {
         return None;
     }
-    let r = r
-        .strip_prefix('"')
-        .and_then(|x| x.strip_suffix('"'))
-        .unwrap_or(r);
-    Some(r.strip_prefix("b/").unwrap_or(r).to_owned())
+    let r = match r.strip_prefix('"').and_then(|x| x.strip_suffix('"')) {
+        Some(x) => sin_escapes_de_git(x),
+        None => r.to_owned(),
+    };
+    Some(r.strip_prefix("b/").unwrap_or(&r).to_owned())
+}
+
+/// El interior de una ruta entrecomillada por git (`core.quotePath`): los
+/// escapes C (`\"`, `\\`, `\t`, `\n`...) y los octales `\ooo`, que son bytes
+/// de UTF-8 (`\303\261` es `ñ`). Un escape que no entiende se deja tal cual.
+fn sin_escapes_de_git(x: &str) -> String {
+    let b = x.as_bytes();
+    let mut s: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while let Some(&c) = b.get(i) {
+        i += 1;
+        if c != b'\\' {
+            s.push(c);
+            continue;
+        }
+        let octal = b
+            .get(i..i + 3)
+            .filter(|d| d.iter().all(|x| (b'0'..=b'7').contains(x)))
+            .map(|d| d.iter().fold(0u32, |n, x| n * 8 + u32::from(x - b'0')))
+            .and_then(|n| u8::try_from(n).ok());
+        if let Some(n) = octal {
+            s.push(n);
+            i += 3;
+            continue;
+        }
+        let simple = match b.get(i) {
+            Some(b'"') => Some(b'"'),
+            Some(b'\\') => Some(b'\\'),
+            Some(b't') => Some(b'\t'),
+            Some(b'n') => Some(b'\n'),
+            Some(b'r') => Some(b'\r'),
+            Some(b'a') => Some(0x07),
+            Some(b'b') => Some(0x08),
+            Some(b'f') => Some(0x0C),
+            Some(b'v') => Some(0x0B),
+            _ => None,
+        };
+        match simple {
+            Some(e) => {
+                s.push(e);
+                i += 1;
+            }
+            None => s.push(b'\\'),
+        }
+    }
+    String::from_utf8_lossy(&s).into_owned()
 }
 
 /// `-a,b +c,d @@ ...` da `(b, (c, d))`; sin coma, el largo es 1.
@@ -755,12 +802,16 @@ No inventes lineas que no ves: si el diff esta cortado, el hallazgo de lo que no
 /// Texto de la respuesta del modelo como texto plano de Markdown en una
 /// linea: sin saltos ni controles, con la puntuacion que da formato escapada
 /// y cortado a `tope` caracteres. Es dato del modelo (F6-7): no puede abrir
-/// tablas, enlaces, imagenes ni HTML en el check.
+/// tablas, enlaces, imagenes ni HTML en el check. Tampoco autoenlaces (URL
+/// desnudas, `www.`, correos), menciones `@usuario`, matematicas `$` ni
+/// emojis `:codigo:`; y los caracteres Unicode de formato (categoria Cf:
+/// ancho cero, cambios de direccion...) se quitan.
 pub fn plano(t: &str, tope: usize) -> String {
+    let cs: Vec<char> = t.chars().filter(|c| !es_de_formato(*c)).collect();
     let mut s = String::new();
     let mut n = 0;
     let mut espacio = false;
-    for c in t.chars() {
+    for (i, &c) in cs.iter().enumerate() {
         if n >= tope {
             s.push('…');
             break;
@@ -790,13 +841,62 @@ pub fn plano(t: &str, tope: usize) -> String {
                 | '~'
                 | '#'
                 | '&'
-        ) {
+                | '@'
+                | '$'
+        ) || (c == ':' && abre_enlace_o_emoji(cs.get(i + 1..).unwrap_or_default()))
+            || (c == '.'
+                && s.get(s.len().saturating_sub(3)..)
+                    .is_some_and(|x| x.eq_ignore_ascii_case("www")))
+        {
             s.push('\\');
         }
         s.push(c);
         n += 1;
     }
     s.trim_end().to_owned()
+}
+
+/// Lo que sigue a un `:` lo convierte en autoenlace (`://`) o en la apertura
+/// de un emoji (`:codigo:`). Un `:` suelto, como el de
+/// `taskcode-plugin:revisor`, se deja tal cual.
+fn abre_enlace_o_emoji(resto: &[char]) -> bool {
+    if resto.first() == Some(&'/') {
+        return true;
+    }
+    let nombre = resto
+        .iter()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'))
+        .count();
+    nombre > 0 && resto.get(nombre) == Some(&':')
+}
+
+/// Caracteres Unicode de formato (categoria Cf): invisibles, pero cambian la
+/// direccion o el corte del texto.
+fn es_de_formato(c: char) -> bool {
+    matches!(
+        c,
+        '\u{AD}'
+            | '\u{600}'..='\u{605}'
+            | '\u{61C}'
+            | '\u{6DD}'
+            | '\u{70F}'
+            | '\u{890}'..='\u{891}'
+            | '\u{8E2}'
+            | '\u{180E}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206F}'
+            | '\u{FEFF}'
+            | '\u{FFF9}'..='\u{FFFB}'
+            | '\u{110BD}'
+            | '\u{110CD}'
+            | '\u{13430}'..='\u{1343F}'
+            | '\u{1BCA0}'..='\u{1BCA3}'
+            | '\u{1D173}'..='\u{1D17A}'
+            | '\u{E0001}'
+            | '\u{E0020}'..='\u{E007F}'
+    )
 }
 
 /// La seccion del check `revision-ia` para una revisora: las tablas de
@@ -892,6 +992,39 @@ mod tests {
         assert_eq!(cortado.linea("src/calculo.rs", 12), None);
     }
 
+    /// Git entrecomilla las rutas no ASCII con escapes octales
+    /// (`core.quotePath`): el hallazgo da la ruta real.
+    #[test]
+    fn el_diff_decodifica_las_rutas_entrecomilladas() {
+        let texto = concat!(
+            "diff --git \"a/src/\\303\\261.rs\" \"b/src/\\303\\261.rs\"\n",
+            "--- \"a/src/\\303\\261.rs\"\n",
+            "+++ \"b/src/\\303\\261.rs\"\n",
+            "@@ -1,1 +1,2 @@\n",
+            " uno\n",
+            "+dos\n",
+            "diff --git a/x b/x\n",
+            "+++ \"b/con \\\"comillas\\\"\\\\y\\ttab\"\n",
+            "@@ -0,0 +1 @@\n",
+            "+z\n",
+        );
+        let d = Diff::leer(texto);
+        assert_eq!(d.linea("src/ñ.rs", 2), Some("dos"));
+        assert_eq!(d.linea("src/\\303\\261.rs", 2), None);
+        assert_eq!(d.linea("con \"comillas\"\\y\ttab", 1), Some("z"));
+        let v = validar(
+            "r",
+            &una(
+                r#"{"id":"Q","severidad":"MENOR","fichero":"src/ñ.rs","linea":2,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}"#,
+            ),
+            &d,
+            None,
+        );
+        assert_eq!((v.aceptados.len(), v.rechazados.len()), (1, 0), "{v:?}");
+        // Un escape que no es de git se deja como esta.
+        assert_eq!(sin_escapes_de_git("a\\qb\\"), "a\\qb\\");
+    }
+
     #[test]
     fn la_respuesta_mixta_da_tres_aceptados_y_dos_rechazados() {
         let v = validar("r", MIXTA, &diff(), None);
@@ -972,6 +1105,9 @@ mod tests {
             ))
         };
         let v = validar("r", &r("clippy"), &diff(), Some(&informe));
+        assert_eq!((v.aceptados.len(), v.rechazados.len()), (1, 0), "{v:?}");
+        // Con espacios alrededor tambien: el nombre se compara sin ellos.
+        let v = validar("r", &r(" clippy "), &diff(), Some(&informe));
         assert_eq!((v.aceptados.len(), v.rechazados.len()), (1, 0), "{v:?}");
         // `fmt` esta en verde en ese informe.
         let v = validar("r", &r("fmt"), &diff(), Some(&informe));
@@ -1065,8 +1201,23 @@ mod tests {
         let v = validar("r", &una(&malo), &diff(), None);
         let md = resumen_markdown(&v);
         assert!(
-            md.contains(r"\| x \| \!\[i\]\(http://e/p.png\) \<b\> \# t \`c\`"),
+            md.contains(r"\| x \| \!\[i\]\(http\://e/p.png\) \<b\> \# t \`c\`"),
             "{md}"
+        );
+        // Autoenlaces, menciones, matematicas y emojis salen escapados; los
+        // caracteres de formato (Cf) se quitan; el resto del texto, intacto.
+        let raro = "\u{202E}evil \u{200B}zero @user http://x.y www.e.com $x$ :smile: ñ \u{2066}a\u{2069}\u{FEFF}b \u{AD}c";
+        assert_eq!(
+            plano(raro, 400),
+            r"evil zero \@user http\://x.y www\.e.com \$x\$ \:smile: ñ ab c"
+        );
+        for c in plano(raro, 400).chars() {
+            assert!(!es_de_formato(c), "queda U+{:04X}", u32::from(c));
+        }
+        // Un `:` suelto no es un emoji ni un enlace: no se escapa.
+        assert_eq!(
+            plano("taskcode-plugin:revisor a: b 10:30", 100),
+            "taskcode-plugin:revisor a: b 10:30"
         );
         assert_eq!(plano(&"a".repeat(10), 4), "aaaa…");
         let v = validar("r", "nada", &diff(), None);

@@ -1383,6 +1383,55 @@ fn las_reglas_de_gitlab_no_leen_variables_de_job() {
 
 const REVISION_IA: &str = ".github/workflows/revision-ia.yml";
 
+/// Los `with.name` de los pasos `actions/upload-artifact` de un job.
+fn artefactos_subidos(raiz: &Nodo, job: &str) -> Vec<String> {
+    let Some(Nodo::Lista(pasos)) = raiz
+        .get("jobs")
+        .and_then(|j| j.get(job))
+        .and_then(|j| j.get("steps"))
+    else {
+        return Vec::new();
+    };
+    pasos
+        .iter()
+        .filter(|p| {
+            p.get("uses")
+                .and_then(Nodo::texto)
+                .is_some_and(|u| u.starts_with("actions/upload-artifact@"))
+        })
+        .map(|p| {
+            p.get("with")
+                .and_then(|w| w.get("name"))
+                .and_then(Nodo::texto)
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// `validar` sube exactamente el artefacto `revision-ia-hallazgos` y
+/// `publicar` lee ese mismo nombre; si no casan, el check sale siempre
+/// `neutral` con `sin-hallazgos` y solo el E2E lo veria.
+fn validar_sube_lo_que_lee_publicar(texto: &str) -> Result<(), String> {
+    const NOMBRE: &str = "revision-ia-hallazgos";
+    let raiz = leer_yaml(texto)?;
+    let subidos = artefactos_subidos(&raiz, "validar");
+    if subidos != [NOMBRE] {
+        return Err(format!("validar sube {subidos:?}, no [\"{NOMBRE}\"]"));
+    }
+    let mut valores = Vec::new();
+    if let Some(j) = raiz.get("jobs").and_then(|j| j.get("publicar")) {
+        j.escalares("", &mut valores);
+    }
+    let lee = valores
+        .iter()
+        .any(|(k, v)| *k == "run" && v.contains(&format!("-f name={NOMBRE} ")));
+    if !lee {
+        return Err(format!("publicar no lee el artefacto {NOMBRE}"));
+    }
+    Ok(())
+}
+
 /// El workflow del revisor pasa el lint con el perfil revision-ia: cuatro
 /// jobs (F6-4); `consultar` y `publicar` en el entorno `revisor`, sin
 /// checkout, cada uno solo con su secreto; `preparar` y `validar` sin
@@ -1443,7 +1492,11 @@ fn el_workflow_del_revisor_pasa_el_lint() {
             .iter()
             .any(|r| r.contains("tc2 hallazgos validar"))
     );
-    assert!(usa("validar", "revision-ia-hallazgos"));
+    assert_eq!(
+        artefactos_subidos(&raiz, "validar"),
+        ["revision-ia-hallazgos"]
+    );
+    assert_eq!(validar_sube_lo_que_lee_publicar(&texto), Ok(()));
     assert!(
         runs_de("preparar")
             .iter()
@@ -1561,6 +1614,28 @@ fn cada_mutacion_del_revisor_da_su_error() {
             .any(|e| e.contains("job consultar: actions/upload-artifact en clase privilegio")),
         "{errores:?}"
     );
+    // El artefacto que sube validar y el que lee publicar tienen que casar:
+    // renombrar cualquiera de los dos da rojo.
+    let artefactos: [(&str, &str, &str); 2] = [
+        (
+            "          name: revision-ia-hallazgos\n",
+            "          name: otro-nombre\n",
+            "validar sube [\"otro-nombre\"]",
+        ),
+        (
+            "-f name=revision-ia-hallazgos ",
+            "-f name=otro-nombre ",
+            "publicar no lee el artefacto revision-ia-hallazgos",
+        ),
+    ];
+    for (original, mutado, esperado) in artefactos {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let r = validar_sube_lo_que_lee_publicar(&texto.replacen(original, mutado, 1));
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains(esperado)),
+            "«{esperado}» no salio: {r:?}"
+        );
+    }
 }
 
 /// El llamador de la guia de F6-3 pasa el lint de su perfil; `secrets:

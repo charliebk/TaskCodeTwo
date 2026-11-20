@@ -448,11 +448,25 @@ jobs:
                 estado="negativa"
               else
                 estado="ok($parada) tokens=$(jq -r '"\(.usage.input_tokens)+\(.usage.output_tokens)"' "$respuesta")"
-                jq -r '[.content[] | select(.type == "text") | .text] | join("\n")' "$respuesta" > "$RUNNER_TEMP/completo-$i.md"
-                bytes=$(wc -c < "$RUNNER_TEMP/completo-$i.md")
-                head -c "$tope" "$RUNNER_TEMP/completo-$i.md" > "$texto"
-                if [ "$bytes" -gt "$tope" ]; then
-                  echo "::warning::revision-ia: la respuesta de $rid ocupa $bytes bytes y se corta en $tope; lo que pase del corte no se valida"
+                completo="$RUNNER_TEMP/completo-$i.md"
+                jq -r '[.content[] | select(.type == "text") | .text] | join("\n")' "$respuesta" > "$completo"
+                bytes=$(wc -c < "$completo")
+                if [ "$bytes" -le "$tope" ]; then
+                  cp "$completo" "$texto"
+                else
+                  # El bloque json va al final: se conservan el principio y
+                  # el final (cortados en linea entera, sin partir UTF-8) y
+                  # se omite el medio, con una marca.
+                  mitad=$((tope / 2))
+                  head -c "$mitad" "$completo" | sed '$d' > "$RUNNER_TEMP/principio-$i.md"
+                  tail -c $((tope - mitad - 256)) "$completo" | sed '1d' > "$RUNNER_TEMP/final-$i.md"
+                  omitidos=$((bytes - $(wc -c < "$RUNNER_TEMP/principio-$i.md") - $(wc -c < "$RUNNER_TEMP/final-$i.md")))
+                  {
+                    cat "$RUNNER_TEMP/principio-$i.md"
+                    printf '\n[revision-ia: respuesta cortada a %s bytes; se omiten %s bytes del medio]\n\n' "$tope" "$omitidos"
+                    cat "$RUNNER_TEMP/final-$i.md"
+                  } > "$texto"
+                  echo "::warning::revision-ia: la respuesta de $rid ocupa $bytes bytes y se corta a $tope: se conservan el principio y el final (con el bloque json) y se omiten $omitidos bytes del medio"
                   estado="$estado cortada=$bytes"
                 fi
               fi
@@ -521,6 +535,8 @@ jobs:
           fi
           cp "$dir/resumen.txt" "$out/resumen.txt"
           : > "$out/texto.md"
+          prosa="$RUNNER_TEMP/prosa.md"
+          : > "$prosa"
           informe=()
           if [ -s "$dir/informe.json" ]; then informe=(--informe "$dir/informe.json"); fi
           while IFS="$(printf '\t')" read -r i rid modelo; do
@@ -544,14 +560,26 @@ jobs:
               echo "## $rid ($modelo)"
               echo
               cat "$out/resumen-$i.md"
-              if [ -s "$respuesta" ]; then
-                echo "#### Informe del modelo"
+            } >> "$out/texto.md"
+            if [ -s "$respuesta" ]; then
+              {
+                echo "### Informe de $rid ($modelo)"
                 echo
                 cat "$respuesta"
                 echo
-              fi
-            } >> "$out/texto.md"
+              } >> "$prosa"
+            fi
           done < "$dir/prompts/lista.tsv"
+          # Primero las tablas validadas de todas las revisoras y despues la
+          # prosa: el corte del check (65000 en publicar) se come antes un
+          # informe largo que la tabla de la revisora siguiente.
+          if [ -s "$prosa" ]; then
+            {
+              echo "## Informes del modelo"
+              echo
+              cat "$prosa"
+            } >> "$out/texto.md"
+          fi
           cat "$out/resumen.txt"
       - name: Hallazgos para publicar
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
