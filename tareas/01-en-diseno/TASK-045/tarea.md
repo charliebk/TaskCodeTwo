@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-045-f5-5-runner-self-hosted-windows-por-perf
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 391695
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F5-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-20T22:26:01Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-20T22:29:58Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-20T22:29:57Z | diseno | agente:a2118c1f6b37e52ec | 18 | 67968 | 307643 | 16066 | 15 | 391695 | - | - |
