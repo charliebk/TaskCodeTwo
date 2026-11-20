@@ -58,3 +58,7 @@ Evidencia (repo E2E `charliebk/taskcodetwo-e2e-github`, PR 15, verificacion fija
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-20T15:27:02Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 10 | 1270 | 875313 | 884 | 0 | 877477 | - | - |
 | 2026-11-20T15:27:02Z | implementacion | sesion:ffc7f907-2a90-4fe5-a6d2-510800ddbc4d | 86 | 39687 | 7520879 | 25721 | 0 | 7586373 | - | - |
+
+## Verificacion ligera
+
+- 2026-11-20T15:39:09Z: ronda 1; commit revisado 92f28c9b8bf2191a5531bcf016dbbb47efe50a07; commit verificado a329520010cc35d0fd6475e44684544a06bfb1aa; ficheros: .github/workflows/revision-ia.yml; corregidos: MEN-2; pendientes: ninguno
