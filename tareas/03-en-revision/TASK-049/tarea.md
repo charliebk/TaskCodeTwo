@@ -63,6 +63,10 @@ Revision por pares:
 - Ronda 1: rust-wasm-reviewer aprobada (MEN-1, tope de stdin); code-quality-reviewer cambios-solicitados (IMP-1 rutas no ASCII, IMP-2 fetch sin credencial, MEN-3 pipefail, MEN-4 artefacto ausente, MEN-5 cerca del diff). Todo corregido en e399b23.
 - Ronda 2, tras el E2E: rust-wasm-reviewer aprobada-con-correcciones (IMP-1 `expect` que rompia clippy, MEN-1 dos huecos del test); code-quality-reviewer aprobada (MEN-1 clave en el motivo de error, MEN-2 limites de la excepcion sin documentar, MEN-3 `sin-cuerpo` y recorte por bytes). Todo corregido en 9c14787.
 
+## Rondas extra
+
+- Ronda 3: la decide quien orquesta, con la consigna de Carlos de seguir con la opcion recomendada; solo verifica las correcciones de la ronda 2 (9c14787: un IMPORTANTE de clippy y MENORES baratos), sin codigo nuevo.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -72,6 +76,7 @@ Revision por pares:
 | 2026-11-19T22:23:21Z | start | automatico | persona | 0.16.1 |
 | 2026-11-20T00:26:36Z | review | automatico | persona | 0.16.1 |
 | 2026-11-20T13:03:28Z | review | automatico | persona | 0.16.1 |
+| 2026-11-20T13:13:22Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
