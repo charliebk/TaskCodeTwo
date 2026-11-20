@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-043-f5-3-verificacion-por-impacto-como-paso
 asignado_a: charlie.bk@gmail.com
@@ -72,6 +72,7 @@ Revision por pares:
 | 2026-11-20T21:03:58Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-20T21:04:01Z | start | automatico | persona | 0.16.1 |
 | 2026-11-20T21:55:01Z | review | automatico | persona | 0.16.1 |
+| 2026-11-20T22:25:38Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -86,3 +87,10 @@ Revision por pares:
 ## Verificacion ligera
 
 - 2026-11-20T22:02:45Z: ronda 1; commit revisado 23039496d45451cb132c8fd041a42333355bf9a1; commit verificado 99ab51995cc46b7d4f7758fe0e47aa95514447a1; ficheros: docs/ci/verificacion-reutilizable.md; corregidos: MEN-1; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 82 min
+- Paso de la hora: 82 min reales frente a 180 estimados
+- Cierre (finish): 1348 s, de 2026-11-20T22:03:10Z a 2026-11-20T22:25:38Z
