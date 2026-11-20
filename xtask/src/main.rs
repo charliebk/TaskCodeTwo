@@ -532,7 +532,8 @@ fn comparar_hashes(hashes: &[String]) -> Result<(), String> {
 }
 
 /// Ficheros versionados o nuevos no ignorados, como los ve git, salvo los que
-/// no entran en el binario.
+/// no entran en el binario. `docs/adr/` si entra: `tc2` incrusta las tablas de
+/// seleccion del ADR F1-15 con `include_str!` (TASK-049).
 fn ficheros_del_arbol(raiz: &Path) -> Result<Vec<PathBuf>, String> {
     let salida = Command::new("git")
         .args([
@@ -552,7 +553,11 @@ fn ficheros_del_arbol(raiz: &Path) -> Result<Vec<PathBuf>, String> {
         .map_err(|_| "git ls-files no devolvio UTF-8".to_owned())?;
     Ok(texto
         .split('\0')
-        .filter(|s| !s.is_empty() && !s.starts_with("tareas/") && !s.starts_with("docs/"))
+        .filter(|s| {
+            !s.is_empty()
+                && !s.starts_with("tareas/")
+                && (!s.starts_with("docs/") || s.starts_with("docs/adr/"))
+        })
         .map(PathBuf::from)
         .collect())
 }

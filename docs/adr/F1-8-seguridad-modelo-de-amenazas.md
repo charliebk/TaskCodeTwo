@@ -683,3 +683,55 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
 - Que F0-2 se aplique a la 0.16 y que F5-6 reutilice su mecanismo.
 - Este repo (RR-14) no sirve de prueba: sigue con `ci.yml` y la cuenta de la
   persona hasta el relevo.
+
+## Adenda (F6-3, TASK-049) — el publicador de `revision-ia`
+
+- **Disparador**: sin F6-4, el revisor corre en `workflow_run` de
+  `verificacion` (D3 de TASK-049). `workflow_run` sigue fuera de la lista
+  blanca de los workflows reutilizables: lo usa solo el **llamador** del
+  proyecto, que GitHub toma de la rama por defecto (un PR no lo cambia).
+  `revision-ia.yml` es `workflow_call` y pasa el lint con el perfil
+  `revision-ia` de `xtask/src/workflows.rs`.
+- **A2 y los secretos del revisor**: `TC2_APP_REVISOR_ID`,
+  `TC2_APP_REVISOR_CLAVE` y `ANTHROPIC_API_KEY` viven en el entorno
+  `revisor` y solo los ve el job `publicar`, que no hace checkout ni ejecuta
+  nada del PR (lee prompts ya hechos y llama a dos APIs). Un job con
+  `environment:` es de clase privilegio aunque su GITHUB_TOKEN no escriba;
+  el GITHUB_TOKEN del workflow no escribe nada (`actions: read`): el check
+  lo publica la App del revisor con un token de instalación limitado a
+  `checks: write`.
+- **El job `preparar`** (clase ejecuta: `contents` y `actions` de lectura,
+  sin secretos) saca la base, el plugin a un SHA fijado y `tc2` a la versión
+  del workflow; el head del PR solo se trae como objetos (`git fetch` de su
+  SHA) para el diff, nunca se saca ni se ejecuta. El lint lo impone: cada
+  checkout lleva `ref:` sin `head` y `run:` no lleva `git checkout`,
+  `switch`, `worktree`, `restore`, `reset` ni `inputs.`.
+- **Lo que queda**: el diff y el informe de verificación los escribe el
+  autor del PR y llegan al modelo; el prompt los marca como datos, no como
+  instrucciones, pero la inyección de instrucciones es de F6-7. El check
+  sale `neutral` (D4) y no bloquea hasta F6-5: lo contiene la aprobación
+  obligatoria de la persona.
+- **Excepción a R9 (`secrets: inherit`), decidida por la persona el
+  2026-11-20**: el E2E real mostró que GitHub no da los secretos del
+  entorno `revisor` al job `publicar` del reutilizable si el llamador no
+  hereda: sin `secrets:` llegan vacíos, y también si el reutilizable los
+  declara en `on.workflow_call.secrets` como opcionales (run 44735329636);
+  con `secrets: inherit` llegan y la App publica el check (run
+  44733982088). Se admite `inherit` **solo** en el llamador de
+  `charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml` fijado por SHA
+  (perfil `llamador-revision` del lint, solo `workflow_run` y sin
+  escritura); en cualquier otro workflow sigue siendo un error. Lo que se
+  hereda llega a un workflow que fija el SHA y cuyo lint prohíbe secretos
+  fuera del job del entorno `revisor`; la alternativa (secretos de
+  repositorio pasados uno a uno) perdía la regla de rama del entorno.
+  Dos límites, dichos: `inherit` entrega al reutilizable **todos** los
+  secretos de repositorio y de organización del llamador, no solo los del
+  entorno; y el lint es de tests (`cargo test` de este repo, sobre la guía y
+  los workflows de TaskCodeTwo), así que en un proyecto consumidor lo que
+  restringe el llamador es su revisión humana y el SHA fijado, hasta que
+  `doctor` lo compruebe (F3-8).
+- **Verificado en el E2E** (`charliebk/taskcodetwo-e2e-github`, PR 14,
+  Rust + Vue): `preparar` sin secretos y sin ejecutar nada del PR elige
+  `angular-vue-reviewer` y `rust-wasm-reviewer` (reglas S08, S12); el
+  check `revision-ia` lo publica la App del revisor (5846307) con
+  conclusión `neutral`.

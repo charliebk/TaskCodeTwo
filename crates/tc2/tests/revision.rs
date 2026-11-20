@@ -104,6 +104,12 @@ fn ana() -> Result<Quien, Informe> {
 
 const RAMA: &str = "feature/task-001-uno";
 
+/// La seleccion de F6-3 en este repo: `a.txt` suelto va a la generica (S09),
+/// que sin plugin instalado se quita con aviso (S14); sin configuracion en la
+/// base, el aviso y la escala completa.
+const SELECCION: &str = "revisoras= modelo=sonnet reglas=M04,S09,S12,S14 \
+     avisos=config-de-base-no-leida,no-instalado:taskcode-plugin:code-quality-reviewer";
+
 /// Remoto bare y clon con TASK-001 dada de alta, empezada por ana (rama y
 /// worktree de `start`) y con un commit en su worktree.
 fn preparar(f: &Fixture, g: &Git) -> (PathBuf, PathBuf, PathBuf) {
@@ -143,6 +149,7 @@ fn review(g: &Git, dir: &Path, doble: &Rc<Doble>, esperas: &[Duration]) -> Infor
         base: &base,
         conectar: &conectar,
         esperas,
+        claude: None,
     };
     let i = revision::review_en(&e, "TASK-001");
     eprintln!("  {}", i.linea());
@@ -168,7 +175,7 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
     assert_eq!(
         i.linea(),
         format!(
-            "review ok id=TASK-001 rama={RAMA} pr=12 estado=en-revision revision-ia=sin-revisor"
+            "review ok id=TASK-001 rama={RAMA} pr=12 estado=en-revision revision-ia=sin-revisor {SELECCION}"
         )
     );
     // El push llego: la rama del remoto es la cabeza del worktree.
@@ -197,6 +204,11 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
     let t = publicado(&f, &bare);
     assert!(t.contains("estado: \"en-revision\""), "{t}");
     assert!(t.contains("| review | manual | agente |"), "{t}");
+    // F6-3: la seleccion, anotada en `roles.revision`.
+    assert!(
+        t.contains("revision: {agente: \"general-purpose\", modelo: \"sonnet\", skills: []"),
+        "{t}"
+    );
 
     // Repetir sin nada nuevo converge.
     let antes = f.crudo(&bare, &["rev-parse", estado::RAMA]);
@@ -204,7 +216,7 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
     assert_eq!(
         i.linea(),
         format!(
-            "review sin-cambios id=TASK-001 rama={RAMA} pr=12 estado=en-revision revision-ia=sin-revisor"
+            "review sin-cambios id=TASK-001 rama={RAMA} pr=12 estado=en-revision revision-ia=sin-revisor {SELECCION}"
         )
     );
     assert_eq!(f.crudo(&bare, &["rev-parse", estado::RAMA]), antes);

@@ -8,8 +8,18 @@
 //!   `asignado-heredado` si es un texto de la 0.16).
 //! - `en-curso` pasa a `en-revision`, con `actualizado` y una fila `review`
 //!   en `## Transiciones`; el resto del `tarea.md`, byte a byte.
-//! - Ya `en-revision`: nada que escribir (`sin-cambios`).
+//! - Ya `en-revision`: nada que escribir (`sin-cambios`), salvo que la
+//!   seleccion de revision haya cambiado (F6-3): entonces solo se reescribe
+//!   `roles.revision`, sin fila nueva.
 //! - Cualquier otro estado se rechaza con su motivo.
+//!
+//! F6-3 (F1-15 decision 10): con [`Revisar::con_seleccion`] la operacion
+//! anota en `roles.revision` el lanzador (`agente`), el modelo y las
+//! revisoras (`skills`). `regla` se deja como estaba: el modelo de tarea de
+//! F2-5 la limita al vocabulario de la 0.16, asi que los ids de fila van en
+//! la linea de `review` y en el check (divergencia de la adenda F6-3). La
+//! anotacion de la rama de estado no lleva la seleccion: `review` exige red
+//! y nunca queda pendiente.
 
 use std::cell::RefCell;
 
@@ -25,6 +35,17 @@ use super::NOMBRE;
 /// Estado en el que queda la tarea revisada.
 pub const EN_REVISION: &str = "en-revision";
 
+/// Lo que la seleccion de revision anota en `roles.revision`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnotacionRevision {
+    /// El lanzador (S12), si hay.
+    pub agente: Option<String>,
+    /// Modelo de la escala.
+    pub modelo: String,
+    /// Revisoras.
+    pub skills: Vec<String>,
+}
+
 /// Pasar la tarea `id` a revision.
 #[derive(Debug)]
 pub struct Revisar {
@@ -33,6 +54,7 @@ pub struct Revisar {
     decidido_por: &'static str,
     ahora: u64,
     dueno: RefCell<Option<String>>,
+    seleccion: Option<AnotacionRevision>,
 }
 
 impl Revisar {
@@ -49,7 +71,25 @@ impl Revisar {
             decidido_por,
             ahora,
             dueno: RefCell::new(None),
+            seleccion: None,
         }
+    }
+
+    /// La misma operacion, anotando la seleccion en `roles.revision`.
+    #[must_use]
+    pub fn con_seleccion(mut self, s: AnotacionRevision) -> Self {
+        self.seleccion = Some(s);
+        self
+    }
+
+    /// `roles.revision` de `t` con la seleccion; `None` si no hay seleccion.
+    fn anotar(&self, t: &crate::tarea::Tarea) -> Option<crate::tarea::RolRevision> {
+        let s = self.seleccion.as_ref()?;
+        let mut rv = t.roles.revision.clone();
+        rv.agente.clone_from(&s.agente);
+        rv.modelo = Some(s.modelo.clone());
+        rv.skills.clone_from(&s.skills);
+        Some(rv)
     }
 
     /// Login de quien la lleva si el ultimo intento la rechazo por
@@ -92,10 +132,25 @@ impl Operacion for Revisar {
             *self.dueno.borrow_mut() = dueno;
             return Err(fallo);
         }
+        let anotada = self.anotar(&t);
         match t.estado.as_str() {
-            EN_REVISION => return Ok(Vec::new()),
+            EN_REVISION => {
+                return Ok(match anotada {
+                    Some(rv) if rv != t.roles.revision => {
+                        t.roles.revision = rv;
+                        vec![Cambio::nuevo(
+                            format!("{}/tarea.md", self.id),
+                            t.escribir(&cuerpo),
+                        )]
+                    }
+                    _ => Vec::new(),
+                });
+            }
             EN_CURSO => {}
             otro => return Err(por_estado(&self.id, otro, NOMBRE, &[EN_CURSO])),
+        }
+        if let Some(rv) = anotada {
+            t.roles.revision = rv;
         }
         let instante = instante(self.ahora);
         EN_REVISION.clone_into(&mut t.estado);
@@ -199,6 +254,36 @@ mod tests {
         assert_eq!(motivo(&r), Some("de-otra-persona"));
         assert_eq!(op.dueno().as_deref(), Some("beto"));
         assert!(op.exige_red());
+    }
+
+    /// F6-3: la seleccion va a `roles.revision` (con `regla` intacta); ya en
+    /// revision, solo se reescribe si cambia, sin fila nueva.
+    #[test]
+    fn la_seleccion_se_anota_en_roles_revision() {
+        let sel = |skills: &[&str]| AnotacionRevision {
+            agente: Some("general-purpose".to_owned()),
+            modelo: "opus".to_owned(),
+            skills: skills.iter().map(|s| (*s).to_owned()).collect(),
+        };
+        let antes = md("en-curso", ana().asignado().into());
+        let op = Revisar::nueva("TASK-001", &ana(), AHORA).con_seleccion(sel(&["p:rust"]));
+        let texto = match op.aplicar(&estado(antes)) {
+            Ok(c) => c.first().map(|c| c.contenido.clone()).unwrap_or_default(),
+            Err(_) => String::new(),
+        };
+        assert!(
+            texto.contains("revision: {agente: \"general-purpose\", modelo: \"opus\", skills: [\"p:rust\"], regla: null}"),
+            "{texto}"
+        );
+        let ya = texto.replace("estado: \"en-curso\"", "estado: \"en-revision\"");
+        assert_eq!(op.aplicar(&estado(ya.clone())), Ok(Vec::new()));
+        let otra = Revisar::nueva("TASK-001", &ana(), AHORA).con_seleccion(sel(&["p:vue"]));
+        let r = otra.aplicar(&estado(ya.clone()));
+        let nuevo = r
+            .ok()
+            .and_then(|c| c.first().map(|c| c.contenido.clone()))
+            .unwrap_or_default();
+        assert_eq!(nuevo, ya.replace("[\"p:rust\"]", "[\"p:vue\"]"));
     }
 
     #[test]

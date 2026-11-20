@@ -36,6 +36,9 @@ distribucion = { path = "../distribucion" }
 # (alternativa descartada: `jsonwebtoken`, que trae su propia cripto).
 ring = "0.17.14"
 base64 = "0.23.1"
+# F6-3: comparador de los globs de `patrones_archivo` de las revisoras (F1-15
+# decision 3: sin distinguir mayusculas). Sin la feature `log`.
+globset = { version = "0.4.21", default-features = false }
 
 # Parser YAML de otra base de codigo (port de libyaml, como el PyYAML del PoC
 # de F1-9) para la ida y vuelta de los tests: con el de produccion seria

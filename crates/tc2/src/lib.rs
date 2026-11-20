@@ -20,7 +20,8 @@
 //! (aviso de solape de `start`, F3-11) y [`ciclo`]
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
 //! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1;
-//! `approve`, F4-2) y [`revision`] (`review`, F6-2). Las capas
+//! `approve`, F4-2) y [`revision`] (`review`, F6-2) y [`seleccion`]
+//! (`revisoras`, revisoras y modelo de F1-15, F6-3). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -49,6 +50,7 @@ pub mod progreso;
 pub mod recursos;
 pub mod revision;
 pub mod roadmap;
+pub mod seleccion;
 pub mod siguiente;
 pub mod situacion;
 pub mod solape;
@@ -217,6 +219,10 @@ where
             de_una_tarea(revision::NOMBRE, (json, idioma), |e| {
                 orden_review(&resto, e)
             })
+        }
+        [orden, resto @ ..] if orden == seleccion::orden::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            orden_revisoras(&resto).salida_en(json, idioma)
         }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
@@ -511,12 +517,58 @@ fn orden_review(args: &[String], e: &toma::Entorno<'_>) -> Informe {
         let personas = identidad::personas_de_base(e.git, e.dir)?;
         identidad::adaptador(destino, plataforma::de_entorno(), personas)
     };
+    let claude = dir_claude();
     revision::orden(
         args,
         &revision::Entorno {
             base: e,
             conectar: &conectar,
             esperas: &git::ESPERAS_PUSH,
+            claude: claude.as_deref(),
+        },
+    )
+}
+
+/// La carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`), solo para
+/// leer el inventario (F3-9, F6-3).
+fn dir_claude() -> Option<std::path::PathBuf> {
+    instalacion::Entorno::de_variables(
+        instalacion::Sistema::actual(),
+        std::path::PathBuf::new(),
+        std::process::id(),
+        |k| std::env::var(k).ok(),
+    )
+    .dir_claude()
+}
+
+/// `revisoras [--json] ...` (F6-3) en la carpeta actual: la entrada
+/// estandar para `--rutas -`.
+fn orden_revisoras(args: &[String]) -> Informe {
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(seleccion::orden::NOMBRE, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+        }
+    };
+    let g = git::Git::nuevo();
+    let claude = dir_claude();
+    // Un byte de mas que el tope: la orden falla si llega, como con fichero.
+    let stdin = || {
+        use std::io::Read;
+        let mut b = Vec::new();
+        std::io::stdin()
+            .take(seleccion::orden::TOPE_RUTAS + 1)
+            .read_to_end(&mut b)
+            .map(|_| b)
+    };
+    seleccion::orden::orden(
+        args,
+        &seleccion::orden::Entorno {
+            dir: &dir,
+            git: &g,
+            claude: claude.as_deref(),
+            stdin: &stdin,
         },
     )
 }
@@ -578,15 +630,7 @@ fn orden_doctor(args: &[String], json: bool, idioma: Idioma) -> Salida {
     };
     let g = git::Git::nuevo();
     let conectar = tablero::conectar_produccion(&g, &dir);
-    // La carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`), solo para
-    // leer el inventario (F3-9).
-    let claude = instalacion::Entorno::de_variables(
-        instalacion::Sistema::actual(),
-        std::path::PathBuf::new(),
-        std::process::id(),
-        |k| std::env::var(k).ok(),
-    )
-    .dir_claude();
+    let claude = dir_claude();
     let e = doctor::Entorno {
         dir: &dir,
         git: &g,

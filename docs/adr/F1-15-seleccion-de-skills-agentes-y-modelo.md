@@ -747,3 +747,106 @@ selección de cada tarea en curso necesita y no está instalado.
   esta (dos ejecuciones dan el mismo fichero), pero las secciones I, T y S
   dependen del inventario instalado; en otra máquina cambian el hash del
   inventario y, si cambia lo declarado, la propuesta.
+
+## Adenda (F6-3, TASK-049) — revisoras y modelo de la revisión en el núcleo y en CI
+
+F6-3 implementa la parte de revisión de la decisión 1 antes que F4-6:
+
+- **`seleccion::revision`** (`crates/tc2/src/seleccion/`): función pura que
+  recibe las rutas del diff, el catálogo y el inventario, el carril
+  efectivo, la complejidad y `modelos_permitidos`, y devuelve revisoras,
+  lanzador, modelo, filas aplicadas y avisos. Las tablas se leen de este
+  fichero con `include_str!` entre las marcas `tabla-seleccion` y
+  `tabla-modelo`, con el vocabulario cerrado de la decisión 1 (una condición
+  o acción fuera de él, o una acción con candidatos sin su átomo, no se lee).
+  Recorre en su orden las filas de `revision` y `todos`; una fila se anota
+  si su condición se cumple y su acción cambia algo. La genérica es la de la
+  fila `generica-del-plugin` (S09), nunca una skill con `fallback: true`; el
+  umbral, el `umbral_dominios` de su bloque yaml (3 por defecto). Globs con
+  `globset`, sin distinguir mayúsculas y con `*` sin cruzar `/`.
+- **Catálogo** (`seleccion::catalogo`), sobre el inventario sin cambiarlo:
+  lee el bloque yaml (`rol: revisor`, `patrones_archivo`, `fallback`,
+  `umbral_dominios`) dentro de `MAX_CABECERA`. Las skills del proyecto salen
+  de `.claude/skills` en `origin/develop` (`git ls-tree` y `cat-file`),
+  nunca del worktree: un PR que añade una revisora en su árbol no la cuela
+  (test `skills_de_la_base_e_informe_con_tope`).
+- **`tc2 revisoras --rutas <fichero|-> [--tarea] [--carril] [--complejidad]
+  [--plugin <nombre>=<dir>]... [--informe --seccion] [--detalle]`**: línea de
+  contrato y JSON con `revisoras`, `agentes`, `modelo`, `modelo-api`,
+  `reglas`, `avisos`, `carril`, `complejidad` e `informe`.
+- **`tc2 review`** calcula la selección con el diff de la rama y lo de la
+  base, la muestra en su línea (`revisoras= modelo= reglas= avisos=`) y la
+  anota en `roles.revision` (`agente`, `modelo`, `skills`).
+- **Revisor en CI**: `.github/workflows/revision-ia.yml` (guía
+  [revision-ia.md](../ci/revision-ia.md)).
+
+**Filas que F6-3 no evalúa todavía**: sin el detector `dominios()` (F4-6)
+la lista de dominios es vacía, así que S10 y S11 no se cumplen nunca y
+`dominio=` es falso; sin rondas (F6-6) la ronda es 1 y S13 no se cumple. Se
+leen y se valida su vocabulario igual. S15 sí se aplica (la configuración
+de la base ya da `modelos_permitidos`).
+
+**Divergencias con el plan de TASK-049**:
+
+1. **S15 se aplica** (el plan la aplazaba con S10, S11 y S13): no necesita
+   nada que no exista y deja de elegir un modelo que la configuración
+   prohíbe.
+2. **`roles.revision` no admite `agentes`, `regla` como lista de ids ni
+   `avisos`** (suposición del plan, **falsa**): el modelo de tarea de F2-5
+   tiene `agente` singular y `regla` del vocabulario de la 0.16
+   (`solape|prioridad|llm`). Se anotan `agente` (el lanzador), `modelo` y
+   `skills` (las revisoras); las filas y los avisos van en la línea de
+   `review` y en el resumen del check. El mapa ampliado (divergencia 1 de
+   este ADR) sigue pendiente de F2-5/F4-6.
+3. **Las rutas en CI salen de `git diff --name-only --no-renames
+   base...head`** sobre el checkout de la base con el head traído como dato,
+   no de `pulls/{n}/files`: así el job no necesita `pull-requests: read`
+   (fuera de la lista blanca de F1-8) y no hay tope de 3000 ficheros de la
+   API. Da los dos nombres de cada renombrado, como S08.
+4. **El plugin en CI se fija en el workflow, no en la configuración de la
+   base**: entrada `plugin-sha` del reutilizable (por defecto
+   `b044e75ebbfa318c93bd4c864a877fd7f6815c23`, la etiqueta `v0.16.2` de
+   `charliebk/TaskCode`). Un PR no la cambia: `workflow_run` usa el llamador
+   de la rama por defecto. Con `--plugin`, `tc2 revisoras` no lee la carpeta
+   de Claude Code del runner.
+5. **Lo de cada revisora va en `--detalle`** (JSON `{"revisoras":[{"id",
+   "skill","rutas"}]}`): sus ids llevan `:` y no caben como claves del
+   contrato F1-4 (solo minúsculas y `-`).
+6. **Complejidad desconocida = `media`, con aviso** (`revisoras` sin
+   `--tarea` ni `--complejidad`, o la tarea no se lee): sube el modelo antes
+   que bajarlo.
+7. **Los PR de forks no se revisan en F6-3**: `workflow_run.pull_requests`
+   llega vacío para ellos y el llamador no lanza el reutilizable.
+8. **Lint de workflows**: un job con `environment:` es de clase privilegio
+   aunque su GITHUB_TOKEN no escriba (perfil `revision-ia` en
+   `xtask/src/workflows.rs`).
+
+**Suposiciones del plan**:
+
+- El plugin se obtiene en CI a una versión fijada: **verificado** en lo
+  local (`charliebk/TaskCode` es público; `v0.16.2` apunta a `b044e75`;
+  `raw.githubusercontent.com` del `SKILL.md` de `rust-wasm-reviewer` en ese
+  SHA da 200); en CI, **no verificado** (E2E).
+- `workflow_run` recibe los artefactos del run de `pull_request`: **no
+  verificado**; el reutilizable no depende de ello como evento, baja el
+  artefacto `informe-verificacion-<perfil>` del run `verificacion-run` por
+  la API con `actions: read` (E2E pendiente).
+- El bloque yaml cae dentro de `MAX_CABECERA` en las 5 revisoras:
+  **verificado** (empieza entre los bytes 1099 y 2945 del `SKILL.md` en la
+  0.16.2; `revisoras` con `--plugin` sobre la carpeta real de la 0.16.2
+  elige `angular-vue`, `rust-wasm` y la genérica para `.rs`, `.vue` y
+  `README.md`).
+- El modelo de tarea admite `roles.revision` con `agentes`, `regla` y
+  `modelo`: **falsa** (divergencia 2).
+
+**Evidencia**: unitarios de `seleccion::` (C1 Rust + Vue con S08, S12 y M04;
+README a la genérica S09; más de 3 dominios, S09; no instalada, S14 con
+aviso; S15; las reglas cambian al cambiar la tabla de una copia del ADR) con
+fixtures que copian el bloque yaml de las 5 revisoras de la 0.16.2
+(`crates/tc2/tests/fixtures/revisoras/`); integración `tests/revisoras.rs`
+(binario con stdin, línea y JSON, skills de la base, informe con tope) y
+`tests/revision.rs` (`review` anota la selección).
+
+**No verificado (E2E de quien orquesta)**: el workflow en un PR real (App
+del revisor, clave del modelo, check `revision-ia` en `neutral` publicado por
+la App, el prompt con la sección del informe y sin ejecutar la suite).
