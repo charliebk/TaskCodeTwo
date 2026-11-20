@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-050-f6-4-busqueda-de-errores
 asignado_a: charlie.bk@gmail.com
@@ -78,6 +78,7 @@ Revision por pares:
 | 2026-11-20T17:13:02Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-20T17:13:04Z | start | automatico | persona | 0.16.1 |
 | 2026-11-20T18:19:32Z | review | automatico | persona | 0.16.1 |
+| 2026-11-20T20:02:13Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -92,3 +93,10 @@ Revision por pares:
 ## Verificacion ligera
 
 - 2026-11-20T19:01:31Z: ronda 1; commit revisado 90640c05dc759042baa565655060c3224b753c6f; commit verificado cb7e38a269ef34cfa5a246ea76fa838b9fb4fd01; ficheros: .github/workflows/revision-ia.yml, crates/tc2/src/hallazgos/mod.rs, xtask/src/workflows.rs; corregidos: MEN-1, MEN-2, MEN-3, MEN-1, MEN-2, MEN-3; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 140 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 169 min
+- Paso de la hora: 169 min reales frente a 140 estimados
+- Cierre (finish): 2061 s, de 2026-11-20T19:27:52Z a 2026-11-20T20:02:13Z

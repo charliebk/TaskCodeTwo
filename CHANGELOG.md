@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-050 (feature) — F6-4 Busqueda de errores (2026-11-20)
 - TASK-137 (fix) — F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache (2026-11-20)
 - TASK-049 (feature) — F6-3 Revisor en CI con las skills de dominio de la 0.16 (2026-11-20)
 - TASK-042 (feature) — F5-2 Cache por SHA del arbol compartida (2026-11-19)

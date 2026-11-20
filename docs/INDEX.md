@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-050 — F6-4 Busqueda de errores · etiquetas: (sin etiquetas) · rama feature/task-050-f6-4-busqueda-de-errores · terminada 2026-11-20 · tareas/04-terminadas/TASK-050/
 - TASK-137 — F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache · etiquetas: (sin etiquetas) · rama fix/task-137-f6-3-seguimiento-revision-ia-cita-el-inf · terminada 2026-11-20 · tareas/04-terminadas/TASK-137/
 - TASK-049 — F6-3 Revisor en CI con las skills de dominio de la 0.16 · etiquetas: (sin etiquetas) · rama feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom · terminada 2026-11-20 · tareas/04-terminadas/TASK-049/
 - TASK-042 — F5-2 Cache por SHA del arbol compartida · etiquetas: (sin etiquetas) · rama feature/task-042-f5-2-cache-por-sha-del-arbol-compartida · terminada 2026-11-19 · tareas/04-terminadas/TASK-042/
