@@ -1499,11 +1499,13 @@ fn cada_mutacion_del_revisor_da_su_error() {
 #[test]
 fn llamador_de_revision_ia_hereda_solo_hacia_revision_ia() {
     let guia = include_str!("../../docs/ci/revision-ia.md").replace("\r\n", "\n");
-    let inicio = guia
-        .find("```yaml\nname: revision-ia\n")
-        .expect("llamador en la guia")
-        + 8;
-    let fin = inicio + guia[inicio..].find("```").expect("fin del bloque");
+    let Some(inicio) = guia.find("```yaml\nname: revision-ia\n").map(|i| i + 8) else {
+        panic!("la guia no tiene el bloque del llamador");
+    };
+    let Some(largo) = guia[inicio..].find("```") else {
+        panic!("el bloque del llamador no se cierra");
+    };
+    let fin = inicio + largo;
     let llamador = guia[inicio..fin].replace("@<sha>", "@0000000000000000000000000000000000000000");
     assert_eq!(lint_llamador_revision(&llamador), Vec::<String>::new());
     let malos = [
@@ -1528,5 +1530,22 @@ fn llamador_de_revision_ia_hereda_solo_hacia_revision_ia() {
         lint_github(&llamador)
             .iter()
             .any(|e| e.contains("secrets: inherit"))
+    );
+    // El reutilizable (perfil revision-ia) sigue sin admitir la herencia,
+    // tampoco hacia el destino admitido en el llamador.
+    assert!(
+        lint_revision(&llamador)
+            .iter()
+            .any(|e| e.contains("secrets: inherit"))
+    );
+    // El llamador no escribe con el GITHUB_TOKEN.
+    let con_escritura = llamador.replace("      contents: read\n", "      contents: write\n");
+    assert_ne!(con_escritura, llamador);
+    assert!(
+        lint_llamador_revision(&con_escritura)
+            .iter()
+            .any(|e| e.contains("escritura")),
+        "{:?}",
+        lint_llamador_revision(&con_escritura)
     );
 }

@@ -359,8 +359,10 @@ jobs:
               codigo=$(curl -sS --max-time 900 -o "$respuesta" -w '%{http_code}' "${cabeceras[@]}" --data-binary "@$cuerpo" https://api.anthropic.com/v1/messages) || codigo=000
               parada=$(jq -r '.stop_reason // ""' "$respuesta" 2>/dev/null || echo "")
               if [ "$codigo" != 200 ]; then
-                # El mensaje de error de la API (sin la clave), recortado y en una linea.
-                motivo=$(jq -r '"\(.error.type // ""): \(.error.message // "")"' "$respuesta" 2>/dev/null | tr -d '\r\n' | cut -c1-200 || true)
+                # Tipo y mensaje de error de la API, en una linea, con la clave
+                # sustituida si apareciera (jq la lee del entorno, no de argv) y
+                # recortado a 200 caracteres, no bytes.
+                motivo=$(jq -r '[.error.type, .error.message] | map(select(type == "string" and . != "")) | join(": ") | gsub("[\r\n]"; " ") | split(env.ANTHROPIC_API_KEY) | join("***") | .[0:200]' "$respuesta" 2>/dev/null || true)
                 estado="error-http-$codigo ${motivo:-sin-cuerpo}"
               elif [ "$parada" = refusal ]; then
                 estado="negativa"

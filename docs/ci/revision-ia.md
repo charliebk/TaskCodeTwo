@@ -86,7 +86,10 @@ leída en `taskcodetwo/tareas`; sin tarea, complejidad `media` con aviso.
    llegan vacíos (las dos cosas comprobadas en el E2E de TASK-049). El lint
    (perfil `llamador-revision`) solo admite `inherit` hacia
    `charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml` fijado por SHA,
-   y el del reutilizable impide usar secretos fuera de ese job:
+   y el del reutilizable impide usar secretos fuera de ese job. Ojo:
+   `inherit` entrega al reutilizable todos los secretos de repositorio y de
+   organización, no solo los del entorno, y ese lint corre en los tests de
+   TaskCodeTwo, no en tu repo: revisa el llamador a mano y fija el SHA:
 
 ```yaml
 name: revision-ia

@@ -724,6 +724,12 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   hereda llega a un workflow que fija el SHA y cuyo lint prohíbe secretos
   fuera del job del entorno `revisor`; la alternativa (secretos de
   repositorio pasados uno a uno) perdía la regla de rama del entorno.
+  Dos límites, dichos: `inherit` entrega al reutilizable **todos** los
+  secretos de repositorio y de organización del llamador, no solo los del
+  entorno; y el lint es de tests (`cargo test` de este repo, sobre la guía y
+  los workflows de TaskCodeTwo), así que en un proyecto consumidor lo que
+  restringe el llamador es su revisión humana y el SHA fijado, hasta que
+  `doctor` lo compruebe (F3-8).
 - **Verificado en el E2E** (`charliebk/taskcodetwo-e2e-github`, PR 14,
   Rust + Vue): `preparar` sin secretos y sin ejecutar nada del PR elige
   `angular-vue-reviewer` y `rust-wasm-reviewer` (reglas S08, S12); el
