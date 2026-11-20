@@ -6,6 +6,7 @@
 - Depende de: [ADR F1-5](F1-5-puertas-en-github.md) (check `verificacion` obligatorio atado a GitHub Actions, `integration_id` 15368; `strict` en `develop` y no en `main`), [ADR F1-3](F1-3-flujo-de-ramas-worktrees-release.md) (merge commit sin fast-forward, release por merge de `develop` en `main`), [ADR F1-1](F1-1-carpeta-fija-y-rama-de-estado.md) (el roadmap y las tareas fuera del árbol de código) y [ADR F1-6](F1-6-identidades-agente-revisor-persona.md) (el agente lee checks y no los escribe; no toca workflows)
 - Decide: Carlos, con la consigna «la opción recomendada» (D1a, D2a, D3a, D4a, D5a y D6a del plan de TASK-008)
 - Adenda (2026-11-16, TASK-116): la rama de estado, el cerrojo, las refs propias y la carpeta de worktrees que nombra este ADR se leen con los nombres de la [adenda de TASK-116 en F1-12](F1-12-actualizacion-entre-versiones.md#adenda-de-task-116-2026-11-16-todos-los-nombres-de-la-huella)
+- Adenda (2026-11-20, TASK-043): [impacto en el PR solo con cola de merge](#adenda-f5-3-task-043--impacto-en-el-pr-solo-con-cola-de-merge)
 
 ## Contexto
 
@@ -533,3 +534,48 @@ riesgos sin prueba:
 - **Seguridad del runner propio con código del PR**: F1-8.
 - **GitLab**: si la plantilla puede buscar el resultado en los pipelines de
   los padres como aquí en los check-runs (F1-13).
+
+## Adenda (F5-3, TASK-043) — impacto en el PR solo con cola de merge
+
+Decide Carlos el 2026-11-20 (D1 y D3 del plan de TASK-043, «las opciones
+recomendadas»). La consecuencia «F5-3 cambia de expectativa: la impacto no es
+el check de los PR» se mantiene **sin cola**; con cola, D1c pasa a admitida.
+
+- **Entrada explícita `cola-de-merge`** (booleana, `false` por defecto) en el
+  workflow reutilizable y en la plantilla de GitLab (D1). La decisión sale solo
+  del evento y de las entradas; no se consulta la API de rulesets para
+  detectar la cola.
+- **Con `true`**, la tabla de la decisión 4 gana estas filas (las demás no
+  cambian):
+
+  | Evento | Perfil | Dónde corre |
+  |---|---|---|
+  | PR a `develop` o de hotfix a `main`, con `cola-de-merge: true` | impacto, sin caché | runner de la impacto |
+  | `merge_group` (GitHub) o pipeline de `merge_train` (GitLab), con `cola-de-merge: true` | completa, desde la caché si acierta | runner de la completa |
+  | PR de release `develop`→`main`, con o sin cola | completa y pesada, como antes (D4a) | runner de cada perfil |
+
+- **Con `false`** todo queda como en D1a: completa en cada PR.
+- **Por qué D1c deja de valer con cola**: su objeción era que el resultado de
+  la impacto no se puede reutilizar en la release. Con cola, la release no
+  necesita la impacto: la completa corre en el `merge_group` sobre el árbol
+  que acaba en `develop`, y la release la encuentra en los padres de su
+  commit (decisión 3). Que el commit de `merge_group` acabe como cabeza de
+  `develop` con el mismo SHA: no verificado.
+- **La impacto nunca se cachea** (D3): depende de `RAMA_BASE` (decisión 1), no
+  solo del árbol. `buscar` no le calcula clave ni le busca candidatos, y el
+  publicador no le escribe línea `arbol=`; en GitLab, `after_script` tampoco
+  deja su fichero `cache-verificacion-impacto.txt`. Vale también con
+  `perfiles: impacto` forzado, que antes sí se cacheaba.
+- **El resumen del check** lleva una línea `cola-de-merge=<true|false>` debajo
+  de la de `perfiles=`; la búsqueda solo lee las líneas `arbol=`.
+- **Riesgo aceptado**: un llamador sin cola que ponga `cola-de-merge: true`
+  integraría en `develop` con solo la impacto. Lo contienen el valor por
+  defecto, el aviso de la guía y la línea del resumen; que `doctor` lo detecte
+  queda para F3-8.
+- **GitLab**: el MR corre `verificacion-impacto` y el pipeline del tren
+  (`CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"`, nombre comprobado en la
+  documentación de variables predefinidas el 2026-11-20) corre
+  `verificacion-completa`. Los merge trains son de pago (Premium): esa ruta,
+  no verificado.
+- **Pregunta abierta**: la rápida se cachea por árbol aunque puede leer
+  `RAMA_BASE` (decisión 1). Ya pasaba antes de esta adenda; no se cambia aquí.

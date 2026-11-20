@@ -4,7 +4,9 @@
 # solo llama al comando de verificacion del proyecto. Un job por perfil
 # (verificacion-<perfil>); el perfil sale del evento (F1-7, decision 4):
 #   - pipeline de MR: completa; MR de develop a main: completa y pesada;
-#   - push de rama: nada, salvo los perfiles forzados con `perfiles`.
+#   - push de rama: nada, salvo los perfiles forzados con `perfiles`;
+#   - con `cola-de-merge: true` (TASK-043, F5-3): el MR que no es de release
+#     corre la impacto, y el pipeline del merge train la completa.
 #
 # Uso desde el .gitlab-ci.yml del proyecto (fijado por SHA, nunca por rama):
 #   include:
@@ -61,6 +63,10 @@ spec:
     huella-local:
       description: Orden que imprime lo que la suite lee fuera del arbol en el runner del perfil
       default: ""
+    cola-de-merge:
+      description: El proyecto usa merge trains; true, el MR corre la impacto y el tren la completa (adenda F5-3 de F1-7)
+      type: boolean
+      default: false
     stage:
       description: Etapa de los jobs de verificacion
       default: test
@@ -69,6 +75,7 @@ spec:
 # `variables:` de los jobs.
 variables:
   TC2_PERFILES: " $[[ inputs.perfiles ]] "
+  TC2_COLA_DE_MERGE: " $[[ inputs.cola-de-merge ]] "
 
 .tc2-verificacion:
   stage: $[[ inputs.stage ]]
@@ -83,9 +90,10 @@ variables:
   # after_script (sh), que no cambia el estado del job: en un runner sin sh
   # no hay linea, pero el resultado del perfil es el mismo. `runner` son las
   # etiquetas del runner; la version del workflow va vacia (GitLab no la da).
+  # La impacto nunca deja linea (adenda F5-3 de F1-7, D3).
   after_script:
     - |
-      if [ "$CI_JOB_STATUS" = success ]; then
+      if [ "$CI_JOB_STATUS" = success ] && [ "$TC2_PERFIL" != impacto ]; then
         mkdir -p .tc2
         arbol=$(git rev-parse 'HEAD^{tree}')
         huella=""
@@ -121,6 +129,7 @@ verificacion-impacto:
     TC2_PERFIL: impacto
   rules:
     - if: $TC2_PERFILES =~ / impacto /
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $TC2_COLA_DE_MERGE =~ / true / && $CI_MERGE_REQUEST_EVENT_TYPE != "merge_train" && ($CI_MERGE_REQUEST_TARGET_BRANCH_NAME != "main" || $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "develop")
   script:
     - $[[ inputs.comando ]] $[[ inputs.argumentos-impacto ]]
 
@@ -131,7 +140,9 @@ verificacion-completa:
     TC2_PERFIL: completa
   rules:
     - if: $TC2_PERFILES =~ / completa /
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $TC2_COLA_DE_MERGE !~ / true /
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "develop"
   script:
     - $[[ inputs.comando ]] $[[ inputs.argumentos-completa ]]
 

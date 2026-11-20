@@ -1,0 +1,1 @@
+pr=23 run=44820780057 inicio=2026-11-20T21:29:39Z fin=2026-11-20T21:32:26Z segundos=167 conclusion=success lineas-arbol=2 perfiles=["completa","pesada"] resultado=success informe=informe-verificacion-completa,informe-verificacion-pesada ejecucion=https://github.com/charliebk/taskcodetwo-e2e-github/actions/runs/44820780057 cola-de-merge=true 
