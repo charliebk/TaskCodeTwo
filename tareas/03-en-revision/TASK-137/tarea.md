@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-137-f6-3-seguimiento-revision-ia-cita-el-inf
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: null
-tokens_implementacion: null
+tokens_implementacion: 8463850
 tokens_revision: null
 creado: 2026-11-20
 actualizado: 2026-11-20
@@ -50,3 +50,11 @@ Evidencia (repo E2E `charliebk/taskcodetwo-e2e-github`, PR 15, verificacion fija
 | 2026-11-20T14:01:02Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-20T14:44:08Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-20T14:44:11Z | start | automatico | persona | 0.16.1 |
+| 2026-11-20T15:27:02Z | review | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-20T15:27:02Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 10 | 1270 | 875313 | 884 | 0 | 877477 | - | - |
+| 2026-11-20T15:27:02Z | implementacion | sesion:ffc7f907-2a90-4fe5-a6d2-510800ddbc4d | 86 | 39687 | 7520879 | 25721 | 0 | 7586373 | - | - |
