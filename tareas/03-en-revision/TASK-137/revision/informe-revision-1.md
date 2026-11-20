@@ -2,13 +2,13 @@
 
 - Commit revisado: 92f28c9b8bf2191a5531bcf016dbbb47efe50a07
 - Revisor: code-quality-reviewer (agente independiente, general-purpose)
-- Veredicto: PENDIENTE (escribelo con: taskctl veredicto TASK-137 aprobada | aprobada-con-correcciones | cambios-solicitados)
+- Veredicto: aprobada con correcciones
 
 ## Hallazgos
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| MEN-1 | MENOR | abierto | .github/workflows/revision-ia.yml:194 | plan |
+| MEN-1 | MENOR | aceptado | .github/workflows/revision-ia.yml:194 | plan |
 | MEN-2 | MENOR | abierto | .github/workflows/revision-ia.yml:217 | implementacion |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
@@ -16,6 +16,8 @@ plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fall
 enunciado o en los criterios de aceptacion de la tarea.
 
 Sin CRITICOS ni IMPORTANTES.
+
+MEN-1 aceptado (decision de quien implementa): el paso es shell de GitHub Actions contra la API real; el proyecto no tiene arnes para probar pasos de workflow fuera de GitHub y el lint de xtask solo cubre la lista blanca. La red es el E2E anotado en el Resultado; un arnes de pasos de workflow seria una tarea propia.
 
 ## Reproduccion
 
