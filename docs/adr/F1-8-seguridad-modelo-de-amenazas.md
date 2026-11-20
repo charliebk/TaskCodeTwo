@@ -777,3 +777,43 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   un reutilizable sin enmascararlas ni truncarlas, y que la clave del modelo
   y la App funcionen en dos jobs distintos del mismo entorno `revisor` con la
   herencia actual (adenda F6-3): se comprueba en el E2E de TASK-050.
+
+## Adenda (F5-5, TASK-045) — runner propio solo en la release
+
+- **Decisión 6 (D3b), concretada** con las opciones que Carlos aceptó el
+  2026-11-20 (D1, D3 y D4 del plan de TASK-045): el runner propio **solo se
+  usa en la release**, un `pull_request` de `develop` a `main` de un repo
+  privado con el head en el mismo repo. Lo comprueba el paso «Runner propio»
+  de `buscar` (Linux, sin código del PR, datos del evento por `env:`), que
+  falla cerrado con `exit 2` y su motivo antes de encolar nada; cuenta como
+  runner propio un `runner-<perfil>` con la etiqueta `self-hosted` o que no
+  es cadena ni lista.
+- **D3b (a)**, usuario de servicio: el primer paso de `ejecutar`, antes del
+  checkout y solo con `runner.environment == 'self-hosted'`, falla si el
+  runner no es Windows, si la cuenta es `SYSTEM` o si es del grupo
+  Administradores. Que no lea el perfil de la persona y que los datos sean de
+  solo lectura depende del alta manual
+  ([guía](../ci/verificacion-reutilizable.md#runner-propio-f5-5)).
+- **D3b (b)**, directorio limpio: `actions/checkout` con `clean: true` por
+  defecto, y el lint da error si un checkout lleva `clean:` con otro valor.
+- **D3b (c)**, la release aparte de los jobs de tarea: **se cumple por
+  construcción**, porque en el runner propio solo corre la release; no hace
+  falta otra instancia con otro usuario. Una instancia por máquina y repo.
+- **Esto limita dos textos anteriores**, que se leen con esta adenda:
+  [F1-7, decisión 5](F1-7-verificacion-ci-perfiles-cache-runners.md)
+  admitía cualquier perfil en `[self-hosted, windows, <proyecto>]` en un repo
+  privado; ahora solo la pesada, que es el único perfil de la release que no
+  corre también en los PR de tarea. Y el ejemplo de ToolsaWeb de
+  [F1-11](F1-11-extensiones-declaradas.md) ponía `completa: {runner:
+  [self-hosted, windows, toolsaweb]}`: con esta regla, la completa de un PR de
+  tarea fallaría en `buscar`; la completa va en un runner de GitHub y solo la
+  pesada en el propio.
+- **Lo que queda**: `doctor` no comprueba las etiquetas ni la visibilidad del
+  repo (leer los runners pide `administration`; F3-8), y la guarda de
+  `buscar` reconoce el runner propio por la etiqueta `self-hosted`: un runner
+  registrado con `--no-default-labels` solo lo frena el paso de aislamiento,
+  que no mira el evento. Código hostil ya integrado en `develop` corre en la
+  release con el usuario de servicio (lo contienen D1a y el aislamiento). En
+  GitLab no hay guarda equivalente: degradación declarada.
+- **No verificado**: el E2E con un runner real (criterio 1 de TASK-045), y
+  que `github.event.repository.private` llegue con valor al reutilizable.
