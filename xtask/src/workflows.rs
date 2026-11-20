@@ -1152,7 +1152,7 @@ fn el_runner_propio_solo_en_la_release_de_un_privado() {
     }
     let propio = entradas_con_pesada(r#"["self-hosted","windows","tc2-e2e"]"#);
     let github = entradas_con_pesada(r#""ubuntu-latest""#);
-    let malos: [(&str, Vec<(&str, &str)>, &str); 6] = [
+    let malos = [
         ("repo publico", vec![("PRIVADO", "false")], "repo publico"),
         (
             "PR a develop",
@@ -1193,6 +1193,18 @@ fn el_runner_propio_solo_en_la_release_de_un_privado() {
         (
             "hotfix",
             vec![("PERFILES", r#"["pesada"]"#), ("ORIGEN", "hotfix/x")],
+            "solo en la release",
+        ),
+        (
+            "develop a otra rama",
+            vec![("PERFILES", r#"["pesada"]"#), ("BASE", "release")],
+            "solo en la release",
+        ),
+        // Cada condicion por separado: con base y origen de la release, otro
+        // evento (con `perfiles` forzados) tampoco pasa.
+        (
+            "otro evento con base y origen de la release",
+            vec![("PERFILES", r#"["pesada"]"#), ("EVENTO", "merge_group")],
             "solo en la release",
         ),
     ];
@@ -1282,7 +1294,13 @@ fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
         return Err(format!("aislamiento con shell {:?}", campo("shell")));
     }
     let run = campo("run").unwrap_or_default();
-    for exigido in ["S-1-5-18", "S-1-5-32-544", "whoami /groups", "RUNNER_OS"] {
+    // whoami por ruta: el de Git (usr\bin) en el PATH no entiende /groups.
+    for exigido in [
+        "S-1-5-18",
+        "S-1-5-32-544",
+        r#"System32\whoami.exe" /groups"#,
+        "RUNNER_OS",
+    ] {
         if !run.contains(exigido) {
             return Err(format!("aislamiento sin {exigido}"));
         }

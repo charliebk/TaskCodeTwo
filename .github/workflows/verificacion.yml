@@ -356,7 +356,8 @@ jobs:
           if ($env:RUNNER_OS -ne 'Windows') { Write-Output "verificacion: runner propio fuera de Windows ($env:RUNNER_OS); F1-8, decision 6"; exit 2 }
           $id = [Security.Principal.WindowsIdentity]::GetCurrent()
           if ($id.User.Value -eq 'S-1-5-18') { Write-Output "verificacion: runner propio como SYSTEM; F1-8, decision 6"; exit 2 }
-          $grupos = (whoami /groups /fo csv) -join "`n"
+          # Por ruta: el whoami de Git (usr\bin) en el PATH no entiende /groups.
+          $grupos = (& "$env:SystemRoot\System32\whoami.exe" /groups /fo csv) -join "`n"
           if ($LASTEXITCODE -ne 0) { Write-Output "verificacion: whoami /groups fallo; F1-8, decision 6"; exit 2 }
           if ($grupos -match 'S-1-5-32-544') { Write-Output "verificacion: $($id.Name) es del grupo Administradores; F1-8, decision 6"; exit 2 }
           $bash = Get-Command bash -ErrorAction SilentlyContinue
