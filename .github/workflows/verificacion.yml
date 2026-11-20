@@ -9,9 +9,10 @@
 #     lineas `arbol=` candidatas de cada perfil (F1-7, decision 3; F5-2). No
 #     ejecuta nada del PR: solo lee el arbol con git. Con `cola-de-merge`
 #     (TASK-043, F5-3) el PR corre la impacto, que nunca se cachea, y el
-#     merge_group la completa.
+#     merge_group la completa. Un perfil con runner propio solo pasa en la
+#     release de un repo privado (TASK-045, F5-5; F1-8, decision 6).
 #   - ejecutar (ejecuta, matriz por perfil, runner del perfil, sin secretos):
-#     calcula la huella local, y si un candidato tiene la misma se salta el
+#     en un runner propio comprueba antes su aislamiento; despues calcula la huella local, y si un candidato tiene la misma se salta el
 #     comando (paso `skipped`); si no, corre `comando argumentos-<perfil>` en
 #     el shell que declara el proyecto y sube el informe JSON de `TC2_INFORME`
 #     (F5-4) como artefacto `informe-verificacion-<perfil>`, si se escribio.
@@ -150,6 +151,48 @@ jobs:
           done
           echo "perfiles=[$lista]" >> "$GITHUB_OUTPUT"
           echo "Perfiles de este evento ($EVENTO, cola-de-merge=$COLA): [${lista}]"
+      # F1-8, decision 6 (D3b), y adenda F5-5: un perfil con runner propio
+      # (etiqueta `self-hosted`, o un runs-on que no es cadena ni lista) solo
+      # corre en la release de develop a main de un repo privado, con el head
+      # en el mismo repo. Si no, falla cerrado antes de encolar nada.
+      - name: Runner propio
+        env:
+          PERFILES: ${{ steps.perfiles.outputs.perfiles }}
+          ENTRADAS: ${{ toJSON(inputs) }}
+          EVENTO: ${{ github.event_name }}
+          PRIVADO: ${{ github.event.repository.private }}
+          BASE: ${{ github.base_ref }}
+          ORIGEN: ${{ github.head_ref }}
+          REPO: ${{ github.repository }}
+          REPO_HEAD: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          propios=""
+          for p in $(printf '%s' "$PERFILES" | jq -r '.[]' | tr -d '\r'); do
+            es=$(printf '%s' "$ENTRADAS" | jq -r --arg p "$p" '.["runner-" + $p] | fromjson | if type == "string" then ascii_downcase == "self-hosted" elif type == "array" then any(.[]; tostring | ascii_downcase == "self-hosted") else true end' | tr -d '\r') || es=""
+            case "$es" in
+              true) propios="${propios:+$propios }$p" ;;
+              false) ;;
+              *) echo "verificacion: runner-$p ilegible; F1-8, decision 6" >&2; exit 2 ;;
+            esac
+          done
+          if [ -z "$propios" ]; then
+            echo "Runner propio: ningun perfil de este evento lo usa"
+            exit 0
+          fi
+          motivo=""
+          if [ "$PRIVADO" != true ]; then
+            motivo="repo publico (F1-7, decision 5)"
+          elif [ "$EVENTO" != pull_request ] || [ "$BASE" != main ] || [ "$ORIGEN" != develop ]; then
+            motivo="solo en la release, un pull_request de develop a main (evento $EVENTO, base $BASE)"
+          elif [ "$REPO_HEAD" != "$REPO" ]; then
+            motivo="el head del PR viene de otro repo ($REPO_HEAD)"
+          fi
+          if [ -n "$motivo" ]; then
+            echo "verificacion: runner propio en $propios: $motivo; F1-8, decision 6" >&2
+            exit 2
+          fi
+          echo "Runner propio en $propios: release de develop a main en $REPO (privado)"
       # V, sus padres y sus abuelos con sus arboles: profundidad 3 basta.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.perfiles.outputs.perfiles != '[]'
@@ -301,6 +344,24 @@ jobs:
       RAMA_BASE: ${{ github.base_ref }}
       TC2_PERFIL: ${{ matrix.perfil }}
     steps:
+      # F1-8, decision 6 (D3b a) y adenda F5-5: en un runner propio, antes de
+      # sacar nada, Windows y una cuenta que no es SYSTEM ni del grupo
+      # Administradores (SID S-1-5-32-544, tambien solo para denegar con UAC).
+      # En un runner de GitHub el paso se salta.
+      - name: aislamiento del runner propio
+        if: runner.environment == 'self-hosted'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -ne 'Windows') { Write-Output "verificacion: runner propio fuera de Windows ($env:RUNNER_OS); F1-8, decision 6"; exit 2 }
+          $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+          if ($id.User.Value -eq 'S-1-5-18') { Write-Output "verificacion: runner propio como SYSTEM; F1-8, decision 6"; exit 2 }
+          $grupos = (whoami /groups /fo csv) -join "`n"
+          if ($LASTEXITCODE -ne 0) { Write-Output "verificacion: whoami /groups fallo; F1-8, decision 6"; exit 2 }
+          if ($grupos -match 'S-1-5-32-544') { Write-Output "verificacion: $($id.Name) es del grupo Administradores; F1-8, decision 6"; exit 2 }
+          $bash = Get-Command bash -ErrorAction SilentlyContinue
+          $ruta = if ($bash) { $bash.Source } else { '(ninguno)' }
+          Write-Output "Runner propio: usuario $($id.Name) sin administracion; bash: $ruta"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
