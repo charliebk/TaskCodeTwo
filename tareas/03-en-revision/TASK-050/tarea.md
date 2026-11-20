@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 820311
 tokens_implementacion: 16675155
-tokens_revision: null
+tokens_revision: 6002636
 creado: 2026-11-14
 actualizado: 2026-11-20
 dependencias: [TASK-049]
@@ -48,3 +48,9 @@ Tarea F6-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 | 2026-11-20T17:12:52Z | diseno | agente:aeb52ef7598c6f034 | 30 | 75295 | 725456 | 19530 | 28 | 820311 | - | - |
 | 2026-11-20T18:19:32Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 28 | 16906 | 3861255 | 7627 | 2 | 3885816 | - | - |
 | 2026-11-20T18:19:32Z | implementacion | agente:a9a3db164ed9e1311 | 124 | 283012 | 12386675 | 119528 | 30 | 12789339 | - | - |
+| 2026-11-20T18:54:48Z | revision | agente:a3a7aaf5c14c0ca20 | 44 | 163861 | 2932594 | 24320 | 6 | 3120819 | 1 | rust-wasm-reviewer |
+| 2026-11-20T18:54:48Z | revision | agente:abc521b1d5ae87c59 | 44 | 153977 | 2701613 | 26183 | 3 | 2881817 | 1 | code-quality-reviewer |
+
+## Verificacion ligera
+
+- 2026-11-20T19:01:31Z: ronda 1; commit revisado 90640c05dc759042baa565655060c3224b753c6f; commit verificado cb7e38a269ef34cfa5a246ea76fa838b9fb4fd01; ficheros: .github/workflows/revision-ia.yml, crates/tc2/src/hallazgos/mod.rs, xtask/src/workflows.rs; corregidos: MEN-1, MEN-2, MEN-3, MEN-1, MEN-2, MEN-3; pendientes: ninguno
