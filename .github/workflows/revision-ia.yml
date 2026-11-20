@@ -8,7 +8,9 @@
 #     base (nunca el head del PR), el plugin taskcode a un SHA fijado y el
 #     codigo de tc2 a la version de este workflow; trae el head como dato
 #     (`git fetch` de su SHA, sin checkout) para el diff; baja el informe de
-#     verificacion (F5-4) del run de `verificacion` con tope de tamano; corre
+#     verificacion (F5-4) del run de `verificacion` (o, si ese run reutilizo
+#     el perfil de la cache por arbol, del run que lo ejecuto: TASK-137)
+#     con tope de tamano; corre
 #     `tc2 revisoras` y deja un prompt por revisora (su SKILL.md, la seccion
 #     del informe y el diff de sus rutas, con tope) en el artefacto
 #     `revision-ia-prompts`. No ejecuta nada del PR: ni la suite ni su
@@ -189,12 +191,58 @@ jobs:
           PERFIL: ${{ inputs.perfil }}
         run: |
           set -eu
+          case "$PERFIL" in
+            ''|*[!a-z0-9-]*) echo "revision-ia: perfil no valido" >&2; exit 1 ;;
+          esac
           nombre="informe-verificacion-$PERFIL"
-          art=$(gh api --method GET "repos/$REPO/actions/runs/$VRUN/artifacts" -f name="$nombre" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | if . == null then "" else "\(.id) \(.size_in_bytes)" end') || art=""
+          artefacto() { gh api --method GET "repos/$REPO/actions/runs/$1/artifacts" -f name="$nombre" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | if . == null then "" else "\(.id) \(.size_in_bytes)" end'; }
+          art=$(artefacto "$VRUN") || art=""
+          de="$VRUN"
+          origen=""
           if [ -z "$art" ]; then
-            echo "sin artefacto $nombre en el run $VRUN"
-            exit 0
+            # TASK-137: con acierto de la cache por arbol (F5-2) el run no
+            # sube el informe; se sigue al run que ejecuto el perfil. El
+            # commit sale de la linea `Perfil <p>: reutilizada de <sha>
+            # (origen <sha>, ...)` del paso `cache por arbol` de
+            # verificacion.yml (si cambia, aqui se queda sin informe). El
+            # codigo del PR podria imitarla, pero el informe ya es suyo y
+            # solo se cita: como mucho se cita otro informe del mismo workflow.
+            job=$(gh api --method GET "repos/$REPO/actions/runs/$VRUN/jobs" -f per_page=100 --jq '[.jobs[] | select(.name == env.PERFIL or (.name | endswith(" / " + env.PERFIL)))] | first | .id // ""') || job=""
+            case "$job" in
+              ''|*[!0-9]*) job="" ;;
+              # Con curl y no con `gh api`: el log trae secuencias de escape
+              # ANSI y las versiones nuevas de gh se niegan a volcarlo sin
+              # --allow-escape-sequences, que las antiguas no conocen (E2E de
+              # TASK-137). La redireccion al log no recibe la cabecera.
+              # Un log que no se lee (caducado, 5xx) se avisa: no es lo mismo
+              # que un run que no reutilizo nada.
+              *) if log=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$GITHUB_API_URL/repos/$REPO/actions/jobs/$job/logs"); then
+                   origen=$(printf '%s\n' "$log" | tr -d '\r' | sed -nE "s/^[^ ]+ Perfil $PERFIL: reutilizada de [0-9a-f]{40} \(origen ([0-9a-f]{40}),.*/\1/p" | tail -n 1) || origen=""
+                 else
+                   echo "::warning::revision-ia: no se lee el log del job $job del run $VRUN; si reutilizo la cache, va sin informe"
+                 fi ;;
+            esac
+            if [ -z "$origen" ]; then
+              echo "sin artefacto $nombre en el run $VRUN ni linea de reutilizacion en el log de su job ${job:-(sin job del perfil)}"
+              exit 0
+            fi
+            wf=$(gh api --method GET "repos/$REPO/actions/runs/$VRUN" --jq '.workflow_id') || wf=""
+            case "$wf" in ''|*[!0-9]*) wf="" ;; esac
+            if [ -n "$wf" ]; then
+              # El mas reciente en verde del mismo workflow con el artefacto
+              # sin caducar: solo los runs que ejecutaron el perfil lo suben.
+              for r in $(gh api --method GET "repos/$REPO/actions/runs" -f head_sha="$origen" -f per_page=100 --jq "[.workflow_runs[] | select(.workflow_id == $wf and .conclusion == \"success\")] | sort_by(.created_at) | reverse | .[].id") ; do
+                art=$(artefacto "$r") || art=""
+                if [ -n "$art" ]; then de="$r"; break; fi
+              done
+            fi
+            if [ -z "$art" ]; then
+              echo "::warning::revision-ia: el run $VRUN reutiliza el perfil $PERFIL de $origen, pero no se encuentra $nombre en sus runs (caducado o sin informe): sin informe"
+              exit 0
+            fi
+            echo "el run $VRUN reutiliza el perfil $PERFIL de $origen: se cita $nombre del run $de"
           fi
+          printf '%s %s\n' "$de" "$origen" > "$RUNNER_TEMP/informe-de.txt"
           id=${art% *}
           bytes=${art#* }
           if [ "$bytes" -gt 1048576 ]; then
@@ -225,12 +273,17 @@ jobs:
           id=$(printf '%s' "$RAMA" | sed -nE 's#^(feature|fix|hotfix)/task-([0-9]{3,})-.*#TASK-\2#p')
           if [ -n "$id" ]; then tarea=(--tarea "$id"); fi
           informe=()
+          de=""
           if [ -s "$RUNNER_TEMP/informe.json" ]; then
-            informe=(--informe "$RUNNER_TEMP/informe.json" --seccion "$salida/seccion.md" --artefacto "informe-verificacion-$PERFIL")
+            read -r de origen < "$RUNNER_TEMP/informe-de.txt" || origen=""
+            nombre="informe-verificacion-$PERFIL del run $de"
+            if [ -n "${origen:-}" ]; then nombre="$nombre (verificacion reutilizada por la cache por arbol; origen $origen)"; fi
+            informe=(--informe "$RUNNER_TEMP/informe.json" --seccion "$salida/seccion.md" --artefacto "$nombre")
           fi
           (cd base && tc2 revisoras --json --rutas "$salida/rutas.txt" --nul "${tarea[@]}" \
             --plugin "$PLUGIN_NOMBRE=$PLUGIN" "${informe[@]}" --detalle "$salida/detalle.json") > "$salida/seleccion.json"
           jq -r '.claves | "revisoras=\(.revisoras | join(",")) agentes=\(.agentes | join(",")) modelo=\(.modelo) modelo-api=\(.["modelo-api"]) reglas=\(.reglas | join(",")) avisos=\(.avisos | join(",")) carril=\(.carril) complejidad=\(.complejidad) informe=\(.informe // "sin-informe")"' "$salida/seleccion.json" > "$salida/resumen.txt"
+          if [ -n "$de" ]; then sed -i "s/\$/ informe-de=run-$de/" "$salida/resumen.txt"; fi
           cat "$salida/resumen.txt"
           modelo=$(jq -r '.claves["modelo-api"]' "$salida/seleccion.json")
           : > "$salida/prompts/lista.tsv"

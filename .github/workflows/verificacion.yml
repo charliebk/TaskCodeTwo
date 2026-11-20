@@ -310,6 +310,8 @@ jobs:
             echo "origen-$TC2_PERFIL=$origen"
             if [ -n "$de" ]; then echo "acierto=si"; else echo "acierto=no"; fi
           } >> "$GITHUB_OUTPUT"
+          # revision-ia.yml (TASK-137) lee esta linea del log para citar el
+          # informe del run de origen: si cambia su formato, cambiar alli.
           if [ -n "$de" ]; then
             echo "Perfil $TC2_PERFIL: reutilizada de $de (origen $origen, local $huella)"
           else
