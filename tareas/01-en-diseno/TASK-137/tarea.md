@@ -28,7 +28,7 @@ Cuando verificacion reutiliza un perfil de la cache por arbol (F5-2), su run no 
 
 ## Criterios de aceptacion
 - [ ] Un PR cuya verificacion sale de cache produce prompts con la seccion del informe del run de origen, probado en charliebk/taskcodetwo-e2e-github (un PR que ejecuta la verificacion y un commit vacio que la reutiliza)
-- [ ] Si el informe del origen ha caducado o no se encuentra, el check lo dice y las revisoras van sin seccion, como hoy
+- [ ] Si el informe del origen ha caducado o no se encuentra, el paso `Informe de verificacion` de `.github/workflows/revision-ia.yml` lo avisa (`::warning::`), el resumen del check lleva `informe=sin-informe` y las revisoras van sin seccion, como hoy
 - [ ] docs/ci/revision-ia.md (Limites conocidos) actualizado
 - [ ] El lint de xtask/src/workflows.rs sigue en verde
 
