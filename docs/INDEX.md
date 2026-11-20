@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-049 — F6-3 Revisor en CI con las skills de dominio de la 0.16 · etiquetas: (sin etiquetas) · rama feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom · terminada 2026-11-20 · tareas/04-terminadas/TASK-049/
 - TASK-042 — F5-2 Cache por SHA del arbol compartida · etiquetas: (sin etiquetas) · rama feature/task-042-f5-2-cache-por-sha-del-arbol-compartida · terminada 2026-11-19 · tareas/04-terminadas/TASK-042/
 - TASK-044 — F5-4 Informe de verificacion en JSON para el revisor IA · etiquetas: (sin etiquetas) · rama feature/task-044-f5-4-informe-de-verificacion-en-json-par · terminada 2026-11-19 · tareas/04-terminadas/TASK-044/
 - TASK-041 — F5-1 Workflow reutilizable de GitHub Actions y plantilla de GitLab · etiquetas: (sin etiquetas) · rama feature/task-041-f5-1-workflow-reutilizable-de-github-act · terminada 2026-11-19 · tareas/04-terminadas/TASK-041/

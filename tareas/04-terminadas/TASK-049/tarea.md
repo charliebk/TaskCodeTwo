@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-049-f6-3-revisor-en-ci-con-las-skills-de-dom
 asignado_a: charlie.bk@gmail.com
@@ -78,6 +78,7 @@ Revision por pares:
 | 2026-11-20T00:26:36Z | review | automatico | persona | 0.16.1 |
 | 2026-11-20T13:03:28Z | review | automatico | persona | 0.16.1 |
 | 2026-11-20T13:13:22Z | review | automatico | persona | 0.16.1 |
+| 2026-11-20T13:53:44Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -90,3 +91,10 @@ Revision por pares:
 | 2026-11-20T13:11:42Z | revision | agente:abca2794732b167b2 | 28 | 120494 | 1353502 | 12392 | 2 | 1486416 | 2 | code-quality-reviewer |
 | 2026-11-20T13:17:24Z | revision | agente:a6ca23dd30b9cf77f | 42 | 119028 | 2008837 | 21109 | 2 | 2149016 | 3 | rust-wasm-reviewer |
 | 2026-11-20T13:17:24Z | revision | agente:ace6396f2f01a22a1 | 26 | 105562 | 1131385 | 14077 | 2 | 1251050 | 3 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 930 min
+- Paso de la hora: 930 min reales frente a 150 estimados
+- Cierre (finish): 2160 s, de 2026-11-20T13:17:44Z a 2026-11-20T13:53:44Z
