@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-043-f5-3-verificacion-por-impacto-como-paso
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F5-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 |---|---|---|---|---|
 | 2026-11-20T21:00:42Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-20T21:03:58Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-20T21:04:01Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
