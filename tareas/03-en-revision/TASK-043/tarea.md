@@ -50,3 +50,7 @@ Tarea F5-3 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-20T21:55:01Z | implementacion | agente:aee7714df37f141ba | 118 | 183476 | 8138175 | 43358 | 21 | 8365127 | - | - |
 | 2026-11-20T22:02:43Z | revision | agente:ac7ad33df9ab486a0 | 12 | 99266 | 452157 | 3091 | 2 | 554526 | 1 | rust-wasm-reviewer |
 | 2026-11-20T22:02:43Z | revision | agente:a7da3a26622295eef | 22 | 115866 | 1015977 | 9122 | 2 | 1140987 | 1 | code-quality-reviewer |
+
+## Verificacion ligera
+
+- 2026-11-20T22:02:45Z: ronda 1; commit revisado 23039496d45451cb132c8fd041a42333355bf9a1; commit verificado 99ab51995cc46b7d4f7758fe0e47aa95514447a1; ficheros: docs/ci/verificacion-reutilizable.md; corregidos: MEN-1; pendientes: ninguno
