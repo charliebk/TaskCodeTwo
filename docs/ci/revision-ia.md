@@ -173,3 +173,10 @@ hace en el repo E2E (rama por defecto `main`), no en TaskCodeTwo.
 - El diff y el informe son datos del autor del PR que llegan al modelo; la
   defensa contra inyección de instrucciones es de F6-7.
 - Coste: una llamada por revisora y ronda (2 o 3 en un PR Rust + Vue).
+- Si la verificación del head sale de la caché por árbol (F5-2), su run no
+  sube el informe y el check dice `informe=sin-informe`: las revisoras
+  trabajan sin la sección del informe. Comprobado en el E2E de TASK-049;
+  queda para una tarea de seguimiento (citar el informe del run de origen).
+- Un error de la API sale en el check con su tipo y mensaje recortados
+  (por ejemplo, la cuenta sin saldo da `error-http-400
+  invalid_request_error: Your credit balance is too low...`).
