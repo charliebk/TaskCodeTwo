@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hallazgos del revisor IA, version 1 (F6-4)",
+  "description": "Salida de `tc2 hallazgos validar --salida`: los hallazgos aceptados y los rechazados con su motivo, para una revisora. $defs/respuesta es lo que la revisora devuelve en su unico bloque json (lo valida hallazgos::validar). Reglas que el esquema no expresa y comprueba tc2: el id no se repite; fichero y linea estan en el lado nuevo del diff que vio la revisora; linea_original de un mutante es el texto de esa linea y la mutacion es distinta; esperado y obtenido de un borde son distintos; paso_rojo es un paso en rojo del informe de verificacion (F5-4). La evidencia se declara y se valida, no se ejecuta (F6-6). Una clave desconocida falla cerrado.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "revisora", "aceptados", "rechazados"],
+  "properties": {
+    "version": {
+      "description": "version del contrato; otra distinta de 1 es error",
+      "const": 1
+    },
+    "revisora": {
+      "description": "id de la revisora (tc2 revisoras)",
+      "type": "string",
+      "minLength": 1
+    },
+    "aceptados": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hallazgo" }
+    },
+    "rechazados": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rechazo" }
+    }
+  },
+  "$defs": {
+    "respuesta": {
+      "description": "contenido del unico bloque json de la respuesta de la revisora; vacia si no hay hallazgos",
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/hallazgo" }
+    },
+    "hallazgo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severidad", "fichero", "linea", "descripcion", "evidencia"],
+      "properties": {
+        "id": {
+          "description": "unico en la respuesta",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "severidad": {
+          "enum": ["CRITICO", "IMPORTANTE", "MENOR"]
+        },
+        "fichero": {
+          "description": "ruta de la cabecera +++ b/<ruta> del diff, sin b/",
+          "type": "string",
+          "minLength": 1
+        },
+        "linea": {
+          "description": "linea del lado nuevo del diff",
+          "type": "integer",
+          "minimum": 1
+        },
+        "descripcion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidencia": { "$ref": "#/$defs/evidencia" }
+      }
+    },
+    "evidencia": {
+      "description": "obligatoria en todo hallazgo, tambien MENOR (decision de la persona, TASK-050)",
+      "oneOf": [
+        { "$ref": "#/$defs/reproduccion" },
+        { "$ref": "#/$defs/mutante" },
+        { "$ref": "#/$defs/borde" }
+      ]
+    },
+    "reproduccion": {
+      "description": "pasos y fallo esperado, o un paso en rojo del informe de verificacion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo"],
+      "anyOf": [
+        { "required": ["pasos", "fallo_esperado"] },
+        { "required": ["paso_rojo"] }
+      ],
+      "properties": {
+        "tipo": { "const": "reproduccion" },
+        "pasos": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "fallo_esperado": { "type": "string", "minLength": 1 },
+        "paso_rojo": { "type": "string", "minLength": 1 }
+      }
+    },
+    "mutante": {
+      "description": "linea_original igual al texto de la linea citada, la mutacion y el test que deberia detectarla",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "linea_original", "mutacion", "test"],
+      "properties": {
+        "tipo": { "const": "mutante" },
+        "linea_original": { "type": "string", "minLength": 1 },
+        "mutacion": { "type": "string", "minLength": 1 },
+        "test": { "type": "string", "minLength": 1 }
+      }
+    },
+    "borde": {
+      "description": "entrada, resultado esperado y resultado segun el codigo, distintos entre si",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "entrada", "esperado", "obtenido"],
+      "properties": {
+        "tipo": { "const": "borde" },
+        "entrada": { "type": "string", "minLength": 1 },
+        "esperado": { "type": "string", "minLength": 1 },
+        "obtenido": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rechazo": {
+      "description": "un hallazgo rechazado (indice en la lista) o toda la respuesta (indice null)",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["indice", "id", "motivo", "detalle"],
+      "properties": {
+        "indice": { "type": ["integer", "null"], "minimum": 0 },
+        "id": { "type": ["string", "null"] },
+        "motivo": {
+          "enum": [
+            "sin-bloque",
+            "bloque-repetido",
+            "json-invalido",
+            "fuera-de-tope",
+            "hallazgo-invalido",
+            "id-repetido",
+            "sin-evidencia",
+            "evidencia-incompleta",
+            "linea-fuera-del-diff",
+            "mutante-no-coincide",
+            "mutante-sin-cambio",
+            "borde-sin-diferencia",
+            "paso-rojo-no-esta"
+          ]
+        },
+        "detalle": { "type": "string" }
+      }
+    }
+  }
+}

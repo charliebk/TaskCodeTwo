@@ -735,3 +735,45 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   `angular-vue-reviewer` y `rust-wasm-reviewer` (reglas S08, S12); el
   check `revision-ia` lo publica la App del revisor (5846307) con
   conclusión `neutral`.
+
+## Adenda (F6-4, TASK-050) — hallazgos con evidencia
+
+- **Decisión 3, revisada por la persona el 2026-11-20**: «F6-4 deja la
+  reproducción como artefacto» pasa a ser **«F6-4 exige y valida la
+  evidencia; F6-6 la ejecuta»**. El job `reproducir` (clase ejecuta, en
+  `pull_request`) que corre reproducciones, mutantes y bordes no se crea en
+  F6-4: sin la ronda siguiente (F6-6) no habría a quién darle su salida. Lo
+  que el modelo declara se valida como dato con reglas deterministas en
+  `tc2 hallazgos validar` (esquema `crates/tc2/esquemas/hallazgos.schema.json`,
+  versión 1): todo hallazgo, también MENOR, trae evidencia de su tipo
+  (`reproduccion`: pasos y fallo esperado, o un paso en rojo del informe
+  F5-4; `mutante`: `linea_original` igual al texto de esa línea en el diff,
+  la mutación y el test; `borde`: entrada, esperado y obtenido distintos)
+  anclada a una línea del lado nuevo del diff que vio esa revisora. Lo que
+  no cumple se rechaza con un motivo estable y el check lo lista (fila del
+  revisor IA de la decisión 4: «hallazgo sin evidencia → rechazado»).
+- **Cuatro jobs en `revision-ia.yml`**, cada uno en su clase y cada secreto
+  en un solo job: `preparar` (ejecuta, sin secretos) deja en el artefacto el
+  diff recortado de cada revisora; `consultar` (privilegio por el entorno
+  `revisor`, solo `ANTHROPIC_API_KEY`, sin checkout) llama al modelo;
+  `validar` (ejecuta, `contents` y `actions` de lectura, sin secretos)
+  compila `tc2` del mismo SHA que `preparar` (no se pasan binarios entre
+  jobs) y valida; `publicar` (privilegio, solo la App del revisor, sin
+  checkout) lee el artefacto `revision-ia-hallazgos` como dato y publica.
+  Ningún job con privilegio ejecuta un artefacto: la validación corre en
+  clase ejecuta, sobre código de TaskCodeTwo fijado por SHA. A3 (la clave
+  del modelo) ya no comparte job con la clave de la App (A2).
+- **Transporte de `consultar` a `validar`**: un job con privilegio no sube
+  artefactos (lint), así que las respuestas van por `outputs`, en base64, un
+  hueco por revisora (hasta 6) con 64 KiB de texto cada una. En `validar`
+  llegan por `env:` y solo las lee `tc2`; el test del workflow comprueba
+  que ningún `run:` interpola `needs.*`.
+- **Lo que queda**: la evidencia declarada no se ejecuta hasta F6-6 (lo
+  contienen el anclaje al diff, la coincidencia de `linea_original`, la
+  aprobación de la persona y F6-6); el check sigue `neutral` hasta F6-5; el
+  informe en prosa del modelo va al check tal cual (las tablas de hallazgos
+  sí escapan su Markdown) y la inyección de instrucciones es de F6-7.
+- **No verificado**: que GitHub deje pasar las respuestas por `outputs` de
+  un reutilizable sin enmascararlas ni truncarlas, y que la clave del modelo
+  y la App funcionen en dos jobs distintos del mismo entorno `revisor` con la
+  herencia actual (adenda F6-3): se comprueba en el E2E de TASK-050.

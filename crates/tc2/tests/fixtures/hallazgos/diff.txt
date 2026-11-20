@@ -1,0 +1,40 @@
+diff --git a/src/calculo.rs b/src/calculo.rs
+index 1111111..2222222 100644
+--- a/src/calculo.rs
++++ b/src/calculo.rs
+@@ -1,5 +1,13 @@
+ //! Calculos de prueba.
+ //! Sin dependencias.
+-pub fn media(v: &[f64]) -> f64 {
+-    v.iter().sum::<f64>() / v.len() as f64
++/// Media de los valores; `None` si no hay ninguno.
++pub fn media(v: &[f64]) -> Option<f64> {
++    if v.len() > 1 {
++        return None;
++    }
++    Some(v.iter().sum::<f64>() / v.len() as f64)
+ }
++
++pub fn tope(x: u32) -> u32 {
++    x.min(100)
++}
+diff --git a/docs/nota.md b/docs/nota.md
+index 3333333..4444444 100644
+--- a/docs/nota.md
++++ b/docs/nota.md
+@@ -1,2 +1,2 @@
+-uno
++uno bis
+ dos
+@@ -9,2 +9,3 @@ seccion
+ nueve
++++ no es una cabecera
+ fin
+diff --git a/viejo.rs b/viejo.rs
+deleted file mode 100644
+index 5555555..0000000
+--- a/viejo.rs
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fn a() {}
+-fn b() {}
