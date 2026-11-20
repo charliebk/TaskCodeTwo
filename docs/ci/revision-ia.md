@@ -13,21 +13,39 @@ y el catálogo de la base. Clases de jobs y secretos: ADR
 
 | Job | Clase (F1-8) | Permisos | Qué hace |
 |---|---|---|---|
-| `preparar` | ejecuta | `contents: read`, `actions: read`; sin secretos | saca la base (`base`, por defecto `develop`), el plugin taskcode a un SHA fijado y el código de `tc2` a la versión del workflow, y compila `tc2`; trae el head del PR **como dato** (`git fetch` de su SHA, sin checkout); baja `informe-verificacion-<perfil>` del run de `verificacion` (tope de 1 MiB del zip y 64 KiB del JSON); corre `tc2 revisoras` y escribe un prompt por revisora; sube el artefacto `revision-ia-prompts` |
+| `preparar` | ejecuta | `contents: read`, `actions: read`; sin secretos | saca la base (`base`, por defecto `develop`), el plugin taskcode a un SHA fijado y el código de `tc2` a la versión del workflow, y compila `tc2`; trae el head del PR **como dato** (`git fetch` de su SHA, sin checkout, autenticado con el `GITHUB_TOKEN` del job; ver «Credenciales del fetch»); baja `informe-verificacion-<perfil>` del run de `verificacion` (tope de 1 MiB del zip y 64 KiB del JSON); saca las rutas con `git -c core.quotepath=false diff --name-only -z` y corre `tc2 revisoras --rutas <fichero> --nul` (rutas literales separadas por NUL, también las no ASCII), y escribe un prompt por revisora; sube el artefacto `revision-ia-prompts` |
 | `publicar` (`revision-ia`) | privilegio, por el entorno `revisor` | `actions: read`; sin checkout | llama a la API de Anthropic una vez por revisora y publica el check-run `revision-ia` con la App del revisor, conclusión `neutral` |
 
 El prompt de cada revisora lleva su `SKILL.md`, la línea de la selección,
 la sección del informe de verificación (`seccion_revisor` de F5-4, con la
 regla de no relanzar lo que ya pasó en verde) y el diff de **sus** rutas con
 un tope (`tope-diff`, 120 000 bytes por defecto; si se corta, se le dice).
-La revisora de dominio recibe las rutas que casan con sus patrones; la
+El diff va entre cercas de acentos graves más largas que la secuencia más
+larga del propio diff (mínimo tres): ninguna línea del diff puede cerrar el
+bloque. La revisora de dominio recibe las rutas que casan con sus patrones; la
 genérica, las sueltas (S08) o todas (S09). Nadie ejecuta la suite: el
 modelo no tiene herramientas.
 
 El resumen del check dice `revisoras= agentes= modelo= modelo-api= reglas=
 avisos= carril= complejidad= informe=` y una línea por revisora (`ok`,
 `negativa`, `error-http-<n>` o `sin-clave-del-modelo`); el texto, los
-informes del modelo.
+informes del modelo. Si `publicar` no encuentra o no puede leer el artefacto
+`revision-ia-prompts`, lo avisa en el log y publica igual el check `neutral`
+con `preparar=<resultado> sin-prompts`. Un fallo de la App (no instalada,
+id o clave que no valen, sin token de instalación) se dice con un `::error::`
+explícito y no publica.
+
+### Credenciales del fetch
+
+Los checkouts llevan `persist-credentials: false` (lo exige el lint). El
+paso «Head del PR como dato» necesita credencial para `git fetch` del SHA
+del head y de `taskcodetwo/tareas` en un repo privado: usa el
+`GITHUB_TOKEN` del propio job (`contents: read`, solo lectura), que llega
+por `env:` y se pasa a git como cabecera `AUTHORIZATION: basic` con
+`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0` exportadas solo
+en ese paso. Así no aparece en la línea de órdenes, no se escribe en
+`.git/config` (no queda para pasos siguientes) y su base64 se enmascara con
+`::add-mask::` antes de usarse.
 
 ## Cómo se invoca el modelo
 

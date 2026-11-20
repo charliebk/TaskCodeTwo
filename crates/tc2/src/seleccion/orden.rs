@@ -1,11 +1,14 @@
-//! `tc2 revisoras [--json] --rutas <fichero|-> [--tarea TASK-NNN]
+//! `tc2 revisoras [--json] --rutas <fichero|-> [--nul] [--tarea TASK-NNN]
 //! [--carril <c>] [--complejidad <x>] [--plugin <nombre>=<dir>]...
 //! [--informe <fichero> --seccion <salida> [--artefacto <n>]]
 //! [--detalle <salida.json>]` (F6-3).
 //!
-//! Las rutas son dato (una por linea; los dos nombres de cada renombrado):
-//! en CI salen de `git diff --name-only --no-renames base...head` sobre el
-//! checkout de la base; en local, de [`crate::git::ficheros_de_rama`]. La
+//! Las rutas son dato (una por linea, o separadas por NUL con `--nul`; los
+//! dos nombres de cada renombrado), con un tope de [`TOPE_RUTAS`] bytes
+//! tanto por fichero como por stdin: en CI salen de
+//! `git -c core.quotepath=false diff --name-only -z --no-renames base...head`
+//! sobre el checkout de la base (con `-z` las rutas no ASCII llegan literales,
+//! sin comillas ni escapes); en local, de [`crate::git::ficheros_de_rama`]. La
 //! configuracion y las skills del proyecto se leen de la base
 //! (`origin/develop`), nunca del worktree del PR (F1-15 decision 2).
 //!
@@ -68,8 +71,10 @@ pub struct Entorno<'a> {
     pub git: &'a Git,
     /// Carpeta de Claude Code, si se sabe.
     pub claude: Option<&'a Path>,
-    /// Lee la entrada estandar (para `--rutas -`).
-    pub stdin: &'a dyn Fn() -> std::io::Result<String>,
+    /// Lee la entrada estandar (para `--rutas -`): como mucho
+    /// `TOPE_RUTAS + 1` bytes, para que el exceso se vea y falle igual que
+    /// con fichero.
+    pub stdin: &'a dyn Fn() -> std::io::Result<Vec<u8>>,
 }
 
 /// Inventario y catalogo con los que se selecciona, y los avisos de
@@ -234,6 +239,7 @@ pub fn informe_revisor(p: &Path, artefacto: &str) -> (&'static str, Option<Strin
 #[derive(Default)]
 struct Args {
     rutas: Option<String>,
+    nul: bool,
     tarea: Option<String>,
     carril: Option<Carril>,
     complejidad: Option<String>,
@@ -242,6 +248,22 @@ struct Args {
     artefacto: Option<String>,
     seccion: Option<PathBuf>,
     detalle: Option<PathBuf>,
+}
+
+/// Las rutas del texto: con `nul`, separadas por NUL y literales (la salida
+/// de `git diff --name-only -z`, sin las comillas ni los escapes que git
+/// pone a lo no ASCII); sin `nul`, una por linea (sin el `\r` final).
+fn separar_rutas(texto: &str, nul: bool) -> Vec<String> {
+    let trozos: Vec<&str> = if nul {
+        texto.split('\0').collect()
+    } else {
+        texto.lines().map(|l| l.trim_end_matches('\r')).collect()
+    };
+    trozos
+        .into_iter()
+        .filter(|l| !l.trim().is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn uso(motivo: &str) -> Informe {
@@ -257,6 +279,7 @@ fn args(a: &[String]) -> Result<Args, Informe> {
         let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
         match x.as_str() {
             "--rutas" if r.rutas.is_none() => r.rutas = Some(valor()?),
+            "--nul" if !r.nul => r.nul = true,
             "--tarea" if r.tarea.is_none() => {
                 let v = valor()?;
                 if !crate::git::es_id(&v) {
@@ -319,18 +342,19 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         )
     };
     let texto = match a.rutas.as_deref() {
-        Some("-") => (e.stdin)().map_err(|x| fallo_lectura("-", x.to_string()))?,
+        Some("-") => {
+            let b = (e.stdin)().map_err(|x| fallo_lectura("-", x.to_string()))?;
+            if b.len() as u64 > TOPE_RUTAS {
+                return Err(fallo_lectura("-", format!("mas de {TOPE_RUTAS} bytes")));
+            }
+            String::from_utf8(b).map_err(|x| fallo_lectura("-", x.to_string()))?
+        }
         Some(f) => leer_con_tope(Path::new(f), TOPE_RUTAS)
             .map_err(|x| fallo_lectura(f, x.to_string()))?
             .ok_or_else(|| fallo_lectura(f, format!("mas de {TOPE_RUTAS} bytes")))?,
         None => return Err(uso("sin-rutas")),
     };
-    let rutas: Vec<String> = texto
-        .lines()
-        .map(|l| l.trim_end_matches('\r'))
-        .filter(|l| !l.trim().is_empty())
-        .map(str::to_owned)
-        .collect();
+    let rutas = separar_rutas(&texto, a.nul);
     let f = fuentes(e.git, e.dir, e.claude, &a.plugins);
     let mut avisos = f.avisos.clone();
     let mut carril = Carril::Funcionalidad;

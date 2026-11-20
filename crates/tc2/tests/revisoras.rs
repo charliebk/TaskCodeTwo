@@ -25,7 +25,12 @@ fn plugin() -> PathBuf {
 
 /// Lanza `tc2 revisoras <args>` en `dir` con `entrada` por stdin; da
 /// (codigo, stdout).
-fn revisoras(f: &Fixture, dir: &Path, args: &[&str], entrada: &str) -> (Option<i32>, String) {
+fn revisoras(
+    f: &Fixture,
+    dir: &Path,
+    args: &[&str],
+    entrada: impl AsRef<[u8]>,
+) -> (Option<i32>, String) {
     let vacia = f.raiz.join("claude-vacia");
     std::fs::create_dir_all(&vacia).unwrap();
     let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"))
@@ -40,11 +45,7 @@ fn revisoras(f: &Fixture, dir: &Path, args: &[&str], entrada: &str) -> (Option<i
         .stderr(Stdio::piped())
         .spawn()
         .unwrap_or_else(|e| panic!("no se pudo lanzar tc2: {e}"));
-    c.stdin
-        .take()
-        .unwrap()
-        .write_all(entrada.as_bytes())
-        .unwrap();
+    c.stdin.take().unwrap().write_all(entrada.as_ref()).unwrap();
     let o = c.wait_with_output().unwrap();
     eprintln!("  {}", String::from_utf8_lossy(&o.stderr));
     (
@@ -168,4 +169,49 @@ fn skills_de_la_base_e_informe_con_tope() {
     assert_eq!(codigo, Some(0), "{linea}");
     assert!(linea.trim_end().ends_with(" informe=grande"), "{linea}");
     assert!(!seccion.exists());
+}
+
+/// Hallazgo 1 de la ronda 1: con `--nul` (la salida de `git diff
+/// --name-only -z`) una ruta no ASCII llega literal y casa con su revisora;
+/// el detalle la lleva tal cual.
+#[test]
+fn ruta_no_ascii_separada_por_nul() {
+    let f = Fixture::nueva("revisoras-nul");
+    let (_bare, clon) = f.remoto_y_clon();
+    let p = format!("taskcode-plugin={}", plugin().display());
+    let detalle = f.raiz.join("detalle.json");
+    let args = [
+        "--rutas",
+        "-",
+        "--nul",
+        "--complejidad",
+        "simple",
+        "--plugin",
+        &p,
+        "--detalle",
+        detalle.to_str().unwrap(),
+    ];
+    let (codigo, linea) = revisoras(&f, &clon, &args, "é.rs\0");
+    assert_eq!(codigo, Some(0), "{linea}");
+    assert!(
+        linea.contains(" revisoras=taskcode-plugin:rust-wasm-reviewer "),
+        "{linea}"
+    );
+    let det: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&detalle).unwrap()).unwrap();
+    assert_eq!(det["revisoras"][0]["rutas"], serde_json::json!(["é.rs"]));
+}
+
+/// MENOR de rust-wasm, ronda 1: por stdin, mas de `TOPE_RUTAS` bytes es
+/// error, igual que con fichero (antes se cortaba en silencio).
+#[test]
+fn rutas_por_stdin_por_encima_del_tope_fallan() {
+    let f = Fixture::nueva("revisoras-tope");
+    let (_bare, clon) = f.remoto_y_clon();
+    let p = format!("taskcode-plugin={}", plugin().display());
+    let mut entrada = "src/a.rs\n".repeat(4 * 1024 * 1024 / 9 + 1).into_bytes();
+    entrada.truncate(4 * 1024 * 1024 + 1);
+    let (codigo, linea) = revisoras(&f, &clon, &["--rutas", "-", "--plugin", &p], &entrada);
+    assert_ne!(codigo, Some(0), "{linea}");
+    assert!(linea.starts_with("revisoras error"), "{linea}");
 }

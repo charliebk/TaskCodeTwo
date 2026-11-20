@@ -153,15 +153,26 @@ jobs:
           rustup toolchain install
           cargo build --locked -p tc2
           echo "$PWD/target/debug" >> "$GITHUB_PATH"
+      # Los checkouts no persisten credenciales; en un repo privado el fetch
+      # las necesita. El GITHUB_TOKEN del job (solo lectura) va en la cabecera
+      # por variables de entorno de git (GIT_CONFIG_COUNT/KEY/VALUE): ni en
+      # argv, ni en .git/config, ni en el log (enmascarado).
       - name: Head del PR como dato
         env:
           HEAD_SHA: ${{ inputs.head-sha }}
           BASE: ${{ inputs.base }}
+          TOKEN: ${{ github.token }}
+          SERVIDOR: ${{ github.server_url }}
         run: |
           set -eu
           case "$HEAD_SHA" in
             *[!0-9a-f]*|'') echo "revision-ia: head-sha no valido" >&2; exit 1 ;;
           esac
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.$SERVIDOR/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
           git -C base fetch --no-tags -q origin "$HEAD_SHA"
           git -C base fetch --no-tags -q origin '+refs/heads/taskcodetwo/tareas:refs/remotes/origin/taskcodetwo/tareas' || echo "sin rama de estado: la seleccion va sin tarea"
           git -C base rev-parse -q --verify "origin/$BASE" > /dev/null
@@ -204,7 +215,9 @@ jobs:
           set -eu
           salida="$RUNNER_TEMP/revision-ia"
           mkdir -p "$salida/prompts"
-          git --literal-pathspecs -C base diff --name-only --no-renames "origin/$BASE...$HEAD_SHA" > "$salida/rutas.txt"
+          # Rutas literales separadas por NUL: sin -z git entrecomilla y escapa
+          # lo no ASCII ("\303\251.rs") y la ruta no casaria con nada.
+          git -c core.quotepath=false --literal-pathspecs -C base diff --name-only -z --no-renames "origin/$BASE...$HEAD_SHA" > "$salida/rutas.txt"
           tarea=()
           id=$(printf '%s' "$RAMA" | sed -nE 's#^(feature|fix|hotfix)/task-([0-9]{3,})-.*#TASK-\2#p')
           if [ -n "$id" ]; then tarea=(--tarea "$id"); fi
@@ -212,7 +225,7 @@ jobs:
           if [ -s "$RUNNER_TEMP/informe.json" ]; then
             informe=(--informe "$RUNNER_TEMP/informe.json" --seccion "$salida/seccion.md" --artefacto "informe-verificacion-$PERFIL")
           fi
-          (cd base && tc2 revisoras --json --rutas "$salida/rutas.txt" "${tarea[@]}" \
+          (cd base && tc2 revisoras --json --rutas "$salida/rutas.txt" --nul "${tarea[@]}" \
             --plugin "$PLUGIN_NOMBRE=$PLUGIN" "${informe[@]}" --detalle "$salida/detalle.json") > "$salida/seleccion.json"
           jq -r '.claves | "revisoras=\(.revisoras | join(",")) agentes=\(.agentes | join(",")) modelo=\(.modelo) modelo-api=\(.["modelo-api"]) reglas=\(.reglas | join(",")) avisos=\(.avisos | join(",")) carril=\(.carril) complejidad=\(.complejidad) informe=\(.informe // "sin-informe")"' "$salida/seleccion.json" > "$salida/resumen.txt"
           cat "$salida/resumen.txt"
@@ -222,7 +235,21 @@ jobs:
           for i in $(seq 0 $((n - 1))); do
             rid=$(jq -r ".revisoras[$i].id" "$salida/detalle.json")
             skill=$(jq -r ".revisoras[$i].skill // \"\"" "$salida/detalle.json")
-            mapfile -t rutas < <(jq -r ".revisoras[$i].rutas[]" "$salida/detalle.json")
+            # Tambien separadas por NUL, para que ninguna ruta se parta.
+            mapfile -d '' -t rutas < <(jq -j ".revisoras[$i].rutas[] | . + \"\\u0000\"" "$salida/detalle.json")
+            # El diff de sus rutas, cortado al tope, antes del prompt: la cerca
+            # que lo delimita tiene mas acentos graves que la secuencia mas
+            # larga del diff, asi que el diff no puede cerrarla.
+            bytes=0
+            : > "$RUNNER_TEMP/diff-$i.txt"
+            if [ "${#rutas[@]}" -gt 0 ]; then
+              git -c core.quotepath=false --literal-pathspecs -C base diff --no-renames "origin/$BASE...$HEAD_SHA" -- "${rutas[@]}" > "$RUNNER_TEMP/diff-$i.txt"
+              bytes=$(wc -c < "$RUNNER_TEMP/diff-$i.txt")
+            fi
+            head -c "$TOPE" "$RUNNER_TEMP/diff-$i.txt" > "$RUNNER_TEMP/diff-$i-cortado.txt"
+            largo=$(awk '{ while (match($0, /`+/)) { if (RLENGTH > m) m = RLENGTH; $0 = substr($0, RSTART + RLENGTH) } } END { print m + 0 }' "$RUNNER_TEMP/diff-$i-cortado.txt")
+            if [ "$largo" -lt 3 ]; then largo=3; else largo=$((largo + 1)); fi
+            cerca=$(printf '%*s' "$largo" '' | tr ' ' '`')
             p="$salida/prompts/$i.md"
             {
               echo "Eres la revisora \`$rid\` de TaskCode: revision por pares en CI (F6-3) del PR #$PR, commit $HEAD_SHA, contra $BASE."
@@ -238,15 +265,10 @@ jobs:
               echo
               echo "## Diff de las rutas de esta revisora"
               echo
-              echo '```diff'
-              bytes=0
-              if [ "${#rutas[@]}" -gt 0 ]; then
-                git --literal-pathspecs -C base diff --no-renames "origin/$BASE...$HEAD_SHA" -- "${rutas[@]}" > "$RUNNER_TEMP/diff-$i.txt"
-                bytes=$(wc -c < "$RUNNER_TEMP/diff-$i.txt")
-                head -c "$TOPE" "$RUNNER_TEMP/diff-$i.txt"
-              fi
+              echo "${cerca}diff"
+              cat "$RUNNER_TEMP/diff-$i-cortado.txt"
               echo
-              echo '```'
+              echo "$cerca"
               if [ "$bytes" -gt "$TOPE" ]; then
                 echo
                 echo "AVISO: el diff ocupa $bytes bytes y se ha cortado en $TOPE: dilo en tu informe y no opines de lo que no ves."
@@ -289,7 +311,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -eu
+          set -euo pipefail
           if [ -z "$APP_ID" ] || [ -z "$APP_CLAVE" ]; then
             echo "::warning::revision-ia: el entorno revisor no tiene TC2_APP_REVISOR_ID y TC2_APP_REVISOR_CLAVE; no se publica el check"
             exit 0
@@ -298,10 +320,18 @@ jobs:
           mkdir -p "$dir"
           resumen="preparar=$PREPARAR"
           texto=""
+          prompts=no
           if [ "$PREPARAR" = success ]; then
-            art=$(gh api --method GET "repos/$REPO/actions/runs/$RUN_ID/artifacts" -f name=revision-ia-prompts --jq '.artifacts[0].id // ""')
-            gh api "repos/$REPO/actions/artifacts/$art/zip" > "$RUNNER_TEMP/prompts.zip"
-            unzip -q -o "$RUNNER_TEMP/prompts.zip" -d "$dir"
+            art=$(gh api --method GET "repos/$REPO/actions/runs/$RUN_ID/artifacts" -f name=revision-ia-prompts --jq '.artifacts[0].id // ""') || art=""
+            if [ -n "$art" ] && gh api "repos/$REPO/actions/artifacts/$art/zip" > "$RUNNER_TEMP/prompts.zip" \
+              && unzip -q -o "$RUNNER_TEMP/prompts.zip" -d "$dir" && [ -s "$dir/resumen.txt" ] && [ -f "$dir/prompts/lista.tsv" ]; then
+              prompts=si
+            else
+              echo "::warning::revision-ia: no se encuentra o no se lee el artefacto revision-ia-prompts de preparar; el check sale neutral con sin-prompts"
+              resumen="preparar=$PREPARAR sin-prompts"
+            fi
+          fi
+          if [ "$prompts" = si ]; then
             resumen="$(cat "$dir/resumen.txt")"
             while IFS="$(printf '\t')" read -r i rid modelo; do
               [ -n "$i" ] || continue
@@ -354,9 +384,16 @@ jobs:
           rm -f "$clave"
           jwt="$cab.$carga.$firma"
           api() { curl -fsS -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "$@"; }
-          instalacion=$(api -H "Authorization: Bearer $jwt" "https://api.github.com/repos/$REPO/installation" | jq -r .id)
+          instalacion=$(api -H "Authorization: Bearer $jwt" "https://api.github.com/repos/$REPO/installation" | jq -r '.id // ""') || instalacion=""
+          case "$instalacion" in
+            ''|*[!0-9]*) echo "::error::revision-ia: la App del revisor no esta instalada en $REPO o TC2_APP_REVISOR_ID/CLAVE no valen" >&2; exit 1 ;;
+          esac
           token=$(api -X POST -H "Authorization: Bearer $jwt" "https://api.github.com/app/installations/$instalacion/access_tokens" \
-            -d "$(jq -n --arg r "${REPO#*/}" '{repositories: [$r], permissions: {checks: "write"}}')" | jq -r .token)
+            -d "$(jq -n --arg r "${REPO#*/}" '{repositories: [$r], permissions: {checks: "write"}}')" | jq -r '.token // ""') || token=""
+          if [ -z "$token" ]; then
+            echo "::error::revision-ia: la App del revisor no da token de instalacion con checks: write en $REPO" >&2
+            exit 1
+          fi
           echo "::add-mask::$token"
           # D4 de F6-3: neutral con el resumen; no bloquea hasta F6-5.
           jq -n --arg sha "$HEAD_SHA" --arg s "$resumen" --arg t "${texto:-Sin informes del modelo.}" --arg url "$EJECUCION" \

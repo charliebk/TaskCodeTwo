@@ -553,13 +553,14 @@ fn orden_revisoras(args: &[String]) -> Informe {
     };
     let g = git::Git::nuevo();
     let claude = dir_claude();
+    // Un byte de mas que el tope: la orden falla si llega, como con fichero.
     let stdin = || {
         use std::io::Read;
-        let mut s = String::new();
+        let mut b = Vec::new();
         std::io::stdin()
-            .take(seleccion::orden::TOPE_RUTAS)
-            .read_to_string(&mut s)
-            .map(|_| s)
+            .take(seleccion::orden::TOPE_RUTAS + 1)
+            .read_to_end(&mut b)
+            .map(|_| b)
     };
     seleccion::orden::orden(
         args,
