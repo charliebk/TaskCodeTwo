@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-137-f6-3-seguimiento-revision-ia-cita-el-inf
 asignado_a: charlie.bk@gmail.com
@@ -51,6 +51,7 @@ Evidencia (repo E2E `charliebk/taskcodetwo-e2e-github`, PR 15, verificacion fija
 | 2026-11-20T14:44:08Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-20T14:44:11Z | start | automatico | persona | 0.16.1 |
 | 2026-11-20T15:27:02Z | review | automatico | persona | 0.16.1 |
+| 2026-11-20T16:16:03Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -62,3 +63,10 @@ Evidencia (repo E2E `charliebk/taskcodetwo-e2e-github`, PR 15, verificacion fija
 ## Verificacion ligera
 
 - 2026-11-20T15:39:09Z: ronda 1; commit revisado 92f28c9b8bf2191a5531bcf016dbbb47efe50a07; commit verificado a329520010cc35d0fd6475e44684544a06bfb1aa; ficheros: .github/workflows/revision-ia.yml; corregidos: MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 92 min
+- Paso de la hora: 92 min reales frente a 120 estimados
+- Cierre (finish): 1330 s, de 2026-11-20T15:53:53Z a 2026-11-20T16:16:03Z

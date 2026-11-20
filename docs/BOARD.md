@@ -63,7 +63,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 65
+## Terminadas (04-terminadas) — 66
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -133,4 +133,5 @@ TASK-118  Aplicar las puertas (rulesets) desde tc2 init                         
 TASK-125  Seguimiento de F3-10: quitar la copia vieja de la regla de actividad                                                charlie.bk@gmail.com
 TASK-127  Escrituras de estado con muchos ficheros fallan en Windows (git hash-object)                                        charlie.bk@gmail.com
 TASK-128  Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso  charlie.bk@gmail.com
+TASK-137  F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache                charlie.bk@gmail.com
 ```
