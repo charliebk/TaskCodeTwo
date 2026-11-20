@@ -45,6 +45,17 @@ name: revision-ia
 
 on:
   workflow_call:
+    # Declarados y opcionales, y el llamador no pasa ninguno: sin declararlos
+    # el contexto secrets de un reutilizable llega vacio aunque el job tenga
+    # environment (comprobado en el E2E de TASK-049). Asi el job `publicar`
+    # toma los del entorno `revisor` del repo llamador; nunca secrets: inherit.
+    secrets:
+      TC2_APP_REVISOR_ID:
+        required: false
+      TC2_APP_REVISOR_CLAVE:
+        required: false
+      ANTHROPIC_API_KEY:
+        required: false
     inputs:
       verificacion-run:
         description: Id del run de verificacion (github.event.workflow_run.id)
@@ -356,7 +367,9 @@ jobs:
               codigo=$(curl -sS --max-time 900 -o "$respuesta" -w '%{http_code}' "${cabeceras[@]}" --data-binary "@$cuerpo" https://api.anthropic.com/v1/messages) || codigo=000
               parada=$(jq -r '.stop_reason // ""' "$respuesta" 2>/dev/null || echo "")
               if [ "$codigo" != 200 ]; then
-                estado="error-http-$codigo"
+                # El mensaje de error de la API (sin la clave), recortado y en una linea.
+                motivo=$(jq -r '"\(.error.type // ""): \(.error.message // "")"' "$respuesta" 2>/dev/null | tr -d '\r\n' | cut -c1-200 || true)
+                estado="error-http-$codigo ${motivo:-sin-cuerpo}"
               elif [ "$parada" = refusal ]; then
                 estado="negativa"
               else

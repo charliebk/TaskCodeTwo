@@ -79,8 +79,12 @@ leída en `taskcodetwo/tareas`; sin tarea, complejidad `media` con aviso.
    - `TC2_APP_REVISOR_CLAVE`: su clave privada PEM completa;
    - `ANTHROPIC_API_KEY`: la clave de la API de Anthropic.
    Las claves no pasan por el chat ni por ningún fichero del repo.
-3. **El llamador** en la rama por defecto (no hay que pasar `secrets:`: el
-   job del reutilizable lee los del entorno `revisor` del repo llamador):
+3. **El llamador** en la rama por defecto. No pasa `secrets:` ni usa
+   `secrets: inherit` (F1-8, R9): el reutilizable declara los tres secretos
+   en `on.workflow_call.secrets` como opcionales y su job `publicar`, con
+   `environment: revisor`, los toma del entorno del repo llamador. Sin esa
+   declaración el contexto `secrets` del reutilizable llega vacío aunque el
+   job tenga entorno (comprobado en el E2E de TASK-049):
 
 ```yaml
 name: revision-ia

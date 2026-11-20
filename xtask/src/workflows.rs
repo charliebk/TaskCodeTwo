@@ -430,6 +430,11 @@ struct Perfil {
     /// checkout`, `switch`, `worktree`, `restore` o `reset` en `run:`), y
     /// ninguna `inputs.` en `run:` (la rama del PR llega por una entrada).
     sin_head: bool,
+    /// Secretos que `workflow_call` puede declarar, todos con `required:
+    /// false`. Sin declararlos, el contexto `secrets` de un reutilizable
+    /// llega vacio aunque el job tenga entorno (E2E de TASK-049); el llamador
+    /// no pasa ninguno y el job los toma de su entorno.
+    secretos_declarados: &'static [&'static str],
 }
 
 /// `verificacion.yml` (F5-1, F5-2).
@@ -438,6 +443,7 @@ const VERIFICACION: Perfil = Perfil {
     entornos: &[],
     sin_escritura: false,
     sin_head: false,
+    secretos_declarados: &[],
 };
 
 /// `revision-ia.yml` (F6-3): solo reutilizable, secretos solo en el job del
@@ -447,6 +453,11 @@ const REVISION: Perfil = Perfil {
     entornos: &["revisor"],
     sin_escritura: true,
     sin_head: true,
+    secretos_declarados: &[
+        "TC2_APP_REVISOR_ID",
+        "TC2_APP_REVISOR_CLAVE",
+        "ANTHROPIC_API_KEY",
+    ],
 };
 
 /// Ordenes de git que en `run:` cambiarian el arbol de trabajo a otro commit.
@@ -458,6 +469,25 @@ fn lint_github(texto: &str) -> Vec<String> {
 
 fn lint_revision(texto: &str) -> Vec<String> {
     lint_con(texto, &REVISION)
+}
+
+/// Cada secreto declarado en `workflow_call` tiene que estar en la lista del
+/// perfil y ser opcional (`required: false`).
+fn secretos_admitidos(secretos: &Nodo, perfil: &Perfil) -> Vec<String> {
+    let Nodo::Mapa(pares) = secretos else {
+        return vec!["workflow_call declara secretos".to_owned()];
+    };
+    let mut errores = Vec::new();
+    for (nombre, def) in pares {
+        let opcional = def
+            .get("required")
+            .and_then(Nodo::texto)
+            .is_some_and(|v| v == "false");
+        if !perfil.secretos_declarados.contains(&nombre.as_str()) || !opcional {
+            errores.push(format!("workflow_call declara secretos: {nombre}"));
+        }
+    }
+    errores
 }
 
 fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
@@ -474,12 +504,8 @@ fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
                     errores.push(format!("evento no admitido: {e}"));
                 }
             }
-            if on
-                .get("workflow_call")
-                .and_then(|w| w.get("secrets"))
-                .is_some()
-            {
-                errores.push("workflow_call declara secretos".to_owned());
+            if let Some(secretos) = on.get("workflow_call").and_then(|w| w.get("secrets")) {
+                errores.extend(secretos_admitidos(secretos, perfil));
             }
         }
     }
@@ -1385,7 +1411,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
 #[test]
 fn cada_mutacion_del_revisor_da_su_error() {
     let texto = leer(REVISION_IA);
-    let casos: [(&str, &str, &str); 9] = [
+    let casos: [(&str, &str, &str); 11] = [
         (
             "  workflow_call:\n",
             "  pull_request:\n  workflow_call:\n",
@@ -1430,6 +1456,16 @@ fn cada_mutacion_del_revisor_da_su_error() {
             "          set -eu\n          rustup toolchain install\n",
             "          set -eu\n          echo ${{ inputs.rama }}\n          rustup toolchain install\n",
             "inputs. en run",
+        ),
+        (
+            "      ANTHROPIC_API_KEY:\n        required: false\n",
+            "      ANTHROPIC_API_KEY:\n        required: true\n",
+            "workflow_call declara secretos: ANTHROPIC_API_KEY",
+        ),
+        (
+            "      ANTHROPIC_API_KEY:\n        required: false\n",
+            "      ANTHROPIC_API_KEY:\n        required: false\n      OTRO:\n        required: false\n",
+            "workflow_call declara secretos: OTRO",
         ),
     ];
     for (original, mutado, esperado) in casos {
