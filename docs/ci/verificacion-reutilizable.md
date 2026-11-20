@@ -30,6 +30,7 @@ se elige el runner.
 | `perfiles` | `""` (los del evento) | Perfiles forzados, separados por espacios |
 | `huella-arbol` | `""` | Rutas versionadas que entran en la clave de la caché (lockfiles, toolchain), separadas por espacios (F5-2) |
 | `huella-local` | `""` | Orden que imprime lo que la suite lee fuera del árbol en el runner del perfil (F5-2); vacía, `local = sha256("")` |
+| `cola-de-merge` | `false` | Booleana. `true` solo si la rama base tiene cola de merge (GitHub) o merge trains (GitLab): el PR corre la impacto y la cola la completa (F5-3) |
 | GitHub: `runner-<perfil>` | `'"ubuntu-latest"'` | `runs-on` del perfil, en JSON: una cadena o una lista de etiquetas (`'["self-hosted","windows","toolsaweb"]'`) |
 | GitHub: `shell` | `bash` | Shell en el que corre el comando (`cmd` para un `.bat`) |
 | GitLab: `tags-<perfil>` | `[]` | Etiquetas del runner del perfil |
@@ -47,13 +48,26 @@ se elige el runner.
 | Evento | GitHub | GitLab |
 |---|---|---|
 | PR / MR a cualquier rama | completa | completa (`verificacion-completa`) |
-| PR / MR de `develop` a `main` (release) | completa y pesada | completa y pesada |
-| `merge_group` | completa | — |
+| PR / MR a cualquier rama, con `cola-de-merge: true` | impacto | impacto (`verificacion-impacto`) |
+| PR / MR de `develop` a `main` (release), con o sin cola | completa y pesada | completa y pesada |
+| `merge_group` / pipeline de `merge_train` | completa | completa con `cola-de-merge: true`; sin ella, la del MR (completa) |
 | `workflow_dispatch` | completa | — |
 | `push` de rama | nada | nada |
 
 El comando recibe la base del PR en `RAMA_BASE` y el perfil en `TC2_PERFIL`.
 Resultado: código de salida (0 verde, otro rojo).
+
+**Cola de merge** (TASK-043, F5-3; [adenda de F1-7](../adr/F1-7-verificacion-ci-perfiles-cache-runners.md#adenda-f5-3-task-043--impacto-en-el-pr-solo-con-cola-de-merge)):
+con `cola-de-merge: true` el PR corre solo la impacto y la completa la corre
+la cola sobre el árbol que acaba en `develop`. La impacto **nunca se cachea**
+(depende de `RAMA_BASE`): no deja línea `arbol=` y se ejecuta siempre. El
+resumen del check lleva `cola-de-merge=<true|false>`.
+
+> **Aviso:** pon `cola-de-merge: true` solo si la rama base tiene de verdad
+> una regla de cola (GitHub) o merge trains (GitLab). Sin cola, `develop`
+> integraría con solo la impacto, sin la completa. Nada lo detecta todavía
+> (F3-8); el check lo deja escrito en `cola-de-merge=`. En GitLab el tren
+> (`CI_MERGE_REQUEST_EVENT_TYPE == "merge_train"`) es de pago: no verificado.
 
 ## Qué publica
 
@@ -225,7 +239,8 @@ F1-8, decisión 7), sin componentes nuevos: los tres jobs de siempre.
   verde añade al resumen una línea por perfil.
 
 **La línea** (contrato para F8-1), una por perfil, debajo de la de siempre
-(`perfiles= resultado= informe= ejecucion=`):
+(`perfiles= resultado= informe= ejecucion=`) y de `cola-de-merge=` (F5-3);
+la impacto no tiene línea:
 
 ```
 arbol=<árbol de V> perfil=<p> runner=<r> clave=<k> local=<h> origen=<sha> ejecutada
