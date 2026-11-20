@@ -7,7 +7,9 @@
 #     perfiles del evento (F1-7, decision 4) y busca en los check-runs
 #     `verificacion` del commit verificado V, sus padres y sus abuelos las
 #     lineas `arbol=` candidatas de cada perfil (F1-7, decision 3; F5-2). No
-#     ejecuta nada del PR: solo lee el arbol con git.
+#     ejecuta nada del PR: solo lee el arbol con git. Con `cola-de-merge`
+#     (TASK-043, F5-3) el PR corre la impacto, que nunca se cachea, y el
+#     merge_group la completa.
 #   - ejecutar (ejecuta, matriz por perfil, runner del perfil, sin secretos):
 #     calcula la huella local, y si un candidato tiene la misma se salta el
 #     comando (paso `skipped`); si no, corre `comando argumentos-<perfil>` en
@@ -86,6 +88,10 @@ on:
         description: Orden que imprime lo que la suite lee fuera del arbol en el runner del perfil (F1-7, decision 2); vacia, sha256 de nada
         type: string
         default: ""
+      cola-de-merge:
+        description: El repo tiene cola de merge en la rama base; true, el PR corre la impacto y la cola la completa (adenda F5-3 de F1-7)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -112,6 +118,7 @@ jobs:
           BASE: ${{ github.base_ref }}
           ORIGEN: ${{ github.head_ref }}
           FORZADOS: ${{ inputs.perfiles }}
+          COLA: ${{ inputs.cola-de-merge }}
         run: |
           set -eu
           if [ -n "$FORZADOS" ]; then
@@ -119,8 +126,12 @@ jobs:
           else
             case "$EVENTO" in
               pull_request)
+                # Adenda F5-3 de F1-7: con cola, la completa la corre el
+                # merge_group; la release sigue con completa y pesada.
                 if [ "$BASE" = main ] && [ "$ORIGEN" = develop ]; then
                   perfiles="completa pesada"
+                elif [ "$COLA" = true ]; then
+                  perfiles="impacto"
                 else
                   perfiles="completa"
                 fi ;;
@@ -138,7 +149,7 @@ jobs:
             lista="${lista:+$lista,}\"$p\""
           done
           echo "perfiles=[$lista]" >> "$GITHUB_OUTPUT"
-          echo "Perfiles de este evento ($EVENTO): [${lista}]"
+          echo "Perfiles de este evento ($EVENTO, cola-de-merge=$COLA): [${lista}]"
       # V, sus padres y sus abuelos con sus arboles: profundidad 3 basta.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.perfiles.outputs.perfiles != '[]'
@@ -174,7 +185,9 @@ jobs:
           huella=$(printf '%s' "$huella" | sha256sum | cut -d' ' -f1)
           claves='{}'
           runners='{}'
-          for p in $(printf '%s' "$PERFILES" | jq -r '.[]'); do
+          # La impacto depende de RAMA_BASE y no solo del arbol: ni clave, ni
+          # candidatos, ni linea `arbol=` (adenda F5-3 de F1-7, D3).
+          for p in $(printf '%s' "$PERFILES" | jq -r '.[] | select(. != "impacto")'); do
             r=$(printf '%s' "$ENTRADAS" | jq -r --arg p "$p" '.["runner-" + $p] | fromjson | if type == "array" then join(",") else tostring end' | tr -d ' ')
             # Las ordenes entran en la clave: un verde de otro comando,
             # argumentos, shell o huella local no se reutiliza.
@@ -189,6 +202,11 @@ jobs:
             echo "runners=$runners"
           } >> "$GITHUB_OUTPUT"
           echo "V=$v arbol=$arbol version=$VERSION claves=$claves runners=$runners"
+          if [ "$claves" = '{}' ]; then
+            echo "Ningun perfil cacheable en este evento: sin busqueda"
+            echo "candidatos={}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -z "$VERSION" ]; then
             echo "::warning::version del workflow desconocida: sin busqueda, se verifica entero"
             echo "candidatos={}" >> "$GITHUB_OUTPUT"
@@ -350,6 +368,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RESULTADO: ${{ needs.ejecutar.result }}
           PERFILES: ${{ needs.buscar.outputs.perfiles }}
+          COLA: ${{ inputs.cola-de-merge }}
           ARBOL_BUSCAR: ${{ needs.buscar.outputs.arbol }}
           CLAVES: ${{ needs.buscar.outputs.claves }}
           RUNNERS: ${{ needs.buscar.outputs.runners }}
@@ -364,7 +383,8 @@ jobs:
           for p in $(printf '%s' "$PERFILES" | tr -d '[]"' | tr ',' ' '); do
             informes="${informes:+$informes,}informe-verificacion-$p"
           done
-          resumen="perfiles=$PERFILES resultado=$RESULTADO informe=$informes ejecucion=$EJECUCION"
+          resumen="perfiles=$PERFILES resultado=$RESULTADO informe=$informes ejecucion=$EJECUCION
+          cola-de-merge=$COLA"
           # F1-8, decision 7: el arbol lo lee el publicador por la API; si no
           # es el de buscar, no se escribe ninguna linea y el check sale rojo.
           arbol=$(gh api --method GET "repos/$REPO/commits/$V" --jq '.commit.tree.sha')
@@ -373,6 +393,8 @@ jobs:
             conclusion=failure
           elif [ "$conclusion" = success ]; then
             for p in $(printf '%s' "$PERFILES" | tr -d '[]"' | tr ',' ' '); do
+              # La impacto nunca se cachea (adenda F5-3 de F1-7, D3).
+              if [ "$p" = impacto ]; then continue; fi
               campo() { printf '%s' "$SALIDAS" | jq -r --arg k "$1-$p" '.[$k] // ""'; }
               huella=$(campo local)
               de=$(campo de)
