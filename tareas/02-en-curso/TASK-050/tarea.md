@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-050-f6-4-busqueda-de-errores
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F6-4 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 |---|---|---|---|---|
 | 2026-11-20T16:17:26Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-20T17:13:02Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-20T17:13:04Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
