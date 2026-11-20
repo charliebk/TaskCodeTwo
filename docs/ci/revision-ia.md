@@ -13,7 +13,7 @@ y el catálogo de la base. Clases de jobs y secretos: ADR
 
 | Job | Clase (F1-8) | Permisos | Qué hace |
 |---|---|---|---|
-| `preparar` | ejecuta | `contents: read`, `actions: read`; sin secretos | saca la base (`base`, por defecto `develop`), el plugin taskcode a un SHA fijado y el código de `tc2` a la versión del workflow, y compila `tc2`; trae el head del PR **como dato** (`git fetch` de su SHA, sin checkout, autenticado con el `GITHUB_TOKEN` del job; ver «Credenciales del fetch»); baja `informe-verificacion-<perfil>` del run de `verificacion` (tope de 1 MiB del zip y 64 KiB del JSON); saca las rutas con `git -c core.quotepath=false diff --name-only -z` y corre `tc2 revisoras --rutas <fichero> --nul` (rutas literales separadas por NUL, también las no ASCII), y escribe un prompt por revisora; sube el artefacto `revision-ia-prompts` |
+| `preparar` | ejecuta | `contents: read`, `actions: read`; sin secretos | saca la base (`base`, por defecto `develop`), el plugin taskcode a un SHA fijado y el código de `tc2` a la versión del workflow, y compila `tc2`; trae el head del PR **como dato** (`git fetch` de su SHA, sin checkout, autenticado con el `GITHUB_TOKEN` del job; ver «Credenciales del fetch»); baja `informe-verificacion-<perfil>` del run de `verificacion`, o del run que ejecutó el perfil si ese run lo reutilizó de la caché (ver «Informe de una verificación reutilizada»), con tope de 1 MiB del zip y 64 KiB del JSON; saca las rutas con `git -c core.quotepath=false diff --name-only -z` y corre `tc2 revisoras --rutas <fichero> --nul` (rutas literales separadas por NUL, también las no ASCII), y escribe un prompt por revisora; sube el artefacto `revision-ia-prompts` |
 | `publicar` (`revision-ia`) | privilegio, por el entorno `revisor` | `actions: read`; sin checkout | llama a la API de Anthropic una vez por revisora y publica el check-run `revision-ia` con la App del revisor, conclusión `neutral` |
 
 El prompt de cada revisora lleva su `SKILL.md`, la línea de la selección,
@@ -27,7 +27,8 @@ genérica, las sueltas (S08) o todas (S09). Nadie ejecuta la suite: el
 modelo no tiene herramientas.
 
 El resumen del check dice `revisoras= agentes= modelo= modelo-api= reglas=
-avisos= carril= complejidad= informe=` y una línea por revisora (`ok`,
+avisos= carril= complejidad= informe=` (más `informe-de=run-<id>`, el run
+del que sale el informe, cuando hay informe) y una línea por revisora (`ok`,
 `negativa`, `error-http-<n>` o `sin-clave-del-modelo`); el texto, los
 informes del modelo. Si `publicar` no encuentra o no puede leer el artefacto
 `revision-ia-prompts`, lo avisa en el log y publica igual el check `neutral`
@@ -168,6 +169,25 @@ hace en el repo E2E (rama por defecto `main`), no en TaskCodeTwo.
    en verde con el aviso y sin check.
 6. Cerrar el PR y borrar la rama.
 
+## Informe de una verificación reutilizada
+
+Con acierto de la caché por árbol (F5-2), el run de `verificacion` se salta
+el comando y no sube `informe-verificacion-<perfil>`. Entonces `preparar`
+(TASK-137, con los mismos permisos):
+
+1. toma el job del perfil de ese run (`<perfil>` o `... / <perfil>`) y busca
+   en su log la última línea `Perfil <perfil>: reutilizada de <sha> (origen
+   <sha>, ...)` que escribe el paso `cache por arbol`;
+2. lista los runs en verde del mismo workflow con `head_sha` igual al
+   origen y cita el más reciente con el artefacto sin caducar (solo los runs
+   que ejecutaron el perfil lo suben);
+3. la sección del prompt nombra el artefacto con su run y su origen, y el
+   resumen añade `informe-de=run-<id>`.
+
+El código del PR podría imitar esa línea en el log (la huella local corre
+antes en el mismo job), pero el informe ya lo escribe código del PR y solo se
+cita como dato: lo más que consigue es citar otro informe del mismo workflow.
+
 ## Límites conocidos
 
 - `neutral` no bloquea hasta F6-5; lo contiene la aprobación de la persona.
@@ -176,10 +196,13 @@ hace en el repo E2E (rama por defecto `main`), no en TaskCodeTwo.
 - El diff y el informe son datos del autor del PR que llegan al modelo; la
   defensa contra inyección de instrucciones es de F6-7.
 - Coste: una llamada por revisora y ronda (2 o 3 en un PR Rust + Vue).
-- Si la verificación del head sale de la caché por árbol (F5-2), su run no
-  sube el informe y el check dice `informe=sin-informe`: las revisoras
-  trabajan sin la sección del informe. Comprobado en el E2E de TASK-049;
-  queda para una tarea de seguimiento (citar el informe del run de origen).
+- El informe de una verificación reutilizada se encuentra por la línea
+  `Perfil <p>: reutilizada de ... (origen <sha>, ...)` del log de
+  `verificacion.yml`: si cambia su formato, `preparar` se queda sin informe.
+  Si el artefacto del run de origen ha caducado (retención de artefactos del
+  repositorio, 90 días por defecto), el paso lo avisa con un `::warning::`,
+  el check dice `informe=sin-informe` y las revisoras van sin la sección
+  (TASK-137).
 - Un error de la API sale en el check con su tipo y mensaje recortados
   (por ejemplo, la cuenta sin saldo da `error-http-400
   invalid_request_error: Your credit balance is too low...`).
