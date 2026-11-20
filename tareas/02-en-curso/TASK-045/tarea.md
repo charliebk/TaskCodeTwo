@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-045-f5-5-runner-self-hosted-windows-por-perf
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F5-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 |---|---|---|---|---|
 | 2026-11-20T22:26:01Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-20T22:29:58Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-20T22:29:59Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
