@@ -79,12 +79,14 @@ leída en `taskcodetwo/tareas`; sin tarea, complejidad `media` con aviso.
    - `TC2_APP_REVISOR_CLAVE`: su clave privada PEM completa;
    - `ANTHROPIC_API_KEY`: la clave de la API de Anthropic.
    Las claves no pasan por el chat ni por ningún fichero del repo.
-3. **El llamador** en la rama por defecto. No pasa `secrets:` ni usa
-   `secrets: inherit` (F1-8, R9): el reutilizable declara los tres secretos
-   en `on.workflow_call.secrets` como opcionales y su job `publicar`, con
-   `environment: revisor`, los toma del entorno del repo llamador. Sin esa
-   declaración el contexto `secrets` del reutilizable llega vacío aunque el
-   job tenga entorno (comprobado en el E2E de TASK-049):
+3. **El llamador** en la rama por defecto, con `secrets: inherit`. Es la
+   única excepción a la regla R9 de F1-8 (adenda F6-3): GitHub solo entrega
+   los secretos del entorno `revisor` al job `publicar` del reutilizable si
+   el llamador hereda. Declararlos en `on.workflow_call.secrets` no basta:
+   llegan vacíos (las dos cosas comprobadas en el E2E de TASK-049). El lint
+   (perfil `llamador-revision`) solo admite `inherit` hacia
+   `charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml` fijado por SHA,
+   y el del reutilizable impide usar secretos fuera de ese job:
 
 ```yaml
 name: revision-ia
@@ -101,6 +103,7 @@ jobs:
       contents: read
       actions: read
     uses: charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml@<sha>
+    secrets: inherit
     with:
       verificacion-run: ${{ github.event.workflow_run.id }}
       head-sha: ${{ github.event.workflow_run.head_sha }}

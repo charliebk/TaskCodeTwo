@@ -14,7 +14,8 @@
 //!   `persist-credentials: false` y nunca en clase privilegio; y
 //!   `actions/upload-artifact` (informe de F5-4), fijada por SHA y solo en
 //!   clase ejecuta;
-//! - ni `secrets: inherit`, ni secretos en clase ejecuta, ni
+//! - ni `secrets: inherit` (salvo el llamador de `revision-ia.yml`, perfil
+//!   [`LLAMADOR_REVISION`]), ni secretos en clase ejecuta, ni
 //!   `github.event.*`, `github.head_ref` o `toJSON(github...)` en `run:`
 //!   (los datos del evento se pasan por `env:`).
 //!
@@ -430,11 +431,11 @@ struct Perfil {
     /// checkout`, `switch`, `worktree`, `restore` o `reset` en `run:`), y
     /// ninguna `inputs.` en `run:` (la rama del PR llega por una entrada).
     sin_head: bool,
-    /// Secretos que `workflow_call` puede declarar, todos con `required:
-    /// false`. Sin declararlos, el contexto `secrets` de un reutilizable
-    /// llega vacio aunque el job tenga entorno (E2E de TASK-049); el llamador
-    /// no pasa ninguno y el job los toma de su entorno.
-    secretos_declarados: &'static [&'static str],
+    /// Unico workflow reutilizable al que un job puede llamar con `secrets:
+    /// inherit` (prefijo de `uses:` hasta la `@`, fijado por SHA). GitHub
+    /// solo da los secretos del entorno `revisor` al job de `revision-ia.yml`
+    /// si el llamador hereda (E2E de TASK-049; adenda de F1-8).
+    herencia_admitida: Option<&'static str>,
 }
 
 /// `verificacion.yml` (F5-1, F5-2).
@@ -443,7 +444,7 @@ const VERIFICACION: Perfil = Perfil {
     entornos: &[],
     sin_escritura: false,
     sin_head: false,
-    secretos_declarados: &[],
+    herencia_admitida: None,
 };
 
 /// `revision-ia.yml` (F6-3): solo reutilizable, secretos solo en el job del
@@ -453,11 +454,18 @@ const REVISION: Perfil = Perfil {
     entornos: &["revisor"],
     sin_escritura: true,
     sin_head: true,
-    secretos_declarados: &[
-        "TC2_APP_REVISOR_ID",
-        "TC2_APP_REVISOR_CLAVE",
-        "ANTHROPIC_API_KEY",
-    ],
+    herencia_admitida: None,
+};
+
+/// El llamador de `revision-ia.yml` en el proyecto (F6-3): solo
+/// `workflow_run`, sin escritura del GITHUB_TOKEN y con `secrets: inherit`
+/// unicamente hacia el `revision-ia.yml` de TaskCodeTwo fijado por SHA.
+const LLAMADOR_REVISION: Perfil = Perfil {
+    eventos: &["workflow_run"],
+    entornos: &[],
+    sin_escritura: true,
+    sin_head: false,
+    herencia_admitida: Some("charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml"),
 };
 
 /// Ordenes de git que en `run:` cambiarian el arbol de trabajo a otro commit.
@@ -471,23 +479,22 @@ fn lint_revision(texto: &str) -> Vec<String> {
     lint_con(texto, &REVISION)
 }
 
-/// Cada secreto declarado en `workflow_call` tiene que estar en la lista del
-/// perfil y ser opcional (`required: false`).
-fn secretos_admitidos(secretos: &Nodo, perfil: &Perfil) -> Vec<String> {
-    let Nodo::Mapa(pares) = secretos else {
-        return vec!["workflow_call declara secretos".to_owned()];
+#[cfg(test)]
+fn lint_llamador_revision(texto: &str) -> Vec<String> {
+    lint_con(texto, &LLAMADOR_REVISION)
+}
+
+/// `secrets: inherit` solo hacia el reutilizable que admite el perfil, y
+/// fijado por SHA.
+fn hereda_admitido(job: &Nodo, perfil: &Perfil) -> bool {
+    let (Some(admitido), Some(uses)) = (
+        perfil.herencia_admitida,
+        job.get("uses").and_then(Nodo::texto),
+    ) else {
+        return false;
     };
-    let mut errores = Vec::new();
-    for (nombre, def) in pares {
-        let opcional = def
-            .get("required")
-            .and_then(Nodo::texto)
-            .is_some_and(|v| v == "false");
-        if !perfil.secretos_declarados.contains(&nombre.as_str()) || !opcional {
-            errores.push(format!("workflow_call declara secretos: {nombre}"));
-        }
-    }
-    errores
+    uses.split_once('@')
+        .is_some_and(|(destino, version)| destino == admitido && es_sha(version))
 }
 
 fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
@@ -504,8 +511,12 @@ fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
                     errores.push(format!("evento no admitido: {e}"));
                 }
             }
-            if let Some(secretos) = on.get("workflow_call").and_then(|w| w.get("secrets")) {
-                errores.extend(secretos_admitidos(secretos, perfil));
+            if on
+                .get("workflow_call")
+                .and_then(|w| w.get("secrets"))
+                .is_some()
+            {
+                errores.push("workflow_call declara secretos".to_owned());
             }
         }
     }
@@ -580,7 +591,7 @@ fn lint_con(texto: &str, perfil: &Perfil) -> Vec<String> {
         let mut valores = Vec::new();
         job.escalares("", &mut valores);
         for (clave, valor) in &valores {
-            if *clave == "secrets" && *valor == "inherit" {
+            if *clave == "secrets" && *valor == "inherit" && !hereda_admitido(job, perfil) {
                 errores.push(format!("job {nombre}: secrets: inherit"));
             }
             let normalizado = normalizar(valor);
@@ -1411,7 +1422,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
 #[test]
 fn cada_mutacion_del_revisor_da_su_error() {
     let texto = leer(REVISION_IA);
-    let casos: [(&str, &str, &str); 11] = [
+    let casos: [(&str, &str, &str); 9] = [
         (
             "  workflow_call:\n",
             "  pull_request:\n  workflow_call:\n",
@@ -1457,16 +1468,6 @@ fn cada_mutacion_del_revisor_da_su_error() {
             "          set -eu\n          echo ${{ inputs.rama }}\n          rustup toolchain install\n",
             "inputs. en run",
         ),
-        (
-            "      ANTHROPIC_API_KEY:\n        required: false\n",
-            "      ANTHROPIC_API_KEY:\n        required: true\n",
-            "workflow_call declara secretos: ANTHROPIC_API_KEY",
-        ),
-        (
-            "      ANTHROPIC_API_KEY:\n        required: false\n",
-            "      ANTHROPIC_API_KEY:\n        required: false\n      OTRO:\n        required: false\n",
-            "workflow_call declara secretos: OTRO",
-        ),
     ];
     for (original, mutado, esperado) in casos {
         assert!(texto.contains(original), "el caso no casa: {original}");
@@ -1489,5 +1490,43 @@ fn cada_mutacion_del_revisor_da_su_error() {
             .iter()
             .any(|e| e.contains("job publicar: checkout en clase privilegio")),
         "{errores:?}"
+    );
+}
+
+/// El llamador de la guia de F6-3 pasa el lint de su perfil; `secrets:
+/// inherit` hacia otro reutilizable, sin SHA, o con el perfil de
+/// verificacion, no (adenda F6-3 de F1-8).
+#[test]
+fn llamador_de_revision_ia_hereda_solo_hacia_revision_ia() {
+    let guia = include_str!("../../docs/ci/revision-ia.md").replace("\r\n", "\n");
+    let inicio = guia
+        .find("```yaml\nname: revision-ia\n")
+        .expect("llamador en la guia")
+        + 8;
+    let fin = inicio + guia[inicio..].find("```").expect("fin del bloque");
+    let llamador = guia[inicio..fin].replace("@<sha>", "@0000000000000000000000000000000000000000");
+    assert_eq!(lint_llamador_revision(&llamador), Vec::<String>::new());
+    let malos = [
+        llamador.replace(
+            "charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml",
+            "o/r/.github/workflows/revision-ia.yml",
+        ),
+        llamador.replace(
+            "revision-ia.yml@0000000000000000000000000000000000000000",
+            "revision-ia.yml@main",
+        ),
+    ];
+    for malo in &malos {
+        assert_ne!(malo, &llamador);
+        let errores = lint_llamador_revision(malo);
+        assert!(
+            errores.iter().any(|e| e.contains("secrets: inherit")),
+            "{errores:?}"
+        );
+    }
+    assert!(
+        lint_github(&llamador)
+            .iter()
+            .any(|e| e.contains("secrets: inherit"))
     );
 }

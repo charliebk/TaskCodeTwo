@@ -33,6 +33,9 @@
 #       if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.pull_requests[0] != null
 #       permissions: { contents: read, actions: read }
 #       uses: charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml@<sha>
+#       # Unica excepcion a R9 de F1-8: sin heredar, los secretos del entorno
+#       # revisor no llegan a `publicar` (E2E de TASK-049).
+#       secrets: inherit
 #       with:
 #         verificacion-run: ${{ github.event.workflow_run.id }}
 #         head-sha: ${{ github.event.workflow_run.head_sha }}
@@ -45,17 +48,6 @@ name: revision-ia
 
 on:
   workflow_call:
-    # Declarados y opcionales, y el llamador no pasa ninguno: sin declararlos
-    # el contexto secrets de un reutilizable llega vacio aunque el job tenga
-    # environment (comprobado en el E2E de TASK-049). Asi el job `publicar`
-    # toma los del entorno `revisor` del repo llamador; nunca secrets: inherit.
-    secrets:
-      TC2_APP_REVISOR_ID:
-        required: false
-      TC2_APP_REVISOR_CLAVE:
-        required: false
-      ANTHROPIC_API_KEY:
-        required: false
     inputs:
       verificacion-run:
         description: Id del run de verificacion (github.event.workflow_run.id)

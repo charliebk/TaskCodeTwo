@@ -711,5 +711,21 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   instrucciones, pero la inyección de instrucciones es de F6-7. El check
   sale `neutral` (D4) y no bloquea hasta F6-5: lo contiene la aprobación
   obligatoria de la persona.
-- **No verificado**: el E2E en un repo con la App del revisor y la clave
-  (lo ejecuta quien orquesta).
+- **Excepción a R9 (`secrets: inherit`), decidida por la persona el
+  2026-11-20**: el E2E real mostró que GitHub no da los secretos del
+  entorno `revisor` al job `publicar` del reutilizable si el llamador no
+  hereda: sin `secrets:` llegan vacíos, y también si el reutilizable los
+  declara en `on.workflow_call.secrets` como opcionales (run 44735329636);
+  con `secrets: inherit` llegan y la App publica el check (run
+  44733982088). Se admite `inherit` **solo** en el llamador de
+  `charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml` fijado por SHA
+  (perfil `llamador-revision` del lint, solo `workflow_run` y sin
+  escritura); en cualquier otro workflow sigue siendo un error. Lo que se
+  hereda llega a un workflow que fija el SHA y cuyo lint prohíbe secretos
+  fuera del job del entorno `revisor`; la alternativa (secretos de
+  repositorio pasados uno a uno) perdía la regla de rama del entorno.
+- **Verificado en el E2E** (`charliebk/taskcodetwo-e2e-github`, PR 14,
+  Rust + Vue): `preparar` sin secretos y sin ejecutar nada del PR elige
+  `angular-vue-reviewer` y `rust-wasm-reviewer` (reglas S08, S12); el
+  check `revision-ia` lo publica la App del revisor (5846307) con
+  conclusión `neutral`.
