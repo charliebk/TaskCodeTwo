@@ -11,6 +11,7 @@ pub mod doctor;
 pub mod estado;
 pub mod estimacion;
 pub mod git;
+pub mod hallazgos;
 pub mod identidad;
 pub mod importar;
 pub mod init;
@@ -39,6 +40,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         estado::TODOS,
         estimacion::TODOS,
         git::TODOS,
+        hallazgos::TODOS,
         identidad::TODOS,
         importar::TODOS,
         init::TODOS,

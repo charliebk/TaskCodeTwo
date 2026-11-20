@@ -21,7 +21,8 @@
 //! (`descartar`, `pausa` y `reanudar`, F3-7; `liberar` y `reasignar`,
 //! F3-10) y [`doctor`] (F3-8) y [`plan`] (`plan` y `plan guardar`, F4-1;
 //! `approve`, F4-2) y [`revision`] (`review`, F6-2) y [`seleccion`]
-//! (`revisoras`, revisoras y modelo de F1-15, F6-3). Las capas
+//! (`revisoras`, revisoras y modelo de F1-15, F6-3) y [`hallazgos`]
+//! (`hallazgos`, hallazgos con evidencia, F6-4). Las capas
 //! que vienen entran como modulos de esta biblioteca.
 
 pub mod actualizar_cli;
@@ -37,6 +38,7 @@ pub mod estado;
 pub mod estimacion;
 pub mod git;
 pub mod grafo;
+pub mod hallazgos;
 pub mod huella;
 pub mod i18n;
 pub mod identidad;
@@ -223,6 +225,10 @@ where
         [orden, resto @ ..] if orden == seleccion::orden::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_revisoras(&resto).salida_en(json, idioma)
+        }
+        [orden, resto @ ..] if orden == hallazgos::orden::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            hallazgos::orden::orden(&resto, json, idioma)
         }
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
