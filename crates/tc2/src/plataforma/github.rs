@@ -17,10 +17,12 @@ use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
-    Creada, EstadoPuerta, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado,
-    Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas, Usuario, aplicar_en_lote,
+    Creada, EstadoPuerta, FalloLectura, Firma, LEER_REVISION, ModeloPuertas, Paso, Personas,
+    PlanObservado, Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas,
+    RevisionPublicada, Usuario, aplicar_en_lote,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
 const ABRIR_PR: &str = "abrir-pr";
@@ -68,6 +70,7 @@ enum Endpoint<'a> {
     CrearRuleset,
     CheckRuns(&'a str),
     CheckRunsDeRama(&'a str),
+    Anotaciones(u64),
     Reviews(u64),
     PermisosWorkflow,
     Commit(&'a str),
@@ -103,6 +106,10 @@ impl Endpoint<'_> {
             Self::CheckRunsDeRama(rama) => (
                 Metodo::Get,
                 format!("{r}/commits/heads/{rama}/check-runs?per_page=100"),
+            ),
+            Self::Anotaciones(id) => (
+                Metodo::Get,
+                format!("{r}/check-runs/{id}/annotations?per_page=100"),
             ),
             Self::Reviews(n) => (Metodo::Get, format!("{r}/pulls/{n}/reviews?per_page=100")),
             Self::PermisosWorkflow => (Metodo::Get, format!("{r}/actions/permissions/workflow")),
@@ -184,12 +191,33 @@ struct CheckRunsApi {
 
 #[derive(Deserialize)]
 struct CheckRunApi {
+    /// Solo lo usa `leer-revision` (F6-5).
+    #[serde(default)]
+    id: u64,
     name: String,
     status: String,
     #[serde(default)]
     conclusion: Option<String>,
     #[serde(default)]
     app: Option<AppApi>,
+    /// Solo lo usa `leer-revision` (F6-5).
+    #[serde(default)]
+    output: Option<SalidaCheckApi>,
+}
+
+#[derive(Deserialize, Default)]
+struct SalidaCheckApi {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    summary: Option<String>,
+}
+
+/// Una anotacion de un check-run: solo su `raw_details` (F6-5).
+#[derive(Deserialize)]
+struct AnotacionApi {
+    #[serde(default)]
+    raw_details: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -579,6 +607,70 @@ impl Plataforma for GitHub {
             // `unknown` (GitHub aun calculando) no se da por conflicto:
             // `merge-pr` lo vuelve a comprobar en la plataforma (405).
             sin_conflictos: p.mergeable_state.as_deref() != Some("dirty"),
+        })
+    }
+
+    fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
+        let op = LEER_REVISION;
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(op, rol));
+        }
+        let permiso = &t::PERMISO_PR_Y_CHECKS;
+        let p: PrApi = self
+            .con
+            .leer(op, rol, permiso, self.ep(&Endpoint::Pr(pr)))?;
+        if !sha_valido(&p.head.sha) {
+            return Err(self.con.invalida_por(op, &t::RAMA_BASE_O_SHA));
+        }
+        let (_, ruta) = self.ep(&Endpoint::CheckRuns(&p.head.sha));
+        let runs: Vec<CheckRunApi> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
+            self.con
+                .parsear::<CheckRunsApi>(op, c)
+                .map(|x| x.check_runs)
+        })?;
+        // Como `estado-puertas`: el mas nuevo de ese nombre que publico su
+        // origen, y solo si ya termino.
+        let check = runs
+            .into_iter()
+            .find(|r| {
+                r.name == crate::revision::REVISION_IA
+                    && r.app.as_ref().is_some_and(|a| a.id == origen)
+            })
+            .filter(|r| r.status == "completed" && r.id != 0);
+        let Some(check) = check else {
+            return Err(Informe::nuevo(op, Resultado::Esperando)
+                .con("pr", pr.to_string())
+                .con("motivo", "sin-check")
+                .diagnostico(
+                    Mensaje::nuevo(&t::REVISION_SIN_CHECK)
+                        .con("pr", pr.to_string())
+                        .con("origen", origen.to_string())
+                        .con("sha", corto(&p.head.sha)),
+                ));
+        };
+        let (_, ruta) = self.ep(&Endpoint::Anotaciones(check.id));
+        let crudos: Vec<Option<String>> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
+            self.con
+                .parsear::<Vec<AnotacionApi>>(op, c)
+                .map(|v| v.into_iter().map(|a| a.raw_details).collect())
+        })?;
+        // Cada `raw_details` es un aceptado que escribio `tc2 hallazgos
+        // veredicto`; uno que falta o no tiene esa forma falla cerrado.
+        let aceptados = crudos
+            .iter()
+            .map(|c| {
+                c.as_deref()
+                    .and_then(|c| serde_json::from_str::<crate::hallazgos::AceptadoDe>(c).ok())
+                    .ok_or_else(|| self.con.invalida_por(op, &t::RAW_DETAILS_REVISION))
+            })
+            .collect::<Paso<Vec<_>>>()?;
+        let salida = check.output.unwrap_or_default();
+        Ok(RevisionPublicada {
+            sha: p.head.sha,
+            conclusion: check.conclusion.unwrap_or_default(),
+            titulo: salida.title.unwrap_or_default(),
+            resumen: salida.summary.unwrap_or_default(),
+            aceptados,
         })
     }
 

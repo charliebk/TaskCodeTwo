@@ -11,7 +11,7 @@ use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
 use tc2::plataforma::{
-    CredencialesFijas, GitHub, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
+    CredencialesFijas, GitHub, GitLab, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
 };
 
 const TOKEN: &str = "ghp_token_de_prueba_que_no_debe_salir";
@@ -984,4 +984,134 @@ fn aplicar_puertas_carrera_corte_y_plan() {
     let i = gh.aplicar_puertas(&puertas(), &o);
     assert_eq!(i.linea(), "aplicar-puertas rechazada motivo=plan");
     assert!(gh.registro().iter().all(|l| l.starts_with("GET ")));
+}
+
+/// Un aceptado como lo deja `tc2 hallazgos veredicto` en `raw_details`.
+fn crudo(id: &str) -> String {
+    serde_json::json!({
+        "revisora": "rev:a",
+        "hallazgo": {
+            "id": id, "severidad": "IMPORTANTE", "clase": "contrato",
+            "fichero": "src/a.rs", "linea": 3, "descripcion": "d",
+            "evidencia": {"tipo": "borde", "entrada": "x", "esperado": "1", "obtenido": "2"}
+        }
+    })
+    .to_string()
+}
+
+fn anotacion(raw: &str) -> String {
+    serde_json::json!({"path": "src/a.rs", "start_line": 3, "raw_details": raw}).to_string()
+}
+
+/// F6-5, `leer-revision` (TASK-051): el check `revision-ia` de su origen
+/// (no el de otra App con el mismo nombre), sus anotaciones en dos paginas,
+/// un `raw_details` que no es un aceptado falla cerrado, un check sin
+/// terminar espera, y GitLab no lo soporta.
+#[test]
+fn leer_revision_filtra_por_origen_y_pagina() {
+    let _serie = serie();
+    let runs = format!(
+        "[{},{},{}]",
+        "{\"id\":4,\"name\":\"revision-ia\",\"app\":{\"id\":1},\"status\":\"completed\",\"conclusion\":\"success\",\"output\":{\"title\":\"impostor\",\"summary\":\"x\"}}",
+        "{\"id\":5,\"name\":\"revision-ia\",\"app\":{\"id\":99001},\"status\":\"completed\",\"conclusion\":\"failure\",\"output\":{\"title\":\"revision-ia: rojo (criticos=0 importantes=2 menores=0)\",\"summary\":\"resumen\"}}",
+        run("verificacion", 15368, "completed", "\"success\""),
+    );
+    let mock = puertas(&pr(12, false, "open"), &runs, "[]");
+    let base = mock.base();
+    mock.responder(
+        "GET",
+        "/repos/o/r/check-runs/5/annotations?per_page=100",
+        Simulada::json(200, &format!("[{}]", anotacion(&crudo("I1")))).con(
+            "Link",
+            &format!(
+                "<{base}/repos/o/r/check-runs/5/annotations?per_page=100&page=2>; rel=\"next\""
+            ),
+        ),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/check-runs/5/annotations?per_page=100&page=2",
+        Simulada::json(200, &format!("[{}]", anotacion(&crudo("I2")))),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let r = gh
+        .leer_revision(Rol::Agente, 12, 99001)
+        .unwrap_or_else(|i| panic!("{}", i.linea()));
+    assert_eq!(r.sha, SHA);
+    assert_eq!(r.conclusion, "failure");
+    assert_eq!(
+        r.titulo,
+        "revision-ia: rojo (criticos=0 importantes=2 menores=0)"
+    );
+    assert_eq!(r.resumen, "resumen");
+    let ids: Vec<&str> = r.aceptados.iter().map(|a| a.hallazgo.id.as_str()).collect();
+    assert_eq!(ids, ["I1", "I2"]);
+    assert_eq!(r.aceptados[0].revisora, "rev:a");
+    // Nunca las anotaciones del impostor.
+    assert!(
+        !mock
+            .recibidas()
+            .iter()
+            .any(|q| q.linea.contains("check-runs/4/")),
+        "{:?}",
+        mock.recibidas()
+    );
+    // El revisor no lee con este puerto.
+    let i = gh.leer_revision(Rol::Revisor, 12, 99001).unwrap_err();
+    assert_eq!(
+        i.linea(),
+        "leer-revision rechazada motivo=identidad rol=revisor"
+    );
+
+    // Un raw_details con una clave de mas, o sin raw_details: respuesta
+    // invalida.
+    for malo in [
+        anotacion(&crudo("I3").replace("\"revisora\"", "\"x\":1,\"revisora\"")),
+        "{\"path\":\"src/a.rs\"}".to_owned(),
+    ] {
+        let mock = puertas(&pr(12, false, "open"), &runs, "[]");
+        mock.responder(
+            "GET",
+            "/repos/o/r/check-runs/5/annotations",
+            Simulada::json(200, &format!("[{malo}]")),
+        );
+        let gh = adaptador(&mock, &[Rol::Agente]);
+        let i = gh.leer_revision(Rol::Agente, 12, 99001).unwrap_err();
+        assert_eq!(
+            i.linea(),
+            "leer-revision error motivo=respuesta-invalida",
+            "{malo}"
+        );
+        let d = i.diagnostico_en(tc2::i18n::Idioma::Es).unwrap_or_default();
+        assert!(d.contains("raw_details"), "{d}");
+    }
+
+    // Sin terminar (o de otro origen): esperando, con que hacer.
+    let pendiente = runs.replacen(
+        "\"status\":\"completed\",\"conclusion\":\"failure\"",
+        "\"status\":\"in_progress\",\"conclusion\":null",
+        1,
+    );
+    assert_ne!(pendiente, runs);
+    let mock = puertas(&pr(12, false, "open"), &pendiente, "[]");
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let i = gh.leer_revision(Rol::Agente, 12, 99001).unwrap_err();
+    assert_eq!(i.linea(), "leer-revision esperando pr=12 motivo=sin-check");
+    let d = i.diagnostico_en(tc2::i18n::Idioma::Es).unwrap_or_default();
+    assert!(d.contains("tc2 review") && d.contains("aaaaaaa"), "{d}");
+    let mock = puertas(&pr(12, false, "open"), &runs, "[]");
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let i = gh.leer_revision(Rol::Agente, 12, 424242).unwrap_err();
+    assert_eq!(i.linea(), "leer-revision esperando pr=12 motivo=sin-check");
+
+    // GitLab no tiene revision en CI: no soportada.
+    let gl = GitLab::nuevo(
+        Base::nueva(&mock.base()).unwrap(),
+        "o/r",
+        Box::new(CredencialesFijas::nuevas().con(Rol::Agente, Secreto::nuevo(TOKEN))),
+        Personas::default(),
+    )
+    .unwrap();
+    let i = gl.leer_revision(Rol::Agente, 12, 99001).unwrap_err();
+    assert_eq!(i.linea(), "leer-revision rechazada motivo=no-soportada");
 }
