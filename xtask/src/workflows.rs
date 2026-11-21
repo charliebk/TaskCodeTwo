@@ -1360,8 +1360,13 @@ fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
         "if (-not $bash) {",
         "if (-not (Get-Command jq -ErrorAction SilentlyContinue)) {",
     ] {
-        if !run.contains(exigido) {
+        let Some(linea) = run.lines().find(|l| l.contains(exigido)) else {
             return Err(format!("aislamiento sin {exigido}"));
+        };
+        // Cada guarda corta el paso: un `exit 0` lo dejaria en verde
+        // (revision de TASK-045, ronda 2).
+        if exigido.starts_with("if (") && !linea.trim_end().ends_with("; exit 2 }") {
+            return Err(format!("guarda sin exit 2: {exigido}"));
         }
     }
     Ok(())
@@ -1442,6 +1447,22 @@ fn el_aislamiento_va_antes_del_checkout_en_el_runner_propio() {
             texto.replacen(
                 "if ($env:RUNNER_OS -ne 'Windows') {",
                 "if ($false -and $env:RUNNER_OS -ne 'Windows') {",
+                1,
+            ),
+        ),
+        (
+            "guarda de SYSTEM que sale con 0",
+            texto.replacen(
+                "como SYSTEM; F1-8, decision 6\"; exit 2 }",
+                "como SYSTEM; F1-8, decision 6\"; exit 0 }",
+                1,
+            ),
+        ),
+        (
+            "guarda de Windows que sale con 0",
+            texto.replacen(
+                "($env:RUNNER_OS); F1-8, decision 6\"; exit 2 }",
+                "($env:RUNNER_OS); F1-8, decision 6\"; exit 0 }",
                 1,
             ),
         ),

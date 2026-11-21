@@ -191,7 +191,7 @@ jobs:
           elif [ "$EVENTO" != pull_request ] || [ "$BASE" != main ] || [ "$ORIGEN" != develop ]; then
             motivo="solo en la release, un pull_request de develop a main (evento $EVENTO, base ${BASE:--}, origen ${ORIGEN:--})"
           elif [ "$REPO_HEAD" != "$REPO" ]; then
-            motivo="el head del PR viene de otro repo ($REPO_HEAD)"
+            motivo="el head del PR viene de otro repo (${REPO_HEAD:--})"
           fi
           if [ -n "$motivo" ]; then
             echo "verificacion: runner propio en $propios: $motivo; F1-8, decision 6. Que hacer: en este evento pon runner-<perfil> en un runner de GitHub; el propio solo corre la release" >&2
@@ -371,7 +371,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:RUNNER_OS -ne 'Windows') { Write-Output "verificacion: runner propio fuera de Windows ($env:RUNNER_OS); F1-8, decision 6"; exit 2 }
-          if ($env:PRIVADO -cne 'true' -or $env:EVENTO -cne 'pull_request' -or $env:BASE -cne 'main' -or $env:ORIGEN -cne 'develop' -or $env:REPO_HEAD -cne $env:REPO) { Write-Output "verificacion: runner propio fuera de la release de un repo privado (evento $env:EVENTO, base $env:BASE, origen $env:ORIGEN, privado $env:PRIVADO, head $env:REPO_HEAD); F1-8, decision 6. Que hacer: en este evento pon runner-<perfil> en un runner de GitHub"; exit 2 }
+          function Valor($x) { if ($x) { $x } else { '-' } }
+          if ($env:PRIVADO -cne 'true' -or $env:EVENTO -cne 'pull_request' -or $env:BASE -cne 'main' -or $env:ORIGEN -cne 'develop' -or $env:REPO_HEAD -cne $env:REPO) { Write-Output "verificacion: runner propio fuera de la release de un repo privado (evento $(Valor $env:EVENTO), base $(Valor $env:BASE), origen $(Valor $env:ORIGEN), privado $(Valor $env:PRIVADO), head $(Valor $env:REPO_HEAD)); F1-8, decision 6. Que hacer: en este evento pon runner-<perfil> en un runner de GitHub"; exit 2 }
           $id = [Security.Principal.WindowsIdentity]::GetCurrent()
           if ($id.User.Value -eq 'S-1-5-18') { Write-Output "verificacion: runner propio como SYSTEM; F1-8, decision 6"; exit 2 }
           # Por ruta: el whoami de Git (usr\bin) en el PATH no entiende /groups.
