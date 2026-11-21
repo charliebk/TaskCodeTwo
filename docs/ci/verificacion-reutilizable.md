@@ -507,10 +507,20 @@ antes que `tc2`. El evento `Stop` no admite `matcher`. Comportamiento con
 
 | Caso | Código | Qué ve el agente |
 |---|---|---|
-| `stop_hook_active: true` en el JSON de stdin (Claude Code ya continúa por un hook) | 0 | nada; no se ejecuta |
+| `stop_hook_active: true` en el JSON de stdin (Claude Code ya continúa por un hook) | 0 | nada; no se ejecuta. Se mira antes que los argumentos |
+| entrada mal escrita (perfil inexistente, opción desconocida) | 0 | no bloquea; una línea en stderr dice que se corrija en `settings.json` |
 | sin confianza, sin perfil `rapida` o con la configuración inválida | 0 | no bloquea; una línea en stderr dice qué hacer (`tc2 confiar verificacion.comando`, o el arreglo de la configuración); no se ejecuta |
 | rápida en verde o `excedido` | 0 | nada |
 | rápida en rojo | 2 | bloquea la parada; en stderr el motivo y las últimas 15 líneas de la salida del comando |
+
+Con otro perfil (`--perfil completa --hook`, fuera de lo documentado), su
+rojo y su `timeout` agotado también salen con 2. La salida del comando se
+recoge en un fichero temporal de nombre aleatorio, creado en exclusiva, del
+que solo se lee el final y que se borra al terminar (si Claude Code mata el
+hook por su `timeout`, puede quedar en la carpeta temporal del usuario).
+`--hook` lee el JSON de stdin hasta que se cierra: Claude Code lo cierra tras
+escribirlo; un lanzador que lo deje abierto hace esperar a `tc2` (aceptado,
+MENOR-3 de la ronda 1).
 
 `desinstalar` no edita `settings.json`: avisa de los hooks que nombran `tc2`
 y los deja (F2-14).
@@ -540,12 +550,32 @@ Con el binario de depuración, el peor caso fue 530 ms (en frío). Se lanza a
 mano: `cargo test -p tc2 --release --test verificar -- --ignored --nocapture`
 (la verificación del repo no corre las pruebas ignoradas).
 
-**Límites** (F1-8, decisión 5): no entra en el cierre el código al que se
-llega por herramientas (`build.rs`, tests, dependencias) ni lo que se carga
-por nombre de módulo y no por ruta; eso se declara en `confianza_incluye`.
-Un cambio que conserve tamaño y `mtime` no se detecta en caliente. No se han
-revisado enlaces simbólicos ni la carrera entre hashear y ejecutar. En
-Windows y macOS las rutas del cierre se comparan sin distinguir mayúsculas.
+**Cómo se forma el cierre.** Se siguen los tokens con forma de ruta (llevan
+`.` o `/`, con letras también no ASCII, como `verificación.bat`) y, enteros,
+los textos entre comillas de una línea (`call "%~dp0lib\mi paso.bat"`), con
+`%~dp0` resuelto a la carpeta del script. En Windows y macOS las rutas se
+comparan sin distinguir mayúsculas. Los globs de `confianza_incluye` admiten
+`./` al principio y siguen la misma regla de mayúsculas; un glob que no
+compila es error de la configuración (no se confía ni se ejecuta nada) y uno
+que no casa con ningún fichero versionado se avisa en `tc2 confiar`
+(`globs-sin-ficheros=` y una línea en stderr).
+
+**Límites** (F1-8, decisión 5), riesgos residuales aceptados:
+
+- No entra en el cierre el código al que se llega por herramientas
+  (`build.rs`, tests, dependencias) ni lo que se carga por nombre de módulo y
+  no por ruta; eso se declara en `confianza_incluye`.
+- Solo cuentan los ficheros **versionados**: un script sin versionar o
+  ignorado que la orden llame se ejecuta sin entrar en la huella.
+- Un enlace simbólico a fichero se hashea por su destino; un enlace a
+  **carpeta** o un **submódulo** dejan sus scripts fuera (`git ls-files` no
+  los lista dentro). No probado en esta máquina (sin permiso para `mklink`).
+- Un cambio que conserve tamaño y `mtime` no se detecta en caliente (D2a);
+  si el sistema no da `mtime`, no hay caché y se rehashea siempre.
+- Entre hashear y ejecutar hay una ventana (TOCTOU): la shell relee los
+  scripts al ejecutarlos y quien pueda escribir en el árbol en ese instante
+  ejecuta lo suyo.
+
 Este repo aún no puede estrenar el hook: su `.taskcode/config.yml` es de la
 0.16 (sin `formato: 2`) y `tc2 verificar` la rechaza; con `--hook` sale con 0
 y avisa.

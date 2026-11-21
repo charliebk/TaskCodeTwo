@@ -72,6 +72,13 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
     `~/Library/Caches` (la ultima de `Entorno::raices_de_cache`).
 11. **`hasheados=<bytes>`** en la linea de `confiar` y `verificar`: es lo que
     observa P2 (y P1) para la cache de D2a.
+12. **Ronda 1 de revision**: el validador de la config rechaza un glob de
+    `confianza_incluye` que no compila (`config/validar.rs`, regla
+    `GlobAcotado`); el almacen pasa a la version 2 (los `candidatos` ahora
+    siguen comillas y letras no ASCII), asi que un almacen de la 1 se lee
+    vacio y todo vuelve a `nunca`; `tc2 confiar` anade `globs-sin-ficheros=`
+    y un aviso en stderr con codigo 0; con `--hook`, un error de uso sale con
+    0 y aviso, y `stop_hook_active` se mira antes que los argumentos.
 
 ## Transiciones
 
