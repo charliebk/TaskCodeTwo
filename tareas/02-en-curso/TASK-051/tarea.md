@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-051-f6-5-hallazgos-estructurados
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F6-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 |---|---|---|---|---|
 | 2026-11-21T22:33:21Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-21T22:43:05Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-21T22:43:07Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
