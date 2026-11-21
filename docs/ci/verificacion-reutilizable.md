@@ -585,6 +585,16 @@ que no casa con ningún fichero versionado se avisa en `tc2 confiar`
   los lista dentro). No probado en esta máquina (sin permiso para `mklink`).
 - Un cambio que conserve tamaño y `mtime` no se detecta en caliente (D2a);
   si el sistema no da `mtime`, no hay caché y se rehashea siempre.
+- Nombres que el cierre no reconoce como el nombre literal del fichero (en
+  todos, la salida es nombrar el script en `confianza_incluye`):
+  - el espacio escapado con barra en sh (`. ./lib/mi\ paso.sh`) o con `^`
+    en cmd (`call lib\mi^ paso.bat`);
+  - nombres partidos por comillas o formados con variables (`%N%.bat`,
+    `"$DIR/$NOMBRE.sh"`);
+  - referencias sin extensión que cmd completa por `PATHEXT`
+    (`call "lib\mi paso"`);
+  - scripts en UTF-16: se leen con `from_utf8_lossy` y sus rutas no se
+    reconocen.
 - Entre hashear y ejecutar hay una ventana (TOCTOU): la shell relee los
   scripts al ejecutarlos y quien pueda escribir en el árbol en ese instante
   ejecuta lo suyo.
