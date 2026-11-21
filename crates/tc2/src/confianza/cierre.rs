@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-use globset::{GlobBuilder, GlobSetBuilder};
+use globset::{GlobBuilder, GlobMatcher};
 use serde::{Deserialize, Serialize};
 
 /// Extensiones de lo que se ejecuta como script (`""`: sin extension).
@@ -110,13 +110,35 @@ fn normalizar(base: &str, rel: &str) -> Option<String> {
     (!partes.is_empty()).then(|| partes.join("/"))
 }
 
+/// Caracter de un token sin comillas: alfanumerico (tambien no ASCII, como
+/// `verificación.bat`) o `_ . % ~ - \ /`.
 fn es_de_token(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '%' | '~' | '-' | '\\' | '/')
+    c.is_alphanumeric() || matches!(c, '_' | '.' | '%' | '~' | '-' | '\\' | '/')
+}
+
+/// Largo maximo de un texto entre comillas que se toma como ruta.
+const MAX_ENTRECOMILLADO: usize = 260;
+
+/// Textos entre comillas (`"..."` o `'...'`) de una linea: cada uno es una
+/// ruta candidata entera, con espacios (`call "%~dp0lib\mi paso.bat"`).
+fn entrecomillados(linea: &str) -> Vec<&str> {
+    let mut v = Vec::new();
+    let mut resto = linea;
+    while let Some(i) = resto.find(['"', '\'']) {
+        let comilla = &resto[i..=i];
+        let tras = &resto[i + 1..];
+        let Some(j) = tras.find(comilla) else {
+            break;
+        };
+        v.push(&tras[..j]);
+        resto = &tras[j + 1..];
+    }
+    v
 }
 
 /// Rutas normalizadas que nombra `texto`, escrito en la carpeta `dir` (vacia
-/// en la raiz). Cada token con forma de ruta da hasta dos: relativo a `dir`
-/// y relativo a la raiz.
+/// en la raiz). Cada token con forma de ruta, y cada texto entre comillas,
+/// da hasta dos: relativo a `dir` y relativo a la raiz.
 pub fn candidatos(texto: &str, dir: &str) -> Vec<String> {
     let dp0 = if dir.is_empty() {
         String::new()
@@ -124,19 +146,30 @@ pub fn candidatos(texto: &str, dir: &str) -> Vec<String> {
         format!("{dir}/")
     };
     let mut v: BTreeSet<String> = BTreeSet::new();
-    for tok in texto.split(|c: char| !es_de_token(c)) {
+    let mut anadir = |tok: &str| {
+        let tok = tok.trim();
         if tok.is_empty() {
-            continue;
+            return;
         }
         let t = tok.replace("%~dp0", &dp0).replace('\\', "/");
         if !t.contains(['.', '/']) || t == "." || t == ".." {
-            continue;
+            return;
         }
         let bases: &[&str] = if dir.is_empty() { &[""] } else { &[dir, ""] };
         for b in bases {
             if let Some(n) = normalizar(b, &t) {
                 v.insert(n);
             }
+        }
+    };
+    for linea in texto.lines() {
+        for e in entrecomillados(linea) {
+            if e.len() <= MAX_ENTRECOMILLADO {
+                anadir(e);
+            }
+        }
+        for tok in linea.split(|c: char| !es_de_token(c)) {
+            anadir(tok);
         }
     }
     v.into_iter().collect()
@@ -166,6 +199,51 @@ pub struct Cierre {
     pub ficheros: Vec<Fichero>,
     /// Bytes leidos para hashear (0 si todo salio de la cache).
     pub hasheados: u64,
+    /// Globs de `confianza_incluye` que no casan con ningun fichero
+    /// versionado.
+    pub globs_vacios: Vec<String>,
+}
+
+/// Por que no se pudo calcular el cierre.
+#[derive(Debug)]
+pub enum ErrorCierre {
+    /// Un fichero del cierre no se pudo leer.
+    Lectura(std::io::Error),
+    /// Un glob de `confianza_incluye` no compila (falla cerrado).
+    Glob {
+        /// El glob tal como esta en la configuracion.
+        glob: String,
+        /// Lo que dice el compilador de globs.
+        error: String,
+    },
+}
+
+/// Compila un glob de `confianza_incluye` como se comparan las rutas del
+/// cierre: con `./` inicial quitado (como lo admite el validador), `*` sin
+/// cruzar `/` y sin distinguir mayusculas en Windows y macOS.
+pub fn compilar_glob(glob: &str) -> Result<GlobMatcher, String> {
+    let mut g = glob;
+    while let Some(r) = g.strip_prefix("./") {
+        g = r;
+    }
+    GlobBuilder::new(g)
+        .literal_separator(true)
+        .case_insensitive(cfg!(any(windows, target_os = "macos")))
+        .build()
+        .map(|g| g.compile_matcher())
+        .map_err(|e| e.kind().to_string())
+}
+
+fn compilar_globs(incluye: &[String]) -> Result<Vec<GlobMatcher>, ErrorCierre> {
+    incluye
+        .iter()
+        .map(|g| {
+            compilar_glob(g).map_err(|error| ErrorCierre::Glob {
+                glob: g.clone(),
+                error,
+            })
+        })
+        .collect()
 }
 
 /// Calcula el cierre de `orden` en `raiz`. Con `cache`, un fichero con el
@@ -176,7 +254,7 @@ pub fn calcular(
     orden: &str,
     incluye: &[String],
     cache: Option<&[Fichero]>,
-) -> std::io::Result<Cierre> {
+) -> Result<Cierre, ErrorCierre> {
     let cache: HashMap<&str, &Fichero> = cache
         .unwrap_or_default()
         .iter()
@@ -186,16 +264,13 @@ pub fn calcular(
         .iter()
         .filter_map(|c| indice.script(c).map(str::to_owned))
         .collect();
-    let mut globs = GlobSetBuilder::new();
-    for g in incluye {
-        if let Ok(g) = GlobBuilder::new(g).literal_separator(true).build() {
-            globs.add(g);
+    let mut globs_vacios = Vec::new();
+    for (texto, g) in incluye.iter().zip(compilar_globs(incluye)?) {
+        let antes = pendientes.len();
+        pendientes.extend(indice.todas.iter().filter(|r| g.is_match(r)).cloned());
+        if pendientes.len() == antes {
+            globs_vacios.push(texto.clone());
         }
-    }
-    if let Ok(set) = globs.build()
-        && !incluye.is_empty()
-    {
-        pendientes.extend(indice.todas.iter().filter(|r| set.is_match(r)).cloned());
     }
     let mut vistos: BTreeMap<String, Fichero> = BTreeMap::new();
     let mut hasheados = 0u64;
@@ -214,9 +289,10 @@ pub fn calcular(
         }
         let (tamano, mtime) = (meta.len(), mtime_ns(&meta));
         let f = match cache.get(rel.as_str()) {
-            Some(c) if c.tamano == tamano && c.mtime == mtime => (*c).clone(),
+            // Sin `mtime` del sistema (0) no hay cache: se lee siempre.
+            Some(c) if c.tamano == tamano && c.mtime == mtime && mtime != 0 => (*c).clone(),
             _ => {
-                let datos = std::fs::read(&ruta)?;
+                let datos = std::fs::read(&ruta).map_err(ErrorCierre::Lectura)?;
                 hasheados += datos.len() as u64;
                 let dir = rel.rsplit_once('/').map_or("", |(d, _)| d);
                 let candidatos = if es_script(&rel) && tamano <= MAX_ESCANEO {
@@ -245,6 +321,7 @@ pub fn calcular(
     Ok(Cierre {
         ficheros: vistos.into_values().collect(),
         hasheados,
+        globs_vacios,
     })
 }
 

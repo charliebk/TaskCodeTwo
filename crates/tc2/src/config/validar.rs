@@ -244,9 +244,15 @@ pub(crate) fn comprobar(regla: Regla, s: &str) -> Option<Mensaje> {
         }
         Regla::Glob | Regla::GlobAcotado => {
             let motivo = if let Some(m) = glob_malo(s) {
-                Some(m)
+                Some(Mensaje::nuevo(m))
             } else if regla == Regla::GlobAcotado && todo_el_arbol(s) {
-                Some(&t::NUNCA_TODO_EL_ARBOL)
+                Some(Mensaje::nuevo(&t::NUNCA_TODO_EL_ARBOL))
+            } else if regla == Regla::GlobAcotado {
+                // `confianza_incluye`: un glob que no compila no se ignora
+                // (F1-8 decision 5, falla cerrado).
+                crate::confianza::cierre::compilar_glob(s)
+                    .err()
+                    .map(|e| Mensaje::nuevo(&t::GLOB_NO_COMPILA).con("error", e))
             } else {
                 None
             };
@@ -420,6 +426,8 @@ mod tests {
         assert!(comprobar(Regla::GlobAcotado, "**").is_some());
         assert!(comprobar(Regla::GlobAcotado, "*").is_some());
         assert!(comprobar(Regla::GlobAcotado, "scripts/*.py").is_none());
+        assert!(comprobar(Regla::GlobAcotado, "./cfg/*.cfg").is_none());
+        assert!(comprobar(Regla::GlobAcotado, "cfg/[").is_some());
         assert!(comprobar(Regla::Cron, "0 3 * * 1-5").is_none());
         assert!(comprobar(Regla::Cron, "0 3 * *").is_some());
         assert!(comprobar(Regla::Cron, "@daily x y z w").is_some());

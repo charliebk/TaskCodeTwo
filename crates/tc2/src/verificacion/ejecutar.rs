@@ -50,29 +50,30 @@ const SONDEO: Duration = Duration::from_millis(10);
 
 /// `tc2 verificar` con los argumentos ya sin `--json`.
 pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
-    let mut perfil = None;
-    let mut hook = false;
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--perfil" => match it.next() {
-                Some(p) if perfil.is_none() => perfil = Some(p.clone()),
-                _ => return uso().salida_en(json, idioma),
-            },
-            "--hook" if !hook => hook = true,
-            _ => return uso().salida_en(json, idioma),
-        }
-    }
-    let Some(perfil) = perfil.filter(|p| PERFILES.contains(&p.as_str())) else {
-        return uso().salida_en(json, idioma);
-    };
+    // Con `--hook`, nada que no sea el rojo de la rapida bloquea la parada:
+    // `stop_hook_active` corta antes de validar nada mas, y un error de uso
+    // (la entrada de settings.json mal escrita) sale con 0 y un aviso.
+    let hook = args.iter().any(|a| a == "--hook");
     if hook && stop_hook_activo() {
         return Informe::nuevo(NOMBRE, Resultado::SinCambios)
             .con("motivo", "stop-hook-activo")
-            .con("perfil", perfil.as_str())
             .salida_en(json, idioma);
     }
-    let captura = hook.then(fichero_de_captura);
+    let perfil = match leer_argumentos(args) {
+        Ok(p) => p,
+        Err(i) if hook => {
+            let mut s = i.salida_en(json, idioma);
+            s.codigo = 0;
+            s.stderr = aviso_de_hook(
+                Mensaje::nuevo(&t::HOOK_MAL_ESCRITO)
+                    .con("motivo", i.diagnostico_en(idioma).unwrap_or_default()),
+                idioma,
+            );
+            return s;
+        }
+        Err(i) => return i.salida_en(json, idioma),
+    };
+    let captura = if hook { crear_captura() } else { None };
     let informe = match std::env::current_dir() {
         Ok(dir) => {
             let almacen = confianza::almacen_del_proceso(NOMBRE);
@@ -102,6 +103,32 @@ fn uso() -> Informe {
         .diagnostico(&t::USO_VERIFICAR)
 }
 
+/// El perfil de `--perfil <p> [--hook]`, o el informe de uso.
+fn leer_argumentos(args: &[String]) -> Result<String, Informe> {
+    let mut perfil = None;
+    let mut hook = false;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--perfil" => match it.next() {
+                Some(p) if perfil.is_none() => perfil = Some(p.clone()),
+                _ => return Err(uso()),
+            },
+            "--hook" if !hook => hook = true,
+            _ => return Err(uso()),
+        }
+    }
+    perfil
+        .filter(|p| PERFILES.contains(&p.as_str()))
+        .ok_or_else(uso)
+}
+
+/// Una linea de stderr para la persona con `--hook` (el diagnostico de una
+/// config con YAML invalido trae varias).
+fn aviso_de_hook(m: Mensaje, idioma: Idioma) -> String {
+    format!("{}\n", crate::contrato::una_linea(&m.texto(idioma)))
+}
+
 /// `stop_hook_active` del JSON de stdin del evento `Stop`. Sin JSON (stdin
 /// en una terminal, vacio o mal formado) no se sabe y se sigue: el tope de
 /// continuaciones de Claude Code corta un bucle.
@@ -121,8 +148,44 @@ fn stop_hook_activo() -> bool {
         .unwrap_or(false)
 }
 
-fn fichero_de_captura() -> PathBuf {
-    std::env::temp_dir().join(format!("tc2-verificar-{}.log", std::process::id()))
+/// Fichero donde `--hook` recoge la salida del comando: nombre aleatorio y
+/// creado en exclusiva (`create_new`, no sigue un enlace ni pisa un fichero
+/// que ya exista); se borra al terminar. Si no se puede crear, la salida va a
+/// stderr como sin `--hook`.
+fn crear_captura() -> Option<PathBuf> {
+    use ring::rand::SecureRandom;
+    let mut azar = [0u8; 16];
+    ring::rand::SystemRandom::new().fill(&mut azar).ok()?;
+    let nombre = crate::confianza::cierre::sha_hex(&azar);
+    let ruta = std::env::temp_dir().join(format!("tc2-verificar-{}.log", &nombre[..32]));
+    std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(&ruta)
+        .ok()
+        .map(|_| ruta)
+}
+
+/// Tope de lo que se lee del final de la captura para el resumen.
+const COLA_BYTES: u64 = 64 * 1024;
+
+/// Las ultimas [`LINEAS_RESUMEN`] lineas de la captura, leyendo solo su
+/// final.
+fn cola(ruta: &Path) -> Vec<String> {
+    use std::io::{Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(ruta) else {
+        return Vec::new();
+    };
+    let largo = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let _ = f.seek(SeekFrom::Start(largo.saturating_sub(COLA_BYTES)));
+    let mut datos = Vec::new();
+    let _ = f.take(COLA_BYTES).read_to_end(&mut datos);
+    let texto = String::from_utf8_lossy(&datos);
+    let lineas: Vec<&str> = texto.lines().collect();
+    lineas[lineas.len().saturating_sub(LINEAS_RESUMEN)..]
+        .iter()
+        .map(|l| (*l).to_owned())
+        .collect()
 }
 
 /// La decision y la ejecucion, comunes a la orden y al hook. Con `captura`,
@@ -300,7 +363,8 @@ fn lanzar(
         .stdin(Stdio::null());
     match captura {
         Some(ruta) => {
-            let f = std::fs::File::create(ruta)?;
+            // Ya creado en exclusiva por `crear_captura`: no se crea de nuevo.
+            let f = std::fs::File::options().write(true).open(ruta)?;
             c.stdout(f.try_clone()?).stderr(f);
         }
         // La salida del comando no se mezcla con la linea de contrato.
@@ -376,24 +440,19 @@ fn como_hook(
             .con("motivo", motivo)
             .texto(idioma);
         resumen.push('\n');
-        if let Some(texto) = captura.and_then(|c| std::fs::read(c).ok()) {
-            let texto = String::from_utf8_lossy(&texto);
-            let lineas: Vec<&str> = texto.lines().collect();
-            for l in &lineas[lineas.len().saturating_sub(LINEAS_RESUMEN)..] {
-                resumen.push_str(l);
-                resumen.push('\n');
-            }
+        for l in captura.map(cola).unwrap_or_default() {
+            resumen.push_str(&l);
+            resumen.push('\n');
         }
         s.codigo = 2;
         s.stderr = resumen;
     } else {
         s.codigo = 0;
-        s.stderr = format!(
-            "{}\n",
+        s.stderr = aviso_de_hook(
             Mensaje::nuevo(&t::HOOK_NO_SE_EJECUTA)
                 .con("perfil", perfil)
-                .con("motivo", motivo)
-                .texto(idioma)
+                .con("motivo", motivo),
+            idioma,
         );
     }
     s

@@ -241,7 +241,15 @@ where
         }
         [orden, resto @ ..] if orden == confianza::NOMBRE => {
             let (json, resto) = con_json(resto);
-            confianza::orden(&resto).salida_en(json, idioma)
+            let i = confianza::orden(&resto);
+            let mut s = i.salida_en(json, idioma);
+            if s.codigo == 0
+                && let Some(a) = confianza::aviso_globs(&i, idioma)
+            {
+                s.stderr.push_str(&a);
+                s.stderr.push('\n');
+            }
+            s
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);

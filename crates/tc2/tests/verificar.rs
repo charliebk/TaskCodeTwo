@@ -42,6 +42,8 @@ enum Paso {
     Verde,
     Rojo(u8),
     Lento,
+    /// Rojo (codigo 6) tras escribir `LINEA-1` .. `LINEA-30`.
+    Lineas,
 }
 
 fn cuerpo_paso(p: Paso) -> String {
@@ -50,12 +52,14 @@ fn cuerpo_paso(p: Paso) -> String {
             Paso::Verde => "@exit /b 0\r\n".into(),
             Paso::Rojo(c) => format!("@echo FALLO-DEL-PASO\r\n@exit /b {c}\r\n"),
             Paso::Lento => "@ping -n 8 127.0.0.1 > nul\r\n@exit /b 0\r\n".into(),
+            Paso::Lineas => "@for /L %%i in (1,1,30) do @echo LINEA-%%i\r\n@exit /b 6\r\n".into(),
         }
     } else {
         match p {
             Paso::Verde => "true\n".into(),
             Paso::Rojo(c) => format!("echo FALLO-DEL-PASO\nexit {c}\n"),
             Paso::Lento => "sleep 7\n".into(),
+            Paso::Lineas => "for i in $(seq 1 30); do echo LINEA-$i; done\nexit 6\n".into(),
         }
     }
 }
@@ -72,16 +76,28 @@ fn ruta_paso() -> &'static str {
 
 /// Config del proyecto: la orden nombra solo el script principal.
 fn config(extra_orden: &str, rapida: Option<u32>, completa: u32) -> String {
-    let (comando, shell) = if cfg!(windows) {
+    config_con(extra_orden, rapida, completa, None, "'incluido/*.cfg'")
+}
+
+/// Como [`config`], con otra shell y otros globs de `confianza_incluye`.
+fn config_con(
+    extra_orden: &str,
+    rapida: Option<u32>,
+    completa: u32,
+    shell: Option<&str>,
+    incluye: &str,
+) -> String {
+    let (comando, por_defecto) = if cfg!(windows) {
         (format!(r"scripts\verificar.bat{extra_orden}"), "cmd")
     } else {
         (format!("sh scripts/verificar.sh{extra_orden}"), "sh")
     };
+    let shell = shell.unwrap_or(por_defecto);
     let rapida = rapida
         .map(|t| format!("    rapida: {{timeout: {t}}}\n"))
         .unwrap_or_default();
     format!(
-        "---\nformato: 2\nverificacion:\n  comando: '{comando}'\n  shell: '{shell}'\n  perfiles:\n{rapida}    completa: {{timeout: {completa}, runner: {{github: linux}}}}\nconfianza_incluye: ['incluido/*.cfg']\n"
+        "---\nformato: 2\nverificacion:\n  comando: '{comando}'\n  shell: '{shell}'\n  perfiles:\n{rapida}    completa: {{timeout: {completa}, runner: {{github: linux}}}}\nconfianza_incluye: [{incluye}]\n"
     )
 }
 
@@ -263,7 +279,10 @@ fn cambiar_cierre_globs_u_orden_da_cambiado_y_volver_da_confiado() {
     c.proyecto(Paso::Verde);
     c.confiar();
     let config_original = config("", Some(60), 600);
-    let cambios: [(&str, String, String); 3] = [
+    // Otra shell con la misma orden tambien cambia lo que se ejecuta (la
+    // shell entra en la huella; no hace falta que este instalada: no se lanza).
+    let otra_shell = if cfg!(windows) { "pwsh" } else { "bash" };
+    let cambios: [(&str, String, String); 4] = [
         (
             ruta_paso(),
             cuerpo_paso(Paso::Verde),
@@ -274,6 +293,11 @@ fn cambiar_cierre_globs_u_orden_da_cambiado_y_volver_da_confiado() {
             ".taskcode/config.yml",
             config_original.clone(),
             config(" --otra", Some(60), 600),
+        ),
+        (
+            ".taskcode/config.yml",
+            config_original.clone(),
+            config_con("", Some(60), 600, Some(otra_shell), "'incluido/*.cfg'"),
         ),
     ];
     for (ruta, original, cambiado) in &cambios {
@@ -423,6 +447,227 @@ fn hook_no_bloquea_sin_confianza_y_bloquea_en_rojo() {
     let o = c.hook(false);
     assert_eq!(o.status.code(), Some(0), "config 0.16: {}", texto(&o));
     assert!(!error(&o).is_empty());
+    assert!(!c.se_ejecuto());
+
+    // YAML mal formado: el diagnostico del parser trae varias lineas; el
+    // aviso del hook es una sola.
+    escribir(
+        &c.repo,
+        ".taskcode/config.yml",
+        "---\nformato: 2\nverificacion: [\n  - a: {\n",
+    );
+    let o = c.hook(false);
+    assert_eq!(o.status.code(), Some(0), "yaml: {}", texto(&o));
+    assert_eq!(
+        clave(&o, "motivo").as_deref(),
+        Some("yaml"),
+        "{}",
+        texto(&o)
+    );
+    assert_eq!(error(&o).lines().count(), 1, "{}", texto(&o));
+    assert!(!c.se_ejecuto());
+}
+
+/// Ronda 1, IMP-1 (calidad): con `--hook`, una entrada de settings.json mal
+/// escrita (perfil inexistente, opcion desconocida) no bloquea la parada:
+/// sale con 0 y una linea que dice como arreglarla; y `stop_hook_active`
+/// corta antes de validar los argumentos.
+#[test]
+fn hook_mal_escrito_no_bloquea_la_parada() {
+    let c = Caso::nuevo("verificar-hook-mal");
+    c.proyecto(Paso::Rojo(4));
+    c.confiar();
+    let falso = "{\"hook_event_name\":\"Stop\",\"stop_hook_active\":false}";
+    let activo = "{\"hook_event_name\":\"Stop\",\"stop_hook_active\":true}";
+    for (args, stdin) in [
+        (&["verificar", "--perfil", "rapid", "--hook"][..], falso),
+        (
+            &["verificar", "--perfil", "rapida", "--hook", "--foo"][..],
+            falso,
+        ),
+        (&["verificar", "--hook"][..], falso),
+        (&["verificar", "--perfil", "rapid", "--hook"][..], activo),
+    ] {
+        let o = c.tc2(&c.repo, args, Some(stdin));
+        assert_eq!(o.status.code(), Some(0), "{args:?} {stdin}: {}", texto(&o));
+        assert!(error(&o).lines().count() <= 1, "{}", texto(&o));
+        if stdin == falso {
+            assert!(error(&o).contains("settings.json"), "{}", texto(&o));
+        } else {
+            assert_eq!(clave(&o, "motivo").as_deref(), Some("stop-hook-activo"));
+        }
+        assert!(!c.se_ejecuto(), "{args:?}: se ejecuto");
+    }
+    // Sin `--hook` el error de uso sigue siendo uso (2).
+    let o = c.tc2(&c.repo, &["verificar", "--perfil", "rapid"], None);
+    assert_eq!(o.status.code(), Some(2), "{}", texto(&o));
+}
+
+/// Ronda 1, MEN-1 (calidad): con `--hook` y un perfil que no es `rapida`,
+/// un timeout agotado es rojo y bloquea (2); el resumen trae solo las
+/// ultimas 15 lineas de la salida.
+#[test]
+fn hook_bloquea_con_timeout_fuera_de_rapida_y_resume_15_lineas() {
+    let c = Caso::nuevo("verificar-hook-cola");
+    c.proyecto(Paso::Lineas);
+    c.confiar();
+    let o = c.hook(false);
+    assert_eq!(o.status.code(), Some(2), "{}", texto(&o));
+    let err = error(&o);
+    let lineas: Vec<&str> = err.lines().map(str::trim).collect();
+    assert!(lineas.contains(&"LINEA-30"), "{err}");
+    assert!(lineas.contains(&"LINEA-16"), "{err}");
+    assert!(!lineas.contains(&"LINEA-15"), "{err}");
+    assert!(!lineas.contains(&"LINEA-1"), "{err}");
+    let _ = c.se_ejecuto();
+
+    escribir(&c.repo, ruta_paso(), &cuerpo_paso(Paso::Lento));
+    escribir(&c.repo, ".taskcode/config.yml", &config("", Some(60), 1));
+    c.confiar();
+    let o = c.tc2(
+        &c.repo,
+        &["verificar", "--perfil", "completa", "--hook"],
+        Some("{\"stop_hook_active\":false}"),
+    );
+    assert_eq!(o.status.code(), Some(2), "completa: {}", texto(&o));
+    assert_eq!(clave(&o, "motivo").as_deref(), Some("timeout"));
+}
+
+/// Ronda 1, IMP-1 (rust): el cierre sigue scripts con espacios en el nombre
+/// (entre comillas) y con caracteres no ASCII: cambiarlos da `cambiado`.
+#[test]
+fn el_cierre_sigue_nombres_con_espacios_y_no_ascii() {
+    let c = Caso::nuevo("verificar-nombres");
+    c.proyecto(Paso::Verde);
+    let (espacio, acento) = if cfg!(windows) {
+        escribir(
+            &c.repo,
+            "scripts/verificar.bat",
+            "@echo off\r\necho %TC2_PERFIL%> \"%TESTIGO%\"\r\ncall \"%~dp0lib\\mi paso.bat\"\r\nrem %~dp0lib\\verificación.bat\r\nexit /b %ERRORLEVEL%\r\n",
+        );
+        ("scripts/lib/mi paso.bat", "scripts/lib/verificación.bat")
+    } else {
+        escribir(
+            &c.repo,
+            "scripts/verificar.sh",
+            "echo \"$TC2_PERFIL\" > \"$TESTIGO\"\n# \"%~dp0lib/mi paso.sh\"\n. \"$(dirname \"$0\")/lib/mi paso.sh\"\n# %~dp0lib/verificación.sh\n",
+        );
+        ("scripts/lib/mi paso.sh", "scripts/lib/verificación.sh")
+    };
+    escribir(&c.repo, espacio, &cuerpo_paso(Paso::Verde));
+    escribir(&c.repo, acento, &cuerpo_paso(Paso::Verde));
+    c.fx.crudo(&c.repo, &["add", "-A"]);
+    c.fx.crudo(&c.repo, &["commit", "-q", "-m", "nombres raros"]);
+    c.confiar();
+    for ruta in [espacio, acento] {
+        let o = c.verificar("rapida");
+        assert_eq!(
+            clave(&o, "confianza").as_deref(),
+            Some("confiado"),
+            "{}",
+            texto(&o)
+        );
+        assert!(c.se_ejecuto());
+        escribir(&c.repo, ruta, &cuerpo_paso(Paso::Rojo(0)));
+        let o = c.verificar("rapida");
+        assert_eq!(
+            clave(&o, "confianza").as_deref(),
+            Some("cambiado"),
+            "{ruta}: {}",
+            texto(&o)
+        );
+        assert!(!c.se_ejecuto(), "{ruta}: se ejecuto cambiado");
+        escribir(&c.repo, ruta, &cuerpo_paso(Paso::Verde));
+    }
+}
+
+/// Ronda 1, IMP-2 (rust): `./` se normaliza en `confianza_incluye`, un glob
+/// invalido falla cerrado (config rechazada en `confiar` y en `verificar`)
+/// y un glob que no casa con nada se avisa en `tc2 confiar`.
+#[test]
+fn globs_de_confianza_incluye_normalizados_invalidos_y_vacios() {
+    let c = Caso::nuevo("verificar-globs");
+    c.proyecto(Paso::Verde);
+    let mut globs = vec!["'./incluido/*.cfg'"];
+    if cfg!(any(windows, target_os = "macos")) {
+        globs.push("'INCLUIDO/*.cfg'");
+    }
+    for g in globs {
+        escribir(
+            &c.repo,
+            ".taskcode/config.yml",
+            &config_con("", Some(60), 600, None, g),
+        );
+        c.confiar();
+        escribir(&c.repo, "incluido/a.cfg", "valor=2\n");
+        let o = c.verificar("rapida");
+        assert_eq!(
+            clave(&o, "confianza").as_deref(),
+            Some("cambiado"),
+            "{g}: {}",
+            texto(&o)
+        );
+        assert!(!c.se_ejecuto(), "{g}: se ejecuto");
+        escribir(&c.repo, "incluido/a.cfg", "valor=1\n");
+    }
+
+    escribir(
+        &c.repo,
+        ".taskcode/config.yml",
+        &config_con("", Some(60), 600, None, "'incluido/['"),
+    );
+    let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
+    assert_eq!(o.status.code(), Some(3), "confiar: {}", texto(&o));
+    assert!(error(&o).contains("incluido/["), "{}", texto(&o));
+    let o = c.verificar("rapida");
+    assert_eq!(o.status.code(), Some(3), "verificar: {}", texto(&o));
+    assert!(!c.se_ejecuto());
+
+    escribir(
+        &c.repo,
+        ".taskcode/config.yml",
+        &config_con("", Some(60), 600, None, "'incluido/*.cfg', 'nada/*.cfg'"),
+    );
+    let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(
+        clave(&o, "globs-sin-ficheros").as_deref(),
+        Some("nada/*.cfg")
+    );
+    assert!(error(&o).contains("nada/*.cfg"), "{}", texto(&o));
+}
+
+/// Ronda 1, MENOR-1 (rust): en Windows y macOS un script nombrado con otras
+/// mayusculas (`%~dp0LIB\PASO.BAT`) es el mismo fichero y entra en el cierre.
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn el_cierre_no_distingue_mayusculas_en_windows_y_macos() {
+    let c = Caso::nuevo("verificar-mayusculas");
+    c.proyecto(Paso::Verde);
+    if cfg!(windows) {
+        escribir(
+            &c.repo,
+            "scripts/verificar.bat",
+            "@echo off\r\necho %TC2_PERFIL%> \"%TESTIGO%\"\r\ncall \"%~dp0LIB\\PASO.BAT\"\r\nexit /b %ERRORLEVEL%\r\n",
+        );
+    } else {
+        escribir(
+            &c.repo,
+            "scripts/verificar.sh",
+            "echo \"$TC2_PERFIL\" > \"$TESTIGO\"\n# %~dp0LIB/PASO.SH\n. \"$(dirname \"$0\")/LIB/PASO.SH\"\n",
+        );
+    }
+    c.fx.crudo(&c.repo, &["add", "-A"]);
+    c.fx.crudo(&c.repo, &["commit", "-q", "-m", "mayusculas"]);
+    c.confiar();
+    escribir(&c.repo, ruta_paso(), &cuerpo_paso(Paso::Rojo(0)));
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("cambiado"),
+        "{}",
+        texto(&o)
+    );
     assert!(!c.se_ejecuto());
 }
 

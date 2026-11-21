@@ -281,6 +281,8 @@ fn maquina_windows_path_y_autoborrado() {
     let exe = instalacion_windows(&home);
     let bin = exe.parent().unwrap().to_path_buf();
     let raiz = bin.parent().unwrap().to_path_buf();
+    // F5-6: el almacen de confianza local en `%LOCALAPPDATA%\taskcodetwo`.
+    escribir(&raiz.join("confianza"), "0123.json", "{}");
     let e = entorno(Sistema::Windows, &home, exe.clone());
     let path = format!(
         "C:\\otro;%LOCALAPPDATA%\\taskcodetwo\\bin;;%SYSTEMROOT%\\x;{}\\",
@@ -300,6 +302,8 @@ fn maquina_windows_path_y_autoborrado() {
     assert!(!bin.join(".tc2-2.0.0-77.descarga").exists());
     assert!(!bin.join(".tc2.nuevo.88.exe").exists());
     assert!(!raiz.join("cli").exists());
+    assert!(!raiz.join("confianza").exists());
+    assert!(stdout(&h).contains("clase=confianza dueno=taskcodetwo decision=borra"));
     // El binario en marcha: auxiliar que espera al PID y borra.
     let b = m.borrados.borrow();
     assert_eq!(b.len(), 1);

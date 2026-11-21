@@ -41,7 +41,10 @@ pub const NOMBRE: &str = "confiar";
 pub const CLAVES: [&str; 1] = ["verificacion.comando"];
 
 /// Version del fichero del almacen.
-const VERSION_ALMACEN: u32 = 1;
+/// Version del fichero del almacen. La 2 (ronda 1 de TASK-046) cambia los
+/// `candidatos` (comillas y no ASCII): un almacen de la 1 se lee vacio y todo
+/// vuelve a `nunca` (falla cerrado).
+const VERSION_ALMACEN: u32 = 2;
 
 /// Estado de confianza de una orden.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +79,8 @@ pub struct Evaluacion {
     pub ficheros: usize,
     /// Bytes leidos para hashear (0 en caliente y sin cambios).
     pub hasheados: u64,
+    /// Globs de `confianza_incluye` que no casan con ningun fichero.
+    pub globs_vacios: Vec<String>,
 }
 
 /// Un repo abierto para la confianza: su arbol de trabajo, el nombre de su
@@ -173,9 +178,19 @@ fn escribir_almacen(ruta: &Path, a: &Almacen, op: &str) -> Result<(), Informe> {
     })
 }
 
-fn error_de_lectura(op: &str, e: &std::io::Error) -> Informe {
-    Informe::nuevo(op, Resultado::Error)
-        .diagnostico(Mensaje::nuevo(&t::CIERRE_NO_LEIDO).con("error", e.to_string()))
+fn error_de_cierre(op: &str, e: &cierre::ErrorCierre) -> Informe {
+    match e {
+        cierre::ErrorCierre::Lectura(e) => Informe::nuevo(op, Resultado::Error)
+            .diagnostico(Mensaje::nuevo(&t::CIERRE_NO_LEIDO).con("error", e.to_string())),
+        cierre::ErrorCierre::Glob { glob, error } => Informe::nuevo(op, Resultado::Rechazada)
+            .con("motivo", "glob-invalido")
+            .diagnostico(
+                Mensaje::nuevo(&t::GLOB_INVALIDO)
+                    .con("glob", glob.as_str())
+                    .con("error", error.as_str())
+                    .con("ruta", crate::config::RUTA),
+            ),
+    }
 }
 
 /// Estado de confianza de `orden` (la de `clave`) en `repo`. En caliente
@@ -199,7 +214,7 @@ pub fn estado(
         incluye,
         entrada.as_ref().map(|e| e.ficheros.as_slice()),
     )
-    .map_err(|e| error_de_lectura(op, &e))?;
+    .map_err(|e| error_de_cierre(op, &e))?;
     let huella = cierre::huella(orden, incluye, &c.ficheros);
     let estado = match &entrada {
         None => Estado::Nunca,
@@ -223,6 +238,7 @@ pub fn estado(
         huella,
         ficheros: c.ficheros.len(),
         hasheados: c.hasheados,
+        globs_vacios: c.globs_vacios.clone(),
     })
 }
 
@@ -240,7 +256,7 @@ pub fn confiar(
     let mut a = leer_almacen(&ruta);
     a.version = VERSION_ALMACEN;
     let c = cierre::calcular(&repo.raiz, &repo.indice, orden, incluye, None)
-        .map_err(|e| error_de_lectura(op, &e))?;
+        .map_err(|e| error_de_cierre(op, &e))?;
     let huella = cierre::huella(orden, incluye, &c.ficheros);
     a.claves.insert(
         clave.to_owned(),
@@ -255,6 +271,7 @@ pub fn confiar(
         huella,
         ficheros: c.ficheros.len(),
         hasheados: c.hasheados,
+        globs_vacios: c.globs_vacios.clone(),
     })
 }
 
@@ -315,11 +332,32 @@ fn confiar_en(clave: &str) -> Result<Informe, Informe> {
         &config.confianza_incluye,
         NOMBRE,
     )?;
-    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
+    let i = Informe::nuevo(NOMBRE, Resultado::Ok)
         .con("clave", clave)
         .con("huella", crate::contrato::corto(&ev.huella))
         .con("ficheros", ev.ficheros.to_string())
-        .con("hasheados", ev.hasheados.to_string()))
+        .con("hasheados", ev.hasheados.to_string());
+    Ok(if ev.globs_vacios.is_empty() {
+        i
+    } else {
+        i.con_lista("globs-sin-ficheros", ev.globs_vacios)
+    })
+}
+
+/// Aviso para la persona (stderr, codigo 0) si `tc2 confiar` salio bien con
+/// globs de `confianza_incluye` que no casan con nada: lo que declaro no
+/// entra en la confianza.
+pub fn aviso_globs(i: &Informe, idioma: crate::i18n::Idioma) -> Option<String> {
+    let globs = i.claves.iter().find_map(|(k, v)| match v {
+        crate::contrato::Valor::Lista(l) if k == "globs-sin-ficheros" => Some(l.join(", ")),
+        _ => None,
+    })?;
+    Some(
+        Mensaje::nuevo(&t::GLOBS_SIN_FICHEROS)
+            .con("globs", globs)
+            .con("ruta", crate::config::RUTA)
+            .texto(idioma),
+    )
 }
 
 /// El almacen del entorno de este proceso, o el informe que dice que hacer.

@@ -26,6 +26,14 @@ crate::i18n::textos! {
         es: "no se pudo leer un fichero de lo que ejecuta la orden: {error}",
         en: "could not read a file of what the command runs: {error}",
     }
+    GLOB_INVALIDO {
+        es: "el glob «{glob}» de confianza_incluye no es valido ({error}) y no se confia ni se ejecuta nada: corrigelo en {ruta}",
+        en: "the glob «{glob}» in confianza_incluye is not valid ({error}) and nothing is trusted or run: fix it in {ruta}",
+    }
+    GLOBS_SIN_FICHEROS {
+        es: "aviso: estos globs de confianza_incluye no casan con ningun fichero versionado y no suman nada a la confianza: {globs}; revisalos en {ruta}",
+        en: "warning: these confianza_incluye globs match no tracked file and add nothing to the trust: {globs}; check them in {ruta}",
+    }
     USO_VERIFICAR {
         es: "uso: verificar [--json] --perfil <rapida|impacto|completa|pesada> [--hook]",
         en: "usage: verificar [--json] --perfil <rapida|impacto|completa|pesada> [--hook]",
@@ -61,6 +69,10 @@ crate::i18n::textos! {
     HOOK_NO_SE_EJECUTA {
         es: "tc2 verificar --hook: no se ejecuta la verificacion {perfil}: {motivo}",
         en: "tc2 verificar --hook: the {perfil} verification is not run: {motivo}",
+    }
+    HOOK_MAL_ESCRITO {
+        es: "tc2 verificar --hook: la entrada del hook esta mal escrita y no se ejecuta nada: {motivo}; corrigela en settings.json (`tc2 verificar --perfil rapida --hook`)",
+        en: "tc2 verificar --hook: the hook entry is malformed and nothing is run: {motivo}; fix it in settings.json (`tc2 verificar --perfil rapida --hook`)",
     }
     HOOK_ROJO {
         es: "tc2 verificar --hook: {motivo}. Ultimas lineas de su salida:",

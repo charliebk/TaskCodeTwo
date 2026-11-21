@@ -200,6 +200,10 @@ crate::i18n::textos! {
         es: "glob no admitido «{glob}»: {motivo}",
         en: "glob not accepted «{glob}»: {motivo}",
     }
+    GLOB_NO_COMPILA {
+        es: "no es un glob valido ({error}); revisa corchetes y llaves",
+        en: "it is not a valid glob ({error}); check brackets and braces",
+    }
     NUNCA_TODO_EL_ARBOL {
         es: "nunca todo el arbol",
         en: "never the whole tree",
