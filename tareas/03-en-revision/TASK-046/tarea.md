@@ -102,3 +102,7 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
 | 2026-11-21T17:30:30Z | diseno | agente:afc3eb702f92474dd | 50 | 61166 | 1005806 | 19257 | 44 | 1086279 | - | - |
 | 2026-11-21T18:56:07Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 28 | 13335 | 4627741 | 5593 | 0 | 4646697 | - | - |
 | 2026-11-21T18:56:07Z | implementacion | agente:ab340757eb3eaf848 | 178 | 262054 | 16557072 | 82461 | 49 | 16901765 | - | - |
+
+## Verificacion ligera
+
+- 2026-11-21T20:16:49Z: ronda 3; commit revisado 3d047d4017e9230ebb149eb4284a71ff22d5f883; commit verificado a4a13fc0050ae8e83f8af29deadd06878222e197; ficheros: crates/tc2/tests/verificar.rs, docs/ci/verificacion-reutilizable.md; corregidos: MENOR-6; pendientes: MEN-7
