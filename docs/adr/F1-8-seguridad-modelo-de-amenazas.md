@@ -790,8 +790,10 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   es cadena ni lista.
 - **D3b (a)**, usuario de servicio: el primer paso de `ejecutar`, antes del
   checkout y solo con `runner.environment == 'self-hosted'`, falla si el
-  runner no es Windows, si la cuenta es `SYSTEM` o si es del grupo
-  Administradores. Que no lea el perfil de la persona y que los datos sean de
+  runner no es Windows, si el evento no es la release de un repo privado con
+  el head en el mismo repo (la regla de `buscar`, repetida porque esta no
+  depende de la etiqueta; revisión de TASK-045), si la cuenta es `SYSTEM` o si
+  es del grupo Administradores. Que no lea el perfil de la persona y que los datos sean de
   solo lectura depende del alta manual
   ([guía](../ci/verificacion-reutilizable.md#runner-propio-f5-5)).
 - **D3b (b)**, directorio limpio: `actions/checkout` con `clean: true` por
@@ -810,10 +812,15 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   pesada en el propio.
 - **Lo que queda**: `doctor` no comprueba las etiquetas ni la visibilidad del
   repo (leer los runners pide `administration`; F3-8), y la guarda de
-  `buscar` reconoce el runner propio por la etiqueta `self-hosted`: un runner
-  registrado con `--no-default-labels` solo lo frena el paso de aislamiento,
-  que no mira el evento. Código hostil ya integrado en `develop` corre en la
-  release con el usuario de servicio (lo contienen D1a y el aislamiento). En
-  GitLab no hay guarda equivalente: degradación declarada.
-- **No verificado**: el E2E con un runner real (criterio 1 de TASK-045), y
-  que `github.event.repository.private` llegue con valor al reutilizable.
+  `buscar` reconoce el runner propio por la etiqueta `self-hosted`: un
+  `runner-<perfil>` sin ella (o un runner con `--no-default-labels`) llega a
+  la máquina y lo para el aislamiento antes del checkout, sin ejecutar código
+  del PR. Un llamador hostil puede escribir su propio `runs-on` fuera del
+  reutilizable: eso no lo cubre ninguna guarda de este workflow (D1a). Código
+  hostil ya integrado en `develop` corre en la release con el usuario de
+  servicio (lo contienen D1a y el aislamiento). En GitLab no hay guarda
+  equivalente: degradación declarada.
+- **Verificado con un runner real** (E2E de TASK-045, 2026-11-21): la pesada
+  de la release en el runner propio con el usuario de servicio y los datos de
+  solo lectura; `github.event.repository.private` llega con valor al
+  reutilizable.

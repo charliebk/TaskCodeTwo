@@ -1246,6 +1246,32 @@ fn el_runner_propio_solo_en_la_release_de_un_privado() {
         matches!(runner_propio(&texto, &cambiar(&release, &[("ENTRADAS", &grupo), ("PRIVADO", "false")])), Err(m) if m.contains("repo publico")),
         "un grupo de runners cuenta como runner propio"
     );
+    // Revision de TASK-045, MEN-1: `private` sin valor no se confunde con un
+    // repo publico, y unos perfiles ilegibles fallan cerrado.
+    assert!(
+        matches!(runner_propio(&texto, &cambiar(&release, &[("ENTRADAS", &propio), ("PRIVADO", "")])), Err(m) if m.starts_with("Some(2): ") && m.contains("no consta si el repo es privado")),
+        "private vacio"
+    );
+    assert!(
+        matches!(runner_propio(&texto, &cambiar(&release, &[("ENTRADAS", &propio), ("PERFILES", "basura")])), Err(m) if m.starts_with("Some(2): ") && m.contains("perfiles ilegibles")),
+        "perfiles ilegibles"
+    );
+    // MEN-2: el motivo nombra el origen y dice que hacer.
+    assert!(
+        matches!(runner_propio(&texto, &cambiar(&release, &[("ENTRADAS", &propio), ("ORIGEN", "feature/x")])), Err(m) if m.contains("origen feature/x") && m.contains("Que hacer:")),
+        "motivo con origen y accion"
+    );
+    // IMP-1: una etiqueta sin `self-hosted` no la reconoce `buscar`; la para
+    // el aislamiento de `ejecutar` (el_aislamiento_va_antes_del_checkout...).
+    let suelta = entradas_con_pesada(r#"["windows","tc2-e2e"]"#);
+    assert_eq!(
+        runner_propio(
+            &texto,
+            &cambiar(&release, &[("ENTRADAS", &suelta), ("PRIVADO", "false")])
+        ),
+        Ok("Runner propio: ningun perfil de este evento lo usa".to_owned()),
+        "etiqueta suelta: limite conocido de buscar"
+    );
     let ilegible = entradas_con_pesada("no-es-json");
     assert!(
         matches!(runner_propio(&texto, &cambiar(&release, &[("ENTRADAS", &ilegible)])), Err(m) if m.starts_with("Some(2): ") && m.contains("runner-pesada ilegible")),
@@ -1299,14 +1325,40 @@ fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
     if campo("shell") != Some(SHELL_AISLAMIENTO) {
         return Err(format!("aislamiento con shell {:?}", campo("shell")));
     }
+    // La regla del evento, con los datos del llamador por `env:` (revision de
+    // TASK-045, IMP-1): no depende de la etiqueta del runs-on.
+    for (clave, valor) in [
+        ("EVENTO", "${{ github.event_name }}"),
+        ("PRIVADO", "${{ github.event.repository.private }}"),
+        ("BASE", "${{ github.base_ref }}"),
+        ("ORIGEN", "${{ github.head_ref }}"),
+        ("REPO", "${{ github.repository }}"),
+        (
+            "REPO_HEAD",
+            "${{ github.event.pull_request.head.repo.full_name }}",
+        ),
+    ] {
+        let real = primero
+            .get("env")
+            .and_then(|e| e.get(clave))
+            .and_then(Nodo::texto);
+        if real != Some(valor) {
+            return Err(format!("aislamiento con env {clave} {real:?}"));
+        }
+    }
     let run = campo("run").unwrap_or_default();
+    // Cada guarda entera, no solo su literal: un `if ($false)` que conserva
+    // el SID tambien tiene que dar error (revision de TASK-045, MEN-1).
     // whoami por ruta: el de Git (usr\bin) en el PATH no entiende /groups.
     for exigido in [
-        "S-1-5-18",
-        "S-1-5-32-544",
-        r#"System32\whoami.exe" /groups"#,
-        "RUNNER_OS",
-        "Get-Command jq",
+        "if ($env:RUNNER_OS -ne 'Windows') {",
+        "if ($env:PRIVADO -cne 'true' -or $env:EVENTO -cne 'pull_request' -or $env:BASE -cne 'main' -or $env:ORIGEN -cne 'develop' -or $env:REPO_HEAD -cne $env:REPO) {",
+        "if ($id.User.Value -eq 'S-1-5-18') {",
+        r#"$grupos = (& "$env:SystemRoot\System32\whoami.exe" /groups /fo csv) -join"#,
+        "if ($LASTEXITCODE -ne 0) {",
+        "if ($grupos -match 'S-1-5-32-544') {",
+        "if (-not $bash) {",
+        "if (-not (Get-Command jq -ErrorAction SilentlyContinue)) {",
     ] {
         if !run.contains(exigido) {
             return Err(format!("aislamiento sin {exigido}"));
@@ -1367,7 +1419,51 @@ fn el_aislamiento_va_antes_del_checkout_en_el_runner_propio() {
         ),
         (
             "sin comprobar jq",
-            texto.replacen("Get-Command jq", "Get-Command bash", 1),
+            texto.replacen(
+                "if (-not (Get-Command jq",
+                "if ($false -and -not (Get-Command jq",
+                1,
+            ),
+        ),
+        (
+            "sin comprobar bash",
+            texto.replacen("if (-not $bash) {", "if ($false) {", 1),
+        ),
+        (
+            "guarda de SYSTEM desactivada",
+            texto.replacen(
+                "if ($id.User.Value -eq 'S-1-5-18') {",
+                "if ($false -and $id.User.Value -eq 'S-1-5-18') {",
+                1,
+            ),
+        ),
+        (
+            "guarda de Windows desactivada",
+            texto.replacen(
+                "if ($env:RUNNER_OS -ne 'Windows') {",
+                "if ($false -and $env:RUNNER_OS -ne 'Windows') {",
+                1,
+            ),
+        ),
+        (
+            "sin mirar el codigo de whoami",
+            texto.replacen("if ($LASTEXITCODE -ne 0) {", "if ($false) {", 1),
+        ),
+        (
+            "sin la regla del evento",
+            texto.replacen(
+                "-or $env:REPO_HEAD -cne $env:REPO) {",
+                ") {",
+                1,
+            ),
+        ),
+        (
+            "regla con el evento de otro sitio",
+            texto.replacen(
+                &format!("        shell: {SHELL_AISLAMIENTO}\n        env:\n          EVENTO: ${{{{ github.event_name }}}}\n"),
+                &format!("        shell: {SHELL_AISLAMIENTO}\n        env:\n          EVENTO: pull_request\n"),
+                1,
+            ),
         ),
         (
             "sin el grupo Administradores",

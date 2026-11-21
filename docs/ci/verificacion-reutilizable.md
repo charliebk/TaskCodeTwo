@@ -296,11 +296,13 @@ el head **en el mismo repo**. Lo comprueba el paso «Runner propio» de `buscar`
 (Linux, sin código del PR) antes de encolar nada en el runner. Cuenta como
 runner propio un `runner-<perfil>` con la etiqueta `self-hosted` (sin distinguir
 mayúsculas) o que no es cadena ni lista (un grupo de runners, por ejemplo). Si
-falta una condición, `buscar` sale con `exit 2` y el motivo: `repo publico`,
-`solo en la release, un pull_request de develop a main` o `el head del PR viene
-de otro repo`; un `runner-<perfil>` que no es JSON también falla. Con todos
-los perfiles en runners de GitHub el paso solo escribe «ningún perfil de este
-evento lo usa» y todo sigue igual.
+falta una condición, `buscar` sale con `exit 2`, el motivo (`repo publico`,
+`no consta si el repo es privado`, `solo en la release, un pull_request de
+develop a main` con el evento, la base y el origen, o `el head del PR viene de
+otro repo`) y qué hacer: poner ese `runner-<perfil>` en un runner de GitHub. Un
+`runner-<perfil>` o unos perfiles que no son JSON también fallan. Con todos los
+perfiles en runners de GitHub el paso solo escribe `Runner propio: ningun
+perfil de este evento lo usa` y todo sigue igual.
 
 Por eso solo la **pesada** va en el runner propio: la completa corre también
 en los PR de tarea y en `workflow_dispatch`, que fallarían. Para ToolsaWeb:
@@ -313,21 +315,28 @@ en los PR de tarea y en `workflow_dispatch`, que fallarían. Para ToolsaWeb:
       runner-pesada: '["self-hosted","windows","toolsaweb"]'
 ```
 
-**Etiquetas** (D4): `["self-hosted","windows","<proyecto>"]`. No registres el
-runner con `--no-default-labels`: sin `self-hosted`, «Runner propio» no lo
-reconoce (el aislamiento de abajo sí, porque mira `runner.environment`).
+**Etiquetas** (D4): `["self-hosted","windows","<proyecto>"]`, siempre con
+`self-hosted` en el `runner-<perfil>`. «Runner propio» de `buscar` solo
+reconoce el runner propio por esa etiqueta: con `'["windows","<proyecto>"]'`
+(o un runner registrado con `--no-default-labels`) el job llega a tu máquina y
+lo para el aislamiento de abajo, que repite la regla del evento y no depende
+de la etiqueta, antes de sacar el código.
 
 **Aislamiento** (D3b a): el primer paso de `ejecutar`, antes del checkout,
 lleva `if: runner.environment == 'self-hosted'` (en un runner de GitHub vale
 `github-hosted` y el paso se salta) y corre en Windows PowerShell con
 `-NoProfile -ExecutionPolicy Bypass` solo para ese proceso: con la directiva
 `AllSigned` de la máquina, el script sin firmar que genera el runner no llega a
-ejecutarse (lo encontró el E2E de TASK-045). Falla con
-`exit 2` si el runner no es Windows, si la cuenta es `SYSTEM` (SID
-`S-1-5-18`) o si pertenece al grupo Administradores (SID `S-1-5-32-544`,
-también cuando UAC lo deja solo para denegar). Escribe el usuario y el `bash`
-que encuentra, y falla si no hay `jq` en el `PATH` (la caché por árbol lo usa). Que la cuenta no lea tu perfil y que los datos sean de solo
-lectura no lo comprueba: depende del alta.
+ejecutarse (lo encontró el E2E de TASK-045). Falla, con su motivo, si el
+runner no es Windows; si el evento no es la release de un repo privado con el
+head en el mismo repo (la misma regla de `buscar`, con los datos del evento por
+`env:`); si la cuenta es `SYSTEM` (SID `S-1-5-18`) o si pertenece al grupo
+Administradores (SID `S-1-5-32-544`, también cuando UAC lo deja solo para
+denegar); y si no encuentra `bash` o `jq` en el `PATH` (la caché por árbol usa
+`jq`). El script hace `exit 2`, pero con `-Command` Windows PowerShell lo
+devuelve como 1: el paso falla igual. Si todo va bien escribe el usuario y el
+`bash`. Que la cuenta no lea tu perfil y que los datos sean de solo lectura no
+lo comprueba: depende del alta.
 
 **Directorio limpio** (D3b b): `actions/checkout` con su `clean: true` por
 defecto; el lint da error si un checkout lleva `clean:` con otro valor.
@@ -341,7 +350,8 @@ En una consola de PowerShell **de administrador** en tu máquina, para un repo
 **privado**:
 
 1. **Usuario de servicio sin administración**:
-   `New-LocalUser -Name tc2-runner -Password (Read-Host -AsSecureString "Contraseña")`.
+   `New-LocalUser -Name tc2-runner -Password (Read-Host -AsSecureString "Contraseña") -PasswordNeverExpires`
+   (si la contraseña caduca, el servicio deja de arrancar).
    No lo añadas a ningún grupo más.
 2. **Carpeta del runner** fuera de tu perfil, una por repo, con permiso de
    modificación para ese usuario:
@@ -359,7 +369,7 @@ En una consola de PowerShell **de administrador** en tu máquina, para un repo
    `C:\ProgramData\tc2-runner\bin` y crea en la carpeta del runner un `.env`
    con `PATH=C:\ProgramData\tc2-runner\bin;C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\WindowsPowerShell\v1.0`.
    El runner lo lee al arrancar: si lo cambias, reinicia el servicio. El paso
-   de aislamiento falla con `exit 2` si no encuentra `jq`.
+   de aislamiento falla si no encuentra `bash` o `jq`.
 4. **Registro como servicio con ese usuario**:
 
    ```powershell
@@ -408,15 +418,20 @@ En una consola de PowerShell **de administrador** en tu máquina, para un repo
   `remove` acepta `--token`.
 - **Probado en local**: el `run:` de «Runner propio» con `bash` y datos
   simulados (pruebas de `xtask/src/workflows.rs`), y el de aislamiento con
-  Windows PowerShell: con una cuenta del grupo Administradores sale `exit 2`.
+  Windows PowerShell y el shell exacto del paso: un PR de fork, un repo
+  público u `origen Develop` se rechazan por la regla del evento; con una
+  cuenta del grupo Administradores falla (código 1).
+- **E2E con un runner real** (TASK-045, 2026-11-21, repo privado de pruebas):
+  la pesada de la release corrió en el runner propio con `tc2-runner` sin
+  administración y los datos de solo lectura; `github.event.repository.private`
+  y `github.event.pull_request.head.repo.full_name` llegan con valor al
+  reutilizable; la etiqueta `self-hosted` se pone sola. Encontró la directiva
+  `AllSigned`, la falta de `jq` y la huella con `\` en Windows, ya corregidos.
+  En un repo público el runner propio se rechaza en `buscar` sin encolar nada.
 - **No verificado**: que `config.cmd` pida la contraseña si no se le pasa, y
-  que conceda solo el derecho de iniciar sesión como servicio; que la
-  etiqueta `self-hosted` se ponga sola (la página de etiquetas solo cita el
-  sistema y la arquitectura: compruébalo en el paso 7);
-  que `github.event.repository.private` y
-  `github.event.pull_request.head.repo.full_name` lleguen con valor al
-  reutilizable (se deduce de que el contexto es el del llamador); el E2E con
-  un runner real.
+  que conceda solo el derecho de iniciar sesión como servicio; un acierto de la
+  caché por árbol en el runner propio (en el E2E el diff tocaba el workflow y
+  la regla de rutas no reutiliza, por diseño).
 
 ## Divergencias con los ADR
 
