@@ -49,3 +49,7 @@ Tarea F5-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F5-
 | 2026-11-20T22:29:57Z | diseno | agente:a2118c1f6b37e52ec | 18 | 67968 | 307643 | 16066 | 15 | 391695 | - | - |
 | 2026-11-21T16:37:34Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 266 | 439131 | 23046412 | 55698 | 15 | 23541507 | - | - |
 | 2026-11-21T16:37:34Z | implementacion | agente:acc34b893ea0f56b6 | 112 | 178038 | 7574467 | 45116 | 22 | 7797733 | - | - |
+
+## Verificacion ligera
+
+- 2026-11-21T16:58:07Z: ronda 2; commit revisado e141ed154087ea00e2e7fa9536bed2fb42c093f7; commit verificado 76daad5d9ff5b51e44c69e6991f86b019ee3e191; ficheros: .github/workflows/verificacion.yml, xtask/src/workflows.rs; corregidos: MENOR-6, MEN-1 (ronda 1), MENOR-1 (nuevo, residual de MEN-1), MEN-2 (ronda 1); pendientes: ninguno
