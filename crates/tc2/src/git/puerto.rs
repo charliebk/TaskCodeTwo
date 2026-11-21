@@ -38,6 +38,9 @@ pub enum Subcomando {
     ForEachRef,
     /// `git hash-object`
     HashObject,
+    /// `git ls-files` (lectura; los ficheros versionados del cierre de
+    /// confianza, F5-6)
+    LsFiles,
     /// `git ls-remote`
     LsRemote,
     /// `git log` (lectura; el historico de la estimacion, F3-13)
@@ -89,6 +92,7 @@ impl Subcomando {
             Self::Fetch => "fetch",
             Self::ForEachRef => "for-each-ref",
             Self::HashObject => "hash-object",
+            Self::LsFiles => "ls-files",
             Self::LsRemote => "ls-remote",
             Self::Log => "log",
             Self::LsTree => "ls-tree",
