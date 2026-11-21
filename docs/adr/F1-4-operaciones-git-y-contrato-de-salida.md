@@ -577,3 +577,8 @@ con su evidencia en los tests de `crates/tc2/tests/estado_*.rs`:
    rechaza una vez pasa a simularlo con un `receive-pack` que muere la
    primera vez.
 - Adenda (2026-11-18, TASK-127): `commit-estado` pasa las rutas de los blobs y las entradas del índice por stdin, no por argumentos: con 1000 ficheros la línea de órdenes pasaba del tope de Windows y `hash-object` fallaba. El puerto `Git` admite entrada por stdin solo en tres subcomandos: `cat-file` (F2-4b, solo lectura, con sus argumentos comprobados como los de cualquier llamada) y, en su forma exacta y ninguna otra, `hash-object -w --no-filters --stdin-paths` (`Git::ejecutar_con_entrada`) y `update-index --add -z --index-info` solo con índice temporal de ruta absoluta (`Git::ejecutar_con_indice_y_entrada`). `update-ref --stdin` sigue prohibido. Un commit de estado lanza así un número fijo de procesos sea cual sea el número de ficheros (test `mil_ficheros_en_una_transaccion_con_procesos_acotados` de `estado_casos.rs`); el registro de la capa deja de mostrar esas rutas.
+- Adenda (2026-11-21, TASK-051, F6-5): el puerto `Plataforma` gana la
+  operación `leer-revision` (detalle en la adenda F6-5 de F1-13) y la rama
+  de estado la operación `revision-guardar`, que publica
+  `TASK-NNN/revision/revision-ia-<sha12>.json` y `.md` con la tarea
+  `en-revision`; exige red y, con el mismo contenido, sale `sin-cambios`.

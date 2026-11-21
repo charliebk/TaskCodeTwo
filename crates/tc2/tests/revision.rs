@@ -10,6 +10,10 @@
 //!   cabecera `Authorization: Basic` del entorno que da la plataforma
 //!   (`entorno-push`); el remoto de push es el servidor simulado de
 //!   `comun::http_mock` (`remote.origin.pushurl`), el de fetch el bare.
+//!
+//! F6-5 (TASK-051), criterio 2: con el check `revision-ia` terminado,
+//! `review` guarda su informe en `TASK-NNN/revision/` de la rama de estado
+//! (repetir no escribe nada); con el check pendiente, nada.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -30,8 +34,8 @@ use tc2::estado::{self, Operacion};
 use tc2::git::Git;
 use tc2::identidad::{Cuenta, Quien};
 use tc2::plataforma::{
-    Firma, ModeloPuertas, Paso, Plataforma, PrAbierto, Proveedor, ReglasLeidas, Rol, Secreto,
-    Usuario, entorno_git,
+    Firma, ModeloPuertas, Paso, Plataforma, PrAbierto, Proveedor, ReglasLeidas, RevisionPublicada,
+    Rol, Secreto, Usuario, entorno_git,
 };
 use tc2::{revision, toma};
 
@@ -44,6 +48,11 @@ struct Doble {
     extra: Entorno,
     urls: RefCell<Vec<String>>,
     prs: RefCell<Vec<(String, String, String, String)>>,
+    /// Lo que da `estado-puertas` (sin nada, un error).
+    puertas: RefCell<Option<Informe>>,
+    /// Lo que da `leer-revision` y cuantas veces se pidio.
+    revision: RefCell<Option<RevisionPublicada>>,
+    lecturas: RefCell<Vec<(u64, u64)>>,
 }
 
 struct Compartida(Rc<Doble>);
@@ -71,7 +80,20 @@ impl Plataforma for Compartida {
         Informe::nuevo("abrir-pr", r).con("pr", "12")
     }
     fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
-        sin_uso("estado-puertas")
+        self.0
+            .puertas
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| sin_uso("estado-puertas"))
+    }
+    fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
+        assert_eq!(rol, Rol::Agente);
+        self.0.lecturas.borrow_mut().push((pr, origen));
+        self.0
+            .revision
+            .borrow()
+            .clone()
+            .ok_or_else(|| sin_uso("leer-revision"))
     }
     fn merge_pr(&self, _: u64, _: &str) -> Informe {
         sin_uso("merge-pr")
@@ -272,4 +294,135 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
     );
     // El puerto de la transaccion no lleva el token.
     assert!(!g.registro().join("\n").contains(TOKEN));
+}
+
+/// F6-5, criterio 2 (integracion con Git real): `review` guarda el informe
+/// del check `revision-ia` ya terminado en la rama de estado; repetido sale
+/// `sin-cambios`; con el check pendiente no escribe nada.
+#[test]
+fn review_guarda_el_informe_de_la_revision_ia() {
+    let f = Fixture::nueva("review-informe");
+    let g = f.git();
+    let (bare, clon, wt) = preparar(&f, &g);
+    // El origen del check en la configuracion de la base.
+    escribir(
+        &clon,
+        ".taskcode/config.yml",
+        "---\nformato: 2\nplataforma:\n  proveedor: \"github\"\n  api: \"https://api.github.com\"\n  revisor_id: 99001\n",
+    );
+    f.crudo(&clon, &["add", ".taskcode/config.yml"]);
+    f.crudo(&clon, &["commit", "-q", "-m", "config"]);
+    f.crudo(&clon, &["push", "-q", "origin", "develop"]);
+    let cabeza = f.crudo(&wt, &["rev-parse", "HEAD"]).trim().to_owned();
+    let sha12 = &cabeza[..12];
+    let doble = Rc::new(Doble::default());
+    let rama_estado = || f.crudo(&bare, &["rev-parse", estado::RAMA]);
+    let en_estado = |ruta: &str| {
+        f.crudo(
+            &bare,
+            &["ls-tree", "-r", "--name-only", estado::RAMA, "--", ruta],
+        )
+        .trim()
+        .to_owned()
+    };
+
+    // Check pendiente: ni se lee la revision ni se escribe nada.
+    *doble.puertas.borrow_mut() = Some(
+        Informe::nuevo("estado-puertas", Resultado::Esperando)
+            .con_lista("falta", vec!["revision-ia".to_owned()]),
+    );
+    let i = review(&g, &clon, &doble, &[]);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert!(
+        i.linea().contains(" revision-ia=pendiente revisoras="),
+        "{}",
+        i.linea()
+    );
+    assert!(!i.linea().contains("hallazgos="), "{}", i.linea());
+    assert!(doble.lecturas.borrow().is_empty());
+    assert_eq!(en_estado("TASK-001/revision"), "");
+
+    // Terminado en rojo: se lee con el agente y se guarda.
+    *doble.puertas.borrow_mut() = Some(
+        Informe::nuevo("estado-puertas", Resultado::Rechazada)
+            .con("motivo", "check-rojo")
+            .con_lista("checks", vec!["revision-ia".to_owned()]),
+    );
+    let aceptado: tc2::hallazgos::AceptadoDe = serde_json::from_str(
+        r#"{"revisora":"rev:a","hallazgo":{"id":"I1","severidad":"IMPORTANTE","clase":"contrato","fichero":"a.txt","linea":1,"descripcion":"falta | algo","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}}"#,
+    )
+    .unwrap();
+    *doble.revision.borrow_mut() = Some(RevisionPublicada {
+        sha: cabeza.clone(),
+        conclusion: "failure".to_owned(),
+        titulo: "revision-ia: rojo (criticos=0 importantes=1 menores=0)".to_owned(),
+        resumen: "**Veredicto: rojo**".to_owned(),
+        aceptados: vec![aceptado.clone()],
+    });
+    let antes = rama_estado();
+    let i = review(&g, &clon, &doble, &[]);
+    let ruta = format!("TASK-001/revision/revision-ia-{sha12}.json");
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert!(
+        i.linea().contains(&format!(
+            " revision-ia=fallo hallazgos=rojo informe={ruta} revisoras="
+        )),
+        "{}",
+        i.linea()
+    );
+    assert_eq!(*doble.lecturas.borrow(), [(12, 99001)]);
+    assert_ne!(rama_estado(), antes);
+    assert_eq!(
+        en_estado("TASK-001/revision"),
+        format!("{ruta}\nTASK-001/revision/revision-ia-{sha12}.md")
+    );
+    let json = f.crudo(&bare, &["show", &format!("{}:{ruta}", estado::RAMA)]);
+    let leido: tc2::hallazgos::InformeTarea = serde_json::from_str(&json).unwrap();
+    assert_eq!(
+        (
+            leido.tarea.as_str(),
+            leido.pr,
+            leido.sha.as_str(),
+            leido.importantes
+        ),
+        ("TASK-001", 12, cabeza.as_str(), 1)
+    );
+    assert_eq!(leido.veredicto, tc2::hallazgos::Dictamen::Rojo);
+    assert_eq!(leido.aceptados, [aceptado]);
+    let md = f.crudo(
+        &bare,
+        &[
+            "show",
+            &format!("{}:TASK-001/revision/revision-ia-{sha12}.md", estado::RAMA),
+        ],
+    );
+    assert!(md.contains("Veredicto: **rojo**"), "{md}");
+    assert!(
+        md.contains(r"| rev:a | I1 | IMPORTANTE | contrato | a.txt | 1 | borde | falta \| algo |"),
+        "{md}"
+    );
+
+    // Repetir: el mismo informe, nada que escribir.
+    let antes = rama_estado();
+    let i = review(&g, &clon, &doble, &[]);
+    assert_eq!(i.resultado, Resultado::SinCambios, "{}", i.linea());
+    assert!(
+        i.linea()
+            .contains(&format!("hallazgos=rojo informe={ruta}")),
+        "{}",
+        i.linea()
+    );
+    assert_eq!(rama_estado(), antes);
+
+    // Un titulo que no es de tc2 (o una lectura que falla): sin-leer, sin
+    // escribir.
+    doble.revision.borrow_mut().as_mut().unwrap().titulo = "revision-ia: neutral (F6-4)".to_owned();
+    let i = review(&g, &clon, &doble, &[]);
+    assert!(
+        i.linea()
+            .contains(" revision-ia=fallo hallazgos=sin-leer revisoras="),
+        "{}",
+        i.linea()
+    );
+    assert_eq!(rama_estado(), antes);
 }
