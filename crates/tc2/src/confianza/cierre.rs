@@ -50,6 +50,12 @@ pub struct Fichero {
 pub struct Indice {
     rutas: HashMap<String, String>,
     todas: Vec<String>,
+    /// Scripts versionados cuyo nombre de fichero lleva algun caracter que
+    /// el tokenizador no junta (espacio, apostrofo...): `(clave del nombre,
+    /// ruta)`. Entran en el cierre si su nombre aparece literalmente en un
+    /// texto del cierre, sin depender de emparejar comillas (ronda 2,
+    /// CRITICO-1: `echo Don't & call "%~dp0lib\mi paso.bat"`).
+    raros: Vec<(String, String)>,
 }
 
 fn clave_busqueda(ruta: &str) -> String {
@@ -72,7 +78,34 @@ impl Indice {
             .iter()
             .map(|r| (clave_busqueda(r), r.clone()))
             .collect();
-        Self { rutas, todas }
+        let raros = todas
+            .iter()
+            .filter(|r| es_script(r))
+            .filter_map(|r| {
+                let nombre = r.rsplit('/').next().unwrap_or(r);
+                (!nombre.chars().all(es_de_token)).then(|| (clave_busqueda(nombre), r.clone()))
+            })
+            .collect();
+        Self {
+            rutas,
+            todas,
+            raros,
+        }
+    }
+
+    /// Los scripts de nombre raro cuyo nombre aparece literalmente en
+    /// `texto` (sin distinguir mayusculas en Windows y macOS). Puede incluir
+    /// de mas; nunca deja fuera uno nombrado.
+    fn por_nombre(&self, texto: &str) -> Vec<String> {
+        if self.raros.is_empty() {
+            return Vec::new();
+        }
+        let texto = clave_busqueda(texto);
+        self.raros
+            .iter()
+            .filter(|(nombre, _)| texto.contains(nombre.as_str()))
+            .map(|(_, ruta)| ruta.clone())
+            .collect()
     }
 
     /// La ruta versionada que es `candidato`, si se ejecuta como script.
@@ -264,6 +297,7 @@ pub fn calcular(
         .iter()
         .filter_map(|c| indice.script(c).map(str::to_owned))
         .collect();
+    pendientes.extend(indice.por_nombre(orden));
     let mut globs_vacios = Vec::new();
     for (texto, g) in incluye.iter().zip(compilar_globs(incluye)?) {
         let antes = pendientes.len();
@@ -288,15 +322,27 @@ pub fn calcular(
             continue;
         }
         let (tamano, mtime) = (meta.len(), mtime_ns(&meta));
+        let escanea = es_script(&rel) && tamano <= MAX_ESCANEO;
         let f = match cache.get(rel.as_str()) {
             // Sin `mtime` del sistema (0) no hay cache: se lee siempre.
-            Some(c) if c.tamano == tamano && c.mtime == mtime && mtime != 0 => (*c).clone(),
+            Some(c) if c.tamano == tamano && c.mtime == mtime && mtime != 0 => {
+                // Los scripts de nombre raro dependen del indice actual, no
+                // de la cache: si el repo tiene alguno, el texto se vuelve a
+                // leer (sin hashear) para buscar su nombre.
+                if escanea && !indice.raros.is_empty() {
+                    let datos = std::fs::read(&ruta).map_err(ErrorCierre::Lectura)?;
+                    pendientes.extend(indice.por_nombre(&String::from_utf8_lossy(&datos)));
+                }
+                (*c).clone()
+            }
             _ => {
                 let datos = std::fs::read(&ruta).map_err(ErrorCierre::Lectura)?;
                 hasheados += datos.len() as u64;
                 let dir = rel.rsplit_once('/').map_or("", |(d, _)| d);
-                let candidatos = if es_script(&rel) && tamano <= MAX_ESCANEO {
-                    candidatos(&String::from_utf8_lossy(&datos), dir)
+                let candidatos = if escanea {
+                    let texto = String::from_utf8_lossy(&datos);
+                    pendientes.extend(indice.por_nombre(&texto));
+                    candidatos(&texto, dir)
                 } else {
                     Vec::new()
                 };

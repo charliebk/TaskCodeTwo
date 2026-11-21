@@ -40,7 +40,6 @@ pub const NOMBRE: &str = "confiar";
 /// Claves de la configuracion cuya orden se puede confiar hoy.
 pub const CLAVES: [&str; 1] = ["verificacion.comando"];
 
-/// Version del fichero del almacen.
 /// Version del fichero del almacen. La 2 (ronda 1 de TASK-046) cambia los
 /// `candidatos` (comillas y no ASCII): un almacen de la 1 se lee vacio y todo
 /// vuelve a `nunca` (falla cerrado).

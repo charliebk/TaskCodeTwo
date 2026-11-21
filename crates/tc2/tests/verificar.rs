@@ -581,6 +581,96 @@ fn el_cierre_sigue_nombres_con_espacios_y_no_ascii() {
     }
 }
 
+/// Ronda 2, CRITICO-1: `linea` nombra `raro` (nombre con espacio) de forma
+/// que las comillas no se emparejan. Va detras de la salida del script
+/// principal (no se ejecuta en ninguna plataforma): lo que se prueba es el
+/// cierre, que es el mismo para cualquier shell. `raro` tiene que entrar en
+/// la confianza: cambiarlo da `cambiado` y no se ejecuta nada.
+fn raro_entra_en_el_cierre(nombre: &str, linea: &str, raro: &str) {
+    let c = Caso::nuevo(nombre);
+    c.proyecto(Paso::Verde);
+    let principal = if cfg!(windows) {
+        "scripts/verificar.bat"
+    } else {
+        "scripts/verificar.sh"
+    };
+    let mut contenido = std::fs::read_to_string(c.repo.join(principal)).unwrap();
+    if !cfg!(windows) {
+        contenido.push_str("exit 0\n");
+    }
+    contenido.push_str(linea);
+    contenido.push('\n');
+    escribir(&c.repo, principal, &contenido);
+    c.fx.crudo(&c.repo, &["add", "-A"]);
+    c.fx.crudo(&c.repo, &["commit", "-q", "-m", "linea con el nombre"]);
+    // Confiado antes de que exista `raro`, con la cache caliente: versionarlo
+    // despues cambia el cierre aunque el principal no haya cambiado.
+    c.confiar();
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "hasheados").as_deref(),
+        Some("0"),
+        "{}",
+        texto(&o)
+    );
+    let _ = c.se_ejecuto();
+    escribir(&c.repo, raro, "echo bueno\n");
+    c.fx.crudo(&c.repo, &["add", "-A"]);
+    c.fx.crudo(&c.repo, &["commit", "-q", "-m", "nombre raro"]);
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("cambiado"),
+        "{}",
+        texto(&o)
+    );
+    assert!(!c.se_ejecuto(), "se ejecuto con {raro} nuevo sin confiar");
+    let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    // principal, paso, `incluido/a.cfg` (glob) y el raro.
+    assert_eq!(clave(&o, "ficheros").as_deref(), Some("4"), "{}", texto(&o));
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("confiado"),
+        "{}",
+        texto(&o)
+    );
+    assert!(c.se_ejecuto());
+    escribir(&c.repo, raro, "echo malo\n");
+    let o = c.verificar("rapida");
+    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("cambiado"),
+        "{}",
+        texto(&o)
+    );
+    assert!(!c.se_ejecuto(), "se ejecuto con {raro} cambiado");
+}
+
+/// Ronda 2, CRITICO-1 (cmd): un apostrofo suelto antes de una ruta entre
+/// comillas con espacios en la misma linea.
+#[test]
+fn apostrofo_suelto_no_deja_fuera_un_script_con_espacios() {
+    raro_entra_en_el_cierre(
+        "verificar-apostrofo",
+        r#"echo Don't panic & call "%~dp0lib\mi paso.bat""#,
+        "scripts/lib/mi paso.bat",
+    );
+}
+
+/// Ronda 2, CRITICO-1 (sh): comillas anidadas alrededor de una ruta con
+/// espacios.
+#[test]
+fn comillas_anidadas_no_dejan_fuera_un_script_con_espacios() {
+    raro_entra_en_el_cierre(
+        "verificar-anidadas",
+        r#". "$(dirname "$0")/lib/mi paso.sh""#,
+        "scripts/lib/mi paso.sh",
+    );
+}
+
 /// Ronda 1, IMP-2 (rust): `./` se normaliza en `confianza_incluye`, un glob
 /// invalido falla cerrado (config rechazada en `confiar` y en `verificar`)
 /// y un glob que no casa con nada se avisa en `tc2 confiar`.
