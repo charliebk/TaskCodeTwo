@@ -88,6 +88,7 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
 | 2026-11-21T17:30:31Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-21T17:31:00Z | start | automatico | persona | 0.16.1 |
 | 2026-11-21T18:56:07Z | review | automatico | persona | 0.16.1 |
+| 2026-11-21T19:32:11Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
