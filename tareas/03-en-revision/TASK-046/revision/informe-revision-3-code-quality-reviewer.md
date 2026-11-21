@@ -14,7 +14,7 @@ Motivo del veredicto: el CRITICO-1 queda corregido de verdad (reproduccion abajo
 |---|---|---|---|---|
 | IMP-1 | IMPORTANTE | corregido | crates/tc2/src/verificacion/ejecutar.rs:52-75 | implementacion |
 | CRITICO-1 | CRITICO | corregido | crates/tc2/src/confianza/cierre.rs (`Indice::raros`, `por_nombre`, `calcular`) | implementacion |
-| MEN-7 | MENOR | corregido | crates/tc2/src/confianza/cierre.rs:`calcular` (`pendientes.extend(indice.por_nombre(orden))`) | implementacion (introducido por 1c9f9e9) |
+| MEN-7 | MENOR | abierto | crates/tc2/src/confianza/cierre.rs:`calcular` (`pendientes.extend(indice.por_nombre(orden))`) | implementacion (introducido por 1c9f9e9) |
 
 Detalle del estado:
 - IMP-1: corregido (83f83d6), reverificado

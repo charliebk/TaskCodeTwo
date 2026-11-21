@@ -11,7 +11,7 @@
 | IMPORTANTE-1 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs | implementacion |
 | IMPORTANTE-2 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
 | MENOR-5 | MENOR | corregido | crates/tc2/src/confianza/mod.rs | implementacion |
-| MENOR-6 | MENOR | corregido | crates/tc2/tests/verificar.rs (mutantes vivos: `por_nombre(orden)` y mayusculas de `por_nombre`), docs/ci/verificacion-reutilizable.md (nombres con escape y UTF-16) | implementacion |
+| MENOR-6 | MENOR | abierto | crates/tc2/tests/verificar.rs (mutantes vivos: `por_nombre(orden)` y mayusculas de `por_nombre`), docs/ci/verificacion-reutilizable.md (nombres con escape y UTF-16) | implementacion |
 
 Detalle del estado:
 - IMPORTANTE-1: corregido (1c9f9e9), verificado: los dos casos residuales (apostrofo suelto y comillas anidadas) entran ya en el cierre por el nombre; la mutacion que lo quita pone rojo 2 tests
