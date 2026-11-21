@@ -8,14 +8,21 @@
 //! no llama a la red ni a un modelo: el modelo no decide, lo que devuelve es
 //! un dato que se valida.
 //!
-//! Contrato (`crates/tc2/esquemas/hallazgos.schema.json`, version 1): la
+//! Contrato (`crates/tc2/esquemas/hallazgos.schema.json`, version 2): la
 //! respuesta trae exactamente un bloque `json` cercado con acentos graves con
 //! una lista de hallazgos (`$defs/respuesta` del esquema); cada hallazgo
-//! apunta a una linea del lado nuevo del diff y trae evidencia de su tipo
+//! apunta a una linea del lado nuevo del diff, lleva su clase de la lista
+//! cerrada de F1-15 ([`Clase`], F6-5) y trae evidencia de su tipo
 //! (`reproduccion`, `mutante` o `borde`), tambien los MENOR. La evidencia se
 //! declara y se ancla al diff, pero no se ejecuta: eso es de F6-6 (adenda
 //! F6-4 de F1-8). [`instrucciones`] es el texto que va al prompt, hecho con
 //! las mismas constantes que el validador para que no se separen.
+//!
+//! F6-5: [`veredicto`] junta los [`Validados`] de todas las revisoras y saca
+//! la conclusion del check `revision-ia` (`failure` si queda abierto un
+//! CRITICO o IMPORTANTE aceptado o si alguna revisora no dejo respuesta
+//! valida; `success` si no), su resumen ([`resumen_veredicto`]) y las
+//! anotaciones por linea ([`anotaciones`]). Tambien es una funcion pura.
 
 pub mod orden;
 
@@ -27,7 +34,7 @@ use serde_json::Value;
 use crate::verificacion::informe::{Informe as InformeVerificacion, Resultado as ResultadoPaso};
 
 /// Version del contrato de hallazgos.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// Hallazgos que se validan como mucho por respuesta; los que sobran se
 /// rechazan juntos con [`motivo::FUERA_DE_TOPE`].
@@ -134,6 +141,55 @@ impl Severidad {
     }
 }
 
+/// Clase de un hallazgo: la lista cerrada de F1-15 (decision 12 y D7a), con
+/// precedencia en este orden si encaja en varias (F6-5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Clase {
+    PuertaSeguridad,
+    Contrato,
+    Correccion,
+    FidelidadEvidencia,
+    Reproducibilidad,
+}
+
+impl Clase {
+    /// Todas, en el orden de precedencia.
+    pub const TODAS: [Clase; 5] = [
+        Clase::PuertaSeguridad,
+        Clase::Contrato,
+        Clase::Correccion,
+        Clase::FidelidadEvidencia,
+        Clase::Reproducibilidad,
+    ];
+
+    /// Como se escribe en el contrato.
+    pub fn texto(self) -> &'static str {
+        match self {
+            Clase::PuertaSeguridad => "puerta-seguridad",
+            Clase::Contrato => "contrato",
+            Clase::Correccion => "correccion",
+            Clase::FidelidadEvidencia => "fidelidad-evidencia",
+            Clase::Reproducibilidad => "reproducibilidad",
+        }
+    }
+
+    /// Cuando se aplica, para el prompt.
+    fn cuando(self) -> &'static str {
+        match self {
+            Clase::PuertaSeguridad => {
+                "la seguridad, o una puerta que deja pasar lo que deberia parar"
+            }
+            Clase::Contrato => "una interfaz, formato o linea de contrato no cumple lo acordado",
+            Clase::Correccion => "el codigo hace otra cosa de la que deberia",
+            Clase::FidelidadEvidencia => {
+                "lo que se afirma (docs, cifras, tests) no se sostiene con la evidencia"
+            }
+            Clase::Reproducibilidad => "el resultado depende del entorno, del orden o del azar",
+        }
+    }
+}
+
 /// Tipo de evidencia (RR-03: reproduccion, mutantes y bordes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -204,16 +260,20 @@ pub struct Evidencia {
 struct Cabecera {
     id: String,
     severidad: Severidad,
+    clase: Clase,
     fichero: String,
     linea: u32,
     descripcion: String,
 }
 
-/// Un hallazgo que cumple el contrato.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Un hallazgo que cumple el contrato. Se lee de vuelta (F6-5) del
+/// `raw_details` de su anotacion, sin claves de mas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Aceptado {
     pub id: String,
     pub severidad: Severidad,
+    pub clase: Clase,
     pub fichero: String,
     pub linea: u32,
     pub descripcion: String,
@@ -227,19 +287,48 @@ pub struct Rechazo {
     pub indice: Option<usize>,
     /// El id del hallazgo, si tiene uno con forma valida.
     pub id: Option<String>,
-    /// Uno de [`MOTIVOS`].
+    /// Uno de [`MOTIVOS`]; al leerlo de vuelta, uno desconocido es error.
     pub motivo: &'static str,
     /// Que fallo, para la persona.
     pub detalle: String,
 }
 
 /// Resultado de validar la respuesta de una revisora.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Validados {
     pub version: u32,
     pub revisora: String,
     pub aceptados: Vec<Aceptado>,
     pub rechazados: Vec<Rechazo>,
+}
+
+/// Un [`Rechazo`] leido de vuelta, con el motivo aun sin contrastar.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RechazoLeido {
+    indice: Option<usize>,
+    id: Option<String>,
+    motivo: String,
+    detalle: String,
+}
+
+impl<'de> Deserialize<'de> for Rechazo {
+    /// El motivo tiene que ser uno de [`MOTIVOS`].
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let r = RechazoLeido::deserialize(d)?;
+        let motivo = MOTIVOS
+            .iter()
+            .map(|(id, _)| *id)
+            .find(|id| *id == r.motivo)
+            .ok_or_else(|| serde::de::Error::custom(format!("motivo desconocido: {}", r.motivo)))?;
+        Ok(Self {
+            indice: r.indice,
+            id: r.id,
+            motivo,
+            detalle: r.detalle,
+        })
+    }
 }
 
 impl Rechazo {
@@ -642,6 +731,7 @@ fn validar_uno(
     Ok(Aceptado {
         id: c.id,
         severidad: c.severidad,
+        clase: c.clase,
         fichero: c.fichero,
         linea: c.linea,
         descripcion: c.descripcion,
@@ -723,6 +813,7 @@ const EJEMPLO: &str = r#"[
   {
     "id": "H1",
     "severidad": "CRITICO",
+    "clase": "correccion",
     "fichero": "src/calculo.rs",
     "linea": 5,
     "descripcion": "La condicion esta al reves: con dos o mas valores devuelve None.",
@@ -736,6 +827,7 @@ const EJEMPLO: &str = r#"[
   {
     "id": "H2",
     "severidad": "MENOR",
+    "clase": "fidelidad-evidencia",
     "fichero": "src/calculo.rs",
     "linea": 12,
     "descripcion": "Ningun test fija el tope de 100.",
@@ -764,6 +856,10 @@ El check `revision-ia` lista los aceptados y los rechazados con su motivo.\n\n",
         .map(|x| format!("`{}`", x.texto()))
         .collect();
     s.push_str(&format!("- `severidad`: {}.\n", severidades.join(", ")));
+    s.push_str("- `clase`: una de esta lista; si encaja en varias, la primera (F1-15):\n");
+    for c in Clase::TODAS {
+        s.push_str(&format!("  - `{}`: {}.\n", c.texto(), c.cuando()));
+    }
     s.push_str(
         "- `fichero`: la ruta tal como sale en la cabecera `+++ b/<ruta>` del diff, sin `b/`.\n",
     );
@@ -910,12 +1006,13 @@ pub fn resumen_markdown(v: &Validados) -> String {
         v.rechazados.len()
     );
     if !v.aceptados.is_empty() {
-        s.push_str("| id | severidad | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|\n");
+        s.push_str("| id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|\n");
         for a in &v.aceptados {
             s.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {} |\n",
+                "| {} | {} | {} | {} | {} | {} | {} |\n",
                 plano(&a.id, 64),
                 a.severidad.texto(),
+                a.clase.texto(),
                 plano(&a.fichero, 200),
                 a.linea,
                 a.evidencia.tipo.texto(),
@@ -939,6 +1036,363 @@ pub fn resumen_markdown(v: &Validados) -> String {
     s
 }
 
+// --- Veredicto del check (F6-5) ---------------------------------------------
+
+/// Anotaciones como mucho por peticion a la API de check-runs (tope de
+/// GitHub).
+pub const ANOTACIONES_POR_LOTE: usize = 50;
+
+/// Prefijo del titulo del check; tras el viene el veredicto.
+pub const PREFIJO_TITULO: &str = "revision-ia: ";
+
+/// Lo que dice el check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Dictamen {
+    /// Queda abierto un CRITICO o IMPORTANTE aceptado.
+    Rojo,
+    /// Sin CRITICOS ni IMPORTANTES abiertos.
+    Verde,
+    /// Alguna revisora no dejo respuesta valida, o no hubo ninguna: la
+    /// revision no ocurrio (falla en cerrado, decision 1 de TASK-051).
+    Incompleta,
+}
+
+impl Dictamen {
+    /// Como se escribe en la linea y en el titulo.
+    pub fn texto(self) -> &'static str {
+        match self {
+            Dictamen::Rojo => "rojo",
+            Dictamen::Verde => "verde",
+            Dictamen::Incompleta => "incompleta",
+        }
+    }
+
+    /// Conclusion del check-run: solo `success` o `failure` (nunca
+    /// `neutral`, que GitHub da por cumplido).
+    pub fn conclusion(self) -> &'static str {
+        match self {
+            Dictamen::Verde => "success",
+            Dictamen::Rojo | Dictamen::Incompleta => "failure",
+        }
+    }
+
+    /// El dictamen de un titulo del check (`revision-ia: <dictamen> ...`).
+    pub fn de_titulo(titulo: &str) -> Option<Self> {
+        let resto = titulo.strip_prefix(PREFIJO_TITULO)?;
+        match resto.split(' ').next()? {
+            "rojo" => Some(Dictamen::Rojo),
+            "verde" => Some(Dictamen::Verde),
+            "incompleta" => Some(Dictamen::Incompleta),
+            _ => None,
+        }
+    }
+}
+
+/// Un aceptado con la revisora que lo encontro: el `raw_details` de su
+/// anotacion, que `tc2 review` lee de vuelta.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AceptadoDe {
+    pub revisora: String,
+    pub hallazgo: Aceptado,
+}
+
+/// Una revisora en el resumen del veredicto.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fila {
+    /// `None` si no dejo un JSON de `validar` legible.
+    pub revisora: Option<String>,
+    pub aceptados: usize,
+    pub rechazados: usize,
+    /// El motivo del rechazo de toda la respuesta, si lo hubo.
+    pub incompleta: Option<&'static str>,
+}
+
+/// El veredicto de todas las revisoras.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Veredicto {
+    pub dictamen: Dictamen,
+    pub criticos: usize,
+    pub importantes: usize,
+    pub menores: usize,
+    pub rechazados: usize,
+    pub filas: Vec<Fila>,
+    pub aceptados: Vec<AceptadoDe>,
+}
+
+impl Veredicto {
+    /// Revisoras sin respuesta valida.
+    pub fn incompletas(&self) -> usize {
+        self.filas
+            .iter()
+            .filter(|f| f.revisora.is_none() || f.incompleta.is_some())
+            .count()
+    }
+
+    /// Titulo del check.
+    pub fn titulo(&self) -> String {
+        format!(
+            "{PREFIJO_TITULO}{} (criticos={} importantes={} menores={})",
+            self.dictamen.texto(),
+            self.criticos,
+            self.importantes,
+            self.menores
+        )
+    }
+}
+
+/// Junta los resultados de `validar` de cada revisora (`None` si no dejo
+/// uno legible). En F6-5 todo aceptado esta abierto (el cierre es de F6-6).
+pub fn veredicto(revisoras: &[Option<Validados>]) -> Veredicto {
+    let mut v = Veredicto {
+        dictamen: Dictamen::Verde,
+        criticos: 0,
+        importantes: 0,
+        menores: 0,
+        rechazados: 0,
+        filas: Vec::new(),
+        aceptados: Vec::new(),
+    };
+    for r in revisoras {
+        let Some(r) = r else {
+            v.filas.push(Fila {
+                revisora: None,
+                aceptados: 0,
+                rechazados: 0,
+                incompleta: None,
+            });
+            continue;
+        };
+        for a in &r.aceptados {
+            match a.severidad {
+                Severidad::Critico => v.criticos += 1,
+                Severidad::Importante => v.importantes += 1,
+                Severidad::Menor => v.menores += 1,
+            }
+            v.aceptados.push(AceptadoDe {
+                revisora: r.revisora.clone(),
+                hallazgo: a.clone(),
+            });
+        }
+        v.rechazados += r.rechazados.len();
+        v.filas.push(Fila {
+            revisora: Some(r.revisora.clone()),
+            aceptados: r.aceptados.len(),
+            rechazados: r.rechazados.len(),
+            incompleta: r
+                .rechazados
+                .iter()
+                .find(|x| x.indice.is_none())
+                .map(|x| x.motivo),
+        });
+    }
+    v.dictamen = if v.filas.is_empty() || v.incompletas() > 0 {
+        Dictamen::Incompleta
+    } else if v.criticos + v.importantes > 0 {
+        Dictamen::Rojo
+    } else {
+        Dictamen::Verde
+    };
+    v
+}
+
+/// Una anotacion del check-run (API de check-runs de GitHub).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Anotacion {
+    pub path: String,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub annotation_level: String,
+    pub title: String,
+    pub message: String,
+    pub raw_details: String,
+}
+
+/// Una anotacion por aceptado, en lotes de [`ANOTACIONES_POR_LOTE`]:
+/// `failure` para CRITICO e IMPORTANTE, `warning` para MENOR; titulo y
+/// mensaje pasados por [`plano`]; `raw_details`, el [`AceptadoDe`] en JSON.
+pub fn anotaciones(v: &Veredicto) -> Vec<Vec<Anotacion>> {
+    let todas: Vec<Anotacion> = v
+        .aceptados
+        .iter()
+        .map(|a| {
+            let h = &a.hallazgo;
+            let titulo = format!(
+                "{} {} {} ({})",
+                plano(&h.id, 64),
+                h.severidad.texto(),
+                h.clase.texto(),
+                plano(&a.revisora, 120)
+            );
+            Anotacion {
+                path: h.fichero.clone(),
+                start_line: h.linea,
+                end_line: h.linea,
+                annotation_level: match h.severidad {
+                    Severidad::Critico | Severidad::Importante => "failure",
+                    Severidad::Menor => "warning",
+                }
+                .to_owned(),
+                // GitHub corta el titulo en 255 caracteres.
+                title: titulo.chars().take(255).collect(),
+                message: plano(&h.descripcion, 4000),
+                raw_details: serde_json::to_string(a).unwrap_or_default(),
+            }
+        })
+        .collect();
+    todas
+        .chunks(ANOTACIONES_POR_LOTE)
+        .map(<[Anotacion]>::to_vec)
+        .collect()
+}
+
+/// El resumen del check: el veredicto, una fila por revisora (todo lo del
+/// modelo por [`plano`]) y, si se dan, las lineas de `extra` (la seleccion y
+/// el estado de cada revisora que deja el workflow), tambien por [`plano`].
+pub fn resumen_veredicto(v: &Veredicto, extra: &str) -> String {
+    let explicacion = match v.dictamen {
+        Dictamen::Rojo => {
+            "Queda abierto al menos un hallazgo CRITICO o IMPORTANTE aceptado: el check sale en rojo (F6-5)."
+        }
+        Dictamen::Verde => "Sin hallazgos CRITICOS ni IMPORTANTES abiertos.",
+        Dictamen::Incompleta => {
+            "Alguna revisora no dejo una respuesta valida (o no hubo ninguna): la revision no se completo y el check sale en rojo (F6-5)."
+        }
+    };
+    let mut s = format!(
+        "**Veredicto: {}** (conclusion {}). {explicacion}\n\n\
+         Aceptados: {} CRITICO, {} IMPORTANTE, {} MENOR; rechazados: {}; revisoras: {}, incompletas: {}.\n\n",
+        v.dictamen.texto(),
+        v.dictamen.conclusion(),
+        v.criticos,
+        v.importantes,
+        v.menores,
+        v.rechazados,
+        v.filas.len(),
+        v.incompletas()
+    );
+    if !v.filas.is_empty() {
+        s.push_str("| revisora | aceptados | rechazados | respuesta |\n|---|---|---|---|\n");
+        for (k, f) in v.filas.iter().enumerate() {
+            let (quien, respuesta) = match (&f.revisora, f.incompleta) {
+                (None, _) => (format!("#{k}"), "sin-resultado".to_owned()),
+                (Some(r), None) => (plano(r, 120), "valida".to_owned()),
+                (Some(r), Some(m)) => (plano(r, 120), format!("incompleta ({m})")),
+            };
+            s.push_str(&format!(
+                "| {quien} | {} | {} | {respuesta} |\n",
+                f.aceptados, f.rechazados
+            ));
+        }
+        s.push('\n');
+    }
+    let lineas: Vec<String> = extra
+        .lines()
+        .filter(|l| no_vacio(l))
+        .map(|l| plano(l, 2000))
+        .collect();
+    if !lineas.is_empty() {
+        s.push_str("Seleccion y estado de cada revisora:\n\n");
+        for l in lineas {
+            s.push_str(&format!("- {l}\n"));
+        }
+    }
+    s
+}
+
+/// El informe de la revision IA en la carpeta de la tarea (F6-5,
+/// `$defs/informe-tarea`): leido del check publicado, sin la prosa del
+/// modelo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InformeTarea {
+    pub version: u32,
+    pub tarea: String,
+    pub pr: u64,
+    pub sha: String,
+    pub conclusion: String,
+    pub veredicto: Dictamen,
+    pub criticos: usize,
+    pub importantes: usize,
+    pub menores: usize,
+    /// El resumen del check (ya pasado por [`plano`]).
+    pub resumen: String,
+    pub aceptados: Vec<AceptadoDe>,
+}
+
+impl InformeTarea {
+    /// El informe de la tarea `tarea` con lo leido del check.
+    pub fn nuevo(
+        tarea: &str,
+        pr: u64,
+        sha: &str,
+        (conclusion, veredicto): (&str, Dictamen),
+        resumen: &str,
+        aceptados: Vec<AceptadoDe>,
+    ) -> Self {
+        let n = |s: Severidad| {
+            aceptados
+                .iter()
+                .filter(|a| a.hallazgo.severidad == s)
+                .count()
+        };
+        Self {
+            version: VERSION,
+            tarea: tarea.to_owned(),
+            pr,
+            sha: sha.to_owned(),
+            conclusion: conclusion.to_owned(),
+            veredicto,
+            criticos: n(Severidad::Critico),
+            importantes: n(Severidad::Importante),
+            menores: n(Severidad::Menor),
+            resumen: resumen.to_owned(),
+            aceptados,
+        }
+    }
+
+    /// El mismo informe en Markdown: veredicto y tabla de aceptados por
+    /// [`plano`].
+    pub fn markdown(&self) -> String {
+        let mut s = format!(
+            "# Revision IA de {} (PR {}, commit {})\n\n\
+             Veredicto: **{}** (conclusion {}). Aceptados: {} CRITICO, {} IMPORTANTE, {} MENOR.\n\n",
+            plano(&self.tarea, 64),
+            self.pr,
+            plano(&self.sha, 64),
+            self.veredicto.texto(),
+            plano(&self.conclusion, 32),
+            self.criticos,
+            self.importantes,
+            self.menores
+        );
+        if self.aceptados.is_empty() {
+            s.push_str("Sin hallazgos aceptados.\n");
+        } else {
+            s.push_str(
+                "| revisora | id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|---|\n",
+            );
+            for a in &self.aceptados {
+                let h = &a.hallazgo;
+                s.push_str(&format!(
+                    "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                    plano(&a.revisora, 120),
+                    plano(&h.id, 64),
+                    h.severidad.texto(),
+                    h.clase.texto(),
+                    plano(&h.fichero, 200),
+                    h.linea,
+                    h.evidencia.tipo.texto(),
+                    plano(&h.descripcion, 400)
+                ));
+            }
+        }
+        s
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod tests {
@@ -957,7 +1411,7 @@ mod tests {
         format!("Informe.\n\n```json\n[{json}]\n```\n")
     }
 
-    const BORDE: &str = r#"{"id":"B","severidad":"MENOR","fichero":"src/calculo.rs","linea":5,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}"#;
+    const BORDE: &str = r#"{"id":"B","severidad":"MENOR","clase":"correccion","fichero":"src/calculo.rs","linea":5,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}"#;
 
     #[test]
     fn el_diff_da_las_lineas_del_lado_nuevo() {
@@ -1015,7 +1469,7 @@ mod tests {
         let v = validar(
             "r",
             &una(
-                r#"{"id":"Q","severidad":"MENOR","fichero":"src/ñ.rs","linea":2,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}"#,
+                r#"{"id":"Q","severidad":"MENOR","clase":"correccion","fichero":"src/ñ.rs","linea":2,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}"#,
             ),
             &d,
             None,
@@ -1045,6 +1499,8 @@ mod tests {
             ("```json\n{\"id\":\"B\"}\n```".to_owned(), "respuesta:json-invalido"),
             (una("3"), "#0:hallazgo-invalido"),
             (una(&BORDE.replace("\"MENOR\"", "\"GRAVE\"")), "B:hallazgo-invalido"),
+            (una(&BORDE.replace("\"clase\":\"correccion\",", "")), "B:hallazgo-invalido"),
+            (una(&BORDE.replace("\"correccion\"", "\"estilo\"")), "B:hallazgo-invalido"),
             (una(&BORDE.replace("\"linea\":5", "\"linea\":0")), "B:hallazgo-invalido"),
             (una(&BORDE.replace("\"linea\":5", "\"linea\":5,\"x\":1")), "B:hallazgo-invalido"),
             (una(&BORDE.replace("\"descripcion\":\"d\"", "\"descripcion\":\" \"")), "B:hallazgo-invalido"),
@@ -1060,23 +1516,23 @@ mod tests {
             (una(&BORDE.replace("src/calculo.rs", "src/otro.rs")), "B:linea-fuera-del-diff"),
             (una(&BORDE.replace("\"obtenido\":\"2\"", "\"obtenido\":\" 1 \"")), "B:borde-sin-diferencia"),
             (
-                una(r#"{"id":"M","severidad":"IMPORTANTE","fichero":"src/calculo.rs","linea":12,"descripcion":"d","evidencia":{"tipo":"mutante","linea_original":"x.min(10)","mutacion":"x.min(11)","test":"t"}}"#),
+                una(r#"{"id":"M","severidad":"IMPORTANTE","clase":"contrato","fichero":"src/calculo.rs","linea":12,"descripcion":"d","evidencia":{"tipo":"mutante","linea_original":"x.min(10)","mutacion":"x.min(11)","test":"t"}}"#),
                 "M:mutante-no-coincide",
             ),
             (
-                una(r#"{"id":"M","severidad":"IMPORTANTE","fichero":"src/calculo.rs","linea":12,"descripcion":"d","evidencia":{"tipo":"mutante","linea_original":"x.min(100)","mutacion":" x.min(100)","test":"t"}}"#),
+                una(r#"{"id":"M","severidad":"IMPORTANTE","clase":"contrato","fichero":"src/calculo.rs","linea":12,"descripcion":"d","evidencia":{"tipo":"mutante","linea_original":"x.min(100)","mutacion":" x.min(100)","test":"t"}}"#),
                 "M:mutante-sin-cambio",
             ),
             (
-                una(r#"{"id":"R","severidad":"MENOR","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","pasos":[]}}"#),
+                una(r#"{"id":"R","severidad":"MENOR","clase":"correccion","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","pasos":[]}}"#),
                 "R:evidencia-incompleta",
             ),
             (
-                una(r#"{"id":"R","severidad":"MENOR","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","pasos":["a"]}}"#),
+                una(r#"{"id":"R","severidad":"MENOR","clase":"correccion","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","pasos":["a"]}}"#),
                 "R:evidencia-incompleta",
             ),
             (
-                una(r#"{"id":"R","severidad":"MENOR","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","paso_rojo":"clippy"}}"#),
+                una(r#"{"id":"R","severidad":"MENOR","clase":"correccion","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{"tipo":"reproduccion","paso_rojo":"clippy"}}"#),
                 "R:paso-rojo-no-esta",
             ),
         ];
@@ -1101,7 +1557,7 @@ mod tests {
         let informe = crate::verificacion::informe::leer(ROJO).unwrap_or_else(|e| panic!("{e}"));
         let r = |paso: &str| {
             una(&format!(
-                r#"{{"id":"R","severidad":"MENOR","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{{"tipo":"reproduccion","paso_rojo":"{paso}"}}}}"#
+                r#"{{"id":"R","severidad":"MENOR","clase":"correccion","fichero":"src/calculo.rs","linea":8,"descripcion":"d","evidencia":{{"tipo":"reproduccion","paso_rojo":"{paso}"}}}}"#
             ))
         };
         let v = validar("r", &r("clippy"), &diff(), Some(&informe));
@@ -1131,6 +1587,9 @@ mod tests {
         ] {
             assert!(t.contains(x), "falta {x}");
         }
+        for c in Clase::TODAS {
+            assert!(t.contains(&format!("`{}`", c.texto())), "falta {c:?}");
+        }
         let v = validar("r", &t, &diff(), None);
         assert_eq!((v.aceptados.len(), v.rechazados.len()), (2, 0), "{v:?}");
     }
@@ -1158,6 +1617,11 @@ mod tests {
         assert_eq!(
             textos(&e["$defs"]["hallazgo"]["properties"]["severidad"]["enum"]),
             ["CRITICO", "IMPORTANTE", "MENOR"]
+        );
+        let clases: Vec<&str> = Clase::TODAS.iter().map(|c| c.texto()).collect();
+        assert_eq!(
+            textos(&e["$defs"]["hallazgo"]["properties"]["clase"]["enum"]),
+            clases
         );
         assert_eq!(e["properties"]["version"]["const"], VERSION);
         let v = validar("r", MIXTA, &diff(), None);

@@ -122,7 +122,7 @@ fn sin_evidencia_o_fuera_del_diff_se_rechaza() {
     let md = std::fs::read_to_string(&resumen).unwrap();
     for x in [
         "### Hallazgos de taskcode-plugin:rust-wasm-reviewer: 3 aceptados, 2 rechazados",
-        "| H1 | CRITICO | src/calculo.rs | 5 | borde |",
+        "| H1 | CRITICO | correccion | src/calculo.rs | 5 | borde |",
         "| H4 | sin-evidencia |",
         "| H5 | linea-fuera-del-diff |",
     ] {
