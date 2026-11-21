@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-046-f5-6-hook-local-rapido-opcional-y-con-co
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Tarea F5-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-21T17:23:45Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-21T17:30:31Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-21T17:31:00Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
