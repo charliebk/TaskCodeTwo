@@ -80,6 +80,10 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
     y un aviso en stderr con codigo 0; con `--hook`, un error de uso sale con
     0 y aviso, y `stop_hook_active` se mira antes que los argumentos.
 
+## Rondas extra
+
+- Ronda 3: la decide quien orquesta, con la consigna de Carlos de seguir con la opcion recomendada; solo verifica la correccion del CRITICO-1 de la ronda 2 (1c9f9e9: scripts de nombre raro entran en el cierre por su nombre) y el MENOR-5, sin codigo nuevo.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
