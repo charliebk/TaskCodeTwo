@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-045 (feature) — F5-5 Runner self-hosted Windows por perfil (2026-11-21)
 - TASK-043 (feature) — F5-3 Verificacion por impacto como paso de CI y completa en la cola (2026-11-20)
 - TASK-050 (feature) — F6-4 Busqueda de errores (2026-11-20)
 - TASK-137 (fix) — F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache (2026-11-20)

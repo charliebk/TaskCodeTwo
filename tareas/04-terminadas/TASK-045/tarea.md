@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-045-f5-5-runner-self-hosted-windows-por-perf
 asignado_a: charlie.bk@gmail.com
@@ -68,6 +68,7 @@ Pendiente de Carlos: retirar el runner con los comandos de la guía si ya no lo 
 | 2026-11-20T22:29:59Z | start | automatico | persona | 0.16.1 |
 | 2026-11-21T16:37:34Z | review | automatico | persona | 0.16.1 |
 | 2026-11-21T16:50:40Z | review | automatico | persona | 0.16.1 |
+| 2026-11-21T17:22:43Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -80,3 +81,10 @@ Pendiente de Carlos: retirar el runner con los comandos de la guía si ya no lo 
 ## Verificacion ligera
 
 - 2026-11-21T16:58:07Z: ronda 2; commit revisado e141ed154087ea00e2e7fa9536bed2fb42c093f7; commit verificado 76daad5d9ff5b51e44c69e6991f86b019ee3e191; ficheros: .github/workflows/verificacion.yml, xtask/src/workflows.rs; corregidos: MENOR-6, MEN-1 (ronda 1), MENOR-1 (nuevo, residual de MEN-1), MEN-2 (ronda 1); pendientes: ninguno
+
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 1133 min
+- Paso de la hora: 1133 min reales frente a 180 estimados
+- Cierre (finish): 1402 s, de 2026-11-21T16:59:21Z a 2026-11-21T17:22:43Z
