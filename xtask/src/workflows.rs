@@ -2125,7 +2125,7 @@ fn artefactos_subidos(raiz: &Nodo, job: &str) -> Vec<String> {
 
 /// `validar` sube exactamente el artefacto `revision-ia-hallazgos` y
 /// `publicar` lee ese mismo nombre; si no casan, el check sale siempre
-/// `neutral` con `sin-hallazgos` y solo el E2E lo veria.
+/// `failure` con veredicto `incompleta` y solo el E2E lo veria.
 fn validar_sube_lo_que_lee_publicar(texto: &str) -> Result<(), String> {
     const NOMBRE: &str = "revision-ia-hallazgos";
     let raiz = leer_yaml(texto)?;
@@ -2142,6 +2142,63 @@ fn validar_sube_lo_que_lee_publicar(texto: &str) -> Result<(), String> {
         .any(|(k, v)| *k == "run" && v.contains(&format!("-f name={NOMBRE} ")));
     if !lee {
         return Err(format!("publicar no lee el artefacto {NOMBRE}"));
+    }
+    Ok(())
+}
+
+/// Conclusiones que admite la API de check-runs.
+const CONCLUSIONES: [&str; 8] = [
+    "action_required",
+    "cancelled",
+    "failure",
+    "neutral",
+    "success",
+    "skipped",
+    "stale",
+    "timed_out",
+];
+
+/// Los `run` de un job, juntos.
+fn runs_del_job(raiz: &Nodo, job: &str) -> String {
+    let mut valores = Vec::new();
+    if let Some(j) = raiz.get("jobs").and_then(|j| j.get(job)) {
+        j.escalares("", &mut valores);
+    }
+    valores
+        .iter()
+        .filter(|(k, _)| *k == "run")
+        .map(|(_, v)| *v)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// F6-5: la conclusion la calcula `tc2 hallazgos veredicto` en `validar` y
+/// `publicar` solo la transporta: lee `check.json` del artefacto, las
+/// unicas conclusiones que nombra son `success` y `failure` (nunca
+/// `neutral`, que GitHub da por cumplido) y `success` no aparece como
+/// literal (solo puede venir de `check.json`; el literal `failure` es el de
+/// la revision incompleta sin artefacto).
+fn publicar_transporta_el_veredicto(texto: &str) -> Result<(), String> {
+    let raiz = leer_yaml(texto)?;
+    if !runs_del_job(&raiz, "validar").contains("tc2 hallazgos veredicto ") {
+        return Err("validar no corre tc2 hallazgos veredicto".to_owned());
+    }
+    let run = runs_del_job(&raiz, "publicar");
+    if !run.contains("jq -r '.conclusion // \"\"' \"$dir/check.json\"") {
+        return Err("publicar no lee check.json del artefacto".to_owned());
+    }
+    let palabras: BTreeSet<&str> = run
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|p| CONCLUSIONES.contains(p))
+        .collect();
+    if palabras != BTreeSet::from(["failure", "success"]) {
+        return Err(format!(
+            "publicar nombra las conclusiones {palabras:?}; solo se admiten success y failure"
+        ));
+    }
+    let literal = run.replace(' ', "");
+    if literal.contains("conclusion:\"success\"") {
+        return Err("publicar pone success como literal: tiene que venir de check.json".to_owned());
     }
     Ok(())
 }
@@ -2211,6 +2268,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
         ["revision-ia-hallazgos"]
     );
     assert_eq!(validar_sube_lo_que_lee_publicar(&texto), Ok(()));
+    assert_eq!(publicar_transporta_el_veredicto(&texto), Ok(()));
     assert!(
         runs_de("preparar")
             .iter()
@@ -2345,6 +2403,42 @@ fn cada_mutacion_del_revisor_da_su_error() {
     for (original, mutado, esperado) in artefactos {
         assert!(texto.contains(original), "el caso no casa: {original}");
         let r = validar_sube_lo_que_lee_publicar(&texto.replacen(original, mutado, 1));
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains(esperado)),
+            "«{esperado}» no salio: {r:?}"
+        );
+    }
+    // F6-5: una mutacion por regla del veredicto da rojo.
+    let veredicto: [(&str, &str, &str); 5] = [
+        (
+            "          tc2 hallazgos veredicto --salida",
+            "          tc2 hallazgos resumen --salida",
+            "validar no corre tc2 hallazgos veredicto",
+        ),
+        (
+            "[ -s \"$dir/check.json\" ]; then\n            conclusion=$(jq -r '.conclusion // \"\"' \"$dir/check.json\")",
+            "[ -s \"$dir/resumen.txt\" ]; then\n            conclusion=$(jq -r '.conclusion // \"\"' \"$dir/resumen.json\")",
+            "publicar no lee check.json del artefacto",
+        ),
+        (
+            "            success|failure) cp",
+            "            success|failure|neutral) cp",
+            "solo se admiten success y failure",
+        ),
+        (
+            "{conclusion: \"failure\", output: {title: \"revision-ia: incompleta",
+            "{conclusion: \"neutral\", output: {title: \"revision-ia: incompleta",
+            "solo se admiten success y failure",
+        ),
+        (
+            "{conclusion: \"failure\", output: {title: \"revision-ia: incompleta",
+            "{conclusion: \"success\", output: {title: \"revision-ia: incompleta",
+            "success como literal",
+        ),
+    ];
+    for (original, mutado, esperado) in veredicto {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let r = publicar_transporta_el_veredicto(&texto.replacen(original, mutado, 1));
         assert!(
             r.as_ref().is_err_and(|e| e.contains(esperado)),
             "«{esperado}» no salio: {r:?}"
