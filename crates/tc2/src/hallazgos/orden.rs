@@ -15,6 +15,18 @@
 //! `instrucciones` escribe en stdout el texto que va al prompt
 //! ([`super::instrucciones`]); con `--json`, en la clave `instrucciones` del
 //! contrato.
+//!
+//! `veredicto --salida <dir> [--hallazgos <json>]... [--extra <txt>]` (F6-5)
+//! junta las salidas de `validar` de todas las revisoras ([`super::veredicto`];
+//! una que no se lee, pasa de [`TOPE_VALIDADOS`] o no es del contrato cuenta
+//! como revisora sin respuesta valida) y escribe en `<dir>` el `check.json`
+//! que publica el workflow (`conclusion`, `output.title`, `output.summary` y
+//! las primeras 50 anotaciones) y un `anotaciones-<k>.json` por cada lote
+//! siguiente. `--extra` son lineas que van al final del resumen (la
+//! seleccion y el estado de cada revisora). Linea: `hallazgos ok
+//! veredicto=<rojo|verde|incompleta> conclusion=<success|failure>
+//! criticos=N importantes=M menores=K revisoras=R incompletas=I lotes=L`.
+//! Un veredicto rojo no es un fallo de la orden: sale `ok`.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -38,6 +50,12 @@ pub const TOPE_DIFF: u64 = 4 * 1024 * 1024;
 /// Bytes que se leen como mucho del informe de verificacion (el mismo tope
 /// que `tc2 revisoras`).
 pub const TOPE_INFORME: u64 = crate::seleccion::orden::TOPE_INFORME;
+
+/// Bytes que se leen como mucho de cada salida de `validar` (F6-5).
+pub const TOPE_VALIDADOS: u64 = 4 * 1024 * 1024;
+
+/// Bytes que se leen como mucho de `--extra`.
+pub const TOPE_EXTRA: u64 = 64 * 1024;
 
 #[derive(Default)]
 struct Args {
@@ -148,6 +166,9 @@ pub fn orden(a: &[String], json: bool, idioma: Idioma) -> Salida {
         [s, resto @ ..] if s == "validar" => match validar(resto) {
             Ok(i) | Err(i) => i.salida_en(json, idioma),
         },
+        [s, resto @ ..] if s == "veredicto" => match veredicto(resto) {
+            Ok(i) | Err(i) => i.salida_en(json, idioma),
+        },
         [] => uso("sin-suborden").salida_en(json, idioma),
         _ => uso("suborden-desconocida").salida_en(json, idioma),
     }
@@ -188,4 +209,76 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
         i = i.con("informe", e);
     }
     Ok(i)
+}
+
+/// Una salida de `validar` del contrato vigente, o `None`.
+fn leer_validados(p: &Path) -> Option<super::Validados> {
+    let t = leer_con_tope(p, TOPE_VALIDADOS).ok()??;
+    serde_json::from_str::<super::Validados>(&t)
+        .ok()
+        .filter(|v| v.version == super::VERSION)
+}
+
+fn escribir_json(p: &Path, v: &serde_json::Value) -> Result<(), Informe> {
+    let texto = serde_json::to_string_pretty(v).map_err(|e| fallo_io(p, e.to_string()))?;
+    std::fs::write(p, texto + "\n").map_err(|e| fallo_io(p, e.to_string()))
+}
+
+fn veredicto(a: &[String]) -> Result<Informe, Informe> {
+    let mut salida: Option<PathBuf> = None;
+    let mut extra: Option<PathBuf> = None;
+    let mut entradas: Vec<PathBuf> = Vec::new();
+    let mut it = a.iter();
+    while let Some(x) = it.next() {
+        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
+        match x.as_str() {
+            "--hallazgos" => entradas.push(valor()?.into()),
+            "--salida" if salida.is_none() => salida = Some(valor()?.into()),
+            "--extra" if extra.is_none() => extra = Some(valor()?.into()),
+            _ => return Err(uso("argumento-desconocido")),
+        }
+    }
+    let Some(dir) = salida else {
+        return Err(uso("sin-salida"));
+    };
+    let extra = match &extra {
+        Some(p) => leer_entrada(p, TOPE_EXTRA)?,
+        None => String::new(),
+    };
+    let revisoras: Vec<Option<super::Validados>> =
+        entradas.iter().map(|p| leer_validados(p)).collect();
+    let v = super::veredicto(&revisoras);
+    let lotes = super::anotaciones(&v);
+    let (titulo, resumen) = (v.titulo(), super::resumen_veredicto(&v, &extra));
+    std::fs::create_dir_all(&dir).map_err(|e| fallo_io(&dir, e.to_string()))?;
+    let salida_de = |anotaciones: &[super::Anotacion]| {
+        serde_json::json!({
+            "title": titulo,
+            "summary": resumen,
+            "annotations": anotaciones,
+        })
+    };
+    let primero = lotes.first().map(Vec::as_slice).unwrap_or_default();
+    escribir_json(
+        &dir.join("check.json"),
+        &serde_json::json!({
+            "conclusion": v.dictamen.conclusion(),
+            "output": salida_de(primero),
+        }),
+    )?;
+    for (k, lote) in lotes.iter().enumerate().skip(1) {
+        escribir_json(
+            &dir.join(format!("anotaciones-{k}.json")),
+            &serde_json::json!({ "output": salida_de(lote) }),
+        )?;
+    }
+    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
+        .con("veredicto", v.dictamen.texto())
+        .con("conclusion", v.dictamen.conclusion())
+        .con("criticos", v.criticos.to_string())
+        .con("importantes", v.importantes.to_string())
+        .con("menores", v.menores.to_string())
+        .con("revisoras", v.filas.len().to_string())
+        .con("incompletas", v.incompletas().to_string())
+        .con("lotes", lotes.len().max(1).to_string()))
 }
