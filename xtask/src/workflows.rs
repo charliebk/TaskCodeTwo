@@ -1306,6 +1306,7 @@ fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
         "S-1-5-32-544",
         r#"System32\whoami.exe" /groups"#,
         "RUNNER_OS",
+        "Get-Command jq",
     ] {
         if !run.contains(exigido) {
             return Err(format!("aislamiento sin {exigido}"));
@@ -1363,6 +1364,10 @@ fn el_aislamiento_va_antes_del_checkout_en_el_runner_propio() {
                 "        shell: powershell\n",
                 1,
             ),
+        ),
+        (
+            "sin comprobar jq",
+            texto.replacen("Get-Command jq", "Get-Command bash", 1),
         ),
         (
             "sin el grupo Administradores",

@@ -326,7 +326,7 @@ ejecutarse (lo encontró el E2E de TASK-045). Falla con
 `exit 2` si el runner no es Windows, si la cuenta es `SYSTEM` (SID
 `S-1-5-18`) o si pertenece al grupo Administradores (SID `S-1-5-32-544`,
 también cuando UAC lo deja solo para denegar). Escribe el usuario y el `bash`
-que encuentra. Que la cuenta no lea tu perfil y que los datos sean de solo
+que encuentra, y falla si no hay `jq` en el `PATH` (la caché por árbol lo usa). Que la cuenta no lea tu perfil y que los datos sean de solo
 lectura no lo comprueba: depende del alta.
 
 **Directorio limpio** (D3b b): `actions/checkout` con su `clean: true` por
@@ -350,7 +350,16 @@ En una consola de PowerShell **de administrador** en tu máquina, para un repo
 3. **Descarga**: en GitHub, *Settings → Actions → Runners → New self-hosted
    runner*, Windows x64. Sigue en esa carpeta los pasos de descarga y
    comprobación del hash que da la página; de ahí sale también el token de
-   registro (dura poco).
+   registro (dura poco). Si la página da 404 (repo privado y el navegador con
+   otra cuenta), descarga el zip de `actions/runner` de su release, compara el
+   SHA-256 con el que publica GitHub y pide el token con
+   `gh api -X POST repos/<dueño>/<repo>/actions/runners/registration-token --jq .token`.
+   **bash y jq**: el job usa el bash de Git y `jq`, que Windows no trae. Deja
+   `jq.exe` (release de `jqlang/jq`, con su SHA-256) en
+   `C:\ProgramData\tc2-runner\bin` y crea en la carpeta del runner un `.env`
+   con `PATH=C:\ProgramData\tc2-runner\bin;C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\WindowsPowerShell\v1.0`.
+   El runner lo lee al arrancar: si lo cambias, reinicia el servicio. El paso
+   de aislamiento falla con `exit 2` si no encuentra `jq`.
 4. **Registro como servicio con ese usuario**:
 
    ```powershell

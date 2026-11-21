@@ -365,6 +365,8 @@ jobs:
           $bash = Get-Command bash -ErrorAction SilentlyContinue
           $ruta = if ($bash) { $bash.Source } else { '(ninguno)' }
           Write-Output "Runner propio: usuario $($id.Name) sin administracion; bash: $ruta"
+          # La cache por arbol usa jq, que los runners de GitHub traen y Windows no.
+          if (-not (Get-Command jq -ErrorAction SilentlyContinue)) { Write-Output "verificacion: el runner propio no tiene jq en el PATH; alta minima en docs/ci/verificacion-reutilizable.md"; exit 2 }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
