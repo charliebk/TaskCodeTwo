@@ -384,7 +384,9 @@ jobs:
         run: |
           set -eu
           touch "$HUELLA"
-          huella=$(sha256sum "$HUELLA" | cut -d' ' -f1)
+          # Por la entrada: con la ruta, en Windows (barras invertidas) GNU
+          # sha256sum antepone `\` a la linea y la huella no casaria nunca.
+          huella=$(sha256sum < "$HUELLA" | cut -d' ' -f1)
           acierto=$(printf '%s' "$CANDIDATOS" | jq -r --arg p "$TC2_PERFIL" --arg l "$huella" '[.[$p][]? | select(.local == $l)][0] // empty | "\(.de) \(.origen)"')
           de=${acierto%% *}
           origen=${acierto#* }

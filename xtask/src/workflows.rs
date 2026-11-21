@@ -1380,6 +1380,30 @@ fn el_aislamiento_va_antes_del_checkout_en_el_runner_propio() {
     }
 }
 
+/// E2E de TASK-045: con una ruta de Windows como argumento, GNU `sha256sum`
+/// escapa la barra invertida y antepone `\` a la linea, asi que la huella local
+/// de la pesada en el runner propio no casaria nunca con la cache. El workflow
+/// solo resume por la entrada estandar.
+#[test]
+fn sha256sum_solo_por_la_entrada_estandar() {
+    let con_ruta = |texto: &str| {
+        texto.lines().any(|l| {
+            l.split("sha256sum")
+                .skip(1)
+                .any(|resto| resto.trim_start().starts_with('"'))
+        })
+    };
+    let texto = leer(WORKFLOW);
+    assert!(
+        texto.contains("sha256sum < \"$HUELLA\""),
+        "sin la huella local"
+    );
+    assert!(!con_ruta(&texto), "sha256sum con una ruta como argumento");
+    let mutado = texto.replacen("sha256sum < \"$HUELLA\"", "sha256sum \"$HUELLA\"", 1);
+    assert_ne!(mutado, texto, "la mutacion no casa");
+    assert!(con_ruta(&mutado), "la mutacion no se detecta");
+}
+
 /// D3: la impacto nunca se cachea. `buscar` no le calcula clave (sin clave no
 /// hay candidatos) y el publicador no le escribe linea `arbol=`; el resumen
 /// lleva `cola-de-merge=`. La entrada es booleana y falsa por defecto en las
