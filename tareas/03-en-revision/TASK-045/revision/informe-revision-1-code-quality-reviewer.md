@@ -35,12 +35,12 @@ Mutaciones (todas sobre el workflow del clon, restauradas tras cada una):
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMPORTANTE-1 | IMPORTANTE | abierto | .github/workflows/verificacion.yml:94-101 | implementacion |
-| MENOR-1 | MENOR | abierto | .github/workflows/verificacion.yml:94,102 | implementacion |
-| MENOR-2 | MENOR | abierto | .github/workflows/verificacion.yml:107-117 | implementacion |
-| MENOR-3 | MENOR | abierto | .github/workflows/verificacion.yml:148 | implementacion |
-| MENOR-4 | MENOR | abierto | .github/workflows/verificacion.yml:137,143,146 y docs/ci/verificacion-reutilizable.md | implementacion |
-| MENOR-5 | MENOR | abierto | .github/workflows/verificacion.yml:11,13-14 | implementacion |
+| IMPORTANTE-1 | IMPORTANTE | corregido (e141ed1) | .github/workflows/verificacion.yml:94-101 | implementacion |
+| MENOR-1 | MENOR | corregido (e141ed1) | .github/workflows/verificacion.yml:94,102 | implementacion |
+| MENOR-2 | MENOR | corregido (e141ed1) | .github/workflows/verificacion.yml:107-117 | implementacion |
+| MENOR-3 | MENOR | corregido (e141ed1) | .github/workflows/verificacion.yml:148 | implementacion |
+| MENOR-4 | MENOR | corregido (e141ed1) | .github/workflows/verificacion.yml:137,143,146 y docs/ci/verificacion-reutilizable.md | implementacion |
+| MENOR-5 | MENOR | corregido (e141ed1) | .github/workflows/verificacion.yml:11,13-14 | implementacion |
 
 ### IMPORTANTE-1 — La guarda de `buscar` solo reconoce el literal `self-hosted`: un runs-on con la etiqueta propia del runner la salta
 - Donde: `.github/workflows/verificacion.yml:95` (el `jq` que decide `es`); `docs/ci/verificacion-reutilizable.md` («Etiquetas», que solo advierte de `--no-default-labels`); adenda F5-5 de F1-8, «Lo que queda».

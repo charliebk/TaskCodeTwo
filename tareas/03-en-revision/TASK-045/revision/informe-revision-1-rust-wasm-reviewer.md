@@ -8,8 +8,8 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| MEN-1 | MENOR | abierto | xtask/src/workflows.rs (aislamiento_antes_del_checkout) | implementacion |
-| MEN-2 | MENOR | abierto | xtask/src/workflows.rs (sha256sum_solo_por_la_entrada_estandar, `con_ruta`) | implementacion |
+| MEN-1 | MENOR | corregido (e141ed1) | xtask/src/workflows.rs (aislamiento_antes_del_checkout) | implementacion |
+| MEN-2 | MENOR | aceptado: la asercion de `sha256sum < "$HUELLA"` cubre el riesgo real, como propone la revisora | xtask/src/workflows.rs (sha256sum_solo_por_la_entrada_estandar, `con_ruta`) | implementacion |
 
 Sin hallazgos CRITICO ni IMPORTANTE.
 
