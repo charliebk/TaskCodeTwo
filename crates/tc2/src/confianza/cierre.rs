@@ -363,4 +363,23 @@ mod tests {
         assert!(es_script("scripts/verificar"));
         assert!(!es_script("README.md"));
     }
+
+    /// Ronda 1, IMP-2: un glob de `confianza_incluye` que no compila no se
+    /// ignora (aunque la config ya lo rechace, el cierre falla cerrado solo).
+    #[test]
+    fn un_glob_invalido_es_error_del_cierre() {
+        let indice = Indice::de_ls_files("a.sh\0");
+        let r = calcular(
+            Path::new("."),
+            &indice,
+            "sh a.sh",
+            &["x/[".to_owned()],
+            None,
+        );
+        assert!(
+            matches!(r, Err(ErrorCierre::Glob { ref glob, .. }) if glob == "x/["),
+            "{:?}",
+            r.err()
+        );
+    }
 }
