@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-046 (feature) — F5-6 Hook local rapido, opcional y con confianza (2026-11-21)
 - TASK-045 (feature) — F5-5 Runner self-hosted Windows por perfil (2026-11-21)
 - TASK-043 (feature) — F5-3 Verificacion por impacto como paso de CI y completa en la cola (2026-11-20)
 - TASK-050 (feature) — F6-4 Busqueda de errores (2026-11-20)

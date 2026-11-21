@@ -6,7 +6,7 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-046-f5-6-hook-local-rapido-opcional-y-con-co
 asignado_a: charlie.bk@gmail.com
@@ -120,6 +120,7 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
 | 2026-11-21T18:56:07Z | review | automatico | persona | 0.16.1 |
 | 2026-11-21T19:32:11Z | review | automatico | persona | 0.16.1 |
 | 2026-11-21T19:56:52Z | review | automatico | persona | 0.16.1 |
+| 2026-11-21T20:41:30Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -132,3 +133,10 @@ Con el plan aprobado (`planificacion/plan-final.md`), anotadas al implementar:
 ## Verificacion ligera
 
 - 2026-11-21T20:16:49Z: ronda 3; commit revisado 3d047d4017e9230ebb149eb4284a71ff22d5f883; commit verificado a4a13fc0050ae8e83f8af29deadd06878222e197; ficheros: crates/tc2/tests/verificar.rs, docs/ci/verificacion-reutilizable.md; corregidos: MENOR-6; pendientes: MEN-7
+
+## Duracion
+
+- Estimada: 270 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 191 min
+- Paso de la hora: 191 min reales frente a 270 estimados
+- Cierre (finish): 1440 s, de 2026-11-21T20:17:30Z a 2026-11-21T20:41:30Z
