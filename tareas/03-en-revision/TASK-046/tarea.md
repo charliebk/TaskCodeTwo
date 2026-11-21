@@ -29,9 +29,35 @@ Hook local rápido, opcional y con confianza
 Tarea F5-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-8.
 
 ## Criterios de aceptacion
-- [ ] ≤ 1 s
-- [ ] nada del repo sin confianza
-- [ ] Cumple lo que pide la tarea F5-6 del plan y los requisitos que cita
+- [x] ≤ 1 s
+- [x] nada del repo sin confianza
+- [x] Cumple lo que pide la tarea F5-6 del plan y los requisitos que cita
+
+## Resultado
+
+Hook local rapido, opcional y con confianza (F5-6): un comando determinista y el hook como forma de llamarlo.
+- **Confianza local** (`crates/tc2/src/confianza/`): `estado` y `confiar` por clave, con la huella `sha256` de la orden, la shell y el cierre de scripts versionados que nombra (tokens, rutas entre comillas, `%~dp0`, nombres raros por su nombre literal) mas los globs de `confianza_incluye`. Cache por `(tamano, mtime)`. Almacen fuera del arbol (`%LOCALAPPDATA%\taskcodetwo\confianza\` o XDG), un fichero por repo comun (`dir_comun`): los worktrees comparten confianza y otro clon no.
+- **`tc2 confiar verificacion.comando`** y **`tc2 verificar --perfil <p>`**: sin confianza, o con la orden o un script cambiados, no se ejecuta nada (codigo 3 y «ejecuta `tc2 confiar verificacion.comando`»). Un glob invalido es error de la config y del cierre; uno que no casa se avisa.
+- **`--hook`** (evento `Stop` de Claude Code, entrada documentada en `settings.json`, sin orden de instalacion): solo bloquea (2) con la rapida en rojo; sin confianza, con la config mal, con un error de uso o con `stop_hook_active` sale con 0 y una linea. En `rapida` un timeout no es rojo.
+- **`desinstalar --maquina`** borra tambien el almacen de confianza.
+- **Guia:** seccion F5-6 de `docs/ci/verificacion-reutilizable.md` (entrada del hook, codigos, como se forma el cierre, limites declarados y cifras).
+
+Decisiones de Carlos (2026-11-20): todas las recomendadas (D1a a D6), sin trocear.
+
+Evidencia (2026-11-21):
+- **≤ 1 s** (P1, release, Windows 11, `tc2 verificar --perfil rapida` entero, cierre de 51 scripts y 1,2 MB como ToolsaWeb): sin confiar 284-401 ms, en frio 297-368 ms, en caliente 234-292 ms; con un script de nombre raro mas, 239-319 ms. La revisora de la ronda 3 midio 338 / 297 / 234 ms.
+- **Nada del repo sin confianza:** P3-P5 y los tests de las rondas (nombres con espacios y no ASCII, apostrofo suelto, comillas anidadas, globs `./` y mayusculas, raro en la orden) contra repos git temporales reales; cada uno se pone rojo con su mutacion (11 en la implementacion, 15 en la ronda 1, 3 en la 2, 2 en la 3).
+- **Tests:** `cargo test -p tc2 --test verificar` 15 en verde y 1 ignorado (P1, pesado); `--test desinstalar` 19; verificacion completa en verde sobre e33879a; la de `finish` cubre el resto.
+- **Suposiciones del plan:** el JSON de `Stop` trae `stop_hook_active` (documentacion oficial de hooks); `desinstalar` no borraba el almacen (corregido); F0-2 no tiene tarea en este repo (F5-6 implementa la confianza).
+
+**No verificado:** la entrada de `settings.json` dentro de un Claude Code real (solo el comando con el JSON por stdin); Linux y macOS (todo se probo en Windows 11); enlaces simbolicos (sin privilegio para `mklink`). Este repo aun no puede estrenar el hook: su config es de la 0.16 y `tc2 verificar` la rechaza (con `--hook` sale con 0 y avisa).
+
+**Limites declarados en la guia** (no se corrigen; la salida es nombrar el script en `confianza_incluye`): scripts no versionados, enlaces y submodulos, cambio que conserva tamano y `mtime` (D2a), TOCTOU, nombres con escape (`\ `, `^`) o formados con variables, referencias sin extension y scripts UTF-16.
+
+Revision por pares (tres rondas; la 3 es extra, ver «## Rondas extra»):
+- **Ronda 1:** code-quality aprobada con correcciones (IMP-1: un error de uso con `--hook` bloqueaba la parada; MEN-1 a MEN-5); rust-wasm pidio cambios (IMPORTANTE-1: scripts con espacios o no ASCII fuera del cierre; IMPORTANTE-2: globs invalidos o `./` ignorados en silencio; MENOR-1 a 4). Todo corregido en c6ffbc1, 8fd2d67 y f7a9be6, salvo MENOR-3 y MENOR-4 de rust, aceptados y documentados.
+- **Ronda 2:** rust aprobada (MENOR-5 corregido en 1c9f9e9); code-quality pidio cambios por CRITICO-1, introducido por la correccion (un apostrofo suelto o comillas anidadas dejaban fuera un script con espacios): corregido en 1c9f9e9 con la entrada por nombre de los scripts raros. MEN-6 (`create_new` sin test) aceptado: no es observable desde fuera y el nombre es aleatorio de 128 bits.
+- **Ronda 3:** las dos aprobadas. MENOR-6 de rust (mutantes vivos y limites) reconocido por `verificar-menores`. MEN-7 de calidad (sin test para `por_nombre(orden)`) esta corregido con el test `script_raro_nombrado_solo_en_la_orden_entra_en_el_cierre` (70f7f92, la mutacion lo pone rojo); `verificar-menores` lo deja en `menores-pendientes.md` solo porque su fila cita `cierre.rs`, que no cambio.
 
 ## Divergencias
 
