@@ -12,14 +12,24 @@ Motivo del veredicto: queda un CRITICO abierto (CRITICO-1), que se reproduce aba
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | corregido (83f83d6) | crates/tc2/src/verificacion/ejecutar.rs:52-75 | implementacion |
-| MEN-1 | MENOR | corregido (83f83d6) | crates/tc2/src/verificacion/ejecutar.rs:420-422 y tests | implementacion |
-| MEN-2 | MENOR | corregido (83f83d6) | crates/tc2/tests/desinstalar.rs:281-306 | implementacion |
-| MEN-3 | MENOR | corregido (83f83d6) | crates/tc2/src/verificacion/ejecutar.rs:128-130 | implementacion |
-| MEN-4 | MENOR | corregido (83f83d6) | crates/tc2/src/verificacion/ejecutar.rs:151-189 | implementacion |
-| MEN-5 | MENOR | corregido en la guia (83f83d6) | docs/ci/verificacion-reutilizable.md (Limites) | plan |
-| CRITICO-1 | CRITICO | corregido (1c9f9e9) | crates/tc2/src/confianza/cierre.rs (`entrecomillados`, `candidatos`) | implementacion |
-| MEN-6 | MENOR | aceptado: create_new no es observable desde fuera y el nombre es aleatorio de 128 bits | crates/tc2/src/verificacion/ejecutar.rs:162-167 (`crear_captura`) | implementacion |
+| IMP-1 | IMPORTANTE | corregido | crates/tc2/src/verificacion/ejecutar.rs:52-75 | implementacion |
+| MEN-1 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:420-422 y tests | implementacion |
+| MEN-2 | MENOR | corregido | crates/tc2/tests/desinstalar.rs:281-306 | implementacion |
+| MEN-3 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:128-130 | implementacion |
+| MEN-4 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:151-189 | implementacion |
+| MEN-5 | MENOR | corregido | docs/ci/verificacion-reutilizable.md (Limites) | plan |
+| CRITICO-1 | CRITICO | corregido | crates/tc2/src/confianza/cierre.rs (`entrecomillados`, `candidatos`) | implementacion |
+| MEN-6 | MENOR | aceptado | crates/tc2/src/verificacion/ejecutar.rs:162-167 (`crear_captura`) | implementacion |
+
+Detalle del estado:
+- IMP-1: corregido (83f83d6)
+- MEN-1: corregido (83f83d6)
+- MEN-2: corregido (83f83d6)
+- MEN-3: corregido (83f83d6)
+- MEN-4: corregido (83f83d6)
+- MEN-5: corregido en la guia (83f83d6)
+- CRITICO-1: corregido (1c9f9e9)
+- MEN-6: aceptado: create_new no es observable desde fuera y el nombre es aleatorio de 128 bits
 
 Notas por fila:
 

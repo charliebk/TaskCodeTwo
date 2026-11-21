@@ -10,12 +10,20 @@ Pase generico (el diff cae en Rust y documentacion; esta revision se centra en e
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | corregido (c6ffbc1) | crates/tc2/src/verificacion/ejecutar.rs:52-72 | implementacion |
-| MEN-1 | MENOR | corregido (c6ffbc1) | crates/tc2/src/verificacion/ejecutar.rs:356-358 | implementacion |
-| MEN-2 | MENOR | corregido (c6ffbc1) | crates/tc2/tests/desinstalar.rs:128-133 | implementacion |
-| MEN-3 | MENOR | corregido (c6ffbc1) | crates/tc2/src/verificacion/ejecutar.rs:362-399 | implementacion |
-| MEN-4 | MENOR | corregido (c6ffbc1) | crates/tc2/src/verificacion/ejecutar.rs:124-126, 362-390 | implementacion |
-| MEN-5 | MENOR | corregido en la guia (8fd2d67) | docs/ci/verificacion-reutilizable.md (Limites) | plan |
+| IMP-1 | IMPORTANTE | corregido | crates/tc2/src/verificacion/ejecutar.rs:52-72 | implementacion |
+| MEN-1 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:356-358 | implementacion |
+| MEN-2 | MENOR | corregido | crates/tc2/tests/desinstalar.rs:128-133 | implementacion |
+| MEN-3 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:362-399 | implementacion |
+| MEN-4 | MENOR | corregido | crates/tc2/src/verificacion/ejecutar.rs:124-126, 362-390 | implementacion |
+| MEN-5 | MENOR | corregido | docs/ci/verificacion-reutilizable.md (Limites) | plan |
+
+Detalle del estado:
+- IMP-1: corregido (c6ffbc1)
+- MEN-1: corregido (c6ffbc1)
+- MEN-2: corregido (c6ffbc1)
+- MEN-3: corregido (c6ffbc1)
+- MEN-4: corregido (c6ffbc1)
+- MEN-5: corregido en la guia (8fd2d67)
 
 ### IMP-1 — Un error de uso con `--hook` sale con 2 y bloquea la parada, contra lo que dice la guia
 

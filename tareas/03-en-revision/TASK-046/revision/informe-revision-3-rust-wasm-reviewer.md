@@ -8,10 +8,16 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMPORTANTE-1 | IMPORTANTE | corregido (1c9f9e9), verificado: los dos casos residuales (apostrofo suelto y comillas anidadas) entran ya en el cierre por el nombre; la mutacion que lo quita pone rojo 2 tests | crates/tc2/src/confianza/cierre.rs | implementacion |
-| IMPORTANTE-2 | IMPORTANTE | corregido (c6ffbc1, f7a9be6), verificado en la ronda 2; sin cambios en esta ronda y su test sigue verde | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
-| MENOR-5 | MENOR | corregido (1c9f9e9), verificado: `mod.rs:43-45` tiene un solo doc comment de `VERSION_ALMACEN` | crates/tc2/src/confianza/mod.rs | implementacion |
-| MENOR-6 | MENOR | corregido (70f7f92; limites en la guia, 85ac8f1) | crates/tc2/tests/verificar.rs (mutantes vivos: `por_nombre(orden)` y mayusculas de `por_nombre`), docs/ci/verificacion-reutilizable.md (nombres con escape y UTF-16) | implementacion |
+| IMPORTANTE-1 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs | implementacion |
+| IMPORTANTE-2 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
+| MENOR-5 | MENOR | corregido | crates/tc2/src/confianza/mod.rs | implementacion |
+| MENOR-6 | MENOR | corregido | crates/tc2/tests/verificar.rs (mutantes vivos: `por_nombre(orden)` y mayusculas de `por_nombre`), docs/ci/verificacion-reutilizable.md (nombres con escape y UTF-16) | implementacion |
+
+Detalle del estado:
+- IMPORTANTE-1: corregido (1c9f9e9), verificado: los dos casos residuales (apostrofo suelto y comillas anidadas) entran ya en el cierre por el nombre; la mutacion que lo quita pone rojo 2 tests
+- IMPORTANTE-2: corregido (c6ffbc1, f7a9be6), verificado en la ronda 2; sin cambios en esta ronda y su test sigue verde
+- MENOR-5: corregido (1c9f9e9), verificado: `mod.rs:43-45` tiene un solo doc comment de `VERSION_ALMACEN`
+- MENOR-6: corregido (70f7f92; limites en la guia, 85ac8f1)
 
 Sin CRITICO ni IMPORTANTE abiertos. Ningun hallazgo nuevo que introduzca la correccion.
 

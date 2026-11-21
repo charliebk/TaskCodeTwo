@@ -8,13 +8,22 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMPORTANTE-1 | IMPORTANTE | corregido (c6ffbc1), verificado: nombres con espacios y no ASCII siguen el cierre; quedan dos variantes residuales (ver nota) | crates/tc2/src/confianza/cierre.rs | implementacion |
-| IMPORTANTE-2 | IMPORTANTE | corregido (c6ffbc1, f7a9be6), verificado: `./`, mayusculas, globs invalidos y globs sin casar | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
-| MENOR-1 | MENOR | corregido (c6ffbc1), verificado: la mutacion de la insensibilidad a mayusculas ya la mata un test | crates/tc2/tests/verificar.rs | implementacion |
-| MENOR-2 | MENOR | corregido (c6ffbc1), verificado: la mutacion de la shell fuera de la huella ya la mata un test | crates/tc2/tests/verificar.rs | implementacion |
-| MENOR-3 | MENOR | aceptado: Claude Code cierra stdin tras escribir el JSON; documentado en docs/ci/verificacion-reutilizable.md (8fd2d67) | crates/tc2/src/verificacion/ejecutar.rs | implementacion |
-| MENOR-4 | MENOR | aceptado: limites de diseno (D2a, no versionados, TOCTOU, enlaces y submodulos) documentados en docs/ci/verificacion-reutilizable.md (8fd2d67) | docs/ci/verificacion-reutilizable.md | plan |
-| MENOR-5 | MENOR | corregido (1c9f9e9) | crates/tc2/src/confianza/mod.rs:43-46 | implementacion |
+| IMPORTANTE-1 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs | implementacion |
+| IMPORTANTE-2 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
+| MENOR-1 | MENOR | corregido | crates/tc2/tests/verificar.rs | implementacion |
+| MENOR-2 | MENOR | corregido | crates/tc2/tests/verificar.rs | implementacion |
+| MENOR-3 | MENOR | aceptado | crates/tc2/src/verificacion/ejecutar.rs | implementacion |
+| MENOR-4 | MENOR | aceptado | docs/ci/verificacion-reutilizable.md | plan |
+| MENOR-5 | MENOR | corregido | crates/tc2/src/confianza/mod.rs:43-46 | implementacion |
+
+Detalle del estado:
+- IMPORTANTE-1: corregido (c6ffbc1), verificado: nombres con espacios y no ASCII siguen el cierre; quedan dos variantes residuales (ver nota)
+- IMPORTANTE-2: corregido (c6ffbc1, f7a9be6), verificado: `./`, mayusculas, globs invalidos y globs sin casar
+- MENOR-1: corregido (c6ffbc1), verificado: la mutacion de la insensibilidad a mayusculas ya la mata un test
+- MENOR-2: corregido (c6ffbc1), verificado: la mutacion de la shell fuera de la huella ya la mata un test
+- MENOR-3: aceptado: Claude Code cierra stdin tras escribir el JSON; documentado en docs/ci/verificacion-reutilizable.md (8fd2d67)
+- MENOR-4: aceptado: limites de diseno (D2a, no versionados, TOCTOU, enlaces y submodulos) documentados en docs/ci/verificacion-reutilizable.md (8fd2d67)
+- MENOR-5: corregido (1c9f9e9)
 
 Sin CRITICO ni IMPORTANTE abiertos. Ningun hallazgo nuevo CRITICO. MENOR-5 es cosmetico y no bloquea; puede corregirse en el commit de MENORES (`taskctl verificar-menores`) o aceptarse con su motivo.
 

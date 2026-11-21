@@ -8,12 +8,20 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMPORTANTE-1 | IMPORTANTE | corregido (c6ffbc1) | crates/tc2/src/confianza/cierre.rs | implementacion |
-| IMPORTANTE-2 | IMPORTANTE | corregido (c6ffbc1, f7a9be6) | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
-| MENOR-1 | MENOR | corregido (c6ffbc1) | crates/tc2/tests/verificar.rs | implementacion |
-| MENOR-2 | MENOR | corregido (c6ffbc1) | crates/tc2/tests/verificar.rs | implementacion |
-| MENOR-3 | MENOR | aceptado: Claude Code cierra stdin tras escribir el JSON; documentado en la guia (8fd2d67) | crates/tc2/src/verificacion/ejecutar.rs | implementacion |
-| MENOR-4 | MENOR | aceptado: limites de diseno (D2a, no versionados, TOCTOU, enlaces y submodulos) documentados en la guia (8fd2d67) | docs/ci/verificacion-reutilizable.md | plan |
+| IMPORTANTE-1 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs | implementacion |
+| IMPORTANTE-2 | IMPORTANTE | corregido | crates/tc2/src/confianza/cierre.rs, crates/tc2/src/config/validar.rs | implementacion |
+| MENOR-1 | MENOR | corregido | crates/tc2/tests/verificar.rs | implementacion |
+| MENOR-2 | MENOR | corregido | crates/tc2/tests/verificar.rs | implementacion |
+| MENOR-3 | MENOR | aceptado | crates/tc2/src/verificacion/ejecutar.rs | implementacion |
+| MENOR-4 | MENOR | aceptado | docs/ci/verificacion-reutilizable.md | plan |
+
+Detalle del estado:
+- IMPORTANTE-1: corregido (c6ffbc1)
+- IMPORTANTE-2: corregido (c6ffbc1, f7a9be6)
+- MENOR-1: corregido (c6ffbc1)
+- MENOR-2: corregido (c6ffbc1)
+- MENOR-3: aceptado: Claude Code cierra stdin tras escribir el JSON; documentado en la guia (8fd2d67)
+- MENOR-4: aceptado: limites de diseno (D2a, no versionados, TOCTOU, enlaces y submodulos) documentados en la guia (8fd2d67)
 
 ### IMPORTANTE-1 — El cierre no sigue scripts con espacios o caracteres no ASCII en el nombre (ni nada fuera de `[A-Za-z0-9_.%~\-\\/]`): se ejecutan sin confianza
 
