@@ -521,6 +521,21 @@ pub fn de_base(git: &Git, dir: &Path) -> Result<Config, Informe> {
     leer(&texto).map_err(|e| e.informe())
 }
 
+/// Lee la configuracion del arbol de trabajo de `raiz` (F1-8 decision 5:
+/// la orden que se confia y se ejecuta es la del arbol, no la de la base).
+/// `Err` lleva el informe `config rechazada`.
+pub fn del_arbol(raiz: &Path) -> Result<Config, Informe> {
+    match std::fs::read_to_string(raiz.join(RUTA)) {
+        Ok(texto) => leer(&texto).map_err(|e| e.informe()),
+        Err(_) => Err(Invalida::una(
+            Motivo::SinConfig,
+            "",
+            Mensaje::nuevo(&t::NO_HAY_CONFIG_EN_ARBOL).con("ruta", RUTA),
+        )
+        .informe()),
+    }
+}
+
 fn texto_de_base(git: &Git, dir: &Path) -> Paso<String> {
     if git::commit_de(git, dir, NOMBRE, BASE)?.is_none() {
         return Err(Informe::nuevo(NOMBRE, Resultado::Rechazada)

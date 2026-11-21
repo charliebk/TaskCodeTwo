@@ -29,6 +29,7 @@ pub mod actualizar_cli;
 pub mod alta;
 pub mod carril;
 pub mod ciclo;
+pub mod confianza;
 pub mod config;
 pub mod contrato;
 pub mod descarga;
@@ -233,6 +234,22 @@ where
         [orden, resto @ ..] if orden == estimacion::NOMBRE => {
             let (json, resto) = con_json(resto);
             orden_estimar(&resto, json, idioma)
+        }
+        [orden, resto @ ..] if orden == verificacion::ejecutar::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            verificacion::ejecutar::orden(&resto, json, idioma)
+        }
+        [orden, resto @ ..] if orden == confianza::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            let i = confianza::orden(&resto);
+            let mut s = i.salida_en(json, idioma);
+            if s.codigo == 0
+                && let Some(a) = confianza::aviso_globs(&i, idioma)
+            {
+                s.stderr.push_str(&a);
+                s.stderr.push('\n');
+            }
+            s
         }
         [orden, resto @ ..] if orden == identidad::NOMBRE => {
             let (json, resto) = con_json(resto);

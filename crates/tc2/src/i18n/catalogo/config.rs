@@ -80,6 +80,10 @@ crate::i18n::textos! {
         es: "no hay {ruta} en {base}",
         en: "there is no {ruta} in {base}",
     }
+    NO_HAY_CONFIG_EN_ARBOL {
+        es: "no hay {ruta} en el arbol de trabajo",
+        en: "there is no {ruta} in the working tree",
+    }
 
     // --- Validacion contra la tabla (validar.rs) ---
     ENTERO_EN_RANGO {
@@ -195,6 +199,10 @@ crate::i18n::textos! {
     GLOB_NO_ADMITIDO {
         es: "glob no admitido «{glob}»: {motivo}",
         en: "glob not accepted «{glob}»: {motivo}",
+    }
+    GLOB_NO_COMPILA {
+        es: "no es un glob valido ({error}); revisa corchetes y llaves",
+        en: "it is not a valid glob ({error}); check brackets and braces",
     }
     NUNCA_TODO_EL_ARBOL {
         es: "nunca todo el arbol",

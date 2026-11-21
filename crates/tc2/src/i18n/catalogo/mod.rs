@@ -24,6 +24,7 @@ pub mod seleccion;
 pub mod siguiente;
 pub mod tablero;
 pub mod toma;
+pub mod verificacion;
 
 use super::Texto;
 
@@ -53,6 +54,7 @@ pub fn todos() -> impl Iterator<Item = &'static Texto> {
         siguiente::TODOS,
         tablero::TODOS,
         toma::TODOS,
+        verificacion::TODOS,
     ]
     .into_iter()
     .flatten()

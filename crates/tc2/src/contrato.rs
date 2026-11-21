@@ -319,7 +319,7 @@ pub(crate) fn escapar_valor(v: &str, en_lista: bool) -> String {
     s
 }
 
-fn una_linea(t: &str) -> String {
+pub(crate) fn una_linea(t: &str) -> String {
     t.lines().map(str::trim).collect::<Vec<_>>().join(" ")
 }
 

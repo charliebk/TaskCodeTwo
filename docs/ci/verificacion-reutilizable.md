@@ -11,7 +11,8 @@ decisión 1; RR-15): no conocen sus pasos, sus grupos ni sus herramientas.
 
 Fuera de F5-1: `carril` y `revision-ia` (F6), y la definición de CI en otro
 proyecto de GitLab (F2-9). El informe JSON para el revisor (F5-4), la caché
-por árbol (F5-2) y el runner propio (F5-5) se describen más abajo.
+por árbol (F5-2), el runner propio (F5-5) y el atajo local con confianza
+(F5-6) se describen más abajo.
 
 ## Entradas
 
@@ -432,6 +433,175 @@ En una consola de PowerShell **de administrador** en tu máquina, para un repo
   que conceda solo el derecho de iniciar sesión como servicio; un acierto de la
   caché por árbol en el runner propio (en el E2E el diff tocaba el workflow y
   la regla de rutas no reutiliza, por diseño).
+
+## Hook local rápido, opcional y con confianza (F5-6)
+
+TASK-046. Fuera de la CI, la misma verificación tiene un atajo local: un
+**comando determinista** y, si la persona quiere, un hook de Claude Code que
+lo llama (ADR [F1-11](../adr/F1-11-extensiones-declaradas.md), decisión 10).
+Quitar el hook no cambia ninguna garantía: las puertas son el check
+`verificacion`, el check `estado` y la transición.
+
+```text
+tc2 confiar verificacion.comando        # una vez, tras revisar la orden y sus scripts
+tc2 verificar --perfil rapida [--json]  # cualquier perfil declarado (D6)
+tc2 verificar --perfil rapida --hook    # lo mismo, devuelto como lo espera el evento Stop
+```
+
+**Nada del repo se ejecuta sin confianza** (ADR
+[F1-8](../adr/F1-8-seguridad-modelo-de-amenazas.md), decisión 5).
+`tc2 verificar` lee `verificacion` de `.taskcode/config.yml` **del árbol de
+trabajo** (D3a), calcula la huella de la orden (con la shell) y de lo que
+ejecuta (los scripts versionados que nombra y, a su vez, los que nombran
+estos, con `%~dp0` resuelto, más los globs de `confianza_incluye`) y la
+compara con la confiada:
+
+| Estado | Qué hace `tc2 verificar` |
+|---|---|
+| `nunca` (sin confianza en este repo) | no ejecuta nada; código 3, `motivo=sin-confianza confianza=nunca` y el aviso dice que hay que revisar y ejecutar `tc2 confiar verificacion.comando` |
+| `cambiado` (la orden, un script del cierre o un fichero de `confianza_incluye` cambió) | igual, con `confianza=cambiado` |
+| `confiado` | lanza `verificacion.shell` con `<comando> --perfil <p>`, `TC2_PERFIL=<p>` y el `timeout` del perfil; la salida del comando va a stderr |
+
+La confianza vive **fuera del árbol**, en
+`%LOCALAPPDATA%\taskcodetwo\confianza\` (Windows) o
+`$XDG_CACHE_HOME/taskcodetwo/confianza/` (`~/.cache/...` si no está
+definida), un fichero por repo con nombre el sha256 del directorio común de
+Git: los worktrees del repo la comparten y otro clon no. Un fichero del repo
+que diga «confiado» no cuenta. Si se borra la carpeta, todo vuelve a `nunca`;
+`tc2 desinstalar --maquina` la borra.
+
+**Resultado** (F1-11, decisión 8): código 0 del comando, `resultado=verde`;
+otro código, `motivo=rojo` y código 3; un `timeout` agotado es rojo
+(`motivo=timeout`) salvo en `rapida`, donde es `resultado=excedido` con
+código 0 (presupuesto que no bloquea). Al agotarse se mata el comando y lo
+que haya lanzado (`taskkill /T` en Windows, el grupo de procesos en Unix).
+
+### Activar el hook (opcional, D4a y D5a)
+
+No hay orden que lo instale: quien lo quiera añade esta entrada a su
+`.claude/settings.local.json` del proyecto (personal, no se versiona) o a su
+`~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tc2 verificar --perfil rapida --hook",
+            "timeout": 630
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`timeout` (segundos, por defecto 600 en Claude Code) tiene que ser algo
+mayor que `verificacion.perfiles.rapida.timeout`, o Claude Code corta el hook
+antes que `tc2`. El evento `Stop` no admite `matcher`. Comportamiento con
+`--hook` (la decisión es la misma que sin él; solo cambia cómo se devuelve):
+
+| Caso | Código | Qué ve el agente |
+|---|---|---|
+| `stop_hook_active: true` en el JSON de stdin (Claude Code ya continúa por un hook) | 0 | nada; no se ejecuta. Se mira antes que los argumentos |
+| entrada mal escrita (perfil inexistente, opción desconocida) | 0 | no bloquea; una línea en stderr dice que se corrija en `settings.json` |
+| sin confianza, sin perfil `rapida` o con la configuración inválida | 0 | no bloquea; una línea en stderr dice qué hacer (`tc2 confiar verificacion.comando`, o el arreglo de la configuración); no se ejecuta |
+| rápida en verde o `excedido` | 0 | nada |
+| rápida en rojo | 2 | bloquea la parada; en stderr el motivo y las últimas 15 líneas de la salida del comando |
+
+Con otro perfil (`--perfil completa --hook`, fuera de lo documentado), su
+rojo y su `timeout` agotado también salen con 2. La salida del comando se
+recoge en un fichero temporal de nombre aleatorio, creado en exclusiva, del
+que solo se lee el final y que se borra al terminar (si Claude Code mata el
+hook por su `timeout`, puede quedar en la carpeta temporal del usuario).
+`--hook` lee el JSON de stdin hasta que se cierra: Claude Code lo cierra tras
+escribirlo; un lanzador que lo deje abierto hace esperar a `tc2` (aceptado,
+MENOR-3 de la ronda 1).
+
+`desinstalar` no edita `settings.json`: avisa de los hooks que nombran `tc2`
+y los deja (F2-14).
+
+### Presupuesto de 1 s (D1a)
+
+«≤ 1 s» es el coste propio de `tc2` hasta decidir (leer la configuración,
+cierre, huella, almacén y lanzar o rechazar), en frío y en caliente; cuando no
+se ejecuta nada es el tiempo total. La rápida misma está acotada por su
+`timeout`. La huella reutiliza el sha de cada fichero cuyo `(tamaño, mtime)`
+no cambió (D2a); la orden se hashea siempre y `tc2 confiar` rehashea todo.
+
+Medido con la prueba pesada
+`presupuesto_de_un_segundo_con_un_cierre_como_el_de_toolsaweb` (51 scripts
+versionados, 1 210 462 bytes, orden que sale enseguida; tiempo de pared de
+`tc2 verificar --perfil rapida` entero, con el arranque de `tc2`, de `git` y
+de `cmd`), en Windows 11, binario `--release`, cuatro ejecuciones el
+2026-11-21 sin controlar la carga de la máquina:
+
+| Caso | Tiempo (ms) |
+|---|---|
+| sin confiar (cierre entero hasheado, no se ejecuta) | 250 – 684 |
+| en frío (todos los `mtime` cambiados: 1 210 462 bytes rehasheados) | 318 – 595 |
+| en caliente (0 bytes rehasheados) | 249 – 419 |
+
+Con el binario de depuración, el peor caso fue 530 ms (en frío). Tras la
+ronda 2 de revisión (scripts de nombre raro por su nombre), dos ejecuciones
+en release: 284 – 401 ms sin confiar, 322 – 368 ms en frío y 258 – 292 ms en
+caliente; y con un script de nombre raro más en el cierre (52 ficheros, los
+textos se releen también en caliente, medida a mano sin dejarla en la
+prueba): 239 – 306, 306 – 319 y 254 – 279 ms. Se lanza a
+mano: `cargo test -p tc2 --release --test verificar -- --ignored --nocapture`
+(la verificación del repo no corre las pruebas ignoradas).
+
+**Cómo se forma el cierre.** Se siguen los tokens con forma de ruta (llevan
+`.` o `/`, con letras también no ASCII, como `verificación.bat`) y, enteros,
+los textos entre comillas de una línea (`call "%~dp0lib\mi paso.bat"`), con
+`%~dp0` resuelto a la carpeta del script. Como emparejar comillas falla con
+un apóstrofo suelto (`echo Don't & call "%~dp0lib\mi paso.bat"`) o con
+comillas anidadas (`"$(dirname "$0")/lib/mi paso.sh"`), además todo script
+versionado cuyo nombre lleve un carácter que el tokenizador no junta
+(espacio, apóstrofo…) entra en el cierre si su nombre de fichero aparece
+literalmente en la orden o en el texto de un fichero del cierre, se siga o
+no la ruta: puede sumar de más a la huella, nunca dejar fuera uno nombrado.
+Si el repo tiene scripts así, los textos del cierre se releen (sin
+rehashear) también en caliente. En Windows y macOS las rutas se
+comparan sin distinguir mayúsculas. Los globs de `confianza_incluye` admiten
+`./` al principio y siguen la misma regla de mayúsculas; un glob que no
+compila es error de la configuración (no se confía ni se ejecuta nada) y uno
+que no casa con ningún fichero versionado se avisa en `tc2 confiar`
+(`globs-sin-ficheros=` y una línea en stderr).
+
+**Límites** (F1-8, decisión 5), riesgos residuales aceptados:
+
+- No entra en el cierre el código al que se llega por herramientas
+  (`build.rs`, tests, dependencias) ni lo que se carga por nombre de módulo y
+  no por ruta; eso se declara en `confianza_incluye`.
+- Solo cuentan los ficheros **versionados**: un script sin versionar o
+  ignorado que la orden llame se ejecuta sin entrar en la huella.
+- Un enlace simbólico a fichero se hashea por su destino; un enlace a
+  **carpeta** o un **submódulo** dejan sus scripts fuera (`git ls-files` no
+  los lista dentro). No probado en esta máquina (sin permiso para `mklink`).
+- Un cambio que conserve tamaño y `mtime` no se detecta en caliente (D2a);
+  si el sistema no da `mtime`, no hay caché y se rehashea siempre.
+- Nombres que el cierre no reconoce como el nombre literal del fichero (en
+  todos, la salida es nombrar el script en `confianza_incluye`):
+  - el espacio escapado con barra en sh (`. ./lib/mi\ paso.sh`) o con `^`
+    en cmd (`call lib\mi^ paso.bat`);
+  - nombres partidos por comillas o formados con variables (`%N%.bat`,
+    `"$DIR/$NOMBRE.sh"`);
+  - referencias sin extensión que cmd completa por `PATHEXT`
+    (`call "lib\mi paso"`);
+  - scripts en UTF-16: se leen con `from_utf8_lossy` y sus rutas no se
+    reconocen.
+- Entre hashear y ejecutar hay una ventana (TOCTOU): la shell relee los
+  scripts al ejecutarlos y quien pueda escribir en el árbol en ese instante
+  ejecuta lo suyo.
+
+Este repo aún no puede estrenar el hook: su `.taskcode/config.yml` es de la
+0.16 (sin `formato: 2`) y `tc2 verificar` la rechaza; con `--hook` sale con 0
+y avisa.
 
 ## Divergencias con los ADR
 

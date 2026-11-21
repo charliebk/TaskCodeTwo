@@ -269,7 +269,8 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
         }
     }
 
-    // Cache del lanzador (`taskcodetwo/cli/`, F1-14) y la carpeta raiz.
+    // Cache del lanzador (`taskcodetwo/cli/`, F1-14), el almacen de
+    // confianza y la carpeta raiz.
     for raiz in e.raices_de_cache() {
         let cli = raiz.join("cli");
         if cli.is_dir() {
@@ -301,6 +302,17 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
                 ));
                 quitados.insert(cli.clone());
             }
+        }
+        // Almacen de confianza local (F5-6, F1-8 decision 5): sin el, todo
+        // vuelve a `nunca` (falla cerrado).
+        let confianza = raiz.join("confianza");
+        if confianza.is_dir() {
+            v.push(Accion::borra(
+                t(&confianza),
+                "confianza",
+                Efecto::Carpeta(confianza.clone()),
+            ));
+            quitados.insert(confianza);
         }
         if raiz.is_dir() && hijos(&raiz).iter().all(|h| quitados.contains(h)) {
             match autoborrado.and_then(|i| v.get_mut(i)) {
