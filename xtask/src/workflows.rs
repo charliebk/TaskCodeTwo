@@ -1271,7 +1271,8 @@ fn el_runner_propio_solo_en_la_release_de_un_privado() {
 /// Windows PowerShell sin perfil y sin la directiva de la maquina, solo para el
 /// proceso del paso: con `AllSigned` (E2E de TASK-045) el `.ps1` sin firmar que
 /// genera el runner no llega a ejecutarse y el aislamiento no comprueba nada.
-const SHELL_AISLAMIENTO: &str = r#"powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'""#;
+const SHELL_AISLAMIENTO: &str =
+    r#"powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'""#;
 
 /// El paso de aislamiento es el primero de `ejecutar` (antes del checkout),
 /// solo en un runner propio y en Windows PowerShell; `Err` con lo que falla.
