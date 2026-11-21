@@ -6,10 +6,10 @@ sprint: 5
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-046-f5-6-hook-local-rapido-opcional-y-con-co
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-21
 dependencias: [TASK-009]
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Tarea F5-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 - [ ] ≤ 1 s
 - [ ] nada del repo sin confianza
 - [ ] Cumple lo que pide la tarea F5-6 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-21T17:23:45Z | plan | automatico | persona | 0.16.1 |
