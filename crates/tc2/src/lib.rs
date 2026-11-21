@@ -235,6 +235,10 @@ where
             let (json, resto) = con_json(resto);
             orden_estimar(&resto, json, idioma)
         }
+        [orden, resto @ ..] if orden == verificacion::ejecutar::NOMBRE => {
+            let (json, resto) = con_json(resto);
+            verificacion::ejecutar::orden(&resto, json, idioma)
+        }
         [orden, resto @ ..] if orden == confianza::NOMBRE => {
             let (json, resto) = con_json(resto);
             confianza::orden(&resto).salida_en(json, idioma)
