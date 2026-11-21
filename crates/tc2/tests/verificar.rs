@@ -738,20 +738,88 @@ fn el_cierre_no_distingue_mayusculas_en_windows_y_macos() {
         escribir(
             &c.repo,
             "scripts/verificar.bat",
-            "@echo off\r\necho %TC2_PERFIL%> \"%TESTIGO%\"\r\ncall \"%~dp0LIB\\PASO.BAT\"\r\nexit /b %ERRORLEVEL%\r\n",
+            "@echo off\r\necho %TC2_PERFIL%> \"%TESTIGO%\"\r\ncall \"%~dp0LIB\\PASO.BAT\"\r\nexit /b %ERRORLEVEL%\r\necho Don't & call \"%~dp0lib\\MI PASO.BAT\"\r\n",
         );
     } else {
         escribir(
             &c.repo,
             "scripts/verificar.sh",
-            "echo \"$TC2_PERFIL\" > \"$TESTIGO\"\n# %~dp0LIB/PASO.SH\n. \"$(dirname \"$0\")/LIB/PASO.SH\"\n",
+            "echo \"$TC2_PERFIL\" > \"$TESTIGO\"\n# %~dp0LIB/PASO.SH\n. \"$(dirname \"$0\")/LIB/PASO.SH\"\nexit 0\n. \"$(dirname \"$0\")/lib/MI PASO.SH\"\n",
         );
     }
+    // Ronda 3: un script de nombre raro (solo lo alcanza la busqueda por
+    // nombre) nombrado con otras mayusculas.
+    let raro = if cfg!(windows) {
+        "scripts/lib/mi paso.bat"
+    } else {
+        "scripts/lib/mi paso.sh"
+    };
+    escribir(&c.repo, raro, "echo bueno\n");
     c.fx.crudo(&c.repo, &["add", "-A"]);
     c.fx.crudo(&c.repo, &["commit", "-q", "-m", "mayusculas"]);
     c.confiar();
     escribir(&c.repo, ruta_paso(), &cuerpo_paso(Paso::Rojo(0)));
     let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("cambiado"),
+        "{}",
+        texto(&o)
+    );
+    assert!(!c.se_ejecuto());
+
+    escribir(&c.repo, ruta_paso(), &cuerpo_paso(Paso::Verde));
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("confiado"),
+        "{}",
+        texto(&o)
+    );
+    let _ = c.se_ejecuto();
+    escribir(&c.repo, raro, "echo malo\n");
+    let o = c.verificar("rapida");
+    assert_eq!(
+        clave(&o, "confianza").as_deref(),
+        Some("cambiado"),
+        "raro con otras mayusculas: {}",
+        texto(&o)
+    );
+    assert!(!c.se_ejecuto());
+}
+
+/// Ronda 3, MEN-7: un script de nombre raro nombrado solo en la orden, tras
+/// un apostrofo suelto, entra en el cierre (busqueda por nombre en la orden).
+#[test]
+fn script_raro_nombrado_solo_en_la_orden_entra_en_el_cierre() {
+    let c = Caso::nuevo("verificar-raro-orden");
+    c.proyecto(Paso::Verde);
+    let (extra, raro) = if cfg!(windows) {
+        (
+            r#" & echo Don''t & call "scripts\mi paso.bat""#,
+            "scripts/mi paso.bat",
+        )
+    } else {
+        (
+            r#" ; echo Don''t ; . "scripts/mi paso.sh""#,
+            "scripts/mi paso.sh",
+        )
+    };
+    escribir(&c.repo, raro, "echo bueno\n");
+    escribir(
+        &c.repo,
+        ".taskcode/config.yml",
+        &config(extra, Some(60), 600),
+    );
+    c.fx.crudo(&c.repo, &["add", "-A"]);
+    c.fx.crudo(&c.repo, &["commit", "-q", "-m", "raro en la orden"]);
+    let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    // principal, paso, `incluido/a.cfg` y el raro.
+    assert_eq!(clave(&o, "ficheros").as_deref(), Some("4"), "{}", texto(&o));
+    escribir(&c.repo, raro, "echo malo\n");
+    let o = c.verificar("rapida");
+    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
     assert_eq!(
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
