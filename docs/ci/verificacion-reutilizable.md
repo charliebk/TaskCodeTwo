@@ -546,14 +546,27 @@ de `cmd`), en Windows 11, binario `--release`, cuatro ejecuciones el
 | en frío (todos los `mtime` cambiados: 1 210 462 bytes rehasheados) | 318 – 595 |
 | en caliente (0 bytes rehasheados) | 249 – 419 |
 
-Con el binario de depuración, el peor caso fue 530 ms (en frío). Se lanza a
+Con el binario de depuración, el peor caso fue 530 ms (en frío). Tras la
+ronda 2 de revisión (scripts de nombre raro por su nombre), dos ejecuciones
+en release: 284 – 401 ms sin confiar, 322 – 368 ms en frío y 258 – 292 ms en
+caliente; y con un script de nombre raro más en el cierre (52 ficheros, los
+textos se releen también en caliente, medida a mano sin dejarla en la
+prueba): 239 – 306, 306 – 319 y 254 – 279 ms. Se lanza a
 mano: `cargo test -p tc2 --release --test verificar -- --ignored --nocapture`
 (la verificación del repo no corre las pruebas ignoradas).
 
 **Cómo se forma el cierre.** Se siguen los tokens con forma de ruta (llevan
 `.` o `/`, con letras también no ASCII, como `verificación.bat`) y, enteros,
 los textos entre comillas de una línea (`call "%~dp0lib\mi paso.bat"`), con
-`%~dp0` resuelto a la carpeta del script. En Windows y macOS las rutas se
+`%~dp0` resuelto a la carpeta del script. Como emparejar comillas falla con
+un apóstrofo suelto (`echo Don't & call "%~dp0lib\mi paso.bat"`) o con
+comillas anidadas (`"$(dirname "$0")/lib/mi paso.sh"`), además todo script
+versionado cuyo nombre lleve un carácter que el tokenizador no junta
+(espacio, apóstrofo…) entra en el cierre si su nombre de fichero aparece
+literalmente en la orden o en el texto de un fichero del cierre, se siga o
+no la ruta: puede sumar de más a la huella, nunca dejar fuera uno nombrado.
+Si el repo tiene scripts así, los textos del cierre se releen (sin
+rehashear) también en caliente. En Windows y macOS las rutas se
 comparan sin distinguir mayúsculas. Los globs de `confianza_incluye` admiten
 `./` al principio y siguen la misma regla de mayúsculas; un glob que no
 compila es error de la configuración (no se confía ni se ejecuta nada) y uno
