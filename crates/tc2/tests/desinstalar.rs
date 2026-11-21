@@ -103,7 +103,8 @@ fn decisiones(h: &Hecho, clase: &str) -> Vec<&'static str> {
 }
 
 /// Lo que deja `install.sh` (Unix) en un HOME: el binario, un temporal de
-/// cada clase, el bloque en `.profile` y `.bashrc`, y la cache del lanzador.
+/// cada clase, el bloque en `.profile` y `.bashrc`, la cache del lanzador y
+/// el almacen de confianza (F5-6).
 fn instalacion_unix(home: &Path) -> (PathBuf, String) {
     let bin = home.join(".local").join("bin");
     escribir(&bin, "tc2", "binario");
@@ -123,6 +124,12 @@ fn instalacion_unix(home: &Path) -> (PathBuf, String) {
             .join("2.0.0"),
         "tc2",
         "del lanzador",
+    );
+    // F5-6: el almacen de confianza local tambien se va.
+    escribir(
+        &home.join(".cache").join("taskcodetwo").join("confianza"),
+        "0123.json",
+        "{}",
     );
     (bin.join("tc2"), perfil.to_owned())
 }
