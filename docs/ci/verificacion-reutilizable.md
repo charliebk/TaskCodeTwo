@@ -319,7 +319,10 @@ reconoce (el aislamiento de abajo sí, porque mira `runner.environment`).
 
 **Aislamiento** (D3b a): el primer paso de `ejecutar`, antes del checkout,
 lleva `if: runner.environment == 'self-hosted'` (en un runner de GitHub vale
-`github-hosted` y el paso se salta) y corre en Windows PowerShell. Falla con
+`github-hosted` y el paso se salta) y corre en Windows PowerShell con
+`-NoProfile -ExecutionPolicy Bypass` solo para ese proceso: con la directiva
+`AllSigned` de la máquina, el script sin firmar que genera el runner no llega a
+ejecutarse (lo encontró el E2E de TASK-045). Falla con
 `exit 2` si el runner no es Windows, si la cuenta es `SYSTEM` (SID
 `S-1-5-18`) o si pertenece al grupo Administradores (SID `S-1-5-32-544`,
 también cuando UAC lo deja solo para denegar). Escribe el usuario y el `bash`

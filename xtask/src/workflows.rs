@@ -1268,6 +1268,11 @@ fn el_runner_propio_solo_en_la_release_de_un_privado() {
     );
 }
 
+/// Windows PowerShell sin perfil y sin la directiva de la maquina, solo para el
+/// proceso del paso: con `AllSigned` (E2E de TASK-045) el `.ps1` sin firmar que
+/// genera el runner no llega a ejecutarse y el aislamiento no comprueba nada.
+const SHELL_AISLAMIENTO: &str = r#"powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'""#;
+
 /// El paso de aislamiento es el primero de `ejecutar` (antes del checkout),
 /// solo en un runner propio y en Windows PowerShell; `Err` con lo que falla.
 fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
@@ -1290,7 +1295,7 @@ fn aislamiento_antes_del_checkout(texto: &str) -> Result<(), String> {
     if campo("if") != Some("runner.environment == 'self-hosted'") {
         return Err(format!("aislamiento con if {:?}", campo("if")));
     }
-    if campo("shell") != Some("powershell") {
+    if campo("shell") != Some(SHELL_AISLAMIENTO) {
         return Err(format!("aislamiento con shell {:?}", campo("shell")));
     }
     let run = campo("run").unwrap_or_default();
@@ -1345,8 +1350,16 @@ fn el_aislamiento_va_antes_del_checkout_en_el_runner_propio() {
         (
             "en bash",
             texto.replacen(
-                "        shell: powershell\n        run: |\n          $ErrorActionPreference",
-                "        shell: bash\n        run: |\n          $ErrorActionPreference",
+                &format!("        shell: {SHELL_AISLAMIENTO}\n"),
+                "        shell: bash\n",
+                1,
+            ),
+        ),
+        (
+            "con la directiva de la maquina",
+            texto.replacen(
+                &format!("        shell: {SHELL_AISLAMIENTO}\n"),
+                "        shell: powershell\n",
                 1,
             ),
         ),
