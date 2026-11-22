@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-053-f6-7-defensa-contra-prompt-injection-en
 asignado_a: charlie.bk@gmail.com
@@ -76,6 +76,7 @@ Revision por pares:
 | 2026-11-22T13:16:03Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-22T13:16:05Z | start | automatico | persona | 0.16.1 |
 | 2026-11-22T14:21:37Z | review | automatico | persona | 0.16.1 |
+| 2026-11-22T15:09:50Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -90,3 +91,10 @@ Revision por pares:
 ## Verificacion ligera
 
 - 2026-11-22T14:44:28Z: ronda 1; commit revisado bc834c8d5e302c27d69f32e2d7ac3de286836974; commit verificado 51ba9f4a48189a2db09281d13295f633e31741c3; ficheros: crates/tc2/src/hallazgos/mod.rs, docs/ci/revision-ia.md, xtask/src/workflows.rs; corregidos: MEN-1, MEN-2, MEN-1, MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 114 min
+- Paso de la hora: 114 min reales frente a 210 estimados
+- Cierre (finish): 1484 s, de 2026-11-22T14:45:06Z a 2026-11-22T15:09:50Z
