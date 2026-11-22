@@ -10,7 +10,10 @@
 //!   peticiones de la ronda en `brainstorm/` y el esqueleto de
 //!   `plan-final.md` si no existe; la tarea queda `en-diseno` con el carril
 //!   y el modo congelados. Linea: `plan ok id= commit= ... carril= modo=
-//!   ronda= roles= forma=redaccion|unificador peticiones=`. El CLI no llama
+//!   ronda= roles= forma=redaccion|unificador peticiones= dominios=
+//!   modelo-diseno= modelo-implementacion= avisos=` (F4-6: la seleccion de
+//!   diseno e implementacion, anotada en `roles.diseno` y
+//!   `roles.implementacion`). El CLI no llama
 //!   a ningun modelo (como la 0.16): quien orquesta lanza los agentes.
 //! - `plan guardar [--json] TASK-NNN <destino> <fichero>`: publica un
 //!   fichero (de fuera del repo) como `plan-final.md` o como la salida de un
@@ -358,9 +361,33 @@ fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     let op = op.con_config(&config_de_base(e.git, e.dir)?);
     let t = escribir(e, &op);
     match t.resultado {
-        Resultado::Ok | Resultado::SinCambios => Ok(t),
+        Resultado::Ok | Resultado::SinCambios => Ok(con_seleccion(t, op.roles())),
         _ => Err(con_dueno(t, op.dueno())),
     }
+}
+
+/// La seleccion que firma la persona (F4-6; F1-15 decision 3): dominios
+/// con su senal (`ninguno` tambien), roles de diseno y modelos, leidos de
+/// `roles.diseno` y `roles.implementacion` sin recalcular. Una tarea sin la
+/// seleccion de F4-6 (planificada antes) no la muestra.
+fn con_seleccion(i: Informe, roles: Option<crate::tarea::Roles>) -> Informe {
+    let Some(r) = roles.filter(|r| !r.diseno.reglas.is_empty()) else {
+        return i;
+    };
+    let n = r
+        .diseno
+        .agentes
+        .iter()
+        .filter(|a| !a.ends_with(roles::UNIFICADOR))
+        .count();
+    let senales: Vec<String> = r.diseno.senales.clone();
+    i.con("dominios", lista_o_ninguno(&senales))
+        .con("roles", n.to_string())
+        .con("modelo-diseno", r.diseno.modelo.as_deref().unwrap_or("-"))
+        .con(
+            "modelo-implementacion",
+            r.implementacion.modelo.as_deref().unwrap_or("-"),
+        )
 }
 
 fn paso_pedir_cambios(e: &Entorno<'_>, id: &str, contenido: &str) -> Result<Informe, Informe> {
@@ -424,7 +451,12 @@ fn paso_plan(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Result<Inform
     traer(e.git, e.dir)?;
     let quien = (e.quien)()?;
     let config = config_de_base(e.git, e.dir)?;
-    let op = Planificar::nueva(id, &quien, carril, &config, e.ahora);
+    // Inventario y catalogo para la seleccion (F4-6): se leen antes de la
+    // operacion, que no lee el disco.
+    let claude = crate::dir_claude();
+    let f = crate::seleccion::orden::fuentes(e.git, e.dir, claude.as_deref(), &[]);
+    let op = Planificar::nueva(id, &quien, carril, &config, e.ahora)
+        .con_fuentes(f.inventario, f.catalogo);
     let t = escribir(e, &op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_resumen(t, op.resumen())),
@@ -470,6 +502,24 @@ fn con_resumen(i: Informe, r: Option<Resumen>) -> Informe {
         .con_lista("roles", r.roles.iter().map(|x| (*x).to_owned()).collect())
         .con("forma", r.forma.nombre())
         .con_lista("peticiones", r.peticiones)
+        .con("dominios", lista_o_ninguno(&r.dominios))
+        .con("modelo-diseno", o_guion(&r.modelos.0))
+        .con("modelo-implementacion", o_guion(&r.modelos.1))
+        .con_lista("avisos", r.avisos)
+}
+
+/// `a,b` o `ninguno` (F1-15: «dominios: ninguno» tambien se muestra).
+pub(crate) fn lista_o_ninguno(v: &[String]) -> String {
+    if v.is_empty() {
+        "ninguno".to_owned()
+    } else {
+        v.join(",")
+    }
+}
+
+/// El valor o `-` si esta vacio.
+pub(crate) fn o_guion(s: &str) -> &str {
+    if s.is_empty() { "-" } else { s }
 }
 
 /// Un rechazo con lo que sabe la operacion: quien la lleva o el arreglo de

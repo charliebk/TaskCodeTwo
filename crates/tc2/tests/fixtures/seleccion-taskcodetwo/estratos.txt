@@ -1,0 +1,25 @@
+# Regla de muestra (plan de TASK-085, test 2). Los estratos se asignan en
+# el orden de este fichero; en cada uno, la tarea de tareas/04-terminadas de
+# ID mas alto que cumple el criterio y no esta ya elegida por un estrato
+# anterior (por eso H2 da TASK-077 y H6 TASK-052: TASK-078 y TASK-053 ya
+# estan en toca-github y rust-y-workflow).
+#   fix                tipo fix
+#   toca-github        alguna ruta del merge bajo .github/
+#   solo-adr           fuera de tareas/, solo rutas de docs/adr/
+#   rust-y-workflow    rutas .rs y un workflow de .github/workflows/
+#   puertas-sin-ruta   palabra de puertas-seguridad en el texto, sin ruta de puertas
+#   simple-sin-dominio rendimiento no tiene ninguna; complejidad simple, sin dominio
+#   (alta)             complejidad alta: ninguna terminada, estrato vacio
+#   seguimiento        titulo «Seguimiento de ...»
+#   H2, H6             del hito
+#   sustituto-H5       sustituye al estrato vacio (alta); va el ultimo
+TASK-137 fix
+TASK-078 toca-github
+TASK-095 solo-adr
+TASK-053 rust-y-workflow
+TASK-118 puertas-sin-ruta
+TASK-128 simple-sin-dominio
+TASK-125 seguimiento
+TASK-077 H2
+TASK-052 H6
+TASK-046 sustituto-H5

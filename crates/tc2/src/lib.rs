@@ -228,6 +228,10 @@ where
             let (json, resto) = con_json(resto);
             orden_revisoras(&resto).salida_en(json, idioma)
         }
+        [orden, resto @ ..] if orden == seleccion::orden::SELECCION => {
+            let (json, resto) = con_json(resto);
+            orden_seleccion(&resto).salida_en(json, idioma)
+        }
         [orden, resto @ ..] if orden == hallazgos::orden::NOMBRE => {
             let (json, resto) = con_json(resto);
             hallazgos::orden::orden(&resto, json, idioma)
@@ -555,7 +559,7 @@ fn orden_review(args: &[String], e: &toma::Entorno<'_>) -> Informe {
 
 /// La carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`), solo para
 /// leer el inventario (F3-9, F6-3).
-fn dir_claude() -> Option<std::path::PathBuf> {
+pub(crate) fn dir_claude() -> Option<std::path::PathBuf> {
     instalacion::Entorno::de_variables(
         instalacion::Sistema::actual(),
         std::path::PathBuf::new(),
@@ -587,6 +591,29 @@ fn orden_revisoras(args: &[String]) -> Informe {
             .map(|_| b)
     };
     seleccion::orden::orden(
+        args,
+        &seleccion::orden::Entorno {
+            dir: &dir,
+            git: &g,
+            claude: claude.as_deref(),
+            stdin: &stdin,
+        },
+    )
+}
+
+/// `seleccion [--json] ...` (F4-6) en la carpeta actual.
+fn orden_seleccion(args: &[String]) -> Informe {
+    let dir = match std::env::current_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return Informe::nuevo(seleccion::orden::SELECCION, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_ACTUAL).con("error", e.to_string()));
+        }
+    };
+    let g = git::Git::nuevo();
+    let claude = dir_claude();
+    let stdin = || Ok(Vec::new());
+    seleccion::orden::orden_seleccion(
         args,
         &seleccion::orden::Entorno {
             dir: &dir,

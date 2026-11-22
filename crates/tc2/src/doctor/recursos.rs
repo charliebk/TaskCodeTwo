@@ -172,11 +172,20 @@ fn recomendados(e: &Entorno<'_>) -> (Vec<Recomendado>, Vec<Hallazgo>) {
                 fuente: fuente.clone(),
             });
         }
-        if let Some(a) = &r.revision.agente {
+        // Los agentes que anoto la seleccion (F4-6) y el lanzador de la
+        // revision.
+        for a in r
+            .diseno
+            .agentes
+            .iter()
+            .chain(&r.implementacion.agentes)
+            .chain(&r.revision.agentes)
+            .chain(&r.revision.agente)
+        {
             v.push(Recomendado {
                 id: a.clone(),
                 tipo: TipoRecurso::Agente,
-                fuente,
+                fuente: fuente.clone(),
             });
         }
     }

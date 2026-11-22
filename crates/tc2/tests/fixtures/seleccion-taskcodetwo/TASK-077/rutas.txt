@@ -1,0 +1,15 @@
+crates/tc2/src/git/remoto.rs
+crates/tc2/src/i18n/catalogo/git.rs
+crates/tc2/src/i18n/catalogo/identidad.rs
+crates/tc2/src/identidad.rs
+crates/tc2/tests/identidad.rs
+crates/tc2/src/plataforma/personas.rs
+crates/tc2/src/tarea/mod.rs
+crates/tc2/src/tarea/modelo.rs
+crates/tc2/src/lib.rs
+crates/tc2/tests/tarea.rs
+docs/adr/F1-9-formato-de-tarea-plan-y-especificacion.md
+crates/tc2/src/i18n/catalogo/cli.rs
+crates/tc2/src/git/estado.rs
+crates/tc2/src/i18n/catalogo/mod.rs
+crates/tc2/src/plataforma/mod.rs

@@ -244,6 +244,50 @@ fn ida_y_vuelta_byte_a_byte() {
     );
 }
 
+/// F4-6: el mapa `roles` ampliado (divergencia 1 de F1-15) se lee, se
+/// reescribe byte a byte igual y lo lee igual un parser estandar; las claves
+/// nuevas solo se escriben con valor (las tareas de antes no cambian: las
+/// doradas de arriba).
+#[test]
+fn roles_ampliados_ida_y_vuelta() {
+    let ampliada = DORADA.replace(
+        "  diseno: {modelo: null, skills: [], regla: null}
+",
+        "  diseno: {modelo: \"sonnet\", skills: [], regla: null, agentes: [\"p:brainstorm-arquitectura\", \"p:brainstorm-riesgos\"], reglas: [\"M04\", \"S02\", \"S03\"], senales: [\"puertas-seguridad:palabra:check\"], inventario: \"abc\", catalogo: \"def\"}
+",
+    ).replace(
+        "  revision: {agente: \"general-purpose\", modelo: null, skills: [], regla: null}
+",
+        "  revision: {agente: \"general-purpose\", modelo: \"opus\", skills: [], regla: null, avisos: [\"dominio-sin-revisora:puertas-seguridad\"], ronda: 2}
+",
+    );
+    assert_ne!(ampliada, DORADA);
+    let (m, c) = leer2(&ampliada);
+    assert_eq!(m.escribir(&c), ampliada);
+    assert_eq!(
+        m.roles.diseno.agentes,
+        ["p:brainstorm-arquitectura", "p:brainstorm-riesgos"]
+    );
+    assert_eq!(m.roles.diseno.senales, ["puertas-seguridad:palabra:check"]);
+    assert_eq!(m.roles.diseno.inventario.as_deref(), Some("abc"));
+    assert_eq!(m.roles.revision.ronda, Some(2));
+    let v = estandar(&ampliada);
+    let d = &v["roles"]["diseno"];
+    assert_eq!(d["reglas"][2].as_str(), Some("S03"));
+    assert_eq!(v["roles"]["revision"]["ronda"].as_u64(), Some(2));
+    // Una clave que no conoce el modelo sigue rechazandose.
+    assert!(tarea::leer(&ampliada.replace("ronda: 2", "otra: 2")).is_err());
+    // `agente` y `ronda` son solo de revision.
+    assert!(
+        tarea::leer(&ampliada.replace("diseno: {modelo", "diseno: {agente: \"x\", modelo"))
+            .is_err()
+    );
+    assert!(
+        tarea::leer(&ampliada.replace("catalogo: \"def\"}", "catalogo: \"def\", ronda: 1}"))
+            .is_err()
+    );
+}
+
 /// C1 (ii) y (iii): lo que escribe el modelo lo lee igual el propio modelo y
 /// un parser YAML estandar independiente, tambien con textos hostiles.
 #[test]

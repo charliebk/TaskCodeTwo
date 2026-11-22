@@ -1,0 +1,17 @@
+docs/adr/F1-5-puertas-en-github.md
+crates/tc2/tests/init.rs
+crates/tc2/src/init/mod.rs
+crates/tc2/src/plataforma/github.rs
+crates/tc2/src/plataforma/gitlab.rs
+crates/tc2/src/plataforma/mod.rs
+crates/tc2/tests/plataforma_gitlab.rs
+docs/adr/F1-13-adaptador-de-plataforma.md
+crates/tc2/esquemas/config.schema.json
+crates/tc2/src/config/claves.rs
+crates/tc2/src/config/mod.rs
+crates/tc2/src/i18n/catalogo/init.rs
+crates/tc2/src/i18n/catalogo/plataforma.rs
+crates/tc2/src/init/aplicar.rs
+crates/tc2/src/init/inventario.rs
+crates/tc2/src/plataforma/puertas.rs
+crates/tc2/tests/plataforma.rs

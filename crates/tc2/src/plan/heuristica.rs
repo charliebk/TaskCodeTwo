@@ -275,7 +275,7 @@ pub fn nivel(puntos: u32) -> &'static str {
 }
 
 /// Roles que pide un nivel sin el tope de `hotfix`.
-fn por_nivel(nivel: &str) -> u8 {
+pub fn por_nivel(nivel: &str) -> u8 {
     NIVELES
         .iter()
         .position(|n| *n == nivel)

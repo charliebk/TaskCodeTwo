@@ -1,0 +1,2 @@
+crates/tc2/src/ciclo/liberar.rs
+crates/tc2/src/situacion.rs

@@ -1,0 +1,335 @@
+[
+ {
+  "tarea": "ToolsaWeb/TASK-306",
+  "estrato": "skills-016",
+  "tipo": "feature",
+  "etiquetas": [
+   "topo",
+   "planificacion"
+  ],
+  "objetivo": "Endurecer tools/tw-arquitectura/tests/particion_h15.rs para que, cuando TASK-303 sustituya los N-nn de docs/topo/particion-h15.md por ids reales, compruebe que cada tarea citada existe y copia literal su criterio de nostalgia. Entra en verde aceptando todavía los N-nn, con mutantes sintéticos. Troceo de TASK-303 por la regla de una hora, decidido por la persona el 2026-11-11.",
+  "criterios": [
+   "La struct Tarea de particion_h15.rs lee los criterios de aceptación de cada tarea.md sin mirar si la casilla está marcada ([ ] o [x]) — `tools/tw-arquitectura/tests/particion_h15.rs::los_criterios_de_un_tarea_md_se_leen_sin_casilla`, `tools/tw-arquitectura/tests/particion_h15.rs::el_frontmatter_y_los_criterios_se_leen_como_grafo_tareas`",
+   "Comprobación [tarea]: cada TASK citada en la partición existe en tareas/ salvo en 05-archivadas, con el mismo criterio de descartadas que scripts/grafo-tareas.py; mutante que comprueba el texto exacto del error — `tools/tw-arquitectura/tests/particion_h15.rs::mutante_tarea_citada_que_no_existe_o_descartada_da_tarea`, `tools/tw-arquitectura/tests/particion_h15.rs::mutante_tarea_citada_archivada_sin_etiqueta_da_tarea`, `tools/tw-arquitectura/tests/particion_h15.rs::mutante_carpeta_y_etiqueta_distintas_o_id_repetido_da_fuentes`",
+   "Comprobación [criterio]: comprobar_nostalgia devuelve el criterio que satisfizo cada fila y, si la tarea citada es una TASK, ese criterio aparece literal entre sus criterios de aceptación; mutante con texto exacto — `tools/tw-arquitectura/tests/particion_h15.rs::mutante_criterio_de_nostalgia_que_no_esta_literal_da_criterio`, `tools/tw-arquitectura/tests/particion_h15.rs::la_particion_con_ids_reales_da_verde`, `tools/tw-arquitectura/tests/particion_h15.rs::el_sufijo_de_citas_del_cierre_se_quita_y_nada_mas`, `tools/tw-arquitectura/tests/particion_h15.rs::mutante_ficha_con_marca_combinante_da_nfc_una_vez`",
+   "Comprobación [ficha]: cada TASK con bloque en la partición tiene de 3 a 8 criterios, complejidad media o menor y las dependencias del frontmatter iguales a su «Depende de»; mutante con texto exacto — `tools/tw-arquitectura/tests/particion_h15.rs::mutante_ficha_que_no_cuadra_con_su_bloque_da_ficha`",
+   "referencias() abre rangos «TASK-a a TASK-b» y propuestas() acepta la cabecera «### TASK-nnn (N-nn) — título» solo si el alias N-nn coincide con su posición, sin dejar de aceptar «### N-nn — título»; mutantes de ambos — `tools/tw-arquitectura/tests/particion_h15.rs::las_task_citadas_se_leen_con_rangos_y_limite_de_palabra`, `tools/tw-arquitectura/tests/particion_h15.rs::mutante_alias_que_no_es_su_posicion_o_rango_ajeno_da_rojo`, `tools/tw-arquitectura/tests/particion_h15.rs::la_particion_con_ids_reales_da_verde`",
+   "particion_h15.rs y estudio_topo_cruce.rs siguen en verde con todos sus mutantes, ninguna aserción se afloja (decisión 4 de TASK-302) y los mutantes que se toquen comprueban el texto exacto con rojo_que_dice — `tools/tw-arquitectura/tests/particion_h15.rs::la_particion_reparte_todo_el_estudio_y_nada_mas`, `tools/tw-arquitectura/tests/particion_h15.rs::mutante_frontmatter_roto_da_fuentes_hasta_comprobar`"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "tools/tw-arquitectura/tests/particion_h15.rs"
+  ]
+ },
+ {
+  "tarea": "ToolsaWeb/TASK-399",
+  "estrato": "fix",
+  "tipo": "fix",
+  "etiquetas": [
+   "verificacion",
+   "agilidad"
+  ],
+  "objetivo": "Sigue a TASK-344. Medido el 2026-11-12 en el cierre de TASK-284: la completa duro 14 min 31 s y 13 min 27 s fueron el paso 18 (cargo test de todo el workspace) porque se activo EVIDENCIAS aunque solo habia cambiado tw-arquitectura. En decidir() de scripts/clasificar-verificacion.py, los GLOBALES solo se descuentan si no estaban ya en afectados (globales = {c for c in GLOBALES if c in paqs and c not in afectados}), asi que al tocar tw-arquitectura directamente cuenta como crate de producto y afectados - globales lo incluye. El propio clasificador dice que tw-arquitectura no registra evidencias. Correccion prevista: decidir EVIDENCIAS con afectados - set(GLOBALES).",
+  "criterios": [
+   "Con un cambio solo en tools/tw-arquitectura/, el clasificador no activa EVIDENCIAS y corre los tests de tw-arquitectura (caso nuevo en clasificar-verificacion.py --probar)",
+   "Con tw-arquitectura y un crate de producto tocados, EVIDENCIAS se activa solo con los crates de producto en su lista (caso nuevo en --probar)",
+   "Los casos existentes de clasificar-verificacion.py --probar y el simulacro de verificar.bat (--probar-bat) siguen en verde sin cambiar sus expectativas",
+   "La completa sobre un cambio solo en tw-arquitectura tarda menos de 3 min sin el paso 18 de cargo test del workspace (medido y anotado en docs/verificacion/flujo-de-verificacion.md)"
+  ],
+  "carril": "fix",
+  "rutas": [
+   "docs/verificacion/flujo-de-verificacion.md",
+   "tools/tw-arquitectura/src/lib.rs",
+   "scripts/clasificar-verificacion.py",
+   "docs/planificacion/hitos.md"
+  ]
+ },
+ {
+  "tarea": "ToolsaWeb/TASK-403",
+  "estrato": "riesgo-alto",
+  "tipo": "feature",
+  "etiquetas": [
+   "verificacion",
+   "agilidad",
+   "taskcode"
+  ],
+  "objetivo": "Se hace justo después de instalar TaskCode 0.16 (la versión con TASK-099 a TASK-130 del plugin), no antes: con la 0.14 las claves nuevas solo dan aviso y se ignoran, y devolver comando_verificacion_selectiva a --selectiva metería otra vez la selectiva lenta en el freno de fin de turno. El commit 09833278 dejó el freno y review en verificar.bat --rapida porque la 0.14 no permite separarlos; la 0.16 trae comando_verificacion_freno y presupuesto_freno_s (TASK-125, el freno recibe RAMA_BASE), comando_verificacion_pesada y verificacion_pesada_en (TASK-126), la variable TASKCTL_PROGRESO para mostrar x/N en taskctl estado (TASK-110), el recuento de tests de la completa en el registro de puertas (TASK-129: reconoce '# tests N' o 'test result: N passed; M failed' de cargo, pero con la salida recortada y varios crates devuelve sin dato), tope_rondas con 2 por defecto (TASK-127) y verificacion_por_lote (TASK-115). tope_rondas y verificacion_por_lote se leen de la config de la rama base, así que el cambio entra en develop antes de abrir la siguiente tarea.",
+  "criterios": [
+   "Con TaskCode 0.16 instalado, .taskcode/config.yml declara comando_verificacion_freno: scripts\\verificar.bat --rapida con presupuesto_freno_s: 180, devuelve comando_verificacion_selectiva a scripts\\verificar.bat --selectiva y taskctl doctor muestra rapida en el freno, selectiva en review y completa en finish, sin avisos de claves",
+   "comando_verificacion_pesada: scripts\\verificar.bat --pesada con verificacion_pesada_en: [release] (y hotfix si Carlos lo decide); doctor dice que puerta corre los pesados y el aviso de --pesada de verificar.bat ya no habla de paso manual",
+   "verificar.bat escribe x/N en el fichero de TASKCTL_PROGRESO en cada paso (desde la rutina :paso) y no hace nada si la variable no existe; taskctl estado muestra el x/N durante una completa (comprobado a mano)",
+   "La completa termina con una linea '# tests N' con el total de la suite, sumando los grupos saltados por la caché con su último recuento, y la linea suite del registro de puertas tiene numero tras un finish (autoprueba de resumen-verificacion.py y comprobación en .git/taskcode)",
+   "tope_rondas y verificacion_por_lote quedan decididos por Carlos y escritos en la config o descartados con el motivo en el plan",
+   "docs/verificacion/flujo-de-verificacion.md actualiza la tabla Presupuesto por puerta y el procedimiento tras actualizar TaskCode; las autopruebas de verificar.bat y de los scripts de verificacion siguen en verde"
+  ],
+  "carril": "riesgo-alto",
+  "rutas": [
+   "docs/verificacion/flujo-de-verificacion.md",
+   "scripts/recuento-tests.py",
+   "scripts/resumen-verificacion.py",
+   "scripts/verificar.bat",
+   ".taskcode/config.yml",
+   "scripts/cache-verificacion.py",
+   "scripts/cerrojo-verificacion.py",
+   "scripts/clasificar-verificacion.py",
+   "docs/planificacion/hitos.md"
+  ]
+ },
+ {
+  "tarea": "ToolsaWeb/TASK-299",
+  "estrato": "solo-docs",
+  "tipo": "feature",
+  "etiquetas": [
+   "topo",
+   "estudio",
+   "planificacion"
+  ],
+  "objetivo": "Segunda parte de TASK-296, partida por la regla de una hora (decisión de la persona del 2026-11-10). Con las fichas de informes de docs/topo/informes-topograph.md (TASK-296), un evaluador fuera del repo recalcula un caso propio en planas y otro en UTM y reconstruye su informe, contrastado con fuentes independientes de TopoGraph. Diseño heredado de tareas/01-en-diseno/TASK-296/planificacion/ (ronda 1 del brainstorm).",
+  "criterios": [
+   "%TW_TOPO%\\_herramientas\\evaluar_poligonal.py (con autoprueba --probar y salida en evidencias/) recalcula un caso propio en planas y otro en UTM con las fórmulas de los PDF de docs/topograph_GNSS/ y la NBR 13133, cada fórmula con su fuente (página, norma o pyproj), y docs/topo/informes-topograph.md incluye los dos casos con su informe reconstruido según las fichas",
+   "Cada número reconstruido se contrasta con una fuente independiente (tablas de TopoGraph del TCC, fotogramas, Aldeia o pyproj con el datum que cite la fuente); lo que no tiene fuente queda «bloqueado» con su motivo, y cada autoprueba tiene un mutante que la pone en rojo (signo de Bowditch, trunc frente a round, clase de la NBR)"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "docs/topo/indice-material.md",
+   "docs/topo/informes-topograph.md"
+  ]
+ },
+ {
+  "tarea": "ToolsaWeb/TASK-402",
+  "estrato": "multidominio",
+  "tipo": "feature",
+  "etiquetas": [
+   "login",
+   "suscripcion",
+   "servidor",
+   "web"
+  ],
+  "objetivo": "Primer incremento del acceso real (H13, antes de TASK-172 y TASK-285): entrar con una cuenta pública y comprobar la suscripción contra un simulador hasta contratar Paddle. Decisión de la persona (2026-11-13): solo login público (OIDC de Google ahora; LinkedIn enseguida y GitHub y GitLab después), nunca email y contraseña propios, así que no hay tabla de usuarios con contraseñas ni gestión de credenciales: la identidad es el sub y el email verificado que da el proveedor. Flujo: Topo (gratis) -> login -> entra; GNSS (suscripción) -> login -> comprueba suscripción -> entra; ToolsaWeb (suscripción) -> login -> comprueba suscripción -> entra. Hoy la portada se ve bien pero no se puede pasar a ToolsaWeb para seguir probando: esta tarea lo deja funcionando. Las suscripciones se simulan con un proveedor de pruebas detrás de la misma interfaz que implementará Paddle (TASK-285); la cuenta charlie.bk@gmail.com tiene una suscripción total de un año en ese simulador. Cómo se relaciona el login con las suscripciones (cuenta, máquina, planes) sigue siendo un estudio (TASK-285, TASK-172): aquí solo lo mínimo para entrar.",
+  "criterios": [
+   "Botón «Entrar con Google» en la portada (TASK-279): flujo OIDC Authorization Code con PKCE, state y nonce en el servidor; el servidor valida el id_token (firma JWKS, iss, aud, exp, nonce, email_verified) y rechaza uno manipulado o caducado (tests del server con un emisor simulado)",
+   "Sin email ni contraseña propios: no existe alta local ni tabla de contraseñas; la identidad guardada es (proveedor, sub, email verificado), y el diseño deja escrito en docs/ cómo se añaden LinkedIn, GitHub y GitLab como proveedores de configuración",
+   "Sesión en cookie HttpOnly, Secure (salvo localhost), SameSite=Lax y firmada por el servidor, con caducidad; /salir la borra; una cookie alterada o caducada devuelve 401 (tests)",
+   "Topo: con sesión entra; sin sesión manda a /entrar y vuelve a Topo tras el login (e2e con el emisor simulado)",
+   "GNSS y ToolsaWeb: con sesión el servidor consulta la suscripción y entra si el plan la cubre (total: las tres; GNSS: GNSS y Topo); sin plan manda a /suscribirse; sin sesión manda a /entrar (tests del server y e2e)",
+   "Proveedor de suscripciones como interfaz (estado, plan y fin del periodo por cuenta) con un simulador de pruebas configurable desde un fichero fuera del repo; la interfaz es la que implementará Paddle en TASK-285 sin tocar a quien la usa",
+   "En el simulador local, charlie.bk@gmail.com tiene la suscripción total hasta un año después de su alta; el fichero versionado solo trae un ejemplo con un email ficticio y los tests usan cuentas ficticias",
+   "Las claves de Google (client id y secret) y la de firma de sesión van fuera del repo, en variables o fichero local ignorado por git; sin ellas el servidor arranca en modo pruebas y lo dice en el log",
+   "El interruptor de modo pruebas de TASK-279 sigue funcionando: encendido, las tres entradas son libres; apagado, rige el login y la suscripción (tests de los dos estados)",
+   "Login con GitHub (OAuth App con PKCE y state; email principal verificado de /user/emails) detrás de la misma interfaz que Google; LinkedIn queda para más adelante porque necesita la página de empresa (decisión de la persona del 2026-11-13, durante la revisión 1)",
+   "Prueba manual documentada en la tarea: entrar con la cuenta real de Google de la persona en localhost y pasar a Topo, GNSS y ToolsaWeb con la suscripción simulada"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "web/src/i18n/en.json",
+   "web/src/i18n/es.json",
+   "web/src/i18n/pt.json",
+   "web/src/portada/BotonTema.vue",
+   "web/src/portada/CabeceraPortada.vue",
+   "web/src/portada/PaginaEntrar.vue",
+   "web/src/portada/Portada.vue",
+   "web/src/portada/acceso.ts",
+   "web/tests/e2e/portada.spec.ts",
+   "server/src/github.rs",
+   "server/src/identidad.rs",
+   "server/tests/comun/emisor.rs",
+   "server/tests/login.rs",
+   "web/tests/e2e/comun.ts",
+   "Cargo.lock",
+   "Cargo.toml",
+   "docs/acceso/proveedores-de-identidad.md",
+   "scripts/comprobar-sin-desarrollo.py",
+   "server/Cargo.toml",
+   "server/src/almacen.rs",
+   "server/src/lib.rs",
+   "server/src/login.rs",
+   "server/src/main.rs",
+   "server/tests/comun/claves/LEEME.md",
+   "server/tests/comun/claves/emisor-1.pem",
+   "server/tests/comun/claves/emisor-2.pem",
+   "web/tests/unit/portada.test.ts",
+   "docs/ADR-006-limites-de-modulos.md",
+   "scripts/servicios.toml",
+   "web/src/Raiz.vue",
+   "web/src/portada/PaginaProvisional.vue",
+   "web/vite.config.ts",
+   "db/servidor/changelog.xml",
+   "entitlements/src/lib.rs",
+   "server/src/acceso.rs",
+   "server/src/desarrollo.rs",
+   "server/src/sesion.rs",
+   "server/src/suscripciones.rs",
+   "server/suscripciones.ejemplo.json",
+   "server/tests/aplicaciones.rs",
+   "server/tests/comun/mod.rs",
+   "docs/planificacion/hitos.md"
+  ]
+ },
+ {
+  "tarea": "OpenDockTrading/TASK-063",
+  "estrato": "seguridad",
+  "tipo": "feature",
+  "etiquetas": [
+   "seguridad",
+   "web"
+  ],
+  "objetivo": "Antídoto ANT-23 del catálogo de fallos (TASK-062): OpenTrading tuvo el control HTTP sin autenticar al operador (V208:SI-01, ALTA), el token servido saltándose la protección de Host (AT27:M-14), un único token para todas las cuentas (AUD27:BE-API-7), entradas sin esquema que acababan en 500 y sin cabeceras de seguridad. El servidor de OpenDockTrading nace cerrado.",
+  "criterios": [
+   "Toda ruta de /api salvo /api/salud exige el token de operador y un test recorre el router y falla si alguna queda abierta",
+   "Una petición con cabecera Host distinta de 127.0.0.1:4310 o localhost:4310 recibe 403, comprobado por test (DNS rebinding)",
+   "Cada cuerpo, query y parámetro se valida con un esquema y un valor inválido da 400 con el campo y el motivo, nunca 500, comprobado por test",
+   "Las respuestas llevan cabeceras de seguridad (X-Content-Type-Options, Content-Security-Policy, sin X-Powered-By), comprobado por test",
+   "El token nunca aparece en logs, en la línea de órdenes de los scripts ni en la telemetría, comprobado por test"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "apps/odt-programa/src/entrada.rs",
+   "apps/odt-programa/src/pruebas_seguridad.rs",
+   "web/src/armazon/BarraEstado.vue",
+   "apps/odt-programa/src/seguridad.rs",
+   "apps/odt-programa/src/seguridad/operador.rs",
+   "scripts/pruebas_servicios.py",
+   "scripts/servicios.py",
+   "web/src/api/__tests__/canal-socket.test.ts",
+   "Cargo.lock",
+   "Cargo.toml",
+   "apps/odt-programa/Cargo.toml",
+   "apps/odt-programa/src/canal.rs",
+   "apps/odt-programa/src/consulta.rs",
+   "apps/odt-programa/src/eventos.rs",
+   "apps/odt-programa/src/lib.rs",
+   "apps/odt-programa/src/main.rs",
+   "apps/odt-programa/src/pruebas.rs",
+   "apps/odt-programa/src/pruebas_canal.rs",
+   "apps/odt-programa/src/pruebas_eventos.rs",
+   "apps/odt-programa/src/seguridad/cabeceras.rs",
+   "apps/odt-programa/src/seguridad/host.rs",
+   "core/odt-api/src/lib.rs",
+   "core/odt-api/tests/tipos_generados.rs",
+   "docs/ADR-001-stack-tecnologico.md",
+   "scripts/servicios.toml",
+   "tools/odt-medida/src/http.rs",
+   "web/e2e/seguridad.spec.ts",
+   "web/src/api/__tests__/sesion.test.ts",
+   "web/src/api/canal.ts",
+   "web/src/api/sesion.ts",
+   "web/src/i18n/en.json",
+   "web/src/i18n/es.json",
+   "web/src/i18n/pt.json",
+   "web/src/main.ts",
+   "web/src/tipos/generados/CodigoError.ts",
+   "web/src/tipos/generados/ErrorApi.ts"
+  ]
+ },
+ {
+  "tarea": "OpenDockTrading/TASK-014",
+  "estrato": "riesgo-alto",
+  "tipo": "feature",
+  "etiquetas": [
+   "arnes",
+   "operacion",
+   "windows"
+  ],
+  "objetivo": "Un único comando de verificación del proyecto. El freno de fin de turno, la puerta de `taskctl finish`, el guardián de\nmerges y el informe del fallo ya los da TaskCode a partir de `comando_verificacion`; esta tarea solo escribe los pasos\npropios de OpenDockTrading y los conecta (recortada el 2026-11-13 al comprobar lo que cubre el plugin).",
+  "criterios": [
+   "scripts/verificar.bat ejecuta cargo fmt --check, cargo clippy -D warnings, cargo test, el arnés de arquitectura, vue-tsc, eslint, vitest, las pruebas de Playwright del armazón y `taskctl roadmap --comparar`, y sale con 0 solo si todo pasa",
+   ".taskcode/config.yml declara comando_verificacion apuntando a scripts/verificar.bat",
+   "Un fallo de cualquier paso hace salir verificar.bat con código distinto de 0, comprobado rompiendo un test a propósito",
+   "scripts/resumen-verificacion.py imprime una tabla con el resultado y la duración de cada paso",
+   "scripts/verificar.bat ejecuta cargo audit y npm audit (ANT-39, decidido en TASK-006) y falla ante una vulnerabilidad conocida; docs/estudio/fallos-opentrading.md pasa ANT-39 a esta tarea y las autopruebas de scripts/comprobar-fallos.py dejan de usarlo como antídoto sin tarea"
+  ],
+  "carril": "riesgo-alto",
+  "rutas": [
+   "docs/ADR-001-stack-tecnologico.md",
+   "scripts/verificar.bat",
+   "tools/odt-arquitectura/tests/verificar.rs",
+   ".taskcode/config.yml",
+   "scripts/resumen-verificacion.py",
+   "docs/estudio/fallos-opentrading.md",
+   "scripts/comprobar-fallos.py",
+   "web/package-lock.json",
+   "web/package.json"
+  ]
+ },
+ {
+  "tarea": "OpenDockTrading/TASK-067",
+  "estrato": "solo-docs",
+  "tipo": "feature",
+  "etiquetas": [
+   "estudio",
+   "adr",
+   "negocio"
+  ],
+  "objetivo": "Decisión de la persona (2026-11-09): como ToolsaWeb, cada cliente paga una suscripción y abre un proyecto; el proyecto es un fichero SQLite con extensión .odtp que queda siempre en el PC del cliente; cada proyecto tiene como máximo 3 carteras reales y 3 de simulación; la suscripción da acceso y mantiene el programa operando mientras esté al día. A diferencia de ToolsaWeb, un bot tiene que vigilar sin parar: el programa es local y el servidor solo gestiona cuentas, cobro y derechos. Hay que dejarlo escrito antes de diseñar datos, servidor e interfaz.",
+  "criterios": [
+   "docs/ADR-005-modelo-de-negocio.md recoge las decisiones del 2026-11-09: un proyecto activo por suscripción, fichero .odtp en el PC del cliente, 3 carteras reales y 3 de simulación por proyecto, y mercado y telemetría en cachés aparte, borrables y reconstruibles (ADR-005 §2 y §5)",
+   "Define qué hace el programa sin suscripción vigente: no abre posiciones nuevas, mantiene la vigilancia y la protección de los lotes abiertos hasta cerrarlos, y el .odtp sigue legible con cualquier SQLite (ADR-005 §3 y columna solo_proteger de docs/adr-005-matriz.tsv)",
+   "Define la matriz de acceso y los roles en un único módulo compartido por el programa y el servidor, y el plazo de gracia sin conexión con el servidor, con su motivo (ADR-005 §4 y §6: odt-derechos, 7 días)",
+   "Deja escrito que las claves de Kraken, las carteras y las operaciones nunca salen del PC del cliente, y qué datos sí recibe el servidor (ADR-005 §7 y docs/adr-005-flujos.tsv)",
+   "Compara con ToolsaWeb docs/ADR-003-modelo-de-negocio-y-persistencia.md (cuentas, proveedor de cobro, telemetría con consentimiento) y dice qué se reutiliza y qué cambia (ADR-005 §9 y §8)"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "docs/ADR-005-modelo-de-negocio.md",
+   "docs/ADR-001-stack-tecnologico.md",
+   "docs/adr-005-flujos.tsv",
+   "docs/adr-005-matriz.tsv",
+   "docs/modulos.toml"
+  ]
+ },
+ {
+  "tarea": "OpenDockTrading/TASK-069",
+  "estrato": "multidominio",
+  "tipo": "feature",
+  "etiquetas": [
+   "arnes",
+   "entorno"
+  ],
+  "objetivo": "La memoria Engram no guardaba nada en esta máquina: su hook de inicio de sesión necesita jq, que no está instalado, así que la sesión nunca se registraba y cada mem_save fallaba con «sesión inexistente» (ya pasó en OpenTrading). Lo mismo puede pasar con cualquier herramienta que el proyecto da por supuesta. Un script comprueba el entorno y otro instala lo que falta, como en ToolsaWeb.",
+  "criterios": [
+   "scripts/comprobar-entorno.py comprueba jq, git, bash, Python 3.12, Node 22, Rust con wasm32 y el CLI taskctl con su versión mínima, y sale con 1 nombrando lo que falta y el comando que lo instala",
+   "scripts/instalar-herramientas.bat instala con winget lo que falte, jq incluido, y vuelve a ejecutar la comprobación",
+   "Tras instalar jq, una sesión nueva de Claude Code en este repositorio guarda en Engram sin registrar la sesión a mano, comprobado con mem_save (comprobado ejecutando el hook; falta que la persona lo confirme en una sesión nueva tras reiniciar Claude Code)",
+   "README.md tiene una sección de requisitos que apunta a los dos scripts"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "scripts/comprobar-entorno.py",
+   "README.md",
+   "evidencias/TASK-069/engram-hook.txt",
+   "evidencias/TASK-069/instalar-herramientas-1-instala-jq.txt",
+   "evidencias/TASK-069/instalar-herramientas-2-sin-pendientes.txt",
+   "scripts/instalar-herramientas.bat",
+   "scripts/verificar.bat",
+   "tools/odt-arquitectura/tests/verificar.rs"
+  ]
+ },
+ {
+  "tarea": "OpenDockTrading/TASK-096",
+  "estrato": "un-dominio",
+  "tipo": "feature",
+  "etiquetas": [
+   "estudio",
+   "adr"
+  ],
+  "objetivo": "Segunda parte del modelo relacional troceado en TASK-010: describir en los TSV del modelo las tablas de mercado.db y de mercado-1m-AAAA-MM.db, con sus consultas calientes e índices, sobre el comprobador que dejó la primera parte.",
+  "criterios": [
+   "docs/modelo-datos.md describe cada tabla de mercado.db y de mercado-1m-AAAA-MM.db con columnas, tipos, claves foráneas, CHECK e índices, y un diagrama ER en Mermaid por fichero",
+   "Cada consulta caliente de esos ficheros está en docs/adr-002-consultas.tsv con SQL literal, y python -I scripts/comprobar-modelo.py --comprobar verifica con EXPLAIN QUERY PLAN que usa el índice declarado y no hace SCAN sin índice",
+   "La clave natural de activo y par que enlaza las cachés con el .odtp es una sola y queda escrita, con los códigos alternativos de Kraken (XXBT, XBT, BTC; XXBTZEUR, XBT/EUR) como alias",
+   "docs/modelo-datos.md deja escrito cómo se lee un fichero mensual creado con un esquema anterior",
+   "python -I scripts/comprobar-modelo.py --comprobar y --probar salen con 0"
+  ],
+  "carril": "funcionalidad",
+  "rutas": [
+   "docs/modelo-datos-columnas.tsv",
+   "docs/modelo-datos.md",
+   "scripts/comprobar-modelo.py",
+   "docs/ADR-002-modelo-de-datos.md",
+   "docs/adr-002-consultas.tsv",
+   "docs/modelo-datos-indices.tsv",
+   "docs/modelo-datos-origen.tsv",
+   "docs/modelo-datos-tablas.tsv"
+  ]
+ }
+]

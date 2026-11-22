@@ -279,3 +279,56 @@ pub fn registro_permitido(registro: &[String]) {
         }
     }
 }
+
+/// Carpeta de Claude Code falsa en `raiz` con el plugin `taskcode-plugin`
+/// habilitado, sus agentes de brainstorm (menos los de `sin`) y las cinco
+/// revisoras con su bloque yaml (F4-6: la
+/// seleccion elige entre lo instalado). Devuelve la carpeta para
+/// `CLAUDE_CONFIG_DIR`.
+pub fn claude_con_brainstorm(raiz: &Path, sin: &[&str]) -> PathBuf {
+    let claude = raiz.join("claude");
+    let cache = raiz.join("cache-plugin");
+    for n in [
+        "arquitectura",
+        "riesgos",
+        "testing",
+        "dominio",
+        "rendimiento",
+        "unificador",
+    ] {
+        if sin.contains(&n) {
+            continue;
+        }
+        escribir(
+            &cache,
+            &format!("agents/brainstorm-{n}.md"),
+            &format!("---\nname: brainstorm-{n}\ndescription: rol {n}\n---\n\nrol\n"),
+        );
+    }
+    escribir(
+        &cache,
+        ".claude-plugin/plugin.json",
+        "{\"name\": \"taskcode-plugin\"}",
+    );
+    // Las cinco revisoras con su bloque yaml (fixtures de la 0.16.2).
+    let revisoras = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/revisoras/skills");
+    for d in std::fs::read_dir(&revisoras).unwrap().flatten() {
+        let n = d.file_name().to_string_lossy().into_owned();
+        let texto = std::fs::read_to_string(d.path().join("SKILL.md")).unwrap();
+        escribir(&cache, &format!("skills/{n}/SKILL.md"), &texto);
+    }
+    let instalados = serde_json::json!({"version": 2, "plugins": {
+        "taskcode-plugin@tc": [{"scope": "user", "installPath": cache, "version": "0.16.2"}]
+    }});
+    escribir(
+        &claude,
+        "plugins/installed_plugins.json",
+        &instalados.to_string(),
+    );
+    escribir(
+        &claude,
+        "settings.json",
+        "{\"enabledPlugins\": {\"taskcode-plugin@tc\": true}}",
+    );
+    claude
+}

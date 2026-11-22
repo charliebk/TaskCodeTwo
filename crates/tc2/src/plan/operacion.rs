@@ -14,10 +14,18 @@
 //! - Modo: el de la ultima fila `plan` de `## Transiciones` si la hay (ya
 //!   congelado); si no, `modo_flujo` de la configuracion de la base. Va en
 //!   la columna `modo` de la fila `plan` (F1-10, decision 5).
-//! - Roles: [`Carril::roles_diseno`] con la complejidad
-//!   ([`heuristica::resolver`]) y [`roles::seleccionar`]; un rol es la forma
-//!   `redaccion` (`peticion-plan-<n>.md`), el resto `unificador` (una
-//!   peticion por rol y `peticion-unificador-<n>.md`).
+//! - Roles (F4-6): [`seleccion::seleccionar`] para diseno e implementacion
+//!   con [`Carril::roles_diseno`] por la complejidad
+//!   ([`heuristica::resolver`]), los dominios del texto y el inventario y
+//!   el catalogo que recibe la operacion como dato: suelo 2 con
+//!   `puertas-seguridad`, rol de rendimiento con su dominio, unificador con
+//!   dos o mas, y el modelo de cada rol. Los ids elegidos se mapean a
+//!   [`roles`] por su sufijo. Un rol es la forma `redaccion`
+//!   (`peticion-plan-<n>.md`), el resto `unificador` (una peticion por rol y
+//!   `peticion-unificador-<n>.md`); cada peticion dice el agente y el
+//!   modelo. La seleccion se anota en `roles.diseno` y
+//!   `roles.implementacion`; un agente no instalado no rompe `plan`: va con
+//!   su aviso `no-instalado` (S14).
 //! - Ronda: la mayor con testigo (`peticion-unificador-<n>.md` o
 //!   `peticion-plan-<n>.md`) en `TASK-NNN/planificacion/brainstorm/`. Si sus
 //!   peticiones son exactamente las que tocan ahora y no tiene cambios
@@ -43,6 +51,8 @@ use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estad
 use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
+use crate::inventario::Inventario;
+use crate::seleccion::{self, Catalogo};
 use crate::tarea::{Asignado, Cuerpo, Transicion};
 use crate::toma::instante;
 
@@ -89,6 +99,12 @@ pub struct Resumen {
     pub forma: Forma,
     /// Peticiones de la ronda (nombres de fichero de `brainstorm/`).
     pub peticiones: Vec<String>,
+    /// Dominios detectados (F4-6).
+    pub dominios: Vec<String>,
+    /// Modelo de diseno y de implementacion.
+    pub modelos: (String, String),
+    /// Avisos de la seleccion (diseno e implementacion).
+    pub avisos: Vec<String>,
 }
 
 /// Planificar la tarea `id`.
@@ -101,6 +117,8 @@ pub struct Planificar {
     carril: Option<Carril>,
     modo: &'static str,
     config: Config,
+    inventario: Inventario,
+    catalogo: Catalogo,
     resumen: RefCell<Option<Resumen>>,
     dueno: RefCell<Option<String>>,
 }
@@ -123,9 +141,63 @@ impl Planificar {
             carril,
             modo: config.modo_flujo.nombre(),
             config: config.clone(),
+            inventario: Inventario::default(),
+            catalogo: Catalogo::default(),
             resumen: RefCell::new(None),
             dueno: RefCell::new(None),
         }
+    }
+
+    /// El inventario y el catalogo con los que se selecciona (leidos antes
+    /// de la operacion, que no lee el disco).
+    #[must_use]
+    pub fn con_fuentes(mut self, inventario: Inventario, catalogo: Catalogo) -> Self {
+        self.inventario = inventario;
+        self.catalogo = catalogo;
+        self
+    }
+
+    /// La seleccion de diseno e implementacion de la tarea (F4-6). `Err` si
+    /// las tablas del ADR no se leen.
+    fn seleccion(
+        &self,
+        t: &crate::tarea::Tarea,
+        enunciado: &Enunciado,
+        carril: Carril,
+        resolucion: &heuristica::Resolucion,
+        n: u8,
+    ) -> Result<(seleccion::Seleccion, seleccion::Seleccion), String> {
+        let doms = seleccion::orden::dominios_vivos(Some((t, enunciado)), &[], &self.config)?;
+        let entrada = seleccion::Entrada {
+            rutas: &[],
+            dominios: &doms,
+            etiquetas: &t.etiquetas,
+            roles_base: n,
+        };
+        let ctx = seleccion::Contexto {
+            carril,
+            complejidad: Some(seleccion::orden::complejidad(resolucion)),
+            modelos_permitidos: &self.config.seleccion.modelos_permitidos,
+            ronda: 1,
+        };
+        let s = |rol| seleccion::seleccionar(rol, &entrada, &self.catalogo, &self.inventario, &ctx);
+        Ok((
+            s(seleccion::Rol::Diseno)?,
+            s(seleccion::Rol::Implementacion)?,
+        ))
+    }
+
+    /// `roles.<rol>` con la seleccion `s` (la `regla` de la 0.16 se
+    /// conserva).
+    fn anotar(&self, r: &mut crate::tarea::Rol, s: &seleccion::Seleccion, agentes: &[String]) {
+        r.modelo = (!s.modelo.is_empty()).then(|| s.modelo.clone());
+        r.skills.clone_from(&s.skills);
+        r.agentes = agentes.to_vec();
+        r.reglas.clone_from(&s.reglas);
+        r.senales.clone_from(&s.senales);
+        r.avisos.clone_from(&s.avisos);
+        r.inventario = Some(self.inventario.huella());
+        r.catalogo = Some(self.catalogo.huella());
     }
 
     /// Lo que decidio el ultimo intento que llego a decidir.
@@ -234,6 +306,42 @@ fn peticiones(d: &Datos<'_>, roles: &[Rol], forma: Forma) -> Vec<(String, String
     v
 }
 
+/// Los dominios de unas senales `<dominio>:<senal>:<valor>`, sin repetir.
+pub fn dominios_de_senales(senales: &[String]) -> Vec<String> {
+    let mut v: Vec<String> = Vec::new();
+    for s in senales {
+        let d = s.split(':').next().unwrap_or_default().to_owned();
+        if !v.contains(&d) {
+            v.push(d);
+        }
+    }
+    v
+}
+
+/// Los roles de [`roles`] que corresponden a los agentes de diseno de la
+/// seleccion (por el sufijo del id: `taskcode-plugin:brainstorm-riesgos`
+/// es `brainstorm-riesgos`), sin el unificador, que decide la forma. Con
+/// `n` por encima de la escalera (`politica_carriles`, hasta 5) se suman los
+/// condicionales que falten, como [`roles::seleccionar`].
+fn roles_de(s: &seleccion::Seleccion, n: u8) -> Vec<Rol> {
+    let mut v: Vec<Rol> = s
+        .roles
+        .iter()
+        .filter_map(|id| {
+            let sufijo = id.rsplit(':').next().unwrap_or(id);
+            roles::todos().find(|r| r.id == sufijo).copied()
+        })
+        .collect();
+    let mut extra = usize::from(n).saturating_sub(roles::ESCALERA.len());
+    for c in &roles::CONDICIONALES {
+        if extra > 0 && !v.contains(&c.rol) {
+            extra -= 1;
+            v.push(c.rol);
+        }
+    }
+    v
+}
+
 impl Operacion for Planificar {
     fn nombre(&self) -> &str {
         NOMBRE
@@ -310,7 +418,15 @@ impl Operacion for Planificar {
             &enunciado,
         );
         let n = carril.roles_diseno(resolucion.roles, &t.tipo, &self.config);
-        let roles = roles::seleccionar(n, &t.etiquetas);
+        let (sd, si) = self
+            .seleccion(&t, &enunciado, carril, &resolucion, n)
+            .map_err(|x| {
+                Fallo::Error(
+                    Mensaje::nuevo(&crate::i18n::catalogo::seleccion::TABLA_ILEGIBLE)
+                        .con("error", x),
+                )
+            })?;
+        let roles = roles_de(&sd, n);
         let forma = if roles.len() == 1 {
             Forma::Redaccion
         } else {
@@ -331,6 +447,8 @@ impl Operacion for Planificar {
             fecha: &fecha,
             enunciado: &enunciado,
             resolucion: &resolucion,
+            agentes: &sd.roles,
+            modelo: (!sd.modelo.is_empty()).then_some(sd.modelo.as_str()),
         };
         let nombres = |ronda: u32| -> Vec<String> {
             peticiones(&datos(ronda), &roles, forma)
@@ -362,13 +480,21 @@ impl Operacion for Planificar {
             roles: roles.iter().map(|r| r.titulo).collect(),
             forma,
             peticiones: nombres(ronda),
+            dominios: dominios_de_senales(&sd.senales),
+            modelos: (sd.modelo.clone(), si.modelo.clone()),
+            avisos: sd.avisos.iter().chain(&si.avisos).cloned().collect(),
         });
+        let mut nuevos = t.roles.clone();
+        self.anotar(&mut nuevos.diseno, &sd, &sd.roles);
+        self.anotar(&mut nuevos.implementacion, &si, &[]);
         let cambia_tarea = t.estado != EN_DISENO
             || t.carril.as_deref() != Some(carril.nombre())
+            || t.roles != nuevos
             || !cambios.is_empty();
         if cambia_tarea {
             EN_DISENO.clone_into(&mut t.estado);
             t.carril = Some(carril.nombre().to_owned());
+            t.roles = nuevos;
             fecha.clone_into(&mut t.actualizado);
             cuerpo.anadir_transicion(&Transicion {
                 fecha: &instante,

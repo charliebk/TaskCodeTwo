@@ -332,6 +332,9 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         agente: sel.agentes.first().cloned(),
         modelo: sel.modelo.clone(),
         skills: sel.revisoras.clone(),
+        reglas: sel.reglas.clone(),
+        senales: sel.senales.clone(),
+        avisos: sel.avisos.clone(),
     });
     let tr = estado::transaccion(&ctx, &op);
     match tr.resultado {
@@ -486,18 +489,33 @@ pub fn seleccion_de(
         });
     let f = seleccion::orden::fuentes(g, principal, claude, &[]);
     avisos.extend(f.avisos.iter().cloned());
-    let (carril, cx) = seleccion::orden::de_tarea(t, cuerpo);
+    let (carril, r) = seleccion::orden::de_tarea(t, cuerpo);
     let cfg = config::de_base(g, principal).unwrap_or_else(|_| {
         avisos.push("config-de-base-no-leida".to_owned());
         config::Config::suelo()
     });
     let ctx = seleccion::Contexto {
         carril,
-        complejidad: Some(cx),
+        complejidad: Some(seleccion::orden::complejidad(&r)),
         modelos_permitidos: &cfg.seleccion.modelos_permitidos,
         ronda: 1,
     };
-    let mut s = seleccion::revision(&rutas, &f.catalogo, &f.inventario, &ctx).unwrap_or_default();
+    // F4-6: con los dominios (texto vivo, rutas del diff y lo congelado).
+    let doms = seleccion::orden::dominios_de(Some((t, cuerpo)), &rutas, &cfg).unwrap_or_default();
+    let entrada = seleccion::Entrada {
+        rutas: &rutas,
+        dominios: &doms,
+        etiquetas: &t.etiquetas,
+        roles_base: 0,
+    };
+    let mut s = seleccion::seleccionar(
+        seleccion::Rol::Revision,
+        &entrada,
+        &f.catalogo,
+        &f.inventario,
+        &ctx,
+    )
+    .unwrap_or_default();
     avisos.append(&mut s.avisos);
     s.avisos = avisos;
     s

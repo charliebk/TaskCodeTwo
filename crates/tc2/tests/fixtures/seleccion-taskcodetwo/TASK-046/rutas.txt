@@ -1,0 +1,17 @@
+docs/ci/verificacion-reutilizable.md
+crates/tc2/tests/verificar.rs
+crates/tc2/src/confianza/cierre.rs
+crates/tc2/src/confianza/mod.rs
+crates/tc2/src/config/validar.rs
+crates/tc2/src/contrato.rs
+crates/tc2/src/i18n/catalogo/config.rs
+crates/tc2/src/i18n/catalogo/verificacion.rs
+crates/tc2/src/lib.rs
+crates/tc2/src/verificacion/ejecutar.rs
+crates/tc2/tests/desinstalar.rs
+crates/tc2/src/desinstalar/maquina.rs
+crates/tc2/src/i18n/catalogo/cli.rs
+crates/tc2/src/verificacion/mod.rs
+crates/tc2/src/config/mod.rs
+crates/tc2/src/git/puerto.rs
+crates/tc2/src/i18n/catalogo/mod.rs

@@ -624,3 +624,166 @@ fn f4_3_approve_hito_agente_y_uso() {
     }
     assert_eq!(f.huella(&bare, &a), antes);
 }
+
+/// `tc2 <args>` en `dir` sin ssh (un clon del bare por ruta) y con la
+/// carpeta de Claude Code `claude`: (codigo, stdout, stderr).
+fn tc2_local(
+    f: &Fixture,
+    dir: &Path,
+    claude: &Path,
+    args: &[&str],
+) -> (Option<i32>, String, String) {
+    let mut e = f.entorno();
+    e.push(("CLAUDE_CONFIG_DIR".into(), claude.as_os_str().to_owned()));
+    let o = lanzar(dir, e, args);
+    (o.status.code(), texto(&o.stdout), texto(&o.stderr))
+}
+
+/// F4-6, criterio 3 (E2E): `plan` con «check» en un criterio detecta
+/// `puertas-seguridad`, da 2 roles y el unificador (S03, S05) y congela la
+/// senal en `roles.diseno.senales`; el agente que falta en el inventario va
+/// con `no-instalado` y su peticion se escribe igual; `approve` muestra a la
+/// persona los dominios con su senal y los roles que firma; con el texto
+/// reescrito sin la palabra, la revision (`tc2 revisoras --tarea`, el camino
+/// de CI) mantiene el aviso `dominio-sin-revisora` (S11) por la senal
+/// congelada; y `doctor --recursos` lista el agente anotado que no esta.
+#[test]
+fn plan_approve_review_usan_la_seleccion() {
+    let f = Fixture::nueva("approve-seleccion");
+    let claude = comun::claude_con_brainstorm(&f.raiz, &["riesgos"]);
+    let (bare, prep) = f.remoto_y_clon();
+    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
+    escribir(&prep, ".taskcode/config.yml", CONFIG);
+    f.crudo(&prep, &["add", ".taskcode"]);
+    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
+    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
+    let o = lanzar(
+        &prep,
+        f.entorno(),
+        &[
+            "new",
+            "Puertas",
+            "--objetivo",
+            "Una funcion nueva",
+            "--criterio",
+            "el check pasa",
+        ],
+    );
+    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
+    f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "a"]);
+    let a = f.raiz.join("a");
+    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
+    Cache::en(&a.join(".git"))
+        .guardar(&ana(), tc2::identidad::ahora())
+        .unwrap();
+    let mut e = entorno_ssh(&f);
+    e.push(("CLAUDE_CONFIG_DIR".into(), claude.as_os_str().to_owned()));
+    let (c, out, err) = tc2_con(&a, e, &["plan", "TASK-001"]);
+    assert_eq!(c, Some(0), "{out} {err}");
+    assert_eq!(valor(&out, "roles"), Some("arquitectura,riesgos"), "{out}");
+    assert_eq!(valor(&out, "forma"), Some("unificador"), "{out}");
+    assert_eq!(valor(&out, "dominios"), Some("puertas-seguridad"), "{out}");
+    assert_eq!(
+        valor(&out, "avisos"),
+        Some("no-instalado:taskcode-plugin:brainstorm-riesgos"),
+        "{out}"
+    );
+    let md = f.crudo(
+        &bare,
+        &["show", &format!("{RAMA_ESTADO}:TASK-001/tarea.md")],
+    );
+    assert!(
+        md.contains("reglas: [\"M04\", \"S02\", \"S03\", \"S05\", \"S14\"], senales: [\"puertas-seguridad:palabra:check\"], avisos: [\"no-instalado:taskcode-plugin:brainstorm-riesgos\"]"),
+        "{md}"
+    );
+    let riesgos = f.crudo(
+        &bare,
+        &[
+            "show",
+            &format!(
+                "{RAMA_ESTADO}:TASK-001/planificacion/brainstorm/peticion-brainstorm-riesgos-1.md"
+            ),
+        ],
+    );
+    assert!(
+        riesgos.contains("lanzalo con el agente `taskcode-plugin:brainstorm-riesgos`"),
+        "{riesgos}"
+    );
+
+    // approve: la persona ve lo que firma.
+    let clave = clave(&f);
+    let firma = con_firma(entorno_ssh(&f), &clave);
+    guardar_plan(&f, &a, firma.clone(), "# Plan\n\nhecho\n");
+    let out = como_persona(&a, firma);
+    assert!(out.starts_with("approve ok id=TASK-001 commit="), "{out}");
+    assert_eq!(
+        valor(&out, "dominios"),
+        Some("puertas-seguridad:palabra:check"),
+        "{out}"
+    );
+    assert_eq!(valor(&out, "roles"), Some("2"), "{out}");
+    assert_eq!(valor(&out, "modelo-diseno"), Some("sonnet"), "{out}");
+
+    // El agente reescribe el texto sin la palabra despues de aprobar.
+    f.crudo(
+        &f.raiz,
+        &[
+            "clone",
+            "-q",
+            "-b",
+            RAMA_ESTADO,
+            bare.to_str().unwrap(),
+            "e2",
+        ],
+    );
+    let e2 = f.raiz.join("e2");
+    let t = std::fs::read_to_string(e2.join("TASK-001/tarea.md")).unwrap();
+    assert!(t.contains("el check pasa"), "{t}");
+    std::fs::write(
+        e2.join("TASK-001/tarea.md"),
+        t.replace("el check pasa", "la validacion pasa"),
+    )
+    .unwrap();
+    f.crudo(&e2, &["commit", "-q", "-am", "reescribe el texto"]);
+    f.crudo(&e2, &["push", "-q", "origin", RAMA_ESTADO]);
+
+    // La revision (camino de CI) sigue viendo el dominio por lo congelado.
+    f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "b"]);
+    let b = f.raiz.join("b");
+    let rutas = f.raiz.join("rutas.txt");
+    std::fs::write(&rutas, "src/a.rs\n").unwrap();
+    let (c, out, err) = tc2_local(
+        &f,
+        &b,
+        &claude,
+        &[
+            "revisoras",
+            "--tarea",
+            "TASK-001",
+            "--rutas",
+            rutas.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(c, Some(0), "{out} {err}");
+    let avisos = valor(&out, "avisos").unwrap_or_default();
+    assert!(
+        avisos.contains("dominio-sin-revisora:puertas-seguridad"),
+        "{out}"
+    );
+    assert!(
+        valor(&out, "reglas").unwrap_or_default().contains("S11"),
+        "{out}"
+    );
+
+    // doctor --recursos: el agente anotado que no esta instalado.
+    let (_, out, _) = tc2_local(&f, &b, &claude, &["doctor", "--recursos"]);
+    let linea = out
+        .lines()
+        .find(|l| l.contains("brainstorm-riesgos"))
+        .unwrap_or_else(|| panic!("{out}"));
+    assert!(
+        linea.contains("falla motivo=no-instalado tipo=agente"),
+        "{linea}"
+    );
+    assert!(linea.contains("tarea=TASK-001"), "{linea}");
+}

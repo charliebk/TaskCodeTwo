@@ -887,3 +887,96 @@ la App, el prompt con la sección del informe y sin ejecutar la suite).
   título v2 de F6-5 (sin `ronda=`) como ronda 1. Veredicto nuevo `tope`
   (`failure`): pasado el tope de rondas con un CRITICO o IMPORTANTE abierto.
   Contrato de hallazgos v3; guía: `docs/ci/revision-ia.md`, «Rondas (F6-6)».
+
+## Adenda (F4-6, TASK-085) — diseño, implementación y dominios activos; `plan` anota y la revisión los usa
+
+F4-6 completa la decisión 1 sobre lo que dejó F6-3:
+
+- **`seleccion::seleccionar`** (`crates/tc2/src/seleccion/mod.rs`): la misma
+  función pura para los tres roles. Recorre las filas de su rol y de
+  `todos` de `tabla-seleccion` y la columna de su rol de `tabla-modelo`
+  (Diseño, Implementación o Revisión; «—» en diseño de `errata` es sin
+  modelo). `seleccion::revision` queda como envoltura de F6-3 sin dominios.
+  Los agentes de diseño son los ids de la columna «Ids del inventario» de
+  S02 a S05 (suelo de S03, rol de S04, unificador de S05); los no
+  instalados se quitan de `agentes` con `no-instalado` (S14), pero siguen en
+  los roles y `plan` escribe su petición igual.
+- **`seleccion::dominios`** (`crates/tc2/src/seleccion/dominios.rs`): el
+  detector con `tabla-dominios` leída de este fichero (lector nuevo en
+  `tabla.rs`, mismo error por vocabulario). Etiqueta y palabra plegadas (sin
+  tildes ni mayúsculas), palabra al principio de palabra, ruta con glob sin
+  mayúsculas; `dominios_extra` solo añade. Con él, S03, S04, S06, S10, S11 y
+  la excepción de S13 (`dominio=puertas-seguridad`) se evalúan; S10 y S11 se
+  evalúan una vez por dominio detectado.
+- **Catálogo** (decisión 8): el bloque yaml y `recursos:` admiten `rol` ∈
+  {`diseno`, `ejecucion`, `revisor`}, `etiquetas`, `dominios` y
+  `prioridad`; `recursos:` de la configuración de la base entra en el
+  catálogo. S07 elige por solape de etiquetas y dominios, después
+  prioridad, después id, con aviso `empate-por-id`.
+- **`plan`** lee el inventario y el catálogo antes de la operación (la
+  misma `seleccion::orden::fuentes` de `review`), selecciona diseño e
+  implementación y anota `roles.diseno` y `roles.implementacion`; cada
+  petición dice «lánzalo con el agente `<id>` y el modelo `<m>`» y la línea
+  gana `dominios=`, `modelo-diseno=`, `modelo-implementacion=` y `avisos=`.
+  `approve` muestra a la persona `dominios=` (las señales, o `ninguno`),
+  `roles=` y los dos modelos, leídos de la tarea sin recalcular.
+- **Revisión** (`review` y `tc2 revisoras`, el camino de CI): los dominios
+  son la unión de las señales congeladas en `roles.diseno.senales`, las del
+  texto vivo y las de las rutas del diff, con `dominios_extra` de la base;
+  `roles.revision` anota además `reglas`, `senales` y `avisos`.
+- **`tc2 seleccion [TASK-NNN] [--tarea-fichero <tarea.md>] [--rutas
+  <fichero>] [--json]`**: los tres roles sin escribir nada (contrato para
+  F4-4 y F1-16); `--tarea-fichero` acepta los formatos 1 y 2.
+- **`tc2 doctor --recursos`** recoge también `roles.*.agentes`.
+
+**Divergencias con el plan de TASK-085 y con este ADR**:
+
+1. **Mapa `roles` (divergencia 1 de este ADR)**: claves opcionales
+   `agentes`, `reglas`, `senales`, `avisos`, `inventario`, `catalogo` y, en
+   revisión, `ronda`, escritas solo con valor (una tarea de antes se
+   reescribe byte a byte igual). `regla` sigue con el vocabulario de la
+   0.16 y tc2 no la toca; las filas van en `reglas`.
+2. **«Texto aprobado» (decisión 3)**: no se anota el blob de `tarea.md` en
+   `roles.<rol>.texto` (el blob del commit de `approve` contiene la propia
+   anotación); se congelan las `senales` que `plan` calcula, que es lo que
+   la unión necesita. Residual: quien reescriba `roles.diseno.senales` y el
+   texto tras `approve` quita el suelo en la revisión salvo por las rutas
+   del diff (mismo residual que el caso 2 de la PoC S).
+3. **Rol de rendimiento con un solo rol**: S04 lo añade aunque la
+   escalera tenga un rol, y entonces S05 pone el unificador (la tabla manda);
+   `plan::roles::seleccionar` de F4-1 solo lo sumaba con dos o más.
+4. **Señales en `plan`**: `plan` calcula los dominios sin rutas (aún no hay
+   diff); la PoC T los calculó con los ficheros del merge. Por eso la
+   reproducción de la muestra (test `la_muestra_del_adr_se_reproduce`) pasa
+   las rutas a los tres roles, como la PoC.
+5. **Columna «Dominios» de la muestra**: la PoC muestra la primera señal de
+   cada dominio; `roles.<rol>.senales` las anota todas (TASK-403 de ToolsaWeb
+   tiene además `ruta:.taskcode/**`).
+6. **Árbol del proyecto en `plan`**: las skills del proyecto se leen de la
+   base (`origin/develop`), como en `review`, no del commit en que se
+   calcula (decisión 2); el hash del inventario y del catálogo va anotado.
+7. **`start` que para por recursos** y el consumo por el orquestador quedan
+   fuera (F3-9/F1-14 y F4-4): `doctor --recursos` lo dice.
+
+**Evidencia**: unitarios de `seleccion::` (las 10 filas de `tabla-muestra`
+con la fixture `crates/tc2/tests/fixtures/muestra-f1-15/`, leída en solo
+lectura de los commits fijos de los pilotos; M01 a M07 en los tres roles,
+S13 con y sin `puertas-seguridad`, S15 en diseño e implementación; sin red
+ni modelo y S14 en diseño; tabla adversaria del detector), `tests/tarea.rs`
+(mapa ampliado de ida y vuelta), `tests/plan.rs` (modelos distintos por
+carril y complejidad, agente y modelo en cada petición), `tests/aprobar.rs`
+(`plan`, `approve`, revisión con el texto reescrito y `doctor --recursos`) y
+`tests/seleccion.rs` (10 tareas terminadas de TaskCodeTwo por regla fija,
+deterministas, comparadas con la tabla dorada `tabla.md` de su fixture).
+S06 y el orden de S07 (solape, prioridad, id y `empate-por-id`) los cubre
+el unitario `skills_de_diseno_y_ejecucion_por_dominio_solape_prioridad_e_id`.
+
+**No verificado**: que las 10 tareas de TaskCodeTwo coincidan con lo que
+haría una persona (lo marca Carlos tras el cierre, D10a). En esa tabla la
+columna «Implementación» sale «—» en las 10 y no hay skills de diseño: el
+inventario del test no tiene ninguna skill con `rol: ejecucion` ni
+`rol: diseno` en su bloque yaml, y sin metadatos S06 y S07 no eligen nada.
+La comparación juzga, por tanto, los agentes de diseño, la revisión y los
+modelos, no las skills de implementación ni de diseño; el orquestador
+(F4-4) consumiendo la selección; el revisor en CI con dominios en un PR real
+(E2E).
