@@ -29,8 +29,41 @@ Hallazgos estructurados (JSON + comentarios); un CRÍTICO o IMPORTANTE abierto d
 Tarea F6-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-4.
 
 ## Criterios de aceptacion
-- [ ] El check refleja los hallazgos
-- [ ] Cumple lo que pide la tarea F6-5 del plan y los requisitos que cita
+- [x] El check refleja los hallazgos
+- [x] Cumple lo que pide la tarea F6-5 del plan y los requisitos que cita
+
+## Resultado
+
+Hallazgos estructurados (F6-5). El veredicto lo calcula `tc2` y el workflow solo lo transporta.
+- Contrato v2 de hallazgos (`crates/tc2/src/hallazgos/`, esquema `hallazgos.schema.json` v2): `clase` obligatoria con la lista cerrada de F1-15; funciones puras `veredicto` y `anotaciones` (lotes de 50, `raw_details` acotado a 64 KB, mensaje nunca vacio).
+- `tc2 hallazgos veredicto` escribe `check.json` y `anotaciones-<k>.json`. Regla: `failure` (rojo) con algun CRITICO o IMPORTANTE aceptado; `failure` (incompleta) si alguna revisora no dejo respuesta valida; `success` en otro caso. Ya no se publica `neutral`, que GitHub cuenta como verde (sustituye la D4 de F6-3).
+- `revision-ia.yml`: `validar` corre `veredicto`; `publicar` hace POST de `check.json` y PATCH por lote. Sin artefacto, o si la API rechaza el veredicto, publica `failure` incompleta. El lint de `xtask` exige todo ello (`success` solo una vez, en el `case` que copia `check.json`).
+- Operacion nueva del puerto `leer-revision` (GitHub; `no-soportada` en GitLab y dobles): lee el check de la App del revisor, pagina anotaciones y exige que titulo, conclusion y aceptados casen. `tc2 review` guarda `TASK-NNN/revision/revision-ia-<sha12>.json|.md` en la rama de estado (sin la prosa del modelo) y su linea gana `hallazgos=` e `informe=`.
+- Guia `docs/ci/revision-ia.md` y adendas F6-5 en F1-15, F1-13 y F1-4.
+
+Decisiones (opcion recomendada, delegada por Carlos, 2026-11-21): sin trocear; incompleta = `failure`; «comentarios» = anotaciones del check, sin permisos nuevos; clase obligatoria; informe leido del check por `tc2 review`.
+
+Evidencia (2026-11-21/22):
+- C1 en `tc2`: `crates/tc2/tests/hallazgos.rs::el_check_refleja_los_hallazgos` con el binario real (IMPORTANTE da rojo, solo MENOR verde, prosa incompleta, CRITICO rechazado no pone rojo); 7 mutaciones en rojo.
+- C1 en el workflow: lint de `xtask` con mutaciones por regla en rojo (34 tests).
+- C1 E2E real en `charliebk/taskcodetwo-e2e-github` (`revision_ia_publica_el_veredicto_y_review_lo_lee`, `#[ignore]`): la App del revisor 5846307 publico el check con 50 anotaciones y el PATCH anadio la 51 sin borrar; con la App del agente 5832411, `revision-ia` dio `fallo` y `leer-revision` devolvio las 51. PR y rama temporales borrados.
+- C2: el esquema v2 y el codigo coinciden (clases, `required`, `maxLength`); `tests/revision.rs::review_guarda_el_informe_de_la_revision_ia` con remoto bare real publica el informe, repetido da `sin-cambios` y con el check pendiente no escribe; `tests/plataforma.rs::leer_revision_filtra_por_origen_y_pagina`.
+- `cargo xtask verificar --perfil rapida` en verde sobre 02000f5 (unos 29 min). Las correcciones de la ronda 1 (4f7ba28) se comprobaron con `cargo test -p tc2 --lib` (378), `--test hallazgos --test revision --test plataforma` (16), `cargo test -p xtask` (34), clippy `-D warnings`, fmt y `taskctl verificar-menores` (e213191). `finish` vuelve a verificar.
+
+Sin comprobar: la ejecucion real del workflow sin saldo (publicaria `failure` incompleta; no hay saldo en la API y no se pondra); que GitHub acepte rutas y lineas de un PR con diff real (el E2E usa la linea 1 de un fichero del PR); un PATCH que falle a medias o mas de ~1050 anotaciones dejan el check incompleto (`leer-revision` lo detecta y falla cerrado, el workflow no lo repara).
+
+Revision por pares:
+- Ronda 1: rust-wasm-reviewer y code-quality-reviewer, aprobada-con-correcciones, sin CRITICO ni IMPORTANTE. Los seis MENOR se corrigieron en 4f7ba28 y los reconocio `verificar-menores`.
+  - Rust: MEN-1 `leer_revision` no comprobaba que titulo y anotaciones casaran; MEN-2 `raw_details` sin tope de 64 KB.
+  - Calidad: MEN-1 el lint de `publicar` se saltaba con la clave entrecomillada; MEN-2 dos `required` del esquema sin test; MEN-3 `publicar` sin salida si la API rechaza el veredicto, y `message` vacio posible; MEN-4 orden del resumen mal descrito en la guia.
+
+## Divergencias
+
+- `tc2 hallazgos veredicto` gana `--extra <txt>` para que el resumen lleve la seleccion y el estado de cada revisora sin logica jq en `publicar`.
+- `raw_details` es `{revisora, hallazgo}` (`AceptadoDe`) en vez del `Aceptado` a secas, para no perder la revisora (medicion por revisora de F1-15 D7a).
+- `failure` si puede aparecer literal en `publicar` (fallback de revision incompleta); `success` nunca.
+- La adenda de `leer-revision` va en F1-13 con nota en F1-4 (el plan decia F1-13 o F1-4).
+- El rechazo por titulo incoherente reutiliza el mensaje i18n de `raw_details` invalido: un mensaje propio exigia tocar el catalogo fuera de los ficheros de los MENOR. Queda como deuda menor.
 
 ## Transiciones
 
