@@ -8,12 +8,12 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | .github/workflows/revision-ia.yml:363 | implementacion |
-| MEN-1 | MENOR | abierto | crates/tc2/src/hallazgos/ronda.rs:110 | implementacion |
-| MEN-2 | MENOR | abierto | docs/ci/revision-ia.md:149 | implementacion |
-| MEN-3 | MENOR | abierto | crates/tc2/src/hallazgos/ronda.rs:199 | plan |
-| MEN-4 | MENOR | abierto | crates/tc2/src/hallazgos/ronda.rs:284 | implementacion |
-| MEN-5 | MENOR | abierto | .github/workflows/revision-ia.yml:303 | plan |
+| IMP-1 | IMPORTANTE | corregido | .github/workflows/revision-ia.yml:363 | implementacion |
+| MEN-1 | MENOR | corregido | crates/tc2/src/hallazgos/ronda.rs:110 | implementacion |
+| MEN-2 | MENOR | corregido | docs/ci/revision-ia.md:149 | implementacion |
+| MEN-3 | MENOR | corregido | crates/tc2/src/hallazgos/ronda.rs:199 | plan |
+| MEN-4 | MENOR | corregido | crates/tc2/src/hallazgos/ronda.rs:284 | implementacion |
+| MEN-5 | MENOR | corregido | .github/workflows/revision-ia.yml:303 | plan |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
 plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el

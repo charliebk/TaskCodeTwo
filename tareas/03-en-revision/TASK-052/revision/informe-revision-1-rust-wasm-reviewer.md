@@ -8,11 +8,11 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | crates/tc2/src/hallazgos/ronda.rs:199 | plan |
-| MEN-1 | MENOR | abierto | crates/tc2/src/hallazgos/mod.rs:1868 | implementacion |
-| MEN-2 | MENOR | abierto | crates/tc2/src/hallazgos/ronda.rs:284 | implementacion |
-| MEN-3 | MENOR | abierto | crates/tc2/src/hallazgos/mod.rs:863 | plan |
-| MEN-4 | MENOR | abierto | crates/tc2/src/hallazgos/mod.rs:924 | implementacion |
+| IMP-1 | IMPORTANTE | corregido | crates/tc2/src/hallazgos/ronda.rs:199 | plan |
+| MEN-1 | MENOR | corregido | crates/tc2/src/hallazgos/mod.rs:1868 | implementacion |
+| MEN-2 | MENOR | corregido | crates/tc2/src/hallazgos/ronda.rs:284 | implementacion |
+| MEN-3 | MENOR | aceptado | crates/tc2/src/hallazgos/mod.rs:863 | plan |
+| MEN-4 | MENOR | corregido | crates/tc2/src/hallazgos/mod.rs:924 | implementacion |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
 plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el
