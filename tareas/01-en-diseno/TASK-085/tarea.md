@@ -6,10 +6,10 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-085-f4-6-plan-propone-skills-agentes-y-model
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-22
 dependencias: [TASK-036, TASK-049, TASK-080]
 ---
 ## Objetivo
@@ -34,3 +34,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 - [ ] En 10 tareas reales la propuesta coincide con la que haría una persona
 - [ ] el modelo cambia según complejidad y carril
 - [ ] Cumple lo que pide la tarea F4-6 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-22T17:13:20Z | plan | automatico | persona | 0.16.1 |
