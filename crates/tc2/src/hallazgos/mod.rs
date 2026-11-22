@@ -34,6 +34,7 @@
 //! cerrado). [`veredicto_ronda`] cuenta nuevos, persisten y cerrados.
 
 pub mod orden;
+pub mod prompt;
 pub mod ronda;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -41,6 +42,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use crate::dato::{es_de_formato, plano};
 use crate::verificacion::informe::{Informe as InformeVerificacion, Resultado as ResultadoPaso};
 
 /// Version del contrato de hallazgos.
@@ -1133,104 +1135,47 @@ const EJEMPLO_INCREMENTAL: &str = r#"{
   ]
 }"#;
 
-/// Texto de la respuesta del modelo como texto plano de Markdown en una
-/// linea: sin saltos ni controles, con la puntuacion que da formato escapada
-/// y cortado a `tope` caracteres. Es dato del modelo (F6-7): no puede abrir
-/// tablas, enlaces, imagenes ni HTML en el check. Tampoco autoenlaces (URL
-/// desnudas, `www.`, correos), menciones `@usuario`, matematicas `$` ni
-/// emojis `:codigo:`; y los caracteres Unicode de formato (categoria Cf:
-/// ancho cero, cambios de direccion...) se quitan.
-pub fn plano(t: &str, tope: usize) -> String {
-    let cs: Vec<char> = t.chars().filter(|c| !es_de_formato(*c)).collect();
-    let mut s = String::new();
-    let mut n = 0;
-    let mut espacio = false;
-    for (i, &c) in cs.iter().enumerate() {
-        if n >= tope {
-            s.push('…');
-            break;
-        }
-        if c.is_whitespace() || c.is_control() {
-            if !espacio && !s.is_empty() {
-                s.push(' ');
-                n += 1;
-            }
-            espacio = true;
-            continue;
-        }
-        espacio = false;
-        if matches!(
-            c,
-            '\\' | '`'
-                | '*'
-                | '_'
-                | '['
-                | ']'
-                | '('
-                | ')'
-                | '<'
-                | '>'
-                | '|'
-                | '!'
-                | '~'
-                | '#'
-                | '&'
-                | '@'
-                | '$'
-        ) || (c == ':' && abre_enlace_o_emoji(cs.get(i + 1..).unwrap_or_default()))
-            || (c == '.'
-                && s.get(s.len().saturating_sub(3)..)
-                    .is_some_and(|x| x.eq_ignore_ascii_case("www")))
-        {
-            s.push('\\');
-        }
-        s.push(c);
-        n += 1;
-    }
-    s.trim_end().to_owned()
-}
+/// Bytes de la prosa de una revisora que van al check (F6-7), con su
+/// etiqueta y sus cercas: el texto del check se corta en 65000 caracteres y
+/// van antes las tablas.
+pub const TOPE_PROSA: usize = 32 * 1024;
 
-/// Lo que sigue a un `:` lo convierte en autoenlace (`://`) o en la apertura
-/// de un emoji (`:codigo:`). Un `:` suelto, como el de
-/// `taskcode-plugin:revisor`, se deja tal cual.
-fn abre_enlace_o_emoji(resto: &[char]) -> bool {
-    if resto.first() == Some(&'/') {
-        return true;
+/// La prosa de una revisora para el check `revision-ia` (F6-7): el texto
+/// del modelo sin caracteres de formato (Cf) dentro de un
+/// [`crate::dato::bloque`], donde las tablas, enlaces, imagenes, menciones y
+/// HTML que traiga no se presentan. El bloque entero (etiqueta, cercas y
+/// marca de corte incluidas) no pasa de [`TOPE_PROSA`] bytes: si pasaria, el
+/// texto se corta hasta que quepa, tambien cuando lo que lo infla es una
+/// cerca larga (un tramo largo de acentos graves en la respuesta). Vacia si
+/// la respuesta no trae texto.
+pub fn prosa(revisora: &str, respuesta: &str) -> String {
+    if respuesta.trim().is_empty() {
+        return String::new();
     }
-    let nombre = resto
-        .iter()
-        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'))
-        .count();
-    nombre > 0 && resto.get(nombre) == Some(&':')
-}
-
-/// Caracteres Unicode de formato (categoria Cf): invisibles, pero cambian la
-/// direccion o el corte del texto.
-fn es_de_formato(c: char) -> bool {
-    matches!(
-        c,
-        '\u{AD}'
-            | '\u{600}'..='\u{605}'
-            | '\u{61C}'
-            | '\u{6DD}'
-            | '\u{70F}'
-            | '\u{890}'..='\u{891}'
-            | '\u{8E2}'
-            | '\u{180E}'
-            | '\u{200B}'..='\u{200F}'
-            | '\u{202A}'..='\u{202E}'
-            | '\u{2060}'..='\u{2064}'
-            | '\u{2066}'..='\u{206F}'
-            | '\u{FEFF}'
-            | '\u{FFF9}'..='\u{FFFB}'
-            | '\u{110BD}'
-            | '\u{110CD}'
-            | '\u{13430}'..='\u{1343F}'
-            | '\u{1BCA0}'..='\u{1BCA3}'
-            | '\u{1D173}'..='\u{1D17A}'
-            | '\u{E0001}'
-            | '\u{E0020}'..='\u{E007F}'
-    )
+    let limpio: String = respuesta.chars().filter(|c| !es_de_formato(*c)).collect();
+    let etiqueta = format!("Informe de la revisora {}", plano(revisora, 200));
+    let mut n = limpio.len();
+    loop {
+        let texto = limpio.get(..n).unwrap_or_default();
+        let marca = if n < limpio.len() {
+            format!(
+                "\n[revision-ia: informe cortado a {n} bytes de {}]\n",
+                limpio.len()
+            )
+        } else {
+            String::new()
+        };
+        let salida = crate::dato::bloque(&etiqueta, &format!("{texto}{marca}"));
+        if salida.len() <= TOPE_PROSA || n == 0 {
+            return salida;
+        }
+        // Quitar texto nunca alarga la cerca: cada vuelta acorta la salida
+        // al menos en lo que sobra, y la siguiente vuelta lo comprueba.
+        n = n.saturating_sub(salida.len() - TOPE_PROSA);
+        while !limpio.is_char_boundary(n) {
+            n -= 1;
+        }
+    }
 }
 
 /// La seccion del check `revision-ia` para una revisora: las tablas de
@@ -2228,22 +2173,7 @@ mod tests {
             md.contains(r"\| x \| \!\[i\]\(http\://e/p.png\) \<b\> \# t \`c\`"),
             "{md}"
         );
-        // Autoenlaces, menciones, matematicas y emojis salen escapados; los
-        // caracteres de formato (Cf) se quitan; el resto del texto, intacto.
-        let raro = "\u{202E}evil \u{200B}zero @user http://x.y www.e.com $x$ :smile: ñ \u{2066}a\u{2069}\u{FEFF}b \u{AD}c";
-        assert_eq!(
-            plano(raro, 400),
-            r"evil zero \@user http\://x.y www\.e.com \$x\$ \:smile: ñ ab c"
-        );
-        for c in plano(raro, 400).chars() {
-            assert!(!es_de_formato(c), "queda U+{:04X}", u32::from(c));
-        }
-        // Un `:` suelto no es un emoji ni un enlace: no se escapa.
-        assert_eq!(
-            plano("taskcode-plugin:revisor a: b 10:30", 100),
-            "taskcode-plugin:revisor a: b 10:30"
-        );
-        assert_eq!(plano(&"a".repeat(10), 4), "aaaa…");
+        // Las reglas de `plano` se prueban en `dato`.
         let v = validar("r", "nada", &diff(), None);
         assert!(resumen_markdown(&v).contains("| respuesta | sin-bloque |"));
     }
@@ -2671,5 +2601,35 @@ mod tests {
             dictamen_publicado(&i.titulo(), "failure", &v.aceptados),
             Some(Dictamen::Incompleta)
         );
+    }
+
+    /// MEN-2 de la ronda 1 de F6-7: el tope de la prosa acota el bloque
+    /// entero, cercas incluidas, aunque la respuesta sea un tramo de acentos
+    /// graves que obligaria a una cerca tan larga como el texto.
+    #[test]
+    fn la_prosa_no_pasa_del_tope_ni_con_cercas_largas() {
+        let corta = prosa("r", "Todo correcto.");
+        assert!(corta.contains("\nTodo correcto.\n"));
+        assert!(!corta.contains("informe cortado"));
+        for respuesta in [
+            "`".repeat(TOPE_PROSA),
+            "`".repeat(3 * TOPE_PROSA),
+            format!(
+                "{}ñ{}",
+                "a".repeat(TOPE_PROSA - 3),
+                "`".repeat(TOPE_PROSA / 2)
+            ),
+            "€".repeat(TOPE_PROSA),
+            "a".repeat(TOPE_PROSA - 10),
+        ] {
+            let p = prosa("r", &respuesta);
+            assert!(p.len() <= TOPE_PROSA, "{} bytes", p.len());
+            assert!(p.contains("informe cortado a "));
+            let cerca = p.lines().nth(2).unwrap_or_default();
+            assert!(cerca.len() >= 4 && cerca.chars().all(|c| c == '`'));
+            assert!(p.ends_with(&format!("\n{cerca}\n")));
+            let dentro = &p[p.find('\n').unwrap_or(0)..p.len() - cerca.len() - 1];
+            assert_eq!(dentro.matches(cerca).count(), 1, "la cerca se cierra antes");
+        }
     }
 }

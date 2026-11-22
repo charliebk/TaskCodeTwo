@@ -48,6 +48,15 @@
 //! - `validar --abiertos <json>` valida tambien los cierres; `veredicto
 //!   --ronda <json>` cuenta nuevos, persisten y cerrados (la linea gana
 //!   `ronda=R modo=<m> nuevos=N persisten=P cerrados=C`).
+//!
+//! F6-7 (prompt injection):
+//! - `validar --prosa <md>`: la prosa del modelo para el check, inerte
+//!   ([`super::prosa`]); el workflow la concatena en vez de la respuesta.
+//! - `prompt --revisora <id> --contexto <txt> [--skill <md>] [--seccion <md>]
+//!   [--abiertos <md>] --diff <txt> --bytes <n> --tope <n> --salida <md>`:
+//!   escribe el prompt de la revisora ([`super::prompt::componer`]); el
+//!   workflow ya no lo arma. Linea: `hallazgos ok revisora=<id> bytes=<n>
+//!   cortado=<si|no> abiertos=<si|no>`.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -87,6 +96,7 @@ struct Args {
     salida: Option<PathBuf>,
     resumen: Option<PathBuf>,
     abiertos: Option<PathBuf>,
+    prosa: Option<PathBuf>,
 }
 
 fn uso(motivo: &str) -> Informe {
@@ -123,6 +133,7 @@ fn args(a: &[String]) -> Result<Args, Informe> {
             "--salida" if r.salida.is_none() => r.salida = Some(valor()?.into()),
             "--resumen" if r.resumen.is_none() => r.resumen = Some(valor()?.into()),
             "--abiertos" if r.abiertos.is_none() => r.abiertos = Some(valor()?.into()),
+            "--prosa" if r.prosa.is_none() => r.prosa = Some(valor()?.into()),
             _ => return Err(uso("argumento-desconocido")),
         }
     }
@@ -204,6 +215,9 @@ pub fn orden(a: &[String], json: bool, idioma: Idioma) -> Salida {
         [s, resto @ ..] if s == "desde" => match desde(resto) {
             Ok(i) | Err(i) => i.salida_en(json, idioma),
         },
+        [s, resto @ ..] if s == "prompt" => match prompt(resto) {
+            Ok(i) | Err(i) => i.salida_en(json, idioma),
+        },
         [] => uso("sin-suborden").salida_en(json, idioma),
         _ => uso("suborden-desconocida").salida_en(json, idioma),
     }
@@ -238,6 +252,10 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
     }
     if let Some(p) = &a.resumen {
         std::fs::write(p, super::resumen_markdown(&v)).map_err(|e| fallo_io(p, e.to_string()))?;
+    }
+    if let Some(p) = &a.prosa {
+        std::fs::write(p, super::prosa(revisora, &respuesta))
+            .map_err(|e| fallo_io(p, e.to_string()))?;
     }
     let mut i = Informe::nuevo(NOMBRE, Resultado::Ok)
         .con("revisora", revisora.as_str())
@@ -729,4 +747,84 @@ fn abiertos(a: &[String]) -> Result<Informe, Informe> {
         .con("revisoras", reparto.len().to_string())
         .con("abiertos", dados.to_string())
         .con("sin-revisora", (graves - dados.min(graves)).to_string()))
+}
+
+// --- Prompt (F6-7) ------------------------------------------------------------
+
+/// Bytes que se leen como mucho del `SKILL.md` (al prompt van
+/// [`super::prompt::TOPE_SKILL`]).
+pub const TOPE_SKILL: u64 = 4 * 1024 * 1024;
+
+/// `prompt ...`: el prompt de una revisora ([`super::prompt::componer`]).
+fn prompt(a: &[String]) -> Result<Informe, Informe> {
+    let mut rutas: [Option<PathBuf>; 6] = Default::default();
+    let (mut revisora, mut bytes, mut tope): (Option<String>, Option<u64>, Option<u64>) =
+        (None, None, None);
+    let numero = |v: String| v.parse::<u64>().map_err(|_| uso("numero-invalido"));
+    let mut it = a.iter();
+    while let Some(x) = it.next() {
+        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
+        let k = match x.as_str() {
+            "--contexto" => 0,
+            "--skill" => 1,
+            "--seccion" => 2,
+            "--abiertos" => 3,
+            "--diff" => 4,
+            "--salida" => 5,
+            "--revisora" if revisora.is_none() => {
+                let v = valor()?;
+                if !es_revisora(&v) {
+                    return Err(uso("revisora-invalida"));
+                }
+                revisora = Some(v);
+                continue;
+            }
+            "--bytes" if bytes.is_none() => {
+                bytes = Some(numero(valor()?)?);
+                continue;
+            }
+            "--tope" if tope.is_none() => {
+                tope = Some(numero(valor()?)?);
+                continue;
+            }
+            _ => return Err(uso("argumento-desconocido")),
+        };
+        if rutas.get(k).is_some_and(Option::is_some) {
+            return Err(uso("argumento-desconocido"));
+        }
+        if let Some(r) = rutas.get_mut(k) {
+            *r = Some(valor()?.into());
+        }
+    }
+    let [contexto, skill, seccion, abiertos, diff, salida] = rutas;
+    let (Some(revisora), Some(contexto), Some(diff), Some(bytes), Some(tope), Some(salida)) =
+        (revisora, contexto, diff, bytes, tope, salida)
+    else {
+        return Err(uso("faltan-argumentos"));
+    };
+    let opcional =
+        |p: &Option<PathBuf>, t: u64| p.as_deref().map(|p| leer_entrada(p, t)).transpose();
+    let contexto = leer_entrada(&contexto, TOPE_EXTRA)?;
+    let skill = opcional(&skill, TOPE_SKILL)?;
+    let seccion = opcional(&seccion, TOPE_JSON)?;
+    let abiertos = opcional(&abiertos, TOPE_JSON)?;
+    let diff = leer_entrada(&diff, TOPE_DIFF)?;
+    let partes = super::prompt::Partes {
+        revisora: &revisora,
+        contexto: &contexto,
+        skill: skill.as_deref(),
+        seccion: seccion.as_deref(),
+        abiertos: abiertos.as_deref(),
+        diff: &diff,
+        bytes,
+        tope,
+    };
+    let texto = super::prompt::componer(&partes);
+    std::fs::write(&salida, &texto).map_err(|e| fallo_io(&salida, e.to_string()))?;
+    let si = |b: bool| if b { "si" } else { "no" };
+    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
+        .con("revisora", revisora.as_str())
+        .con("bytes", texto.len().to_string())
+        .con("cortado", si(partes.cortado()))
+        .con("abiertos", si(partes.abiertos.is_some())))
 }

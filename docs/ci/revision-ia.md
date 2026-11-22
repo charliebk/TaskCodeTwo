@@ -1,6 +1,6 @@
-# Revisor IA en CI (F6-3, F6-4, F6-5, F6-6)
+# Revisor IA en CI (F6-3, F6-4, F6-5, F6-6, F6-7)
 
-TASK-049, TASK-050, TASK-051 y TASK-052. El check `revision-ia` lo publica la **App del revisor** desde un
+TASK-049, TASK-050, TASK-051, TASK-052 y TASK-053. El check `revision-ia` lo publica la **App del revisor** desde un
 workflow reutilizable que corre cuando termina `verificacion` en un PR
 ([`.github/workflows/revision-ia.yml`](../../.github/workflows/revision-ia.yml)).
 Qué revisoras se lanzan y con qué modelo no lo decide el modelo: lo decide
@@ -22,14 +22,19 @@ cada ronda: `tc2 hallazgos ronda` (F6-6, «Rondas»). Clases de jobs y secretos:
 | `validar` | ejecuta | `contents: read`, `actions: read`; sin secretos | compila `tc2` de la misma versión que `preparar` (no se pasan binarios entre jobs), pasa cada respuesta por `tc2 hallazgos validar` contra el diff de su revisora, las junta con `tc2 hallazgos veredicto` (`check.json` y lotes `anotaciones-<k>.json`) y sube `revision-ia-hallazgos` |
 | `publicar` (`revision-ia`) | privilegio, por el entorno `revisor` | `actions: read`; sin checkout; solo la App del revisor | lee `revision-ia-hallazgos` como dato y publica tal cual su `check.json` como check-run `revision-ia` con la App del revisor (conclusión `success` o `failure`), y después cada lote de anotaciones con un `PATCH`; sin `check.json` legible, `failure` con veredicto `incompleta` |
 
-El prompt de cada revisora lleva su `SKILL.md`, la línea de la selección,
-la sección del informe de verificación (`seccion_revisor` de F5-4, con la
-regla de no relanzar lo que ya pasó en verde) y el diff de **sus** rutas con
-un tope (`tope-diff`, 120 000 bytes por defecto; si se corta, se le dice).
-El diff va entre cercas de acentos graves más largas que la secuencia más
-larga del propio diff (mínimo tres): ninguna línea del diff puede cerrar el
-bloque. La revisora de dominio recibe las rutas que casan con sus patrones; la
-genérica, las sueltas (S08) o todas (S09). Nadie ejecuta la suite: el
+El prompt de cada revisora lo compone `tc2 hallazgos prompt` (F6-7) y
+lleva el contexto de la revisión (con la línea de la selección y la ronda),
+su `SKILL.md` de la rama base, la sección del informe de verificación
+(`seccion_revisor` de F5-4, con la regla de no relanzar lo que ya pasó en
+verde), los hallazgos abiertos en una ronda incremental y el diff de
+**sus** rutas con un tope (`tope-diff`, 120 000 bytes por defecto; si se
+corta, se le dice). Cada una de esas partes va en su propia cerca de
+acentos graves, más larga que la secuencia más larga de su contenido
+(mínimo cuatro): ninguna línea de un dato puede cerrar su bloque. El
+contexto, el informe, los abiertos y el diff van además rotulados como dato
+no fiable (detalle en la adenda F6-7 de F1-8). La revisora de dominio
+recibe las rutas que casan con sus patrones; la genérica, las sueltas
+(S08) o todas (S09). Nadie ejecuta la suite: el
 modelo no tiene herramientas. La sección «Lo que devuelves» del prompt es la
 salida de `tc2 hallazgos instrucciones`, hecha con las mismas constantes que
 el validador.
@@ -471,11 +476,31 @@ F6-6 (decisión 3 de TASK-052).
 - Que GitHub deje pasar las respuestas por `outputs` sin enmascarar ni
   truncar no se ha comprobado aún en un run real (E2E de TASK-050).
 - Las tablas de hallazgos escapan el Markdown del modelo; su informe en
-  prosa, debajo, va tal cual (como en F6-3): la defensa es de F6-7.
+  prosa, debajo, va en un bloque cercado, sin caracteres Cf y con un tope
+  de 32 KiB para el bloque entero, cercas incluidas (`tc2 hallazgos validar
+  --prosa`, F6-7): se lee como código, sin enlaces, imágenes, menciones ni
+  HTML.
 - Sin el detector de dominios (F4-6): S10 y S11 no se aplican (S13 sí, con
   la ronda de F6-6).
-- El diff y el informe son datos del autor del PR que llegan al modelo; la
-  defensa contra inyección de instrucciones es de F6-7.
+- Inyección de instrucciones (F6-7; adenda F6-7 de F1-8): el prompt lo
+  compone `tc2 hallazgos prompt` y todo dato del PR, de la tarea o de una
+  ronda anterior va en una cerca que no puede cerrar, rotulado como dato no
+  fiable. Eso no impide que el modelo obedezca: un modelo inyectado puede
+  devolver 0 hallazgos o un cierre válido y el check sale verde. Por eso
+  `revision-ia` en verde no es una aprobación (la de la persona es
+  obligatoria). No se ha medido con un modelo real si la cerca reduce la
+  obediencia (sin saldo; es de F9-5). La batería de PR maliciosos es
+  `crates/tc2/tests/fixtures/inyeccion/casos.json`.
+- El lint que vigila que ningún `run:` del workflow saque a stdout la
+  respuesta, el diff o el prompt (el procesador de Actions leería
+  `::add-mask::` o `::stop-commands::`, también por stderr) es heurístico:
+  una red de regresión, no una garantía. Lee cada línea como texto: ve las
+  variables de esos ficheros con o sin llaves y comillas, las rutas escritas
+  a mano (`diff-…`, `prompts/…`), una lista amplia de órdenes que leen
+  ficheros, y cuenta una redirección solo si manda a un fichero el stdout de
+  esa misma orden (`>&2`, `2>` y un `>` de otra orden o entre comillas no
+  cuentan). No ve lo que vale una variable en ejecución, una orden que no
+  está en su lista ni un fichero de datos con un nombre nuevo.
 - Coste: una llamada por revisora y ronda (2 o 3 en un PR Rust + Vue).
 - El informe de una verificación reutilizada se encuentra por la línea
   `Perfil <p>: reutilizada de ... (origen <sha>, ...)` del log de

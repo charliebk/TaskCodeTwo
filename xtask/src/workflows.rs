@@ -2277,6 +2277,393 @@ fn rondas_en_el_workflow(texto: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Variables de los `run:` del revisor que apuntan a ficheros con datos del
+/// PR o del modelo: la respuesta y lo que se saca de ella. Cuentan con o sin
+/// llaves y con o sin comillas (`$respuesta`, `"${respuesta}"`).
+const VARIABLES_DEL_PR: [&str; 5] = ["respuesta", "completo", "texto", "prosa", "prosa_i"];
+
+/// Trozos de ruta de esos mismos ficheros escritos a mano: el diff, los
+/// diffs del artefacto, la respuesta cortada y sus partes. Los prompts van
+/// aparte (`prompts/` salvo `prompts/lista.tsv`).
+const RUTAS_DEL_PR: [&str; 7] = [
+    "diff-",
+    "/diffs/",
+    "principio-",
+    "final-",
+    "respuesta-",
+    "completo-",
+    "prosa-",
+];
+
+/// Ordenes que sacan el contenido de un fichero (como palabra suelta, en
+/// cualquier punto de la orden).
+const LECTORAS: [&str; 33] = [
+    "cat", "head", "tail", "sed", "awk", "gawk", "jq", "tee", "base64", "grep", "egrep", "fgrep",
+    "rg", "cut", "tr", "xxd", "od", "hexdump", "less", "more", "paste", "sort", "uniq", "nl",
+    "fold", "rev", "tac", "strings", "column", "iconv", "dd", "perl", "python3",
+];
+
+/// Palabras que pueden ir delante de una asignacion sin cambiarla.
+const ANTES_DE_ASIGNAR: [&str; 12] = [
+    "!", "if", "then", "elif", "else", "while", "until", "do", "local", "export", "readonly",
+    "declare",
+];
+
+/// Una orden simple de una linea de shell.
+#[derive(Default)]
+struct Orden {
+    /// Su texto, con lo que va dentro de sus `$( )` y sus comillas.
+    texto: String,
+    /// Sus palabras de primer nivel, sin las redirecciones.
+    palabras: Vec<String>,
+    /// Si manda su stdout a un fichero (`>`, `>>`, `1>`, `&>`; no `>&2`,
+    /// `2>` ni `> /dev/stderr`).
+    redirige: bool,
+}
+
+impl Orden {
+    /// Solo asigna variables (`x=$(...)`): lo que lee no sale a stdout.
+    fn asigna(&self) -> bool {
+        let resto: Vec<&String> = self
+            .palabras
+            .iter()
+            .skip_while(|p| ANTES_DE_ASIGNAR.contains(&p.as_str()))
+            .collect();
+        !resto.is_empty()
+            && resto.iter().all(|p| {
+                p.split_once('=').is_some_and(|(n, _)| {
+                    let n = n.strip_suffix('+').unwrap_or(n);
+                    n.chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                        && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                })
+            })
+    }
+
+    /// Lee un fichero: nombra una [`LECTORAS`] o usa `$(<fichero)`.
+    fn lee(&self) -> bool {
+        self.texto.contains("$(<")
+            || self
+                .texto
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+                .any(|p| LECTORAS.contains(&p))
+    }
+
+    /// Nombra un fichero con datos del PR o del modelo.
+    fn nombra_datos(&self) -> bool {
+        let t = &self.texto;
+        let sigue_el_nombre = |resto: &str| {
+            resto
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+        };
+        let variable = VARIABLES_DEL_PR.iter().any(|v| {
+            [format!("${v}"), format!("${{{v}")].iter().any(|r| {
+                t.match_indices(r.as_str())
+                    .any(|(i, m)| !sigue_el_nombre(t.get(i + m.len()..).unwrap_or_default()))
+            })
+        });
+        let prompt = t.match_indices("prompts/").any(|(i, m)| {
+            !t.get(i + m.len()..)
+                .unwrap_or_default()
+                .starts_with("lista.tsv")
+        });
+        variable || prompt || RUTAS_DEL_PR.iter().any(|r| t.contains(r))
+    }
+}
+
+/// Contexto del analizador de [`tuberias`].
+#[derive(Clone, Copy)]
+enum Ctx {
+    Simples,
+    Dobles,
+    /// Dentro de `$( )`, con los `(` abiertos dentro.
+    Sust(u32),
+}
+
+/// Lo que va juntando [`tuberias`].
+#[derive(Default)]
+struct Analisis {
+    tuberias: Vec<Vec<Orden>>,
+    tuberia: Vec<Orden>,
+    orden: Orden,
+    palabra: String,
+}
+
+impl Analisis {
+    fn cerrar_palabra(&mut self) {
+        if !self.palabra.is_empty() {
+            self.orden.palabras.push(std::mem::take(&mut self.palabra));
+        }
+    }
+
+    fn cerrar_orden(&mut self) {
+        self.cerrar_palabra();
+        let o = std::mem::take(&mut self.orden);
+        if !o.texto.trim().is_empty() {
+            self.tuberia.push(o);
+        }
+    }
+
+    fn cerrar_tuberia(&mut self) {
+        self.cerrar_orden();
+        if !self.tuberia.is_empty() {
+            self.tuberias.push(std::mem::take(&mut self.tuberia));
+        }
+    }
+
+    fn anotar(&mut self, s: &str) {
+        self.orden.texto.push_str(s);
+        self.palabra.push_str(s);
+    }
+
+    /// La redireccion que empieza en `cs[i]` (`[n]>`, `>>`, `>|`, `&>`,
+    /// `>&n`); devuelve donde acaba.
+    fn redireccion(&mut self, cs: &[char], i: usize) -> usize {
+        let ambas = cs.get(i) == Some(&'&');
+        let fd = if !ambas
+            && !self.palabra.is_empty()
+            && self.palabra.chars().all(|d| d.is_ascii_digit())
+        {
+            std::mem::take(&mut self.palabra)
+        } else {
+            self.cerrar_palabra();
+            String::from("1")
+        };
+        let mut j = i + if ambas { 2 } else { 1 };
+        while matches!(cs.get(j), Some('>' | '|')) {
+            j += 1;
+        }
+        while matches!(cs.get(j), Some(' ' | '\t')) {
+            j += 1;
+        }
+        let duplica = !ambas && cs.get(j) == Some(&'&');
+        let mut destino = String::new();
+        let mut comilla = None;
+        while let Some(&d) = cs.get(j) {
+            match comilla {
+                Some(q) if d == q => comilla = None,
+                Some(_) => destino.push(d),
+                None if d == '"' || d == '\'' => comilla = Some(d),
+                None if d.is_whitespace() || ";|<>()".contains(d) => break,
+                None if d == '&' && !destino.is_empty() => break,
+                None => destino.push(d),
+            }
+            j += 1;
+        }
+        let a_la_consola = [
+            "/dev/stdout",
+            "/dev/stderr",
+            "/dev/fd/1",
+            "/dev/fd/2",
+            "/proc/self/fd/1",
+            "/proc/self/fd/2",
+        ]
+        .contains(&destino.as_str());
+        if fd == "1" && !duplica && !a_la_consola {
+            self.orden.redirige = true;
+        }
+        self.orden.texto.extend(cs.get(i..j).unwrap_or_default());
+        j
+    }
+}
+
+/// Las tuberias de una linea de shell (separadas por `;`, `&&`, `||` y
+/// `&`), cada una con sus ordenes (separadas por `|`). Respeta comillas y
+/// `$( )`: un `>` o un `;` dentro de ellas no separa ni redirige. Desde un
+/// `#` a principio de palabra, comentario.
+fn tuberias(linea: &str) -> Vec<Vec<Orden>> {
+    let cs: Vec<char> = linea.chars().collect();
+    let mut pila: Vec<Ctx> = Vec::new();
+    let mut a = Analisis::default();
+    let mut i = 0;
+    while let Some(&c) = cs.get(i) {
+        let sig = cs.get(i + 1).copied();
+        let ctx = pila.last().copied();
+        if !matches!(ctx, Some(Ctx::Simples)) {
+            if c == '\\' {
+                a.anotar(&String::from_iter(cs.get(i..i + 2).unwrap_or(&[c])));
+                i += 2;
+                continue;
+            }
+            if c == '$' && sig == Some('(') {
+                pila.push(Ctx::Sust(0));
+                a.anotar("$(");
+                i += 2;
+                continue;
+            }
+        }
+        match ctx {
+            Some(Ctx::Simples) => {
+                if c == '\'' {
+                    pila.pop();
+                }
+            }
+            Some(Ctx::Dobles) => {
+                if c == '"' {
+                    pila.pop();
+                }
+            }
+            Some(Ctx::Sust(n)) => match c {
+                '\'' => pila.push(Ctx::Simples),
+                '"' => pila.push(Ctx::Dobles),
+                '(' => {
+                    pila.pop();
+                    pila.push(Ctx::Sust(n + 1));
+                }
+                ')' => {
+                    pila.pop();
+                    if n > 0 {
+                        pila.push(Ctx::Sust(n - 1));
+                    }
+                }
+                _ => {}
+            },
+            None => match c {
+                '\'' => pila.push(Ctx::Simples),
+                '"' => pila.push(Ctx::Dobles),
+                '#' if a.palabra.is_empty() => break,
+                ' ' | '\t' => {
+                    a.cerrar_palabra();
+                    a.orden.texto.push(c);
+                    i += 1;
+                    continue;
+                }
+                ';' | '\n' => {
+                    a.cerrar_tuberia();
+                    i += 1;
+                    continue;
+                }
+                '|' => {
+                    if sig == Some('|') {
+                        a.cerrar_tuberia();
+                    } else {
+                        a.cerrar_orden();
+                    }
+                    i += if matches!(sig, Some('|' | '&')) { 2 } else { 1 };
+                    continue;
+                }
+                '&' if sig != Some('>') => {
+                    a.cerrar_tuberia();
+                    i += if sig == Some('&') { 2 } else { 1 };
+                    continue;
+                }
+                '&' | '>' => {
+                    i = a.redireccion(&cs, i);
+                    continue;
+                }
+                _ => {}
+            },
+        }
+        a.anotar(&c.to_string());
+        i += 1;
+    }
+    a.cerrar_tuberia();
+    a.tuberias
+}
+
+/// Si `linea` saca a stdout un fichero con datos del PR o del modelo
+/// ([`VARIABLES_DEL_PR`], [`RUTAS_DEL_PR`], los prompts): alguna orden de
+/// una tuberia lo lee con una [`LECTORAS`] y la ultima orden de esa tuberia
+/// ni redirige su stdout a un fichero ni solo asigna una variable
+/// (`x=$(...)`). Un `>` solo cuenta si redirige esa orden: el de otra orden
+/// de la linea o el de dentro de unas comillas, no; `>&2` y `2>` tampoco
+/// (el procesador de Actions lee stderr igual que stdout). `tee` sin
+/// redirigir escribe en stdout. `jq --rawfile <var> <fichero>` carga el
+/// fichero en una variable: no cuenta. Es heuristico: ve lo que esta
+/// escrito en la linea, no lo que vale una variable en ejecucion.
+fn saca_datos_a_stdout(linea: &str) -> bool {
+    let mut palabras = Vec::new();
+    let mut it = linea.split_whitespace();
+    while let Some(p) = it.next() {
+        if p == "--rawfile" {
+            it.next();
+            it.next();
+        } else {
+            palabras.push(p);
+        }
+    }
+    tuberias(&palabras.join(" ")).iter().any(|t| {
+        let sale = t.last().is_some_and(|u| !u.redirige && !u.asigna());
+        sale && t.iter().any(|o| o.lee() && o.nombra_datos())
+    })
+}
+
+/// F6-7: el prompt de cada revisora solo lo escribe `tc2 hallazgos
+/// prompt`; la prosa del modelo solo entra en el check por `tc2 hallazgos
+/// validar --prosa`; y ningun `run:` saca a stdout la respuesta, el diff ni
+/// el prompt, que el procesador de Actions leeria como comandos
+/// (`::add-mask::`, `::stop-commands::`). Los grupos `{ ... } > fichero`
+/// cuentan como redirigidos. Es una red de regresion heuristica (ver
+/// [`saca_datos_a_stdout`]), no una garantia: en `preparar`, toda linea que
+/// nombra `prompts/` (salvo `prompts/lista.tsv`) cuenta como escritura de un
+/// prompt y solo puede ser la de `tc2 hallazgos prompt`.
+fn datos_inertes_en_el_workflow(texto: &str) -> Result<(), String> {
+    let raiz = leer_yaml(texto)?;
+    let preparar = runs_del_job(&raiz, "preparar");
+    let lineas: Vec<&str> = preparar.lines().collect();
+    let escriben: Vec<usize> = (0..lineas.len())
+        .filter(|i| {
+            lineas[*i]
+                .replace("prompts/lista.tsv", "")
+                .contains("prompts/")
+        })
+        .collect();
+    let por_tc2 = match escriben.as_slice() {
+        [i] => {
+            lineas[*i]
+                .trim()
+                .ends_with("--salida \"$salida/prompts/$i.md\"")
+                && i.checked_sub(1)
+                    .is_some_and(|j| lineas[j].trim().starts_with("tc2 hallazgos prompt "))
+        }
+        _ => false,
+    };
+    if !por_tc2 || preparar.contains("tc2 hallazgos instrucciones") {
+        return Err("el prompt no lo escribe solo tc2 hallazgos prompt".to_owned());
+    }
+    let validar = runs_del_job(&raiz, "validar");
+    let llamada = validar
+        .split("tc2 hallazgos validar ")
+        .nth(1)
+        .and_then(|r| r.split("); then").next())
+        .unwrap_or_default();
+    if !llamada.contains("--prosa \"$prosa_i\"")
+        || validar.contains("cat \"$respuesta\"")
+        || !validar.contains("cat \"$prosa_i\"")
+    {
+        return Err(
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa".to_owned(),
+        );
+    }
+    for job in ["preparar", "consultar", "validar", "publicar"] {
+        let mut redirigido = false;
+        // Las lineas que siguen tras `\` van juntas.
+        let run = runs_del_job(&raiz, job).replace("\\\n", " ");
+        for linea in run.lines() {
+            let t = linea.trim();
+            if t == "{" {
+                redirigido = true;
+                continue;
+            }
+            if redirigido {
+                if t.starts_with('}') {
+                    redirigido = false;
+                }
+                continue;
+            }
+            if saca_datos_a_stdout(t) {
+                return Err(format!(
+                    "job {job}: run envia a stdout datos del PR o del modelo: {t}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// El workflow del revisor pasa el lint con el perfil revision-ia: cuatro
 /// jobs (F6-4); `consultar` y `publicar` en el entorno `revisor`, sin
 /// checkout, cada uno solo con su secreto; `preparar` y `validar` sin
@@ -2344,11 +2731,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
     assert_eq!(validar_sube_lo_que_lee_publicar(&texto), Ok(()));
     assert_eq!(publicar_transporta_el_veredicto(&texto), Ok(()));
     assert_eq!(rondas_en_el_workflow(&texto), Ok(()));
-    assert!(
-        runs_de("preparar")
-            .iter()
-            .any(|r| r.contains("tc2 hallazgos instrucciones"))
-    );
+    assert_eq!(datos_inertes_en_el_workflow(&texto), Ok(()));
     // publicar: solo el artefacto validado, nunca las respuestas en bruto.
     assert!(usa("publicar", "revision-ia-hallazgos"));
     assert!(!usa("publicar", "revision-ia-prompts"));
@@ -2593,6 +2976,108 @@ fn cada_mutacion_del_revisor_da_su_error() {
             r.as_ref().is_err_and(|e| e.contains(esperado)),
             "«{esperado}» no salio: {r:?}"
         );
+    }
+    // F6-7: una mutacion por regla de los datos inertes da rojo.
+    let inertes: [(&str, &str, &str); 7] = [
+        (
+            "            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "            cp \"$salida/contexto.txt\" \"$salida/prompts/0.md\"\n            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "el prompt no lo escribe solo tc2 hallazgos prompt",
+        ),
+        (
+            "            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "            echo x >> \"$salida/prompts/${i}.md\"\n            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "el prompt no lo escribe solo tc2 hallazgos prompt",
+        ),
+        (
+            "            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "            echo \"## Lo que devuelves\" >> \"$salida/prompts/$i.md\"\n            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "el prompt no lo escribe solo tc2 hallazgos prompt",
+        ),
+        (
+            " --resumen \"$out/resumen-$i.md\" --prosa \"$prosa_i\"); then",
+            " --resumen \"$out/resumen-$i.md\"); then",
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa",
+        ),
+        (
+            "                cat \"$prosa_i\"\n",
+            "                cat \"$respuesta\"\n",
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa",
+        ),
+        (
+            "            printf '%s: %s; %s\\n' \"$rid\" \"$estado\" \"$linea\" >> \"$out/resumen.txt\"\n",
+            "            printf '%s: %s; %s\\n' \"$rid\" \"$estado\" \"$linea\" >> \"$out/resumen.txt\"\n            head -c 2000 \"$respuesta\"\n",
+            "job validar: run envia a stdout datos del PR o del modelo",
+        ),
+        (
+            "            echo \"$rid: $estado\"\n",
+            "            echo \"$rid: $estado\"\n            cat \"$texto\" | tee -a \"$RUNNER_TEMP/log.txt\"\n",
+            "job consultar: run envia a stdout datos del PR o del modelo",
+        ),
+    ];
+    for (original, mutado, esperado) in inertes {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let r = datos_inertes_en_el_workflow(&texto.replacen(original, mutado, 1));
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains(esperado)),
+            "«{esperado}» no salio: {r:?}"
+        );
+    }
+}
+
+/// F6-7, menores de la ronda 1: el lint de datos a stdout ve las variantes
+/// que se le escapaban (sin comillas, con llaves, `>&2`, un `>` de otra
+/// orden o entre comillas, mas lectoras, rutas a mano) y sigue sin ver las
+/// lineas que redirigen o asignan.
+#[test]
+fn saca_datos_a_stdout_ve_las_variantes() {
+    let salen = [
+        "cat \"$respuesta\"",
+        "cat $respuesta",
+        "cat ${respuesta}",
+        "cat \"${prosa_i}\"",
+        "echo \"$(head -c 5 \"$respuesta\")\"",
+        "cat \"$respuesta\" >&2",
+        "cat \"$respuesta\" 1>&2",
+        "cat \"$respuesta\" > /dev/stderr",
+        "cat \"$respuesta\" 2>/dev/null",
+        "cat \"$respuesta\"; echo \"a > b\"",
+        "cat \"$respuesta\"; echo ok > /dev/null",
+        "echo ok > /dev/null && cat \"$texto\"",
+        "grep -h . \"$respuesta\"",
+        "grep \"> \" \"$respuesta\"",
+        "cut -c1-80 \"$respuesta\"",
+        "xxd \"$completo\"",
+        "tr a b < \"$respuesta\"",
+        "printf '%s' \"$(<\"$respuesta\")\"",
+        "cat \"$RUNNER_TEMP/diff-${i}-cortado.txt\"",
+        "cat \"$salida/prompts/0.md\"",
+        "cat \"$texto\" | tee -a \"$RUNNER_TEMP/log.txt\"",
+        "head -c 9 \"$completo\" | sed '$d'",
+        "if cat \"$prosa\"; then",
+    ];
+    for l in salen {
+        assert!(saca_datos_a_stdout(l), "no se ve: {l}");
+    }
+    let no_salen = [
+        "cat \"$respuesta\" > \"$RUNNER_TEMP/copia.txt\"",
+        "cat \"$respuesta\" >> \"$out\" 2>&1",
+        "cat \"$respuesta\" &> /dev/null",
+        "cat \"$texto\" | tee -a \"$RUNNER_TEMP/log.txt\" > /dev/null",
+        "head -c 9 \"$completo\" | sed '$d' > \"$RUNNER_TEMP/principio-$i.md\"",
+        "x=$(cat \"$respuesta\")",
+        "if ! linea=$(jq -r . \"$respuesta\"); then",
+        "estado=\"ok tokens=$(jq -r '\"\\(.a)+\\(.b)\"' \"$respuesta\")\"",
+        "printf 'r%s=%s\\n'\"$i\" \"$(base64 -w0 < \"$texto\")\" >> \"$GITHUB_OUTPUT\"",
+        "jq -n --rawfile p \"$dir/prompts/$i.md\" '{}'",
+        "cat \"$respuestas\"",
+        "cat \"$salida/prompts/lista.tsv\"",
+        "echo \"cat $respuesta\" > \"$RUNNER_TEMP/orden.txt\"",
+        "# cat \"$respuesta\"",
+        "wc -c < \"$respuesta\"",
+    ];
+    for l in no_salen {
+        assert!(!saca_datos_a_stdout(l), "falso positivo: {l}");
     }
 }
 

@@ -20,6 +20,7 @@
 use super::heuristica::{Enunciado, Resolucion};
 use super::roles::{ESCALERA, Rol, UNIFICADOR};
 use crate::carril::Carril;
+use crate::dato;
 
 /// Carpeta de la planificacion dentro de la carpeta de la tarea.
 pub const PLANIFICACION: &str = "planificacion";
@@ -104,26 +105,17 @@ fn plural(n: usize) -> String {
     }
 }
 
-/// Valla de comillas invertidas mas larga que cualquier cerca del texto
-/// embebido (`fenceFor` de la 0.16): como poco cuatro.
-fn valla(textos: &[&str]) -> String {
-    let mut max = 3;
-    for t in textos {
-        for l in t.lines() {
-            let sin = l.trim_start_matches(' ');
-            if l.len() - sin.len() <= 3 {
-                max = max.max(sin.chars().take_while(|c| *c == '`').count());
-            }
-        }
-    }
-    "`".repeat(max + 1)
-}
+/// Tope del titulo en la cabecera de las peticiones.
+const TOPE_TITULO: usize = 200;
 
+/// La cabecera de cada peticion. El titulo es texto de la persona (o de
+/// quien escribio la tarea): va por [`dato::plano`], en una linea y sin
+/// formato (F6-7).
 fn cabecera(d: &Datos<'_>) -> String {
     format!(
         "- Tarea: {} — {}\n- Tipo: {} · Complejidad declarada: {}\n- Carril: {}\n- Ronda: {}\n- Fecha: {}\n",
         d.id,
-        d.titulo,
+        dato::plano(d.titulo, TOPE_TITULO),
         d.tipo,
         d.complejidad
             .unwrap_or("no declarada (decide la heuristica)"),
@@ -133,14 +125,15 @@ fn cabecera(d: &Datos<'_>) -> String {
     )
 }
 
-/// El enunciado con valla dinamica: es texto de la persona.
+/// El enunciado en una cerca que no puede cerrar ([`dato::cerca`]): es texto
+/// de la persona.
 fn enunciado(e: &Enunciado) -> String {
     let criterios = if e.criterios.is_empty() {
         "(la tarea no declara criterios de aceptacion)".to_owned()
     } else {
         e.criterios.join("\n")
     };
-    let f = valla(&[&e.objetivo, &criterios]);
+    let f = dato::cerca(&[&e.objetivo, &criterios]);
     format!(
         "## Enunciado de la tarea\n\n### Objetivo\n\n{f}\n{}\n{f}\n\n### Criterios de aceptacion\n\n{f}\n{criterios}\n{f}\n",
         e.objetivo
@@ -391,14 +384,10 @@ mod tests {
         );
     }
 
-    /// La valla crece con el texto embebido; las peticiones llevan la
-    /// pregunta literal, el «que no miras», la orden de guardar y
-    /// `tc2 approve`.
+    /// Las peticiones llevan la pregunta literal, el «que no miras», la
+    /// orden de guardar y `tc2 approve`.
     #[test]
     fn peticiones_con_lo_suyo() {
-        assert_eq!(valla(&["a", "b"]), "````");
-        assert_eq!(valla(&["x\n  `````\ny"]), "``````");
-        assert_eq!(valla(&["    `````"]), "````");
         let e = Enunciado {
             objetivo: "Hacer ```x```".into(),
             criterios: vec!["uno".into()],
