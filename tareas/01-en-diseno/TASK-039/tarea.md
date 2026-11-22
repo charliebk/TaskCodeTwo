@@ -6,10 +6,10 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-039-f4-4-orquestador-del-modo-automatico
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-22
 dependencias: [TASK-033, TASK-037, TASK-048, TASK-085]
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 ## Criterios de aceptacion
 - [ ] Una tarea fix va de planificada a PR listo sin intervención
 - [ ] Cumple lo que pide la tarea F4-4 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-22T20:54:40Z | plan | automatico | persona | 0.16.1 |
