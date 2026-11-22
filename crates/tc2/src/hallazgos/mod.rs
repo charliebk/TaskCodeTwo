@@ -1084,11 +1084,24 @@ El check `revision-ia` lista los aceptados y los rechazados con su motivo.\n\n",
         "  - `borde`: `entrada`, `esperado` (lo que deberia salir) y `obtenido` (lo que sale segun el codigo), distintos.\n\n",
     );
     s.push_str(
-        "En esta ronda nadie ejecuta la evidencia: se comprueba que este completa y anclada al diff (la ejecucion es de F6-6). \
+        "Nadie ejecuta la evidencia: se comprueba que este completa y anclada al diff. \
 No inventes lineas que no ves: si el diff esta cortado, el hallazgo de lo que no llego se rechaza.\n\n",
     );
+    s.push_str(
+        "Ronda incremental (F6-6): si el prompt trae la seccion «Hallazgos abiertos de la ronda anterior», el diff es el de lo cambiado desde esa ronda y el bloque es un objeto `{\"hallazgos\": [...], \"cierres\": [...]}`. \
+En `hallazgos` van solo los nuevos, con un id que no use ningun abierto. En `cierres`, uno por cada abierto CRITICO o IMPORTANTE de tu lista que el diff arregla, con estas claves y ninguna mas:\n\n",
+    );
+    s.push_str("- `id`: el del abierto.\n");
+    s.push_str(
+        "- `fichero` y `linea`: una linea del lado nuevo del diff incremental en la que queda arreglado (se cuenta como en los hallazgos).\n",
+    );
+    s.push_str("- `motivo`: por que queda arreglado, en una frase.\n\n");
+    s.push_str(
+        "Un abierto sin cierre valido sigue abierto. Si traia `paso_rojo`, ese paso tiene que estar ya en verde en el informe de verificacion. \
+Los MENOR no se cierran asi: se dan por cerrados cuando cambia su fichero.\n\n",
+    );
     s.push_str(&format!(
-        "Como mucho {TOPE_HALLAZGOS} hallazgos. Motivos de rechazo:\n\n"
+        "Como mucho {TOPE_HALLAZGOS} hallazgos y {TOPE_HALLAZGOS} cierres. Motivos de rechazo:\n\n"
     ));
     for (id, explicacion) in MOTIVOS {
         s.push_str(&format!("- `{id}`: {explicacion}.\n"));
@@ -1096,8 +1109,27 @@ No inventes lineas que no ves: si el diff esta cortado, el hallazgo de lo que no
     s.push_str("\nEjemplo del bloque:\n\n```json\n");
     s.push_str(EJEMPLO);
     s.push_str("\n```\n");
+    s.push_str(
+        "\nEjemplo del bloque en una ronda incremental (va tambien en un bloque ```json):\n\n```\n",
+    );
+    s.push_str(EJEMPLO_INCREMENTAL);
+    s.push_str("\n```\n");
     s
 }
+
+/// Ejemplo de respuesta de una ronda incremental (lo validan los tests
+/// contra `tests/fixtures/hallazgos/diff.txt` con un abierto `I1`).
+const EJEMPLO_INCREMENTAL: &str = r#"{
+  "hallazgos": [],
+  "cierres": [
+    {
+      "id": "I1",
+      "fichero": "src/calculo.rs",
+      "linea": 12,
+      "motivo": "El tope ya tiene su test."
+    }
+  ]
+}"#;
 
 /// Texto de la respuesta del modelo como texto plano de Markdown en una
 /// linea: sin saltos ni controles, con la puntuacion que da formato escapada
@@ -2101,6 +2133,20 @@ mod tests {
         }
         let v = validar("r", &t, &diff(), None);
         assert_eq!((v.aceptados.len(), v.rechazados.len()), (2, 0), "{v:?}");
+        // F6-6: el ejemplo incremental cierra el abierto I1.
+        for x in ["«Hallazgos abiertos de la ronda anterior»", "`cierres`"] {
+            assert!(t.contains(x), "falta {x}");
+        }
+        assert!(t.contains(EJEMPLO_INCREMENTAL));
+        let i1 = abierto("I1", "IMPORTANTE", 12, EV_BORDE);
+        let v = validar_con(
+            "r",
+            &format!("```json\n{EJEMPLO_INCREMENTAL}\n```"),
+            &diff(),
+            None,
+            &[i1],
+        );
+        assert_eq!((v.cierres.len(), v.rechazados.len()), (1, 0), "{v:?}");
     }
 
     /// El esquema declara los mismos motivos, severidades y tipos que el

@@ -22,6 +22,7 @@ use super::{
     RevisionPublicada, Usuario, aplicar_en_lote,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::hallazgos::ronda;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
@@ -189,28 +190,21 @@ struct CheckRunsApi {
     check_runs: Vec<CheckRunApi>,
 }
 
+/// Los check-runs de un commit para `leer-revision`, con la forma que
+/// comparte con la ronda siguiente (F6-6).
+#[derive(Deserialize)]
+struct CheckRunsRevision {
+    check_runs: Vec<ronda::CheckRun>,
+}
+
 #[derive(Deserialize)]
 struct CheckRunApi {
-    /// Solo lo usa `leer-revision` (F6-5).
-    #[serde(default)]
-    id: u64,
     name: String,
     status: String,
     #[serde(default)]
     conclusion: Option<String>,
     #[serde(default)]
     app: Option<AppApi>,
-    /// Solo lo usa `leer-revision` (F6-5).
-    #[serde(default)]
-    output: Option<SalidaCheckApi>,
-}
-
-#[derive(Deserialize, Default)]
-struct SalidaCheckApi {
-    #[serde(default)]
-    title: Option<String>,
-    #[serde(default)]
-    summary: Option<String>,
 }
 
 /// Una anotacion de un check-run: solo su `raw_details` (F6-5).
@@ -623,21 +617,15 @@ impl Plataforma for GitHub {
             return Err(self.con.invalida_por(op, &t::RAMA_BASE_O_SHA));
         }
         let (_, ruta) = self.ep(&Endpoint::CheckRuns(&p.head.sha));
-        let runs: Vec<CheckRunApi> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
+        let runs: Vec<ronda::CheckRun> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
             self.con
-                .parsear::<CheckRunsApi>(op, c)
+                .parsear::<CheckRunsRevision>(op, c)
                 .map(|x| x.check_runs)
         })?;
         // Como `estado-puertas`: el mas nuevo de ese nombre que publico su
-        // origen, y solo si ya termino.
-        let check = runs
-            .into_iter()
-            .find(|r| {
-                r.name == crate::revision::REVISION_IA
-                    && r.app.as_ref().is_some_and(|a| a.id == origen)
-            })
-            .filter(|r| r.status == "completed" && r.id != 0);
-        let Some(check) = check else {
+        // origen, y solo si ya termino (la misma regla que la ronda
+        // siguiente, F6-6).
+        let Some(check) = ronda::revision_de_origen(runs, origen) else {
             return Err(Informe::nuevo(op, Resultado::Esperando)
                 .con("pr", pr.to_string())
                 .con("motivo", "sin-check")
