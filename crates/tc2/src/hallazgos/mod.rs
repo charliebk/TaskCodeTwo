@@ -1135,39 +1135,47 @@ const EJEMPLO_INCREMENTAL: &str = r#"{
   ]
 }"#;
 
-/// Bytes de la prosa de una revisora que van al check (F6-7): el texto del
-/// check se corta en 65000 caracteres y van antes las tablas.
+/// Bytes de la prosa de una revisora que van al check (F6-7), con su
+/// etiqueta y sus cercas: el texto del check se corta en 65000 caracteres y
+/// van antes las tablas.
 pub const TOPE_PROSA: usize = 32 * 1024;
 
 /// La prosa de una revisora para el check `revision-ia` (F6-7): el texto
-/// del modelo sin caracteres de formato (Cf), cortado a [`TOPE_PROSA`]
-/// bytes y dentro de un [`crate::dato::bloque`], donde las tablas, enlaces,
-/// imagenes, menciones y HTML que traiga no se presentan. Vacia si la
-/// respuesta no trae texto.
+/// del modelo sin caracteres de formato (Cf) dentro de un
+/// [`crate::dato::bloque`], donde las tablas, enlaces, imagenes, menciones y
+/// HTML que traiga no se presentan. El bloque entero (etiqueta, cercas y
+/// marca de corte incluidas) no pasa de [`TOPE_PROSA`] bytes: si pasaria, el
+/// texto se corta hasta que quepa, tambien cuando lo que lo infla es una
+/// cerca larga (un tramo largo de acentos graves en la respuesta). Vacia si
+/// la respuesta no trae texto.
 pub fn prosa(revisora: &str, respuesta: &str) -> String {
     if respuesta.trim().is_empty() {
         return String::new();
     }
     let limpio: String = respuesta.chars().filter(|c| !es_de_formato(*c)).collect();
-    let mut texto = limpio.as_str();
-    let mut marca = String::new();
-    if texto.len() > TOPE_PROSA {
-        let mut n = TOPE_PROSA;
-        while !texto.is_char_boundary(n) {
+    let etiqueta = format!("Informe de la revisora {}", plano(revisora, 200));
+    let mut n = limpio.len();
+    loop {
+        let texto = limpio.get(..n).unwrap_or_default();
+        let marca = if n < limpio.len() {
+            format!(
+                "\n[revision-ia: informe cortado a {n} bytes de {}]\n",
+                limpio.len()
+            )
+        } else {
+            String::new()
+        };
+        let salida = crate::dato::bloque(&etiqueta, &format!("{texto}{marca}"));
+        if salida.len() <= TOPE_PROSA || n == 0 {
+            return salida;
+        }
+        // Quitar texto nunca alarga la cerca: cada vuelta acorta la salida
+        // al menos en lo que sobra, y la siguiente vuelta lo comprueba.
+        n = n.saturating_sub(salida.len() - TOPE_PROSA);
+        while !limpio.is_char_boundary(n) {
             n -= 1;
         }
-        marca = format!(
-            "
-[revision-ia: informe cortado a {TOPE_PROSA} bytes de {}]
-",
-            limpio.len()
-        );
-        texto = texto.get(..n).unwrap_or_default();
     }
-    crate::dato::bloque(
-        &format!("Informe de la revisora {}", plano(revisora, 200)),
-        &format!("{texto}{marca}"),
-    )
 }
 
 /// La seccion del check `revision-ia` para una revisora: las tablas de
@@ -2593,5 +2601,35 @@ mod tests {
             dictamen_publicado(&i.titulo(), "failure", &v.aceptados),
             Some(Dictamen::Incompleta)
         );
+    }
+
+    /// MEN-2 de la ronda 1 de F6-7: el tope de la prosa acota el bloque
+    /// entero, cercas incluidas, aunque la respuesta sea un tramo de acentos
+    /// graves que obligaria a una cerca tan larga como el texto.
+    #[test]
+    fn la_prosa_no_pasa_del_tope_ni_con_cercas_largas() {
+        let corta = prosa("r", "Todo correcto.");
+        assert!(corta.contains("\nTodo correcto.\n"));
+        assert!(!corta.contains("informe cortado"));
+        for respuesta in [
+            "`".repeat(TOPE_PROSA),
+            "`".repeat(3 * TOPE_PROSA),
+            format!(
+                "{}ñ{}",
+                "a".repeat(TOPE_PROSA - 3),
+                "`".repeat(TOPE_PROSA / 2)
+            ),
+            "€".repeat(TOPE_PROSA),
+            "a".repeat(TOPE_PROSA - 10),
+        ] {
+            let p = prosa("r", &respuesta);
+            assert!(p.len() <= TOPE_PROSA, "{} bytes", p.len());
+            assert!(p.contains("informe cortado a "));
+            let cerca = p.lines().nth(2).unwrap_or_default();
+            assert!(cerca.len() >= 4 && cerca.chars().all(|c| c == '`'));
+            assert!(p.ends_with(&format!("\n{cerca}\n")));
+            let dentro = &p[p.find('\n').unwrap_or(0)..p.len() - cerca.len() - 1];
+            assert_eq!(dentro.matches(cerca).count(), 1, "la cerca se cierra antes");
+        }
     }
 }
