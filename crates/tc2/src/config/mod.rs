@@ -220,10 +220,17 @@ pub struct Recurso {
     pub id: String,
     /// `skill`, `agente` o `ejecutable`.
     pub tipo: String,
-    /// `revisor`, si lo es.
+    /// `revisor`, `diseno` o `ejecucion` (F1-15 decision 8): sin rol no se
+    /// elige.
     pub rol: Option<String>,
     /// Dominios de F1-15 que cubre.
     pub dominios: Vec<String>,
+    /// Etiquetas (solape de S07; F4-6).
+    #[serde(default)]
+    pub etiquetas: Vec<String>,
+    /// Prioridad (desempate de S07; F4-6).
+    #[serde(default)]
+    pub prioridad: Option<u32>,
 }
 
 /// `seleccion` (F1-15).

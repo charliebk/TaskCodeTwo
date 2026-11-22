@@ -1,6 +1,9 @@
-//! Catalogo de revisoras (F1-15 decisiones 2 y 8): los metadatos de seleccion
-//! que cada skill declara en su bloque ```` ```yaml ```` (`rol: revisor`,
-//! `patrones_archivo`, y en la generica `fallback` y `umbral_dominios`).
+//! Catalogo de seleccion (F1-15 decisiones 2 y 8): los metadatos que cada
+//! skill declara en su bloque ```` ```yaml ```` (`rol` ∈ {`revisor`,
+//! `diseno`, `ejecucion`}, `etiquetas`, `dominios`, `prioridad`; en las
+//! revisoras `patrones_archivo`, y en la generica `fallback` y
+//! `umbral_dominios`) y, para las ajenas, los que declara `recursos:` de la
+//! configuracion ([`de_config`], F4-6).
 //!
 //! Se apoya en [`crate::inventario`] sin cambiarlo: el inventario dice que
 //! existe; el catalogo lee, de las mismas carpetas, que declara cada skill.
@@ -26,11 +29,23 @@ use crate::contrato::Informe;
 use crate::git::{Git, Subcomando};
 use crate::inventario::{self, Entrada, Inventario, MAX_CABECERA, Origen, Tipo};
 
-/// Una revisora del catalogo.
+/// Roles que puede declarar una entrada del catalogo.
+pub const ROLES: [&str; 3] = ["revisor", "diseno", "ejecucion"];
+
+/// Una entrada del catalogo (una revisora o una skill de diseno o de
+/// ejecucion).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Revisora {
     /// Id del inventario (`plugin:n` en un plugin).
     pub id: String,
+    /// `revisor`, `diseno` o `ejecucion`.
+    pub rol: String,
+    /// Etiquetas (solape de S07).
+    pub etiquetas: Vec<String>,
+    /// Dominios de F1-15 que cubre (S06, S07, S10).
+    pub dominios: Vec<String>,
+    /// Prioridad (desempate de S07; mayor primero).
+    pub prioridad: u32,
     /// Globs de `patrones_archivo`.
     pub patrones: Vec<String>,
     /// `fallback: true` (la generica): no compite por patrones.
@@ -41,24 +56,32 @@ pub struct Revisora {
     pub ruta: String,
 }
 
-/// Las revisoras del catalogo, ordenadas por id y sin repetir.
+/// Las entradas del catalogo, ordenadas por id y sin repetir: las
+/// revisoras y las demas.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Catalogo {
     revisoras: Vec<Revisora>,
+    otros: Vec<Revisora>,
 }
 
 impl Catalogo {
-    /// Catalogo de `revisoras` en cualquier orden: el resultado no depende
+    /// Catalogo de `entradas` en cualquier orden: el resultado no depende
     /// del orden (se queda la primera de cada id tras ordenar).
-    pub fn nuevo(mut revisoras: Vec<Revisora>) -> Self {
-        revisoras.sort();
-        revisoras.dedup_by(|b, a| a.id == b.id);
-        Self { revisoras }
+    pub fn nuevo(mut entradas: Vec<Revisora>) -> Self {
+        entradas.sort();
+        entradas.dedup_by(|b, a| a.id == b.id);
+        let (revisoras, otros) = entradas.into_iter().partition(|r| r.rol == "revisor");
+        Self { revisoras, otros }
     }
 
     /// Las revisoras, por id.
     pub fn revisoras(&self) -> &[Revisora] {
         &self.revisoras
+    }
+
+    /// Las skills de diseno y de ejecucion, por id.
+    pub fn otros(&self) -> &[Revisora] {
+        &self.otros
     }
 
     /// La revisora de id `id`.
@@ -76,6 +99,12 @@ struct Bloque {
     #[serde(default)]
     fallback: bool,
     umbral_dominios: Option<u32>,
+    #[serde(default)]
+    etiquetas: Vec<String>,
+    #[serde(default)]
+    dominios: Vec<String>,
+    #[serde(default)]
+    prioridad: u32,
 }
 
 /// El primer bloque ```` ```yaml ```` de `cabecera` (el texto entre la
@@ -99,6 +128,13 @@ pub fn bloque_yaml(cabecera: &str) -> Option<&str> {
 /// yaml, no es `rol: revisor` o el bloque no se entiende (lo instalado sin
 /// metadatos no se elige, decision 2).
 pub fn revisora_de(id: &str, texto: &str, ruta: &str) -> Option<Revisora> {
+    recurso_de(id, texto, ruta).filter(|r| r.rol == "revisor")
+}
+
+/// La entrada que declara el texto de una skill, con cualquiera de los
+/// [`ROLES`]: `None` si no tiene bloque yaml, su `rol` no es de la lista o
+/// el bloque no se entiende.
+pub fn recurso_de(id: &str, texto: &str, ruta: &str) -> Option<Revisora> {
     let mut corte = texto
         .len()
         .min(usize::try_from(MAX_CABECERA).unwrap_or(usize::MAX));
@@ -109,8 +145,13 @@ pub fn revisora_de(id: &str, texto: &str, ruta: &str) -> Option<Revisora> {
     let b: Bloque =
         serde_saphyr::from_str_with_options(bloque_yaml(cabecera)?, crate::yaml::opciones())
             .ok()?;
-    (b.rol.as_deref() == Some("revisor")).then(|| Revisora {
+    let rol = b.rol.filter(|r| ROLES.contains(&r.as_str()))?;
+    Some(Revisora {
         id: id.to_owned(),
+        rol,
+        etiquetas: b.etiquetas,
+        dominios: b.dominios,
+        prioridad: b.prioridad,
         patrones: b.patrones_archivo,
         fallback: b.fallback,
         umbral_dominios: b.umbral_dominios,
@@ -118,13 +159,36 @@ pub fn revisora_de(id: &str, texto: &str, ruta: &str) -> Option<Revisora> {
     })
 }
 
-/// Lo leido de una fuente: las entradas que existen y las revisoras.
+/// Lo leido de una fuente: las entradas que existen y las que declaran
+/// metadatos de seleccion.
 #[derive(Debug, Clone, Default)]
 pub struct Lectura {
     /// Skills encontradas (para el inventario).
     pub entradas: Vec<Entrada>,
-    /// Revisoras con metadatos.
+    /// Entradas del catalogo (revisoras y skills de diseno o ejecucion).
     pub revisoras: Vec<Revisora>,
+}
+
+/// Las entradas que declara `recursos:` de la configuracion (F1-14, F4-6):
+/// solo las que dicen un `rol` de [`ROLES`]; las demas no se eligen.
+pub fn de_config(recursos: &[crate::config::Recurso]) -> Vec<Revisora> {
+    recursos
+        .iter()
+        .filter_map(|r| {
+            let rol = r.rol.clone().filter(|x| ROLES.contains(&x.as_str()))?;
+            Some(Revisora {
+                id: r.id.clone(),
+                rol,
+                etiquetas: r.etiquetas.clone(),
+                dominios: r.dominios.clone(),
+                prioridad: r.prioridad.unwrap_or(0),
+                patrones: Vec::new(),
+                fallback: false,
+                umbral_dominios: None,
+                ruta: ".taskcode/config.yml".to_owned(),
+            })
+        })
+        .collect()
 }
 
 /// Lee como mucho [`MAX_CABECERA`] bytes de `p`.
@@ -161,7 +225,7 @@ pub fn de_carpeta(skills: &Path, prefijo: &str, origen: &Origen) -> Lectura {
             id: id.clone(),
             origen: origen.clone(),
         });
-        if let Some(r) = revisora_de(&id, &texto, &f.display().to_string()) {
+        if let Some(r) = recurso_de(&id, &texto, &f.display().to_string()) {
             l.revisoras.push(r);
         }
     }
@@ -250,7 +314,7 @@ pub fn de_base(git: &Git, dir: &Path, base: &str) -> Result<Lectura, Informe> {
             id: nombre.clone(),
             origen: Origen::Proyecto,
         });
-        if let Some(r) = revisora_de(&nombre, &texto, &format!("{base}:{ruta}")) {
+        if let Some(r) = recurso_de(&nombre, &texto, &format!("{base}:{ruta}")) {
             l.revisoras.push(r);
         }
     }
@@ -270,6 +334,22 @@ mod tests {
         assert!(revisora_de("p:x", "---\nname: x\n---\n", "x").is_none());
         assert!(revisora_de("p:x", "```yaml\nrol: revisor\n", "x").is_none());
         assert!(revisora_de("p:x", "```yaml\nrol: ejecucion\n```\n", "x").is_none());
+        // F4-6: una skill de ejecucion entra en el catalogo con sus metadatos.
+        let e = recurso_de(
+            "p:x",
+            "```yaml\nrol: ejecucion\netiquetas: [a, b]\ndominios: [rendimiento]\nprioridad: 10\n```\n",
+            "x",
+        );
+        assert_eq!(
+            e.map(|e| (e.rol, e.etiquetas, e.dominios, e.prioridad)),
+            Some((
+                "ejecucion".to_owned(),
+                vec!["a".to_owned(), "b".to_owned()],
+                vec!["rendimiento".to_owned()],
+                10
+            ))
+        );
+        assert!(recurso_de("p:x", "```yaml\nrol: otro\n```\n", "x").is_none());
         assert!(revisora_de("p:x", "```yaml\nrol: [\n```\n", "x").is_none());
         // Un bloque mas alla de la cabecera no cuenta.
         let lejos = format!(
@@ -283,6 +363,10 @@ mod tests {
     fn el_catalogo_no_depende_del_orden() {
         let r = |id: &str| Revisora {
             id: id.to_owned(),
+            rol: "revisor".to_owned(),
+            etiquetas: Vec::new(),
+            dominios: Vec::new(),
+            prioridad: 0,
             patrones: Vec::new(),
             fallback: false,
             umbral_dominios: None,

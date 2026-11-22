@@ -124,7 +124,7 @@ pub struct FilaDominio {
 /// Las filas entre `<!-- <marca>:inicio -->` y `<!-- <marca>:fin -->`, sin
 /// la cabecera ni el separador, como listas de celdas sin espacios ni
 /// comillas invertidas.
-fn filas(texto: &str, marca: &str) -> Result<Vec<Vec<String>>, String> {
+pub(crate) fn filas(texto: &str, marca: &str) -> Result<Vec<Vec<String>>, String> {
     let inicio = format!("<!-- {marca}:inicio -->");
     let fin = format!("<!-- {marca}:fin -->");
     let desde = texto

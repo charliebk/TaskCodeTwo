@@ -464,7 +464,22 @@ pub(crate) fn tabla() -> Vec<Campo> {
                         uno_de(&["skill", "agente", "ejecutable"]),
                         "que es",
                     ),
-                    Campo::opcional("rol", uno_de(&["revisor"]), "rol que cubre"),
+                    Campo::opcional(
+                        "rol",
+                        uno_de(&["revisor", "diseno", "ejecucion"]),
+                        "rol que cubre; sin rol no se elige (F1-15 decision 8)",
+                    ),
+                    Campo::opcional(
+                        "etiquetas",
+                        lista(texto(Regla::Nombre), 1),
+                        "etiquetas con las que compite una skill de ejecucion (S07)",
+                    )
+                    .con_defecto(json!([])),
+                    Campo::opcional(
+                        "prioridad",
+                        entero(0, 1000),
+                        "desempate de S07: mayor primero",
+                    ),
                     Campo::opcional(
                         "dominios",
                         lista(uno_de(&DOMINIOS), 1),

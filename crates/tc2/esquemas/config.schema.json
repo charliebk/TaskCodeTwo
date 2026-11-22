@@ -395,15 +395,34 @@
             "minItems": 1,
             "type": "array"
           },
+          "etiquetas": {
+            "default": [],
+            "description": "etiquetas con las que compite una skill de ejecucion (S07)",
+            "items": {
+              "description": "texto no vacio, sin caracteres de control ni espacios en los extremos",
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "id": {
             "description": "nombre de la skill, el agente o el ejecutable. texto no vacio, sin caracteres de control ni espacios en los extremos",
             "minLength": 1,
             "type": "string"
           },
+          "prioridad": {
+            "description": "desempate de S07: mayor primero",
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
           "rol": {
-            "description": "rol que cubre",
+            "description": "rol que cubre; sin rol no se elige (F1-15 decision 8)",
             "enum": [
-              "revisor"
+              "revisor",
+              "diseno",
+              "ejecucion"
             ],
             "type": "string"
           },

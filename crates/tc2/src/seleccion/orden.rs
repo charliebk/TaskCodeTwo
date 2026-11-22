@@ -87,7 +87,8 @@ pub struct Entorno<'a> {
 pub struct Fuentes {
     /// Lo instalado.
     pub inventario: Inventario,
-    /// Las revisoras con metadatos.
+    /// Las entradas con metadatos (revisoras y skills de diseno o
+    /// ejecucion).
     pub catalogo: Catalogo,
     /// Avisos (`sin-base`).
     pub avisos: Vec<String>,
@@ -144,6 +145,10 @@ pub fn fuentes(
                 origen: Origen::Integrado,
             });
         }
+    }
+    // Lo que declara `recursos:` de la configuracion de la base (F4-6).
+    if let Ok(cfg) = crate::config::de_base(g, dir) {
+        revisoras.extend(catalogo::de_config(&cfg.recursos));
     }
     Fuentes {
         inventario: Inventario::nuevo(entradas, lista_plugins),
