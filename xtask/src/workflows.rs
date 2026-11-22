@@ -2239,6 +2239,16 @@ fn rondas_en_el_workflow(texto: &str) -> Result<(), String> {
             "tc2 hallazgos abiertos ",
             "preparar no corre tc2 hallazgos abiertos",
         ),
+        // El diff incremental sin lo que entro de la base por un merge.
+        (
+            "tc2 hallazgos desde ",
+            "preparar no corre tc2 hallazgos desde",
+        ),
+        // Todos los check-runs de cada commit, no solo el ultimo.
+        (
+            "-f check_name=revision-ia -f filter=all ",
+            "preparar no pide filter=all",
+        ),
     ] {
         if !preparar.contains(pieza) {
             return Err(error.to_owned());
@@ -2529,7 +2539,17 @@ fn cada_mutacion_del_revisor_da_su_error() {
         );
     }
     // F6-6: una mutacion por regla de las rondas da rojo.
-    let rondas: [(&str, &str, &str); 7] = [
+    let rondas: [(&str, &str, &str); 9] = [
+        (
+            "linea=$(cd base && tc2 hallazgos desde ",
+            "linea=$(cd base && tc2 hallazgos base ",
+            "preparar no corre tc2 hallazgos desde",
+        ),
+        (
+            " -f filter=all -f per_page=100",
+            " -f per_page=100",
+            "preparar no pide filter=all",
+        ),
         (
             "      actions: read\n      checks: read\n    outputs:",
             "      actions: read\n    outputs:",

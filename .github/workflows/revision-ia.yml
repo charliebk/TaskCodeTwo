@@ -284,7 +284,8 @@ jobs:
           unzip -p "$RUNNER_TEMP/informe.zip" informe-verificacion.json | head -c 65537 > "$RUNNER_TEMP/informe.json" || rm -f "$RUNNER_TEMP/informe.json"
       # F6-6: la ronda anterior es el ultimo check revision-ia de la App del
       # revisor en un commit anterior del PR (no la rama de estado, que
-      # escribe el agente). Se vuelcan en crudo los check-runs de cada commit,
+      # escribe el agente). Se vuelcan en crudo todos los check-runs de cada
+      # commit (filter=all: no solo el ultimo, que puede ser un incompleta),
       # del mas nuevo al mas viejo (GITHUB_TOKEN con checks: read), y decide
       # tc2; del elegido, sus paginas de anotaciones. Pasado el tope de
       # commits, falla (el check sale incompleta).
@@ -310,7 +311,7 @@ jobs:
           k=0
           for c in $(tail -n +2 "$RUNNER_TEMP/commits.txt"); do
             f="$dir/checks/$k.json"
-            gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=revision-ia -f per_page=100 > "$f"
+            gh api --method GET "repos/$REPO/commits/$c/check-runs" -f check_name=revision-ia -f filter=all -f per_page=100 > "$f"
             checks+=(--check-runs "$f")
             k=$((k + 1))
             linea=$(cd base && tc2 hallazgos anterior "${checks[@]}")
@@ -323,6 +324,7 @@ jobs:
           done
           anotaciones=()
           rango=("origin/$BASE...$HEAD_SHA")
+          desde=""
           if [ "$anterior" != ninguno ]; then
             for p in $(seq 1 30); do
               f="$dir/anotaciones/$p.json"
@@ -330,10 +332,18 @@ jobs:
               anotaciones+=(--anotaciones "$f")
               [ "$(jq 'length' "$f")" -eq 100 ] || break
             done
-            # Tras un rebase el commit anterior no es ancestro: el diff vuelve
-            # a base...head y los abiertos se arrastran igual.
-            if git -C base merge-base --is-ancestor "$sha" "$HEAD_SHA"; then rango=("$sha" "$HEAD_SHA"); fi
+            # El diff incremental sale del commit anterior sin lo que entro
+            # despues de la base (merge de la base o «Update branch»), que no
+            # es del PR: tc2 hallazgos desde. Tras un rebase (el commit
+            # anterior no es ancestro), o si esa mezcla tiene conflictos, el
+            # diff vuelve a base...head (falla en cerrado: se revisa todo) y
+            # los abiertos se arrastran igual.
+            linea=$(cd base && tc2 hallazgos desde --anterior "$sha" --head "$HEAD_SHA" --base "origin/$BASE")
+            echo "$linea"
+            desde=$(printf '%s\n' "$linea" | sed -nE 's/.* desde=([0-9a-f]{40}|[0-9a-f]{64})( .*)?$/\1/p')
+            if [ -n "$desde" ]; then rango=("$desde" "$HEAD_SHA"); fi
           fi
+          printf '%s' "$desde" > "$dir/desde.txt"
           git -c core.quotepath=false --literal-pathspecs -C base diff --name-only -z --no-renames "${rango[@]}" > "$dir/rutas.txt"
           tarea=()
           id=$(printf '%s' "$RAMA" | sed -nE 's#^(feature|fix|hotfix)/task-([0-9]{3,})-.*#TASK-\2#p')
@@ -354,13 +364,15 @@ jobs:
           salida="$RUNNER_TEMP/revision-ia"
           mkdir -p "$salida/prompts" "$salida/diffs"
           # F6-6: la ronda la decidio el paso anterior. En incremental el diff
-          # es el de lo cambiado desde el commit de la ronda anterior.
+          # es el de lo cambiado desde el commit de la ronda anterior, sin lo
+          # que entro de la base despues (el `desde` de ese paso).
           ronda="$salida/ronda/ronda.json"
           modo=$(jq -r '.modo' "$ronda")
           numero=$(jq -r '.ronda' "$ronda")
           anterior=$(jq -r '.sha_anterior // ""' "$ronda")
+          desde=$(cat "$salida/ronda/desde.txt")
           rango=("origin/$BASE...$HEAD_SHA")
-          if [ "$modo" = incremental ] && git -C base merge-base --is-ancestor "$anterior" "$HEAD_SHA"; then rango=("$anterior" "$HEAD_SHA"); fi
+          if [ "$modo" = incremental ] && [ -n "$desde" ]; then rango=("$desde" "$HEAD_SHA"); fi
           # Rutas literales separadas por NUL: sin -z git entrecomilla y escapa
           # lo no ASCII ("\303\251.rs") y la ruta no casaria con nada.
           git -c core.quotepath=false --literal-pathspecs -C base diff --name-only -z --no-renames "${rango[@]}" > "$salida/rutas.txt"
@@ -433,7 +445,11 @@ jobs:
               if [ "$modo" = incremental ]; then
                 echo "## Hallazgos abiertos de la ronda anterior"
                 echo
-                echo "Ronda $numero (F6-6): el diff de abajo es lo cambiado desde el commit $anterior de la ronda anterior. Estos hallazgos siguen abiertos; cierra solo los que el diff arregla (ver «Lo que devuelves»)."
+                if [ -n "$desde" ]; then
+                  echo "Ronda $numero (F6-6): el diff de abajo es lo cambiado desde el commit $anterior de la ronda anterior, sin lo que entro de la base despues. Estos hallazgos siguen abiertos; cierra solo los que el diff arregla (ver «Lo que devuelves»)."
+                else
+                  echo "Ronda $numero (F6-6): el diff de abajo es el de todo el PR contra $BASE (el commit $anterior de la ronda anterior ya no es ancestro, o no se pudo restar lo que entro de la base). Estos hallazgos siguen abiertos; cierra solo los que el diff arregla (ver «Lo que devuelves»)."
+                fi
                 echo
                 cat "$salida/abiertos/abiertos-$i.md"
                 echo
