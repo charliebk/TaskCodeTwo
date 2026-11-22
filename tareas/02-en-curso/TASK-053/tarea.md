@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: feature/task-053-f6-7-defensa-contra-prompt-injection-en
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Tarea F6-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 |---|---|---|---|---|
 | 2026-11-22T13:06:31Z | plan | automatico | persona | 0.16.1 |
 | 2026-11-22T13:16:03Z | approve | automatico | persona | 0.16.1 |
+| 2026-11-22T13:16:05Z | start | automatico | persona | 0.16.1 |
 
 ## Coste
 
