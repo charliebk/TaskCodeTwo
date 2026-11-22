@@ -8,10 +8,10 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| MEN-1 | MENOR | abierto | crates/tc2/tests/seleccion.rs:118 | implementacion |
-| MEN-2 | MENOR | abierto | crates/tc2/tests/fixtures/seleccion-taskcodetwo/estratos.txt:1 | implementacion |
-| MEN-3 | MENOR | abierto | crates/tc2/src/plan/operacion.rs:169 | implementacion |
-| MEN-4 | MENOR | abierto | crates/tc2/tests/seleccion.rs:1 | plan |
+| MEN-1 | MENOR | corregido | crates/tc2/tests/seleccion.rs:118 | implementacion |
+| MEN-2 | MENOR | aceptado | crates/tc2/tests/fixtures/seleccion-taskcodetwo/estratos.txt:1 | implementacion |
+| MEN-3 | MENOR | corregido | crates/tc2/src/plan/operacion.rs:169 | implementacion |
+| MEN-4 | MENOR | corregido | crates/tc2/tests/seleccion.rs:1 | plan |
 
 Sin CRITICO ni IMPORTANTE. Alcance: completa; el diff es de un solo dominio (Rust con docs), no llego por exceso de dominios.
 

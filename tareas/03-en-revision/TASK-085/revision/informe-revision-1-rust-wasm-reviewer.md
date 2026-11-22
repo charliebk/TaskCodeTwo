@@ -8,11 +8,11 @@
 
 | ID | Severidad | Estado | Fichero | Origen |
 |---|---|---|---|---|
-| IMP-1 | IMPORTANTE | abierto | crates/tc2/src/seleccion/catalogo.rs:89 | implementacion |
-| IMP-2 | IMPORTANTE | abierto | crates/tc2/src/seleccion/mod.rs:270 | implementacion |
-| IMP-3 | IMPORTANTE | abierto | crates/tc2/src/tarea/modelo.rs:301 | implementacion |
-| MEN-1 | MENOR | abierto | crates/tc2/src/seleccion/orden.rs:637 | implementacion |
-| MEN-2 | MENOR | abierto | crates/tc2/src/seleccion/orden.rs:609 | implementacion |
+| IMP-1 | IMPORTANTE | corregido | crates/tc2/src/seleccion/catalogo.rs:89 | implementacion |
+| IMP-2 | IMPORTANTE | corregido | crates/tc2/src/seleccion/mod.rs:270 | implementacion |
+| IMP-3 | IMPORTANTE | corregido | crates/tc2/src/tarea/modelo.rs:301 | implementacion |
+| MEN-1 | MENOR | corregido | crates/tc2/src/seleccion/orden.rs:637 | implementacion |
+| MEN-2 | MENOR | corregido | crates/tc2/src/seleccion/orden.rs:609 | implementacion |
 
 Origen, uno por hallazgo: `implementacion` si el codigo no hace lo que el plan pedia; `plan` si el
 plan era ambiguo o equivocado y el codigo lo siguio; `especificacion` si el fallo esta en el
