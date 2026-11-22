@@ -1132,14 +1132,53 @@ impl Veredicto {
 
     /// Titulo del check.
     pub fn titulo(&self) -> String {
-        format!(
-            "{PREFIJO_TITULO}{} (criticos={} importantes={} menores={})",
-            self.dictamen.texto(),
-            self.criticos,
-            self.importantes,
-            self.menores
-        )
+        titulo_de(self.dictamen, self.criticos, self.importantes, self.menores)
     }
+}
+
+fn titulo_de(d: Dictamen, criticos: usize, importantes: usize, menores: usize) -> String {
+    format!(
+        "{PREFIJO_TITULO}{} (criticos={criticos} importantes={importantes} menores={menores})",
+        d.texto()
+    )
+}
+
+/// El dictamen de un check `revision-ia` publicado, solo si su titulo casa
+/// con su conclusion y con los aceptados leidos de sus anotaciones: el
+/// titulo es el que daria [`Veredicto::titulo`] con esos recuentos, la
+/// conclusion la de ese dictamen, y un `rojo` tiene algun CRITICO o
+/// IMPORTANTE y un `verde` ninguno. Un `incompleta` sin anotaciones vale
+/// con cualquier titulo (el de `publicar` cuando no hay veredicto de
+/// `validar` o la API lo rechaza). `None` si no casan: un check con menos
+/// anotaciones de las que dice su titulo (un lote que no llego) o alterado.
+pub fn dictamen_publicado(
+    titulo: &str,
+    conclusion: &str,
+    aceptados: &[AceptadoDe],
+) -> Option<Dictamen> {
+    let d = Dictamen::de_titulo(titulo)?;
+    if conclusion != d.conclusion() {
+        return None;
+    }
+    let n = |s: Severidad| {
+        aceptados
+            .iter()
+            .filter(|a| a.hallazgo.severidad == s)
+            .count()
+    };
+    let (c, i, m) = (
+        n(Severidad::Critico),
+        n(Severidad::Importante),
+        n(Severidad::Menor),
+    );
+    let coherente = match d {
+        Dictamen::Rojo => c + i > 0,
+        Dictamen::Verde => c + i == 0,
+        Dictamen::Incompleta => true,
+    };
+    let casa =
+        titulo == titulo_de(d, c, i, m) || (d == Dictamen::Incompleta && aceptados.is_empty());
+    (coherente && casa).then_some(d)
 }
 
 /// Junta los resultados de `validar` de cada revisora (`None` si no dejo
@@ -1210,9 +1249,86 @@ pub struct Anotacion {
     pub raw_details: String,
 }
 
+/// Tope de bytes de `raw_details` en la API de check-runs (64 KB).
+pub const TOPE_RAW_DETAILS: usize = 64 * 1024;
+
+/// Mensaje de una anotacion cuya descripcion se queda vacia al pasarla por
+/// [`plano`] (solo controles o caracteres de formato): la API no admite un
+/// `message` vacio.
+pub const MENSAJE_SIN_TEXTO: &str = "descripcion sin texto legible";
+
+/// Por debajo de estos bytes un texto no se recorta (asi cada recorte quita
+/// bytes aunque anada `…`).
+const RECORTE_MINIMO: usize = 16;
+
+/// Corta `s` por la mitad de sus bytes (en limite de caracter) y anade `…`.
+fn recortar_mitad(s: &mut String) {
+    let mut corte = s.len() / 2;
+    while !s.is_char_boundary(corte) {
+        corte -= 1;
+    }
+    s.truncate(corte);
+    s.push('…');
+}
+
+/// El `raw_details` de `a`: su JSON, con los textos libres del hallazgo
+/// (descripcion y evidencia) recortados por la mitad, el mas largo cada vez
+/// (o la lista de `pasos`, si pesa mas), hasta caber en
+/// [`TOPE_RAW_DETAILS`]. El id, el fichero, la linea y la revisora no se
+/// tocan: sigue siendo un [`AceptadoDe`] que `leer-revision` lee de vuelta.
+fn raw_details(a: &AceptadoDe) -> String {
+    let mut a = a.clone();
+    loop {
+        let json = serde_json::to_string(&a).unwrap_or_default();
+        if json.len() <= TOPE_RAW_DETAILS {
+            return json;
+        }
+        let h = &mut a.hallazgo;
+        let e = &mut h.evidencia;
+        // Una lista de varios pasos se recorta entera; un paso solo, como
+        // texto.
+        let (pasos, unico) = match e.pasos.as_mut() {
+            Some(p) if p.len() > 1 => (Some(p), None),
+            Some(p) => (None, p.first_mut()),
+            None => (None, None),
+        };
+        let peso_pasos: usize = pasos
+            .as_ref()
+            .map_or(0, |p| p.iter().map(|s| s.len() + 3).sum());
+        let mut textos: Vec<&mut String> = vec![&mut h.descripcion];
+        textos.extend(unico);
+        for t in [
+            &mut e.fallo_esperado,
+            &mut e.paso_rojo,
+            &mut e.linea_original,
+            &mut e.mutacion,
+            &mut e.test,
+            &mut e.entrada,
+            &mut e.esperado,
+            &mut e.obtenido,
+        ] {
+            textos.extend(t.as_mut());
+        }
+        let largo = textos
+            .into_iter()
+            .filter(|t| t.len() > RECORTE_MINIMO)
+            .max_by_key(|t| t.len());
+        match (largo, pasos) {
+            (Some(t), _) if t.len() >= peso_pasos => recortar_mitad(t),
+            (_, Some(p)) if peso_pasos > 0 => p.truncate(p.len() / 2),
+            (Some(t), _) => recortar_mitad(t),
+            // Nada mas que recortar: no cabe y la API lo rechazara
+            // (`publicar` cae entonces a `incompleta`).
+            (None, _) => return json,
+        }
+    }
+}
+
 /// Una anotacion por aceptado, en lotes de [`ANOTACIONES_POR_LOTE`]:
 /// `failure` para CRITICO e IMPORTANTE, `warning` para MENOR; titulo y
-/// mensaje pasados por [`plano`]; `raw_details`, el [`AceptadoDe`] en JSON.
+/// mensaje pasados por [`plano`] (un mensaje vacio pasa a
+/// [`MENSAJE_SIN_TEXTO`]); `raw_details`, el [`AceptadoDe`] en JSON acotado a
+/// [`TOPE_RAW_DETAILS`].
 pub fn anotaciones(v: &Veredicto) -> Vec<Vec<Anotacion>> {
     let todas: Vec<Anotacion> = v
         .aceptados
@@ -1237,8 +1353,10 @@ pub fn anotaciones(v: &Veredicto) -> Vec<Vec<Anotacion>> {
                 .to_owned(),
                 // GitHub corta el titulo en 255 caracteres.
                 title: titulo.chars().take(255).collect(),
-                message: plano(&h.descripcion, 4000),
-                raw_details: serde_json::to_string(a).unwrap_or_default(),
+                message: Some(plano(&h.descripcion, 4000))
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or_else(|| MENSAJE_SIN_TEXTO.to_owned()),
+                raw_details: raw_details(a),
             }
         })
         .collect();
@@ -1686,5 +1804,174 @@ mod tests {
         assert_eq!(plano(&"a".repeat(10), 4), "aaaa…");
         let v = validar("r", "nada", &diff(), None);
         assert!(resumen_markdown(&v).contains("| respuesta | sin-bloque |"));
+    }
+
+    /// Las claves obligatorias del esquema son todas las que escribe el
+    /// codigo: quitar una de `required` (p. ej. `raw_details`, que lee
+    /// `leer-revision`, o `aceptados` del informe) da rojo (MEN-2 de la
+    /// ronda 1 de TASK-051).
+    #[test]
+    fn el_esquema_exige_todas_las_claves_de_anotacion_e_informe() {
+        let e: Value = serde_json::from_str(ESQUEMA).unwrap_or_else(|x| panic!("{x}"));
+        let ordenadas = |mut c: Vec<String>| {
+            c.sort();
+            c
+        };
+        let requeridas = |def: &str| -> Vec<String> {
+            ordenadas(
+                e["$defs"][def]["required"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            )
+        };
+        let claves = |v: &Value| -> Vec<String> {
+            ordenadas(
+                v.as_object()
+                    .map(|m| m.keys().cloned().collect())
+                    .unwrap_or_default(),
+            )
+        };
+        let v = veredicto(&[Some(validar("r", MIXTA, &diff(), None))]);
+        let anotacion = anotaciones(&v)
+            .first()
+            .and_then(|l| l.first())
+            .cloned()
+            .unwrap_or_else(|| panic!("sin anotaciones"));
+        let anotacion = serde_json::to_value(&anotacion).unwrap_or_else(|x| panic!("{x}"));
+        assert!(requeridas("anotacion").contains(&"raw_details".to_owned()));
+        assert_eq!(requeridas("anotacion"), claves(&anotacion));
+        // El esquema declara el mismo tope de raw_details que el codigo.
+        assert_eq!(
+            e["$defs"]["anotacion"]["properties"]["raw_details"]["maxLength"],
+            TOPE_RAW_DETAILS
+        );
+        let informe = InformeTarea::nuevo(
+            "TASK-051",
+            12,
+            &"a".repeat(40),
+            ("failure", Dictamen::Rojo),
+            "r",
+            Vec::new(),
+        );
+        let informe = serde_json::to_value(&informe).unwrap_or_else(|x| panic!("{x}"));
+        assert!(requeridas("informe-tarea").contains(&"aceptados".to_owned()));
+        assert_eq!(requeridas("informe-tarea"), claves(&informe));
+        let de = serde_json::to_value(&v.aceptados).unwrap_or_else(|x| panic!("{x}"));
+        assert_eq!(requeridas("aceptado-de"), claves(&de[0]));
+    }
+
+    /// Un mensaje que `plano` deja vacio no sale vacio, y `raw_details` cabe
+    /// en el tope de la API y se lee de vuelta (MEN-2 y MEN-3 de la ronda 1
+    /// de TASK-051).
+    #[test]
+    fn las_anotaciones_respetan_los_limites_de_la_api() {
+        let con = |descripcion: &str| -> Veredicto {
+            let h = BORDE.replace(
+                "\"descripcion\":\"d\"",
+                &format!(
+                    "\"descripcion\":{}",
+                    serde_json::to_string(descripcion).unwrap_or_default()
+                ),
+            );
+            let v = validar("r", &una(&h), &diff(), None);
+            assert_eq!(v.aceptados.len(), 1, "{v:?}");
+            veredicto(&[Some(v)])
+        };
+        let primera = |v: &Veredicto| -> Anotacion {
+            anotaciones(v)
+                .first()
+                .and_then(|l| l.first())
+                .cloned()
+                .unwrap_or_else(|| panic!("sin anotaciones"))
+        };
+        // Solo controles y caracteres de ancho cero: `validar` lo acepta.
+        let a = primera(&con("\u{7}\u{200B}\u{FEFF}"));
+        assert_eq!(a.message, MENSAJE_SIN_TEXTO);
+        // Una descripcion normal sale tal cual.
+        assert_eq!(primera(&con("d")).message, "d");
+        // 70 000 caracteres de descripcion: recortada hasta caber.
+        let largo = format!("ñ{}", "x".repeat(70_000));
+        let v = con(&largo);
+        let a = primera(&v);
+        assert!(
+            a.raw_details.len() <= TOPE_RAW_DETAILS,
+            "{}",
+            a.raw_details.len()
+        );
+        let leido: AceptadoDe =
+            serde_json::from_str(&a.raw_details).unwrap_or_else(|x| panic!("{x}"));
+        assert_eq!(leido.hallazgo.id, "B");
+        assert_eq!(leido.revisora, "r");
+        assert!(leido.hallazgo.descripcion.starts_with("ñxx"));
+        assert!(leido.hallazgo.descripcion.ends_with('…'));
+        assert!(leido.hallazgo.descripcion.len() > TOPE_RAW_DETAILS / 4);
+        // Lo que cabe no se toca.
+        let corto = con("d");
+        assert_eq!(
+            primera(&corto).raw_details,
+            serde_json::to_string(&corto.aceptados[0]).unwrap_or_default()
+        );
+        // Muchos pasos cortos: se recorta la lista.
+        let mut v = con("d");
+        v.aceptados[0].hallazgo.evidencia = Evidencia {
+            tipo: TipoEvidencia::Reproduccion,
+            pasos: Some(vec!["paso".to_owned(); 30_000]),
+            fallo_esperado: Some("f".to_owned()),
+            paso_rojo: None,
+            linea_original: None,
+            mutacion: None,
+            test: None,
+            entrada: None,
+            esperado: None,
+            obtenido: None,
+        };
+        let a = primera(&v);
+        assert!(
+            a.raw_details.len() <= TOPE_RAW_DETAILS,
+            "{}",
+            a.raw_details.len()
+        );
+        let leido: AceptadoDe =
+            serde_json::from_str(&a.raw_details).unwrap_or_else(|x| panic!("{x}"));
+        let pasos = leido.hallazgo.evidencia.pasos.unwrap_or_default();
+        assert!(!pasos.is_empty() && pasos.len() < 30_000, "{}", pasos.len());
+    }
+
+    /// El dictamen publicado solo se da si el titulo casa con la conclusion
+    /// y los aceptados (MEN-1 de la ronda 1 de TASK-051).
+    #[test]
+    fn el_dictamen_publicado_casa_titulo_conclusion_y_aceptados() {
+        let v = veredicto(&[Some(validar("r", MIXTA, &diff(), None))]);
+        let t = v.titulo();
+        let c = v.dictamen.conclusion();
+        assert_eq!(dictamen_publicado(&t, c, &v.aceptados), Some(v.dictamen));
+        // Un aceptado de menos (un lote perdido).
+        let menos = v.aceptados.get(1..).unwrap_or_default();
+        assert_eq!(dictamen_publicado(&t, c, menos), None);
+        assert_eq!(dictamen_publicado(&t, "success", &v.aceptados), None);
+        assert_eq!(
+            dictamen_publicado("revision-ia: neutral", c, &v.aceptados),
+            None
+        );
+        // Incompleta: sin anotaciones, cualquier titulo; con anotaciones, el
+        // suyo exacto.
+        let inc = "revision-ia: incompleta (sin veredicto de validar)";
+        assert_eq!(
+            dictamen_publicado(inc, "failure", &[]),
+            Some(Dictamen::Incompleta)
+        );
+        assert_eq!(dictamen_publicado(inc, "failure", &v.aceptados), None);
+        let mut i = v.clone();
+        i.dictamen = Dictamen::Incompleta;
+        assert_eq!(
+            dictamen_publicado(&i.titulo(), "failure", &v.aceptados),
+            Some(Dictamen::Incompleta)
+        );
     }
 }

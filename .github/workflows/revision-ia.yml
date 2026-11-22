@@ -680,17 +680,34 @@ jobs:
           # El check.json tal cual, con lo que solo sabe este job (nombre, SHA,
           # enlace) y el texto; con --rawfile, nada pasa por argv (tope de
           # 128 KiB por argumento).
-          jq --arg sha "$HEAD_SHA" --rawfile t "$texto" --arg url "$EJECUCION" \
-            '{name: "revision-ia", head_sha: $sha, status: "completed", details_url: $url, conclusion: .conclusion,
-              output: (.output | .summary |= .[0:65000] | .text = ($t | .[0:65000]))}' "$veredicto" > "$RUNNER_TEMP/check.json"
-          id=$(api -X POST -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/check-runs" --data-binary "@$RUNNER_TEMP/check.json" \
-            | jq -r '"\(.id) app_id=\(.app.id) \(.name) \(.conclusion)"' | tee /dev/stderr | cut -d' ' -f1)
+          crear() {
+            jq --arg sha "$HEAD_SHA" --rawfile t "$texto" --arg url "$EJECUCION" \
+              '{name: "revision-ia", head_sha: $sha, status: "completed", details_url: $url, conclusion: .conclusion,
+                output: (.output | .summary |= .[0:65000] | .text = ($t | .[0:65000]))}' "$veredicto" > "$RUNNER_TEMP/check.json"
+            api -X POST -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/check-runs" --data-binary "@$RUNNER_TEMP/check.json" \
+              | jq -r '"\(.id) app_id=\(.app.id) \(.name) \(.conclusion)"' | tee /dev/stderr | cut -d' ' -f1
+          }
+          lotes=si
+          id=$(crear) || id=""
+          case "$id" in
+            ''|*[!0-9]*)
+              # La API rechazo el check (p. ej. una anotacion fuera de sus
+              # limites): se publica failure con veredicto incompleta y sin
+              # anotaciones, para que el check exista y diga por que.
+              echo "::warning::revision-ia: la API rechazo el check con el veredicto de validar; se publica failure con veredicto incompleta"
+              printf 'preparar=%s consultar=%s validar=%s\nla API rechazo el check con el veredicto de validar: la revision no se completo\n' "$PREPARAR" "$CONSULTAR" "$VALIDAR" > "$RUNNER_TEMP/resumen.txt"
+              jq -n --rawfile s "$RUNNER_TEMP/resumen.txt" \
+                '{conclusion: "failure", output: {title: "revision-ia: incompleta (la API rechazo el veredicto)", summary: $s, annotations: []}}' > "$veredicto"
+              lotes=no
+              id=$(crear) || id="" ;;
+          esac
           case "$id" in
             ''|*[!0-9]*) echo "::error::revision-ia: la API no devolvio el id del check-run" >&2; exit 1 ;;
           esac
           # Las anotaciones que pasan de 50 van en PATCH, un lote por peticion
           # (la API las anade a las que ya hay).
           for k in $(seq 1 20); do
+            [ "$lotes" = si ] || break
             lote="$dir/anotaciones-$k.json"
             [ -s "$lote" ] || break
             jq --rawfile t "$texto" '.output |= (.summary |= .[0:65000] | .text = ($t | .[0:65000]))' "$lote" > "$RUNNER_TEMP/lote.json"

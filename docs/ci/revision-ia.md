@@ -35,10 +35,12 @@ el validador.
 
 El resumen del check (F6-5) empieza por el veredicto, los recuentos y una
 fila por revisora (ver «Veredicto del check»); después, como líneas de
-texto plano, `preparar=success consultar=<r>`, `revisoras= agentes= modelo=
-modelo-api= reglas= avisos= carril= complejidad= informe=` (más
-`informe-de=run-<id>`, el run del que sale el informe, cuando hay informe) y
-da una línea por revisora: `<id>: <estado>; hallazgos ok revisora=<id>
+texto plano y en este orden, la de la selección que deja `preparar`
+(`revisoras= agentes= modelo= modelo-api= reglas= avisos= carril=
+complejidad= informe=`, más `informe-de=run-<id>`, el run del que sale el
+informe, cuando hay informe), la que añade `validar` con `preparar=success
+consultar=<r>` (`preparar=success` va fijo: `validar` solo corre si
+`preparar` terminó bien) y una línea por revisora: `<id>: <estado>; hallazgos ok revisora=<id>
 aceptados=N rechazados=M motivos=<quien:motivo,...>`, con el estado de la
 llamada (`ok(<stop_reason>) tokens=...`, `negativa`, `error-http-<n> ...`,
 `sin-clave-del-modelo` o `sin-respuesta`; `cortada=<bytes>` si pasó de 64
@@ -46,7 +48,14 @@ KiB). El texto lleva, por revisora, las tablas de aceptados y rechazados y
 después el informe del modelo. Si `publicar` no encuentra o no puede leer el
 artefacto `revision-ia-hallazgos` (o su `check.json`), lo avisa en el log y
 publica el check en `failure` con el título `revision-ia: incompleta (sin
-veredicto de validar)` y `preparar= consultar= validar=` en el resumen. Un fallo de la App (no instalada, id o
+veredicto de validar)` y `preparar= consultar= validar=` en el resumen. Si
+la API rechaza el check con el veredicto de `validar` (por ejemplo, una
+anotación fuera de sus límites), lo avisa en el log y publica en su lugar el
+check en `failure`, sin anotaciones, con el título `revision-ia: incompleta
+(la API rechazo el veredicto)`: el check existe y dice por qué. `tc2
+hallazgos veredicto` ya evita los rechazos conocidos: un mensaje que queda
+vacío pasa a `descripcion sin texto legible` y el `raw_details` se recorta
+hasta caber en los 64 KB de la API. Un fallo de la App (no instalada, id o
 clave que no valen, sin token de instalación) se dice con un `::error::`
 explícito y no publica.
 
@@ -310,7 +319,8 @@ orden.
 es `success` o `failure`. El lint del workflow exige que `validar` corra
 `tc2 hallazgos veredicto`, que `publicar` lea la conclusión de
 `"$dir/check.json"`, que solo nombre `success` y `failure` y que `success`
-no aparezca como literal.
+aparezca una sola vez, en el `case` que copia `check.json` (contando la
+palabra, escriba como escriba jq la clave).
 
 ### Informe en la carpeta de la tarea
 
@@ -321,7 +331,12 @@ de escritura de la rama de estado:
 
 - `TASK-NNN/revision/revision-ia-<sha12>.json` (`$defs/informe-tarea`):
   tarea, PR, SHA, conclusión, veredicto, recuentos, el resumen del check y
-  los aceptados leídos de `raw_details`;
+  los aceptados leídos de `raw_details`. El título del check tiene que casar
+  con su conclusión y con esos aceptados (los recuentos del título son los
+  de las anotaciones leídas; un `incompleta` sin anotaciones vale con
+  cualquier título); si no, por ejemplo porque un lote de anotaciones no
+  llegó, `leer-revision` falla con `respuesta-invalida` y `review` da
+  `hallazgos=sin-leer` sin guardar nada;
 - `TASK-NNN/revision/revision-ia-<sha12>.md`: el veredicto y la tabla de
   aceptados, generados por `tc2` con `plano`, **sin** la prosa del modelo.
 

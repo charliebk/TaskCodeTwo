@@ -139,7 +139,7 @@
         "annotation_level": { "enum": ["failure", "warning"] },
         "title": { "type": "string", "minLength": 1, "maxLength": 255 },
         "message": { "type": "string", "minLength": 1 },
-        "raw_details": { "type": "string", "minLength": 2 }
+        "raw_details": { "type": "string", "minLength": 2, "maxLength": 65536 }
       }
     },
     "salida-check": {

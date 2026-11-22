@@ -2196,8 +2196,14 @@ fn publicar_transporta_el_veredicto(texto: &str) -> Result<(), String> {
             "publicar nombra las conclusiones {palabras:?}; solo se admiten success y failure"
         ));
     }
-    let literal = run.replace(' ', "");
-    if literal.contains("conclusion:\"success\"") {
+    // `success` solo puede salir una vez, en el `case` que copia check.json:
+    // contar la palabra no depende de como se escriba la clave en jq
+    // (`conclusion:`, `"conclusion":`, `.conclusion =`, `--arg`...).
+    let exitos = run
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|p| *p == "success")
+        .count();
+    if exitos != 1 || !run.contains("success|failure) cp \"$dir/check.json\"") {
         return Err("publicar pone success como literal: tiene que venir de check.json".to_owned());
     }
     Ok(())
@@ -2409,7 +2415,7 @@ fn cada_mutacion_del_revisor_da_su_error() {
         );
     }
     // F6-5: una mutacion por regla del veredicto da rojo.
-    let veredicto: [(&str, &str, &str); 5] = [
+    let veredicto: [(&str, &str, &str); 8] = [
         (
             "          tc2 hallazgos veredicto --salida",
             "          tc2 hallazgos resumen --salida",
@@ -2433,6 +2439,25 @@ fn cada_mutacion_del_revisor_da_su_error() {
         (
             "{conclusion: \"failure\", output: {title: \"revision-ia: incompleta",
             "{conclusion: \"success\", output: {title: \"revision-ia: incompleta",
+            "success como literal",
+        ),
+        // La clave entre comillas tambien es jq valido (MEN-1 de la ronda 1
+        // de TASK-051).
+        (
+            "{conclusion: \"failure\", output: {title: \"revision-ia: incompleta",
+            "{\"conclusion\": \"success\", output: {title: \"revision-ia: incompleta",
+            "success como literal",
+        ),
+        // El fallback de la API rechazada, igual.
+        (
+            "{conclusion: \"failure\", output: {title: \"revision-ia: incompleta (la API",
+            "{\"conclusion\" : \"success\", output: {title: \"revision-ia: incompleta (la API",
+            "success como literal",
+        ),
+        // Un case que ya no copia check.json.
+        (
+            "            success|failure) cp \"$dir/check.json\"",
+            "            success|failure) cp \"$dir/otro.json\"",
             "success como literal",
         ),
     ];
