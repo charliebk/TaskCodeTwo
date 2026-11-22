@@ -1239,6 +1239,94 @@ mod tests {
         }
     }
 
+    /// S06 y S07 (decision 8): las skills de diseno de un dominio detectado;
+    /// la de ejecucion por mayor solape (etiquetas y dominios), despues mayor
+    /// prioridad, despues menor id, con aviso `empate-por-id`.
+    #[test]
+    fn skills_de_diseno_y_ejecucion_por_dominio_solape_prioridad_e_id() {
+        let (cat, inv) = catalogo_muestra(&[]);
+        let extra: Vec<crate::config::Recurso> = [
+            ("d-rend", "diseno", "", "rendimiento", 0),
+            ("d-puertas", "diseno", "", "puertas-seguridad", 0),
+            ("e-solape2", "ejecucion", "k1,k2", "", 0),
+            ("e-prio1", "ejecucion", "k1", "", 1),
+            ("e-prio5", "ejecucion", "k1", "", 5),
+            ("e-m", "ejecucion", "k3", "", 2),
+            ("e-n", "ejecucion", "k3", "", 2),
+            ("e-dom", "ejecucion", "", "rendimiento", 0),
+        ]
+        .iter()
+        .map(|(id, rol, etq, dom, prioridad)| {
+            let lista = |s: &str| {
+                s.split(',')
+                    .filter(|x| !x.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            };
+            crate::config::Recurso {
+                id: (*id).to_owned(),
+                tipo: "skill".to_owned(),
+                rol: Some((*rol).to_owned()),
+                dominios: lista(dom),
+                etiquetas: lista(etq),
+                prioridad: Some(*prioridad),
+            }
+        })
+        .collect();
+        let mut rs: Vec<Revisora> = cat.revisoras().iter().chain(cat.otros()).cloned().collect();
+        rs.extend(catalogo::de_config(&extra));
+        let mut es: Vec<Entrada> = inv.entradas().to_vec();
+        es.extend(extra.iter().map(|r| Entrada {
+            tipo: Tipo::Skill,
+            id: r.id.clone(),
+            origen: Origen::Proyecto,
+        }));
+        let (cat, inv) = (Catalogo::nuevo(rs), Inventario::nuevo(es, Vec::new()));
+        let criterios = vec!["criterio".to_owned()];
+        let con = |etq: &[&str]| {
+            let etq: Vec<String> = etq.iter().map(|e| (*e).to_owned()).collect();
+            let texto = dominios::Texto {
+                objetivo: "Cambio",
+                criterios: &criterios,
+                etiquetas: &etq,
+            };
+            let t = tres(
+                "feature",
+                Carril::Funcionalidad,
+                "simple",
+                &texto,
+                &[],
+                &cat,
+                &inv,
+                &todos(),
+                1,
+            );
+            (t.d, t.i)
+        };
+        // S06: solo la de diseno del dominio detectado.
+        let (d, i) = con(&["wasm"]);
+        assert_eq!(d.skills, ["d-rend"]);
+        assert!(d.reglas.contains(&"S06".to_owned()), "{d:?}");
+        // S07 por dominio (solape 1 con rendimiento).
+        assert_eq!(i.skills, ["e-dom"]);
+        let (d, _) = con(&["k1"]);
+        assert!(
+            d.skills.is_empty() && !d.reglas.contains(&"S06".to_owned()),
+            "{d:?}"
+        );
+        // Mayor solape gana a mayor prioridad.
+        let (_, i) = con(&["k1", "k2"]);
+        assert_eq!((i.skills, i.avisos), (vec!["e-solape2".to_owned()], vec![]));
+        // Mismo solape: mayor prioridad, aunque su id sea mayor.
+        let (_, i) = con(&["k1"]);
+        assert!(i.reglas.contains(&"S07".to_owned()), "{i:?}");
+        assert_eq!((i.skills, i.avisos), (vec!["e-prio5".to_owned()], vec![]));
+        // Mismo solape y prioridad: menor id, con aviso.
+        let (_, i) = con(&["k3"]);
+        assert_eq!(i.skills, ["e-m"]);
+        assert_eq!(i.avisos, ["empate-por-id:e-m,e-n"]);
+    }
+
     /// Criterio 3 (RR-17): el nucleo de `seleccion` no nombra procesos, red,
     /// ficheros ni clientes de modelos fuera de los tests; y un agente de
     /// diseno quitado del inventario sale con `no-instalado` (S14), sin
