@@ -41,6 +41,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use crate::dato::{es_de_formato, plano};
 use crate::verificacion::informe::{Informe as InformeVerificacion, Resultado as ResultadoPaso};
 
 /// Version del contrato de hallazgos.
@@ -1133,106 +1134,6 @@ const EJEMPLO_INCREMENTAL: &str = r#"{
   ]
 }"#;
 
-/// Texto de la respuesta del modelo como texto plano de Markdown en una
-/// linea: sin saltos ni controles, con la puntuacion que da formato escapada
-/// y cortado a `tope` caracteres. Es dato del modelo (F6-7): no puede abrir
-/// tablas, enlaces, imagenes ni HTML en el check. Tampoco autoenlaces (URL
-/// desnudas, `www.`, correos), menciones `@usuario`, matematicas `$` ni
-/// emojis `:codigo:`; y los caracteres Unicode de formato (categoria Cf:
-/// ancho cero, cambios de direccion...) se quitan.
-pub fn plano(t: &str, tope: usize) -> String {
-    let cs: Vec<char> = t.chars().filter(|c| !es_de_formato(*c)).collect();
-    let mut s = String::new();
-    let mut n = 0;
-    let mut espacio = false;
-    for (i, &c) in cs.iter().enumerate() {
-        if n >= tope {
-            s.push('…');
-            break;
-        }
-        if c.is_whitespace() || c.is_control() {
-            if !espacio && !s.is_empty() {
-                s.push(' ');
-                n += 1;
-            }
-            espacio = true;
-            continue;
-        }
-        espacio = false;
-        if matches!(
-            c,
-            '\\' | '`'
-                | '*'
-                | '_'
-                | '['
-                | ']'
-                | '('
-                | ')'
-                | '<'
-                | '>'
-                | '|'
-                | '!'
-                | '~'
-                | '#'
-                | '&'
-                | '@'
-                | '$'
-        ) || (c == ':' && abre_enlace_o_emoji(cs.get(i + 1..).unwrap_or_default()))
-            || (c == '.'
-                && s.get(s.len().saturating_sub(3)..)
-                    .is_some_and(|x| x.eq_ignore_ascii_case("www")))
-        {
-            s.push('\\');
-        }
-        s.push(c);
-        n += 1;
-    }
-    s.trim_end().to_owned()
-}
-
-/// Lo que sigue a un `:` lo convierte en autoenlace (`://`) o en la apertura
-/// de un emoji (`:codigo:`). Un `:` suelto, como el de
-/// `taskcode-plugin:revisor`, se deja tal cual.
-fn abre_enlace_o_emoji(resto: &[char]) -> bool {
-    if resto.first() == Some(&'/') {
-        return true;
-    }
-    let nombre = resto
-        .iter()
-        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'))
-        .count();
-    nombre > 0 && resto.get(nombre) == Some(&':')
-}
-
-/// Caracteres Unicode de formato (categoria Cf): invisibles, pero cambian la
-/// direccion o el corte del texto.
-fn es_de_formato(c: char) -> bool {
-    matches!(
-        c,
-        '\u{AD}'
-            | '\u{600}'..='\u{605}'
-            | '\u{61C}'
-            | '\u{6DD}'
-            | '\u{70F}'
-            | '\u{890}'..='\u{891}'
-            | '\u{8E2}'
-            | '\u{180E}'
-            | '\u{200B}'..='\u{200F}'
-            | '\u{202A}'..='\u{202E}'
-            | '\u{2060}'..='\u{2064}'
-            | '\u{2066}'..='\u{206F}'
-            | '\u{FEFF}'
-            | '\u{FFF9}'..='\u{FFFB}'
-            | '\u{110BD}'
-            | '\u{110CD}'
-            | '\u{13430}'..='\u{1343F}'
-            | '\u{1BCA0}'..='\u{1BCA3}'
-            | '\u{1D173}'..='\u{1D17A}'
-            | '\u{E0001}'
-            | '\u{E0020}'..='\u{E007F}'
-    )
-}
-
 /// La seccion del check `revision-ia` para una revisora: las tablas de
 /// aceptados y rechazados, con todo el texto del modelo pasado por
 /// [`plano`].
@@ -2228,22 +2129,7 @@ mod tests {
             md.contains(r"\| x \| \!\[i\]\(http\://e/p.png\) \<b\> \# t \`c\`"),
             "{md}"
         );
-        // Autoenlaces, menciones, matematicas y emojis salen escapados; los
-        // caracteres de formato (Cf) se quitan; el resto del texto, intacto.
-        let raro = "\u{202E}evil \u{200B}zero @user http://x.y www.e.com $x$ :smile: ñ \u{2066}a\u{2069}\u{FEFF}b \u{AD}c";
-        assert_eq!(
-            plano(raro, 400),
-            r"evil zero \@user http\://x.y www\.e.com \$x\$ \:smile: ñ ab c"
-        );
-        for c in plano(raro, 400).chars() {
-            assert!(!es_de_formato(c), "queda U+{:04X}", u32::from(c));
-        }
-        // Un `:` suelto no es un emoji ni un enlace: no se escapa.
-        assert_eq!(
-            plano("taskcode-plugin:revisor a: b 10:30", 100),
-            "taskcode-plugin:revisor a: b 10:30"
-        );
-        assert_eq!(plano(&"a".repeat(10), 4), "aaaa…");
+        // Las reglas de `plano` se prueban en `dato`.
         let v = validar("r", "nada", &diff(), None);
         assert!(resumen_markdown(&v).contains("| respuesta | sin-bloque |"));
     }

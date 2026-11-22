@@ -32,6 +32,7 @@ pub mod ciclo;
 pub mod confianza;
 pub mod config;
 pub mod contrato;
+pub mod dato;
 pub mod descarga;
 pub mod desinstalar;
 pub mod doctor;
