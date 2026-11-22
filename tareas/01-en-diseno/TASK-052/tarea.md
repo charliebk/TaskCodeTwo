@@ -6,10 +6,10 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: feature/task-052-f6-6-rondas-incrementales
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
-actualizado: 2026-11-14
+actualizado: 2026-11-22
 dependencias: [TASK-051]
 ---
 ## Objetivo
@@ -31,3 +31,9 @@ Tarea F6-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 ## Criterios de aceptacion
 - [ ] Hallazgos nuevos por ronda, medidos
 - [ ] Cumple lo que pide la tarea F6-6 del plan y los requisitos que cita
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-22T00:53:43Z | plan | automatico | persona | 0.16.1 |
