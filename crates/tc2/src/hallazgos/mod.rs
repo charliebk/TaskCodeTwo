@@ -34,6 +34,7 @@
 //! cerrado). [`veredicto_ronda`] cuenta nuevos, persisten y cerrados.
 
 pub mod orden;
+pub mod prompt;
 pub mod ronda;
 
 use std::collections::{BTreeMap, BTreeSet};
