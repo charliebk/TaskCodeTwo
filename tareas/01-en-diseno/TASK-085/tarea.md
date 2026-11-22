@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-085-f4-6-plan-propone-skills-agentes-y-model
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 4322228
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -40,3 +40,10 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-22T17:13:20Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-22T17:19:30Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-22T17:19:29Z | diseno | agente:a4af724a5e04d173f | 58 | 199960 | 4097817 | 24393 | 1 | 4322228 | - | - |
