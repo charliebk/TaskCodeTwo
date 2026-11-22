@@ -868,3 +868,22 @@ la App, el prompt con la sección del informe y sin ejecutar la suite).
   resto (`verde`). Nunca `neutral`: GitHub lo da por cumplido en un check
   obligatorio y una revisión que no ocurrió pasaría la puerta (RR-04). Guía:
   `docs/ci/revision-ia.md`, «Veredicto del check».
+
+## Adenda (F6-6, TASK-052) — rondas: S13 se aplica y el título lleva la ronda
+
+- **S13 activa**: `tc2 revisoras --ronda <n>` deja de fijar la ronda a 1. En
+  CI la ronda sale de `ronda.json` de `tc2 hallazgos ronda` (el check
+  `revision-ia` anterior de la App del revisor), así que desde la ronda 2 la
+  fila S13 baja el modelo un escalón fuera de `riesgo-alto` y de
+  `dominio=puertas-seguridad` (con el detector de F4-6 pendiente, este
+  último no se cumple nunca todavía). Las rutas de la selección en modo
+  incremental son las del diff desde el commit anterior más los ficheros de
+  los abiertos CRITICO e IMPORTANTE. La selección anotada en local
+  (`roles.revision` en `tc2 review`) sigue con ronda 1: la fuente de la ronda
+  es el check de CI.
+- **Título del check**: `revision-ia: <veredicto> (ronda=R criticos=N
+  importantes=M menores=K)`, con los recuentos de los **abiertos**; los
+  cerrados en la ronda van como anotación `notice`. `tc2` sigue leyendo el
+  título v2 de F6-5 (sin `ronda=`) como ronda 1. Veredicto nuevo `tope`
+  (`failure`): pasado el tope de rondas con un CRITICO o IMPORTANTE abierto.
+  Contrato de hallazgos v3; guía: `docs/ci/revision-ia.md`, «Rondas (F6-6)».

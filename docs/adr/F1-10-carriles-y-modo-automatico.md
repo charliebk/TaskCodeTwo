@@ -747,3 +747,15 @@ Evidencia: `crates/tc2/tests/plan.rs` y los unitarios de `carril.rs`
 Evidencia: `crates/tc2/tests/aprobar.rs` y los unitarios de
 `crates/tc2/src/plan/aprobar.rs` y `operacion.rs`
 (`cambios_pedidos_cierran_la_ronda`).
+
+## Adenda (F6-6, TASK-052) — `tope` del revisor IA en CI
+
+- `tope_rondas` ya lo usa la CI: `tc2 hallazgos ronda` toma `tope_rondas` de
+  la configuración de la base más un elemento por cada línea `- ...` de
+  primer nivel en `## Rondas extra` de la tarea. Pasado ese tope con un
+  CRITICO o IMPORTANTE abierto, el check `revision-ia` sale `tope`
+  (`failure`) sin consultar al modelo y con los abiertos arrastrados. Es la
+  señal en CI de la parada `preguntar` de esta ADR: la traducción a esa
+  parada en el modo automático es de F4-4. Con el anterior en verde y cambios
+  solo en ficheros con MENOR abiertos, la ronda es `ligera` (sin modelo,
+  verde, la ronda no sube): los MENORES no gastan ronda.
