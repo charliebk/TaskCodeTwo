@@ -1,5 +1,5 @@
-//! Las tablas `tabla-seleccion` y `tabla-modelo` del ADR F1-15, leidas del
-//! propio ADR (decision 1: las reglas no se escriben aparte en el codigo).
+//! Las tablas `tabla-seleccion`, `tabla-modelo` y `tabla-dominios` del ADR
+//! F1-15, leidas del propio ADR (decision 1: las reglas no se escriben aparte en el codigo).
 //!
 //! El ADR entra en el binario con `include_str!`: cambiar una fila del ADR
 //! cambia la seleccion al recompilar, y una condicion o una accion fuera del
@@ -17,7 +17,7 @@ pub const ESCALA: [&str; 3] = ["haiku", "sonnet", "opus"];
 const CARRILES: [&str; 4] = ["errata", "fix", "funcionalidad", "riesgo-alto"];
 
 /// Dominios cerrados (F1-15 decision 3).
-const DOMINIOS: [&str; 2] = ["puertas-seguridad", "rendimiento"];
+pub const DOMINIOS: [&str; 2] = ["puertas-seguridad", "rendimiento"];
 
 /// Atomos sin argumento del vocabulario cerrado (decision 1).
 const ATOMOS_FIJOS: [&str; 9] = [
@@ -78,8 +78,47 @@ pub struct FilaModelo {
     pub carril: String,
     /// Complejidades a las que se aplica; vacia es «cualquiera».
     pub complejidades: Vec<String>,
+    /// Modelo de diseno (columna «Diseño»); `None` con «—» (sin plan).
+    pub diseno: Option<String>,
+    /// Modelo de implementacion (columna «Implementación»).
+    pub implementacion: String,
     /// Modelo de revision (columna «Revisión»).
     pub revision: String,
+}
+
+/// Tipo de senal de una fila de `tabla-dominios`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Senal {
+    /// Igualdad exacta con una etiqueta de la tarea.
+    Etiqueta,
+    /// Principio de una palabra del objetivo o de los criterios.
+    Palabra,
+    /// Glob sobre las rutas del cambio, sin distinguir mayusculas.
+    Ruta,
+}
+
+impl Senal {
+    /// Nombre en la tabla y en las senales anotadas.
+    pub fn nombre(self) -> &'static str {
+        match self {
+            Self::Etiqueta => "etiqueta",
+            Self::Palabra => "palabra",
+            Self::Ruta => "ruta",
+        }
+    }
+}
+
+/// Una fila de `tabla-dominios`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilaDominio {
+    /// `D01`...
+    pub id: String,
+    /// Dominio de la lista cerrada.
+    pub dominio: String,
+    /// Tipo de senal.
+    pub senal: Senal,
+    /// Valor (etiqueta, palabra o glob).
+    pub valor: String,
 }
 
 /// Las filas entre `<!-- <marca>:inicio -->` y `<!-- <marca>:fin -->`, sin
@@ -225,7 +264,7 @@ pub fn seleccion(texto: &str) -> Result<Vec<FilaSeleccion>, String> {
 pub fn modelo(texto: &str) -> Result<Vec<FilaModelo>, String> {
     let mut v = Vec::new();
     for c in filas(texto, "tabla-modelo")? {
-        let [id, carril, cx, _diseno, _impl, revision, ..] = c.as_slice() else {
+        let [id, carril, cx, diseno, implementacion, revision, ..] = c.as_slice() else {
             return Err(format!("fila de tabla-modelo incompleta: {c:?}"));
         };
         let carril = sin_comillas(carril);
@@ -243,15 +282,27 @@ pub fn modelo(texto: &str) -> Result<Vec<FilaModelo>, String> {
                 return Err(format!("{id}: complejidad desconocida {x}"));
             }
         }
-        let revision = sin_comillas(revision);
-        if !ESCALA.contains(&revision.as_str()) {
-            return Err(format!("{id}: modelo fuera de la escala {revision}"));
-        }
+        let en_escala = |m: &str| -> Result<String, String> {
+            let m = sin_comillas(m);
+            if ESCALA.contains(&m.as_str()) {
+                Ok(m)
+            } else {
+                Err(format!("{id}: modelo fuera de la escala {m}"))
+            }
+        };
+        // «—» en diseno: sin plan (errata, S01).
+        let diseno = if sin_comillas(diseno) == "—" {
+            None
+        } else {
+            Some(en_escala(diseno)?)
+        };
         v.push(FilaModelo {
             id: id.clone(),
             carril,
             complejidades,
-            revision,
+            diseno,
+            implementacion: en_escala(implementacion)?,
+            revision: en_escala(revision)?,
         });
     }
     // Cada combinacion de carril y complejidad, exactamente una fila.
@@ -268,6 +319,41 @@ pub fn modelo(texto: &str) -> Result<Vec<FilaModelo>, String> {
                 return Err(format!("tabla-modelo: {carril}/{cx} tiene {n} filas"));
             }
         }
+    }
+    Ok(v)
+}
+
+/// Lee `tabla-dominios` de `texto`: dominio de la lista cerrada, senal
+/// `etiqueta|palabra|ruta` y valor no vacio.
+pub fn dominios(texto: &str) -> Result<Vec<FilaDominio>, String> {
+    let mut v: Vec<FilaDominio> = Vec::new();
+    for c in filas(texto, "tabla-dominios")? {
+        let [id, dominio, senal, valor, ..] = c.as_slice() else {
+            return Err(format!("fila de tabla-dominios incompleta: {c:?}"));
+        };
+        let dominio = sin_comillas(dominio);
+        if !DOMINIOS.contains(&dominio.as_str()) {
+            return Err(format!("{id}: dominio fuera de la lista cerrada {dominio}"));
+        }
+        let senal = match sin_comillas(senal).as_str() {
+            "etiqueta" => Senal::Etiqueta,
+            "palabra" => Senal::Palabra,
+            "ruta" => Senal::Ruta,
+            otra => return Err(format!("{id}: senal desconocida {otra}")),
+        };
+        let valor = sin_comillas(valor);
+        if valor.is_empty() {
+            return Err(format!("{id}: valor vacio"));
+        }
+        if v.iter().any(|f| f.id == *id) {
+            return Err(format!("{id} repetida"));
+        }
+        v.push(FilaDominio {
+            id: id.clone(),
+            dominio,
+            senal,
+            valor,
+        });
     }
     Ok(v)
 }
@@ -293,6 +379,43 @@ mod tests {
         assert_eq!(s13.map(|c| c.len()), Some(3));
         let m = modelo(ADR).unwrap_or_default();
         assert_eq!(m.len(), 7, "{:?}", modelo(ADR).err());
+        // Las tres columnas: M01 (errata) sin diseno; M05 opus/sonnet/opus.
+        let col = |id: &str| {
+            m.iter().find(|f| f.id == id).map(|f| {
+                (
+                    f.diseno.clone(),
+                    f.implementacion.clone(),
+                    f.revision.clone(),
+                )
+            })
+        };
+        assert_eq!(
+            col("M01"),
+            Some((None, "haiku".to_owned(), "sonnet".to_owned()))
+        );
+        assert_eq!(
+            col("M05"),
+            Some((
+                Some("opus".to_owned()),
+                "sonnet".to_owned(),
+                "opus".to_owned()
+            ))
+        );
+        let d = dominios(ADR).unwrap_or_default();
+        assert_eq!(d.len(), 26, "{:?}", dominios(ADR).err());
+        assert_eq!(
+            d.iter().find(|f| f.id == "D22").map(|f| (
+                f.dominio.as_str(),
+                f.senal,
+                f.valor.as_str()
+            )),
+            Some(("puertas-seguridad", Senal::Ruta, ".claude/**"))
+        );
+        // Fuera de la lista cerrada o de las senales, no se lee.
+        assert!(dominios(&ADR.replace("| D23 | `rendimiento`", "| D23 | `datos`")).is_err());
+        assert!(
+            dominios(&ADR.replace("| ruta | `.claude/**`", "| fichero | `.claude/**`")).is_err()
+        );
     }
 
     /// Lo que no es del vocabulario no se lee.

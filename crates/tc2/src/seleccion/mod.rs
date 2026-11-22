@@ -16,6 +16,7 @@
 //! Las filas se leen igual y su vocabulario se valida.
 
 pub mod catalogo;
+pub mod dominios;
 pub mod orden;
 pub mod tabla;
 
