@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-051-f6-5-hallazgos-estructurados
 asignado_a: charlie.bk@gmail.com
@@ -73,6 +73,7 @@ Revision por pares:
 | 2026-11-21T22:43:05Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-21T22:43:07Z | start | automatico | persona | 0.16.1 |
 | 2026-11-22T00:01:08Z | review | automatico | persona | 0.16.1 |
+| 2026-11-22T00:53:18Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -87,3 +88,10 @@ Revision por pares:
 ## Verificacion ligera
 
 - 2026-11-22T00:24:55Z: ronda 1; commit revisado 02000f5a7c78e8404c5a4257bdb7eb7ecc6bfa1b; commit verificado 4f7ba280fe89791a52e5745ba2f936f347d49154; ficheros: .github/workflows/revision-ia.yml, crates/tc2/esquemas/hallazgos.schema.json, crates/tc2/src/hallazgos/mod.rs, crates/tc2/src/plataforma/github.rs, docs/ci/revision-ia.md, xtask/src/workflows.rs; corregidos: MEN-1, MEN-2, MEN-3, MEN-4, MEN-1, MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 220 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 130 min
+- Paso de la hora: 130 min reales frente a 220 estimados
+- Cierre (finish): 1653 s, de 2026-11-22T00:25:45Z a 2026-11-22T00:53:18Z

@@ -1,15 +1,14 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-21. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-22. No editar a mano.
 
-## Planificadas (00-planificadas) — 50
+## Planificadas (00-planificadas) — 49
 
 ```text
 ID        Titulo                                                                                           Asignado
 --------  -----------------------------------------------------------------------------------------------  -------------
 TASK-039  F4-4 Orquestador del modo automatico                                                             (sin asignar)
 TASK-040  F4-5 Punto de relevo                                                                             (sin asignar)
-TASK-051  F6-5 Hallazgos estructurados                                                                     (sin asignar)
 TASK-052  F6-6 Rondas incrementales                                                                        (sin asignar)
 TASK-053  F6-7 Defensa contra prompt injection en PR y tareas                                              (sin asignar)
 TASK-054  F7-1 finish: merge en develop por la cola cuando pasan las puertas                               (sin asignar)
@@ -59,7 +58,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 70
+## Terminadas (04-terminadas) — 71
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -112,6 +111,7 @@ TASK-047  F6-1 Identidades: agente implementador                                
 TASK-048  F6-2 review: abre el PR contra develop con la identidad del agente                                                  charlie.bk@gmail.com
 TASK-049  F6-3 Revisor en CI con las skills de dominio de la 0.16                                                             charlie.bk@gmail.com
 TASK-050  F6-4 Busqueda de errores                                                                                            charlie.bk@gmail.com
+TASK-051  F6-5 Hallazgos estructurados                                                                                        charlie.bk@gmail.com
 TASK-073  F1-15 ADR seleccion de skills, agentes y modelo por tarea y rol                                                     charlie.bk@gmail.com
 TASK-074  F1-16 ADR lotes desatendidos con revision humana al final                                                           charlie.bk@gmail.com
 TASK-075  F1-17 ADR progreso en vivo y estimacion de tiempo                                                                   charlie.bk@gmail.com
