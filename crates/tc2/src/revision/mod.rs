@@ -332,6 +332,9 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         agente: sel.agentes.first().cloned(),
         modelo: sel.modelo.clone(),
         skills: sel.revisoras.clone(),
+        reglas: sel.reglas.clone(),
+        senales: sel.senales.clone(),
+        avisos: sel.avisos.clone(),
     });
     let tr = estado::transaccion(&ctx, &op);
     match tr.resultado {
@@ -497,7 +500,22 @@ pub fn seleccion_de(
         modelos_permitidos: &cfg.seleccion.modelos_permitidos,
         ronda: 1,
     };
-    let mut s = seleccion::revision(&rutas, &f.catalogo, &f.inventario, &ctx).unwrap_or_default();
+    // F4-6: con los dominios (texto vivo, rutas del diff y lo congelado).
+    let doms = seleccion::orden::dominios_de(Some((t, cuerpo)), &rutas, &cfg);
+    let entrada = seleccion::Entrada {
+        rutas: &rutas,
+        dominios: &doms,
+        etiquetas: &t.etiquetas,
+        roles_base: 0,
+    };
+    let mut s = seleccion::seleccionar(
+        seleccion::Rol::Revision,
+        &entrada,
+        &f.catalogo,
+        &f.inventario,
+        &ctx,
+    )
+    .unwrap_or_default();
     avisos.append(&mut s.avisos);
     s.avisos = avisos;
     s

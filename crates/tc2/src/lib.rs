@@ -555,7 +555,7 @@ fn orden_review(args: &[String], e: &toma::Entorno<'_>) -> Informe {
 
 /// La carpeta de Claude Code (`CLAUDE_CONFIG_DIR` o `~/.claude`), solo para
 /// leer el inventario (F3-9, F6-3).
-fn dir_claude() -> Option<std::path::PathBuf> {
+pub(crate) fn dir_claude() -> Option<std::path::PathBuf> {
     instalacion::Entorno::de_variables(
         instalacion::Sistema::actual(),
         std::path::PathBuf::new(),

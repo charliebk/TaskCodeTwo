@@ -219,6 +219,92 @@ fn c2_uno_en_fix_y_cuatro_mas_unificador_en_riesgo_alto() {
     assert!(u.contains("- Rol: `brainstorm-unificador`"), "{u}");
 }
 
+/// `tc2 <args>` como [`tc2`], con la carpeta de Claude Code `claude`.
+fn tc2_claude(f: &Fixture, dir: &Path, claude: &Path, args: &[&str]) -> (Option<i32>, String) {
+    let mut e = entorno_ssh(f);
+    e.push(("CLAUDE_CONFIG_DIR".into(), claude.as_os_str().to_owned()));
+    let o = lanzar(dir, e, args);
+    let out = texto(&o.stdout);
+    assert_eq!(out.lines().count(), 1, "{out}");
+    (o.status.code(), out.trim_end().to_owned())
+}
+
+/// F4-6, criterio 2 (E2E): el modelo cambia con el carril y la complejidad
+/// y queda anotado por rol. Una `fix` simple: diseno e implementacion
+/// `sonnet` (M02), un rol, su agente del inventario y el modelo en la
+/// peticion; con `--carril riesgo-alto`: `opus` en los dos (M07), los
+/// cuatro roles y el unificador, cada peticion con su agente y su modelo.
+#[test]
+fn plan_anota_modelos_distintos() {
+    let f = Fixture::nueva("plan-modelos");
+    let claude = comun::claude_con_brainstorm(&f.raiz, &[]);
+    let (bare, a) = preparar(&f, &[FIX, FUNC]);
+    let (c, out) = tc2_claude(&f, &a, &claude, &["plan", "TASK-001"]);
+    assert_eq!(c, Some(0), "{out}");
+    assert_eq!(valor(&out, "modelo-diseno"), Some("sonnet"), "{out}");
+    assert_eq!(
+        valor(&out, "modelo-implementacion"),
+        Some("sonnet"),
+        "{out}"
+    );
+    assert_eq!(valor(&out, "dominios"), Some("ninguno"), "{out}");
+    assert_eq!(valor(&out, "avisos"), Some(""), "{out}");
+    let md = publicado(&f, &bare, "TASK-001/tarea.md");
+    assert!(
+        md.contains("  diseno: {modelo: \"sonnet\", skills: [], regla: null, agentes: [\"taskcode-plugin:brainstorm-arquitectura\"], reglas: [\"M02\", \"S02\"], inventario: \""),
+        "{md}"
+    );
+    assert!(
+        md.contains("  implementacion: {modelo: \"sonnet\", skills: [], regla: null, reglas: [\"M02\"], inventario: \""),
+        "{md}"
+    );
+    let p = publicado(
+        &f,
+        &bare,
+        "TASK-001/planificacion/brainstorm/peticion-plan-1.md",
+    );
+    assert!(
+        p.contains("- Rol: `brainstorm-arquitectura` — lanzalo con el agente `taskcode-plugin:brainstorm-arquitectura` y el modelo `sonnet`"),
+        "{p}"
+    );
+
+    let (c, out) = tc2_claude(
+        &f,
+        &a,
+        &claude,
+        &["plan", "TASK-002", "--carril", "riesgo-alto"],
+    );
+    assert_eq!(c, Some(0), "{out}");
+    assert_eq!(valor(&out, "modelo-diseno"), Some("opus"), "{out}");
+    assert_eq!(valor(&out, "modelo-implementacion"), Some("opus"), "{out}");
+    let md = publicado(&f, &bare, "TASK-002/tarea.md");
+    assert!(
+        md.contains("  diseno: {modelo: \"opus\", skills: [], regla: null, agentes: [\"taskcode-plugin:brainstorm-arquitectura\", \"taskcode-plugin:brainstorm-riesgos\", \"taskcode-plugin:brainstorm-testing\", \"taskcode-plugin:brainstorm-dominio\", \"taskcode-plugin:brainstorm-unificador\"], reglas: [\"M07\", \"S02\", \"S05\"]"),
+        "{md}"
+    );
+    assert!(md.contains("  implementacion: {modelo: \"opus\""), "{md}");
+    let u = publicado(
+        &f,
+        &bare,
+        "TASK-002/planificacion/brainstorm/peticion-unificador-1.md",
+    );
+    assert!(
+        u.contains(
+            "lanzalo con el agente `taskcode-plugin:brainstorm-unificador` y el modelo `opus`"
+        ),
+        "{u}"
+    );
+    let r = publicado(
+        &f,
+        &bare,
+        "TASK-002/planificacion/brainstorm/peticion-brainstorm-dominio-1.md",
+    );
+    assert!(
+        r.contains("lanzalo con el agente `taskcode-plugin:brainstorm-dominio` y el modelo `opus`"),
+        "{r}"
+    );
+}
+
 /// Criterio 3 (E2E): `plan` publica en `TASK-NNN/planificacion/`, deja la
 /// tarea `en-diseno` con el carril y el modo congelados y su fila de
 /// transicion; repetir da `sin-cambios` sin tocar el remoto; subir el

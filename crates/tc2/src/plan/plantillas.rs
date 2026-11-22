@@ -50,6 +50,25 @@ pub struct Datos<'a> {
     pub enunciado: &'a Enunciado,
     /// Complejidad declarada frente a heuristica.
     pub resolucion: &'a Resolucion,
+    /// Agentes de diseno de la seleccion (ids del inventario, F4-6).
+    pub agentes: &'a [String],
+    /// Modelo de diseno de la seleccion (F4-6); `None` si no lo hay.
+    pub modelo: Option<&'a str>,
+}
+
+/// Con que agente y modelo se lanza el rol `rid` (F4-6): el id del
+/// inventario que la seleccion eligio para ese rol (`<plugin>:<rid>`) o, si
+/// no eligio ninguno, el propio `rid`.
+fn lanzar(d: &Datos<'_>, rid: &str) -> String {
+    let agente = d
+        .agentes
+        .iter()
+        .find(|a| a.rsplit(':').next() == Some(rid))
+        .map_or(rid, String::as_str);
+    match d.modelo {
+        Some(m) => format!("lanzalo con el agente `{agente}` y el modelo `{m}`"),
+        None => format!("lanzalo con el agente `{agente}`"),
+    }
 }
 
 /// `peticion-<rol>-<ronda>.md` (el id ya lleva `brainstorm-`).
@@ -230,8 +249,9 @@ pub fn peticion_rol(d: &Datos<'_>, rol: &Rol, otros: &[Rol]) -> String {
         )
     };
     format!(
-        "# Peticion de brainstorm — {id}, rol {titulo} (ronda {ronda})\n\n{cab}- Rol: `{rid}` — lanzalo con el agente de ese mismo nombre\n- Vuelca tu respuesta en: `{salida}` (se publica con `{orden}`)\n\n## Tu pregunta\n\n> {pregunta}\n\n## Que miras\n\n{mira}\n## Que NO miras\n\nNo es una lista de cortesia. Si la ignoras y lo cubres todo \"por si acaso\", el acotado de contexto se deshace sin que se note y esta tarea deja de tener varios puntos de vista:\n\n{no_mira}\n{enun}\n## Como entregas\n\nEscribe en `{salida}`, con estas secciones y en este orden:\n\n{entregables}\n## Reglas\n\n- **Propones enfoque; no implementas.** No escribas codigo de produccion ni modifiques ficheros del repo: tu salida es un documento.\n- Evidencia, no suposicion: si afirmas que algo se comporta de cierta manera, es porque lo has mirado. Di de donde lo sacas.\n- Prefiere lo concreto: rutas, nombres y casos reales por encima de recomendaciones genericas.\n- {companeros}",
+        "# Peticion de brainstorm — {id}, rol {titulo} (ronda {ronda})\n\n{cab}- Rol: `{rid}` — {lanza}\n- Vuelca tu respuesta en: `{salida}` (se publica con `{orden}`)\n\n## Tu pregunta\n\n> {pregunta}\n\n## Que miras\n\n{mira}\n## Que NO miras\n\nNo es una lista de cortesia. Si la ignoras y lo cubres todo \"por si acaso\", el acotado de contexto se deshace sin que se note y esta tarea deja de tener varios puntos de vista:\n\n{no_mira}\n{enun}\n## Como entregas\n\nEscribe en `{salida}`, con estas secciones y en este orden:\n\n{entregables}\n## Reglas\n\n- **Propones enfoque; no implementas.** No escribas codigo de produccion ni modifiques ficheros del repo: tu salida es un documento.\n- Evidencia, no suposicion: si afirmas que algo se comporta de cierta manera, es porque lo has mirado. Di de donde lo sacas.\n- Prefiere lo concreto: rutas, nombres y casos reales por encima de recomendaciones genericas.\n- {companeros}",
         id = d.id,
+        lanza = lanzar(d, rol.id),
         titulo = rol.titulo,
         ronda = d.ronda,
         cab = cabecera(d),
@@ -256,8 +276,9 @@ fn que_trae(seccion_roles: &str) -> String {
 /// el plan.
 pub fn peticion_redaccion(d: &Datos<'_>, rol: &Rol) -> String {
     format!(
-        "# Peticion de redaccion del plan — {id} (ronda {ronda})\n\n{cab}- Rol: `{rid}` — lanzalo con el agente de ese mismo nombre\n- Quien orquesta publica tu respuesta con: `{orden}`\n\n**Esta tarea se planifica con un solo rol y no hay unificador**: tu respuesta ES el plan final. Redactala con las secciones de abajo; quien orquesta la publica tal cual en `plan-final.md` (tu no escribes ficheros), sin salida intermedia que consolidar.\n\n{replan}## Tu pregunta\n\n> {pregunta}\n\n## Que miras\n\n{mira}\n## Que NO miras\n\nQue lo mires solo tu no te autoriza a cubrirlo todo: lo que queda fuera de tu pregunta no se mira, pero se DICE. Anota en el plan lo que no cubres, para que quien lo apruebe sepa que ese lado no se ha revisado:\n\n{no_mira}\n{complejidad}\n{trae}## Reglas\n\n- **Propones enfoque; no implementas.** No escribas codigo de produccion ni modifiques ficheros del repo: tu salida es el plan.\n- Evidencia, no suposicion: si afirmas que algo se comporta de cierta manera, es porque lo has mirado. Di de donde lo sacas.\n\n{enun}",
+        "# Peticion de redaccion del plan — {id} (ronda {ronda})\n\n{cab}- Rol: `{rid}` — {lanza}\n- Quien orquesta publica tu respuesta con: `{orden}`\n\n**Esta tarea se planifica con un solo rol y no hay unificador**: tu respuesta ES el plan final. Redactala con las secciones de abajo; quien orquesta la publica tal cual en `plan-final.md` (tu no escribes ficheros), sin salida intermedia que consolidar.\n\n{replan}## Tu pregunta\n\n> {pregunta}\n\n## Que miras\n\n{mira}\n## Que NO miras\n\nQue lo mires solo tu no te autoriza a cubrirlo todo: lo que queda fuera de tu pregunta no se mira, pero se DICE. Anota en el plan lo que no cubres, para que quien lo apruebe sepa que ese lado no se ha revisado:\n\n{no_mira}\n{complejidad}\n{trae}## Reglas\n\n- **Propones enfoque; no implementas.** No escribas codigo de produccion ni modifiques ficheros del repo: tu salida es el plan.\n- Evidencia, no suposicion: si afirmas que algo se comporta de cierta manera, es porque lo has mirado. Di de donde lo sacas.\n\n{enun}",
         id = d.id,
+        lanza = lanzar(d, rol.id),
         ronda = d.ronda,
         cab = cabecera(d),
         rid = rol.id,
@@ -302,11 +323,12 @@ pub fn peticion_unificador(d: &Datos<'_>, roles: &[Rol]) -> String {
         _ => "- Los desacuerdos entre roles y como se resuelve cada uno.\n",
     };
     format!(
-        "# Peticion al unificador — {id} (ronda {ronda})\n\n{cab}- Rol: `{UNIFICADOR}` — lanzalo con el agente de ese mismo nombre\n- Vuelca el resultado con: `{orden}`\n\n{replan}## Salidas que tienes que consolidar\n\n{salidas}\n{complejidad}\n## Como consolidas\n\n{como}\n{trae}{enun}",
+        "# Peticion al unificador — {id} (ronda {ronda})\n\n{cab}- Rol: `{UNIFICADOR}` — {lanza}\n- Vuelca el resultado con: `{orden}`\n\n{replan}## Salidas que tienes que consolidar\n\n{salidas}\n{complejidad}\n## Como consolidas\n\n{como}\n{trae}{enun}",
         id = d.id,
         ronda = d.ronda,
         cab = cabecera(d),
         orden = guardar(d.id, PLAN_FINAL),
+        lanza = lanzar(d, UNIFICADOR),
         replan = replanificacion(d),
         complejidad = bloque_complejidad(d, roles),
         trae = que_trae(seccion),
@@ -362,6 +384,8 @@ mod tests {
             fecha: "2026-11-18",
             enunciado: e,
             resolucion: r,
+            agentes: &[],
+            modelo: None,
         }
     }
 

@@ -60,6 +60,7 @@ pub struct Aprobar {
     ahora: u64,
     modo: &'static str,
     dueno: RefCell<Option<String>>,
+    roles: RefCell<Option<crate::tarea::Roles>>,
 }
 
 impl Aprobar {
@@ -77,7 +78,14 @@ impl Aprobar {
             ahora,
             modo: Config::suelo().modo_flujo.nombre(),
             dueno: RefCell::new(None),
+            roles: RefCell::new(None),
         })
+    }
+
+    /// `roles` de la tarea leida en el ultimo intento: la seleccion que
+    /// firma la persona (F4-6, F1-15 decision 3).
+    pub fn roles(&self) -> Option<crate::tarea::Roles> {
+        self.roles.borrow().clone()
     }
 
     /// El `modo_flujo` de la configuracion de la base, para la fila si la
@@ -168,6 +176,7 @@ impl Operacion for Aprobar {
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         *self.dueno.borrow_mut() = None;
         let (t, cuerpo) = tarea_de(estado, &self.id)?;
+        *self.roles.borrow_mut() = Some(t.roles.clone());
         let plan = estado.leer(&p::ruta_plan_final(&self.id))?;
         let instante = instante(self.ahora);
         let quien = Aprobacion {

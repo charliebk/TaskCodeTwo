@@ -279,3 +279,48 @@ pub fn registro_permitido(registro: &[String]) {
         }
     }
 }
+
+/// Carpeta de Claude Code falsa en `raiz` con el plugin `taskcode-plugin`
+/// habilitado y sus agentes de brainstorm, menos los de `sin` (F4-6: la
+/// seleccion elige entre lo instalado). Devuelve la carpeta para
+/// `CLAUDE_CONFIG_DIR`.
+pub fn claude_con_brainstorm(raiz: &Path, sin: &[&str]) -> PathBuf {
+    let claude = raiz.join("claude");
+    let cache = raiz.join("cache-plugin");
+    for n in [
+        "arquitectura",
+        "riesgos",
+        "testing",
+        "dominio",
+        "rendimiento",
+        "unificador",
+    ] {
+        if sin.contains(&n) {
+            continue;
+        }
+        escribir(
+            &cache,
+            &format!("agents/brainstorm-{n}.md"),
+            &format!("---\nname: brainstorm-{n}\ndescription: rol {n}\n---\n\nrol\n"),
+        );
+    }
+    escribir(
+        &cache,
+        ".claude-plugin/plugin.json",
+        "{\"name\": \"taskcode-plugin\"}",
+    );
+    let instalados = serde_json::json!({"version": 2, "plugins": {
+        "taskcode-plugin@tc": [{"scope": "user", "installPath": cache, "version": "0.16.2"}]
+    }});
+    escribir(
+        &claude,
+        "plugins/installed_plugins.json",
+        &instalados.to_string(),
+    );
+    escribir(
+        &claude,
+        "settings.json",
+        "{\"enabledPlugins\": {\"taskcode-plugin@tc\": true}}",
+    );
+    claude
+}

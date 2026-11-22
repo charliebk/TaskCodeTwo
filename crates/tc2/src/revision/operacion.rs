@@ -44,6 +44,12 @@ pub struct AnotacionRevision {
     pub modelo: String,
     /// Revisoras.
     pub skills: Vec<String>,
+    /// Filas aplicadas, senales de dominio y avisos (F4-6).
+    pub reglas: Vec<String>,
+    /// Senales de dominio.
+    pub senales: Vec<String>,
+    /// Avisos.
+    pub avisos: Vec<String>,
 }
 
 /// Pasar la tarea `id` a revision.
@@ -89,6 +95,9 @@ impl Revisar {
         rv.agente.clone_from(&s.agente);
         rv.modelo = Some(s.modelo.clone());
         rv.skills.clone_from(&s.skills);
+        rv.reglas.clone_from(&s.reglas);
+        rv.senales.clone_from(&s.senales);
+        rv.avisos.clone_from(&s.avisos);
         Some(rv)
     }
 
@@ -264,6 +273,9 @@ mod tests {
             agente: Some("general-purpose".to_owned()),
             modelo: "opus".to_owned(),
             skills: skills.iter().map(|s| (*s).to_owned()).collect(),
+            reglas: Vec::new(),
+            senales: Vec::new(),
+            avisos: Vec::new(),
         };
         let antes = md("en-curso", ana().asignado().into());
         let op = Revisar::nueva("TASK-001", &ana(), AHORA).con_seleccion(sel(&["p:rust"]));

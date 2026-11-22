@@ -175,17 +175,55 @@ pub fn de_tarea(t: &Tarea, c: &Cuerpo) -> (Carril, &'static str) {
         &t.dependencias,
         &e,
     );
+    (carril, complejidad(&r))
+}
+
+/// Los dominios de una tarea para la revision (F4-6; F1-15 decision 3):
+/// los del texto vivo y las `rutas` del diff con `dominios_extra` de la
+/// configuracion de la base, mas las senales congeladas con el plan
+/// aprobado (`roles.diseno.senales`): reescribir la tarea no quita un
+/// dominio. Sin tarea, solo las rutas.
+pub fn dominios_de(
+    tarea: Option<(&Tarea, &Cuerpo)>,
+    rutas: &[String],
+    cfg: &crate::config::Config,
+) -> super::dominios::Dominios {
+    let tabla = super::tabla::dominios(super::tabla::ADR).unwrap_or_default();
+    let extra = &cfg.seleccion.dominios_extra;
+    match tarea {
+        Some((t, c)) => {
+            let e = heuristica::Enunciado::de(c);
+            let texto = super::dominios::Texto {
+                objetivo: &e.objetivo,
+                criterios: &e.criterios,
+                etiquetas: &t.etiquetas,
+            };
+            let d = super::dominios::dominios(&texto, rutas, &tabla, extra);
+            super::dominios::union(&d, &t.roles.diseno.senales)
+        }
+        None => {
+            let texto = super::dominios::Texto {
+                objetivo: "",
+                criterios: &[],
+                etiquetas: &[],
+            };
+            super::dominios::dominios(&texto, rutas, &tabla, extra)
+        }
+    }
+}
+
+/// La complejidad de la seleccion: la mayor entre la declarada y la
+/// heuristica (F1-15 decision 1).
+pub fn complejidad(r: &heuristica::Resolucion) -> &'static str {
     let indice = |n: &str| heuristica::NIVELES.iter().position(|x| *x == n);
-    let cx = r
-        .declarado
+    r.declarado
         .as_deref()
         .and_then(indice)
         .into_iter()
         .chain(indice(r.heuristico))
         .max()
         .and_then(|i| heuristica::NIVELES.get(i).copied())
-        .unwrap_or(r.heuristico);
-    (carril, cx)
+        .unwrap_or(r.heuristico)
 }
 
 /// Las claves de la seleccion en un informe.
@@ -377,6 +415,11 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     let mut avisos = f.avisos.clone();
     let mut carril = Carril::Funcionalidad;
     let mut cx: Option<String> = None;
+    let config = crate::config::de_base(e.git, e.dir).unwrap_or_else(|_| {
+        avisos.push("config-de-base-no-leida".to_owned());
+        crate::config::Config::suelo()
+    });
+    let mut doms = dominios_de(None, &rutas, &config);
     if let Some(id) = &a.tarea {
         let leida = crate::estado::leer(e.git, e.dir)
             .map_err(|i| i.valor("motivo").unwrap_or("estado").to_owned())
@@ -391,6 +434,7 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
                 let (k, x) = de_tarea(&t, &c);
                 carril = k;
                 cx = Some(x.to_owned());
+                doms = dominios_de(Some((&t, &c)), &rutas, &config);
             }
             Err(m) => avisos.push(format!("tarea-no-leida:{m}")),
         }
@@ -401,17 +445,26 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     if a.complejidad.is_some() {
         cx = a.complejidad.clone();
     }
-    let config = crate::config::de_base(e.git, e.dir).unwrap_or_else(|_| {
-        avisos.push("config-de-base-no-leida".to_owned());
-        crate::config::Config::suelo()
-    });
     let ctx = Contexto {
         carril,
         complejidad: cx.as_deref(),
         modelos_permitidos: &config.seleccion.modelos_permitidos,
         ronda: a.ronda.unwrap_or(1),
     };
-    let mut s = super::revision(&rutas, &f.catalogo, &f.inventario, &ctx).map_err(|x| {
+    let entrada = super::Entrada {
+        rutas: &rutas,
+        dominios: &doms,
+        etiquetas: &[],
+        roles_base: 0,
+    };
+    let mut s = super::seleccionar(
+        super::Rol::Revision,
+        &entrada,
+        &f.catalogo,
+        &f.inventario,
+        &ctx,
+    )
+    .map_err(|x| {
         Informe::nuevo(NOMBRE, Resultado::Error)
             .diagnostico(Mensaje::nuevo(&txt::TABLA_ILEGIBLE).con("error", x))
     })?;

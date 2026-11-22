@@ -84,6 +84,13 @@ impl Catalogo {
         &self.otros
     }
 
+    /// Huella del catalogo (12 hex del sha256 de su forma canonica, como
+    /// [`Inventario::huella`]).
+    pub fn huella(&self) -> String {
+        let s = format!("{:?}{:?}", self.revisoras, self.otros);
+        crate::contrato::corto(&distribucion::sha256::hex(s.as_bytes()))
+    }
+
     /// La revisora de id `id`.
     pub fn revisora(&self, id: &str) -> Option<&Revisora> {
         self.revisoras.iter().find(|r| r.id == id)
