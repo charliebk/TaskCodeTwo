@@ -831,8 +831,9 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   `revision-ia` de la ronda anterior con el `GITHUB_TOKEN` (`checks: read`,
   lectura ya admitida por la lista blanca de la decisión 1 para `buscar` de
   F5-2). El llamador tiene que darlo (un reutilizable no gana permisos que
-  el llamador no da); sin él, el paso «Ronda anterior» falla y el check sale
-  `incompleta` (falla en cerrado). El lint del llamador (`llamador-revision`)
+  el llamador no da); sin él, GitHub rechaza el run entero al validarlo y no
+  se publica ningún check `revision-ia` (falla en cerrado; no verificado aún
+  en un run real). El lint del llamador (`llamador-revision`)
   admite `checks: read` y rechaza `checks: write`. Ningún job nuevo.
 - **La ronda anterior sale del check de la App del revisor**, filtrado por
   su `app.id` (`plataforma.revisor_id` de la base), no del informe

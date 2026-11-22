@@ -144,9 +144,15 @@ jobs:
       base: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
 ```
 
-Sin `checks: read` en el llamador, `preparar` no puede pedirlo (un
-reutilizable no gana permisos que el llamador no da): el paso «Ronda
-anterior» falla y el check sale `incompleta` (falla en cerrado).
+Sin `checks: read` en el llamador, el reutilizable no puede pedirlo (no gana
+permisos que el llamador no da) y GitHub rechaza el run entero al validarlo,
+antes de arrancar ningún job: el workflow de revisión sale en rojo con un
+error de permisos («... is requesting 'checks: read', but is only allowed
+'checks: none'») y **no se publica ningún check `revision-ia`**, ni siquiera
+`incompleta` (falla en cerrado: si `revision-ia` es un check requerido, el PR
+no se puede integrar). Un llamador que ya fijaba una versión anterior por SHA
+tiene que añadir `checks: read` al subir el SHA. No verificado aún en un run
+real.
 
 `workflows: [verificacion]` es el `name:` del workflow del proyecto que
 llama a `verificacion.yml`. `<sha>` es el commit de TaskCodeTwo con este
@@ -373,32 +379,49 @@ viendo.
 En `preparar`, el paso «Ronda anterior» recorre los commits del PR (`git
 rev-list --first-parent origin/<base>..<head>`, sin el head, como mucho 100;
 si hay más, falla y el check sale `incompleta`) del más nuevo al más viejo y
-vuelca en crudo sus check-runs `revision-ia` (`GITHUB_TOKEN` con `checks:
-read`). Tras cada volcado, `tc2 hallazgos anterior` dice si ya hay ronda
-anterior: el `revision-ia` más nuevo y terminado de la App del revisor
-(`plataforma.revisor_id` de la configuración de la base; sin él, no hay
-ronda anterior) que dice `rojo` o `verde`. Una ronda `incompleta` no cuenta
-ni sirve de base; una `tope` tampoco (no revisó nada). Del elegido se bajan
-sus páginas de anotaciones y `tc2 hallazgos ronda` exige que título,
-conclusión y abiertos casen (la regla de `leer-revision`); si no, falla
-(falla en cerrado) y el check sale `incompleta`. Con los ficheros cambiados
-desde ese commit (`git diff --name-only <sha>..<head>`; tras un rebase que lo
-deja fuera de la historia, `base...head`) decide `ronda.json`:
+vuelca en crudo todos sus check-runs `revision-ia` (`GITHUB_TOKEN` con
+`checks: read`; `filter=all`, no solo el último de cada commit). Tras cada
+volcado, `tc2 hallazgos anterior` dice si ya hay ronda anterior: de cada
+commit, del más nuevo al más viejo, el `revision-ia` terminado de la App del
+revisor (`plataforma.revisor_id` de la configuración de la base; sin él, no
+hay ronda anterior) más nuevo que dice `rojo` o `verde`. Una ronda
+`incompleta` no cuenta ni sirve de base (si en el mismo commit hay antes un
+`rojo`, cuenta ese); una `tope` tampoco (no revisó nada) y una `ligera`
+tampoco (no la vio ningún modelo; se reconoce por la línea `Ronda N (ligera)`
+de su resumen). Del elegido se bajan sus páginas de anotaciones y `tc2
+hallazgos ronda` exige que título, conclusión y abiertos casen (la regla de
+`leer-revision`); si no, falla (falla en cerrado) y el check sale
+`incompleta`, con un mensaje que dice cómo salir: si el check se publicó a
+medias (falló un lote de anotaciones), relanzar el workflow `revision-ia`
+del commit de ese check publica en él uno completo, que pasa delante.
+
+El diff incremental sale de `tc2 hallazgos desde --anterior <sha> --head
+<head> --base origin/<base>`: desde el commit anterior, **sin lo que entró
+de la base después** (un merge de la base o el botón «Update branch»), que
+no es del PR. Si desde entonces no entró nada de la base, es `<sha>..<head>`;
+si entró, es el diff desde el árbol de `<sha>` con lo que trajo la base
+(`git merge-tree --write-tree <sha> <merge-base>`) hasta el head. Tras un
+rebase que deja el commit anterior fuera de la historia, o si esa mezcla
+tiene conflictos, el diff vuelve a `base...head` (falla en cerrado: se revisa
+todo el PR) y los abiertos se arrastran igual. Con los ficheros cambiados de
+ese diff decide `ronda.json`:
 
 | Modo | Cuándo | Qué pasa |
 |---|---|---|
 | `completa` | sin ronda anterior | ronda 1: todo el diff contra la base |
 | `incremental` | el resto | la ronda sube; cada revisora ve el diff desde el commit anterior y sus abiertos CRITICO e IMPORTANTE |
-| `ligera` | anterior `verde` y los cambios solo tocan ficheros con MENOR abiertos | sin modelo; verde; la ronda no sube |
+| `ligera` | anterior `verde`, sin otra `ligera` desde él, y los cambios solo tocan ficheros con MENOR abiertos | sin modelo; verde; la ronda no sube; no sirve de base del diff siguiente |
 | `tope` | anterior `rojo` y la ronda siguiente pasa del tope | sin modelo; dictamen `tope` (`failure`) con los abiertos arrastrados |
 
-El tope efectivo es `tope_rondas` de la configuración de la base más un
-elemento por cada línea `- ...` de primer nivel en `## Rondas extra` de la
-tarea (rama de estado). La ronda extra la decide la persona (F1-16, D6a):
+El tope efectivo es `tope_rondas` de la configuración de la base más uno por
+cada elemento de lista de primer nivel con texto (`- ...` o `* ...`, fuera de
+los bloques de código) en `## Rondas extra` (o `## Ronda extra`) de la tarea
+(rama de estado). La ronda extra la decide la persona (F1-16, D6a):
 F4-4 traducirá `tope` a la parada `preguntar` de F1-10.
 
 Cierre (falla en cerrado): en modo incremental la respuesta es un objeto
-`{"hallazgos": [...], "cierres": [...]}`. Un abierto CRITICO o IMPORTANTE solo
+`{"hallazgos": [...], "cierres": [...]}` (la clave que falte cuenta como
+lista vacía). Un abierto CRITICO o IMPORTANTE solo
 se cierra con un cierre `{id, fichero, linea, motivo}` cuya línea esté en el
 lado nuevo del diff incremental que vio la revisora; si el abierto traía
 `paso_rojo`, ese paso tiene que estar ya en verde en el informe F5-4 del head
@@ -426,6 +449,18 @@ F6-6 (decisión 3 de TASK-052).
 - La evidencia de cada hallazgo se valida pero no se ejecuta (fuera de
   F6-6; decisión 3 de TASK-052). En el cierre solo se contrasta `paso_rojo`
   con el informe F5-4.
+- Ronda `ligera` (decisión 4 de TASK-052): da verde sin consultar al modelo
+  a un cambio que solo toca ficheros con MENOR abiertos, sea cual sea el
+  cambio (también uno que meta un CRITICO), y da esos MENOR por cerrados sin
+  mirar si se arreglaron. Lo acota que no sirve de base: la ronda siguiente
+  sale desde el último commit revisado por modelo, y no puede ser otra
+  `ligera`, así que lo que entró en la ligera lo ve el modelo en el push
+  siguiente. Si la ligera es el último push antes de integrar, ese cambio
+  se integra sin revisión IA (la revisión por pares de `review` sigue).
+- El ancla de un cierre solo prueba que esa línea está en el lado nuevo del
+  diff incremental (de cualquier fichero: un arreglo puede estar en otro,
+  p. ej. en el test); que esa línea arregle el abierto lo juzga el modelo.
+  Los CRITICO e IMPORTANTE sin cierre válido siguen abiertos.
 - Rondas (F6-6): sin saldo en la API la cadena real no pasa de la ronda 1
   (`incompleta` no cuenta). Una revisora que reporta un abierto con otro id
   infla `nuevos`; la anotación de un abierto que persiste conserva la línea
