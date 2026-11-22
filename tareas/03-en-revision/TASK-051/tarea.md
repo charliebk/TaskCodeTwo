@@ -50,3 +50,7 @@ Tarea F6-5 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 | 2026-11-22T00:01:08Z | implementacion | agente:a1fed6bc99f9de948 | 306 | 817675 | 42892641 | 127698 | 56 | 43838320 | - | - |
 | 2026-11-22T00:10:00Z | revision | agente:a938c42a3c6b7c9cc | 26 | 147288 | 1517577 | 11798 | 2 | 1676689 | 1 | rust-wasm-reviewer |
 | 2026-11-22T00:10:00Z | revision | agente:a290814c6e4245a2a | 64 | 161449 | 4132686 | 24406 | 2 | 4318605 | 1 | code-quality-reviewer |
+
+## Verificacion ligera
+
+- 2026-11-22T00:24:55Z: ronda 1; commit revisado 02000f5a7c78e8404c5a4257bdb7eb7ecc6bfa1b; commit verificado 4f7ba280fe89791a52e5745ba2f936f347d49154; ficheros: .github/workflows/revision-ia.yml, crates/tc2/esquemas/hallazgos.schema.json, crates/tc2/src/hallazgos/mod.rs, crates/tc2/src/plataforma/github.rs, docs/ci/revision-ia.md, xtask/src/workflows.rs; corregidos: MEN-1, MEN-2, MEN-3, MEN-4, MEN-1, MEN-2; pendientes: ninguno
