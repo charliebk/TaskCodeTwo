@@ -801,8 +801,7 @@ fn revision_ia_publica_el_veredicto_y_review_lo_lee() {
             })
         })
         .collect();
-    let validados =
-        json!({"version": 2, "revisora": "rev:e2e", "aceptados": aceptados, "rechazados": []});
+    let validados = json!({"version": tc2::hallazgos::VERSION, "revisora": "rev:e2e", "aceptados": aceptados, "rechazados": []});
     std::fs::write(dir.join("hallazgos-0.json"), validados.to_string()).unwrap();
     let o = std::process::Command::new(env!("CARGO_BIN_EXE_tc2"))
         .args(["hallazgos", "veredicto", "--salida"])

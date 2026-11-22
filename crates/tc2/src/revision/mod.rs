@@ -332,10 +332,10 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             .ok()
             .and_then(|r| {
                 let d = crate::hallazgos::Dictamen::de_titulo(&r.titulo)?;
+                let ronda = crate::hallazgos::ronda_de_titulo(&r.titulo)?;
                 Some(crate::hallazgos::InformeTarea::nuevo(
                     id,
-                    publicado.pr,
-                    &r.sha,
+                    (publicado.pr, &r.sha, ronda),
                     (&r.conclusion, d),
                     &r.resumen,
                     r.aceptados,

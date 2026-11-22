@@ -398,7 +398,7 @@ fn review_guarda_el_informe_de_la_revision_ia() {
     );
     assert!(md.contains("Veredicto: **rojo**"), "{md}");
     assert!(
-        md.contains(r"| rev:a | I1 | IMPORTANTE | contrato | a.txt | 1 | borde | falta \| algo |"),
+        md.contains(r"| rev:a | 1 | abierto | I1 | IMPORTANTE | contrato | a.txt | 1 | borde | falta \| algo |"),
         "{md}"
     );
 

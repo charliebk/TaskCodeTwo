@@ -311,7 +311,7 @@ fn el_check_refleja_los_hallazgos() {
     assert_eq!(check["conclusion"], "failure");
     assert_eq!(
         check["output"]["title"],
-        "revision-ia: rojo (criticos=0 importantes=1 menores=1)"
+        "revision-ia: rojo (ronda=1 criticos=0 importantes=1 menores=1)"
     );
     let notas = check["output"]["annotations"].as_array().unwrap();
     assert_eq!(notas.len(), 2);
@@ -334,7 +334,7 @@ fn el_check_refleja_los_hallazgos() {
     let crudo: Value = serde_json::from_str(notas[0]["raw_details"].as_str().unwrap()).unwrap();
     assert_eq!(
         crudo,
-        serde_json::json!({"revisora": "rev:a", "hallazgo": salida_a["aceptados"][0]})
+        serde_json::json!({"revisora": "rev:a", "hallazgo": salida_a["aceptados"][0], "ronda": 1, "estado": "abierto"})
     );
     assert_eq!(salida_a["rechazados"][0]["id"], "C1");
     assert!(
@@ -468,8 +468,7 @@ fn veredicto_e_informe_validan_contra_el_esquema() {
         .collect();
     let informe = tc2::hallazgos::InformeTarea::nuevo(
         "TASK-051",
-        12,
-        &"a".repeat(40),
+        (12, &"a".repeat(40), 1),
         ("failure", tc2::hallazgos::Dictamen::Rojo),
         check["output"]["summary"].as_str().unwrap(),
         aceptados,
