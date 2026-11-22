@@ -41,6 +41,10 @@
 //!   anterior=<sha12|ninguno> abiertos=N tope=T avisos=<...>`.
 //! - `abiertos --ronda <json> --detalle <json> --salida <dir>`: los abiertos
 //!   CRITICO e IMPORTANTE de cada revisora (`abiertos-<i>.json` y `.md`).
+//! - `desde --anterior <sha> --head <sha> --base <ref>`: desde donde se
+//!   saca el diff incremental, sin lo que entro de la base por un merge
+//!   ([`desde_incremental`]). Linea: `hallazgos ok desde=<oid>|base
+//!   motivo=<...>`.
 //! - `validar --abiertos <json>` valida tambien los cierres; `veredicto
 //!   --ronda <json>` cuenta nuevos, persisten y cerrados (la linea gana
 //!   `ronda=R modo=<m> nuevos=N persisten=P cerrados=C`).
@@ -195,6 +199,9 @@ pub fn orden(a: &[String], json: bool, idioma: Idioma) -> Salida {
             Ok(i) | Err(i) => i.salida_en(json, idioma),
         },
         [s, resto @ ..] if s == "abiertos" => match abiertos(resto) {
+            Ok(i) | Err(i) => i.salida_en(json, idioma),
+        },
+        [s, resto @ ..] if s == "desde" => match desde(resto) {
             Ok(i) | Err(i) => i.salida_en(json, idioma),
         },
         [] => uso("sin-suborden").salida_en(json, idioma),
@@ -422,7 +429,7 @@ fn anterior(a: &[String]) -> Result<Informe, Informe> {
     let dir = carpeta_actual()?;
     let (origen, _, avisos) = origen_y_config(origen, &crate::git::Git::nuevo(), &dir);
     let commits = leer_checks(&checks)?;
-    let elegido = origen.and_then(|o| super::ronda::elegir(commits, o));
+    let elegido = origen.and_then(|o| super::ronda::elegir(commits, o).check);
     let mut i = Informe::nuevo(NOMBRE, Resultado::Ok);
     i = match &elegido {
         Some(c) => i
@@ -502,8 +509,10 @@ fn ronda(a: &[String]) -> Result<Informe, Informe> {
         }
     }
     let commits = leer_checks(&checks)?;
-    let elegido = origen.and_then(|o| super::ronda::elegir(commits, o));
-    let previa = match &elegido {
+    let eleccion = origen
+        .map(|o| super::ronda::elegir(commits, o))
+        .unwrap_or_default();
+    let previa = match &eleccion.check {
         None => None,
         Some(c) => {
             let mut aceptados = Vec::new();
@@ -535,7 +544,7 @@ fn ronda(a: &[String]) -> Result<Informe, Informe> {
             Some(previa)
         }
     };
-    let d = super::ronda::decidir(previa.as_ref(), &cambiados, tope);
+    let d = super::ronda::decidir(previa.as_ref(), &cambiados, tope, eleccion.ligera_pendiente);
     std::fs::create_dir_all(&dir_salida).map_err(|e| fallo_io(&dir_salida, e.to_string()))?;
     let v = serde_json::to_value(&d).map_err(|e| fallo_io(&dir_salida, e.to_string()))?;
     escribir_json(&dir_salida.join("ronda.json"), &v)?;
@@ -551,6 +560,116 @@ fn ronda(a: &[String]) -> Result<Informe, Informe> {
         .con("abiertos", d.abiertos.len().to_string())
         .con("tope", d.tope.to_string())
         .con_lista("avisos", avisos))
+}
+
+/// Un SHA de commit (SHA-1 o SHA-256), en minusculas.
+fn es_sha(t: &str) -> bool {
+    matches!(t.len(), 40 | 64) && t.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Una ref de la base (`origin/develop`): sin opciones ni rangos.
+fn es_ref(t: &str) -> bool {
+    !t.is_empty()
+        && t.len() <= 200
+        && !t.starts_with('-')
+        && !t.contains("..")
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-'))
+}
+
+/// Desde donde se saca el diff incremental de `anterior` a `head` (F6-6):
+/// sin lo que entro de la base en la rama (un merge de `base` o «Update
+/// branch») despues de la ronda anterior, que no es del PR.
+///
+/// - `anterior` no es ancestro de `head` (rebase): `None`, el diff vuelve a
+///   `base...head`;
+/// - el `merge-base` de `base` y `head` ya estaba en `anterior` (no entro
+///   nada de la base desde entonces): `anterior`;
+/// - si no, el arbol de `anterior` con lo que trajo la base
+///   (`git merge-tree --write-tree anterior <merge-base>`): el diff de ese
+///   arbol a `head` es solo lo del PR. Si esa mezcla tiene conflictos, o git
+///   falla, `None` (falla en cerrado: se revisa todo el PR).
+///
+/// Da tambien el motivo para la linea.
+pub fn desde_incremental(
+    g: &crate::git::Git,
+    dir: &Path,
+    base: &str,
+    anterior: &str,
+    head: &str,
+) -> (Option<String>, &'static str) {
+    use crate::git::Subcomando;
+    match crate::git::es_ancestro(g, dir, NOMBRE, anterior, head) {
+        Ok(true) => {}
+        Ok(false) => return (None, "no-ancestro"),
+        Err(_) => return (None, "git"),
+    }
+    let Ok(mb) = crate::git::exigir(g, dir, NOMBRE, Subcomando::MergeBase, &[base, head]) else {
+        return (None, "sin-merge-base");
+    };
+    let mb = mb.trim().to_owned();
+    if !es_sha(&mb) {
+        return (None, "sin-merge-base");
+    }
+    match crate::git::es_ancestro(g, dir, NOMBRE, &mb, anterior) {
+        Ok(true) => return (Some(anterior.to_owned()), "directo"),
+        Ok(false) => {}
+        Err(_) => return (None, "git"),
+    }
+    let Ok(s) = crate::git::correr(
+        g,
+        dir,
+        NOMBRE,
+        Subcomando::MergeTree,
+        &["--write-tree", "--no-messages", anterior, &mb],
+    ) else {
+        return (None, "git");
+    };
+    let arbol = s
+        .stdout
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+    match s.codigo {
+        0 if es_sha(&arbol) => (Some(arbol), "merge"),
+        1 => (None, "conflicto"),
+        _ => (None, "git"),
+    }
+}
+
+/// `desde --anterior <sha> --head <sha> --base <ref>`
+/// ([`desde_incremental`]). Linea: `hallazgos ok desde=<oid>|base
+/// motivo=<directo|merge|no-ancestro|sin-merge-base|conflicto|git>`.
+fn desde(a: &[String]) -> Result<Informe, Informe> {
+    let (mut anterior, mut head, mut base): (Option<String>, Option<String>, Option<String>) =
+        (None, None, None);
+    let mut it = a.iter();
+    while let Some(x) = it.next() {
+        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
+        match x.as_str() {
+            "--anterior" if anterior.is_none() => anterior = Some(valor()?),
+            "--head" if head.is_none() => head = Some(valor()?),
+            "--base" if base.is_none() => base = Some(valor()?),
+            _ => return Err(uso("argumento-desconocido")),
+        }
+    }
+    let (Some(anterior), Some(head), Some(base)) = (anterior, head, base) else {
+        return Err(uso("faltan-argumentos"));
+    };
+    if !es_sha(&anterior) || !es_sha(&head) {
+        return Err(uso("sha-invalido"));
+    }
+    if !es_ref(&base) {
+        return Err(uso("base-invalida"));
+    }
+    let dir = carpeta_actual()?;
+    let (desde, motivo) =
+        desde_incremental(&crate::git::Git::nuevo(), &dir, &base, &anterior, &head);
+    Ok(Informe::nuevo(NOMBRE, Resultado::Ok)
+        .con("desde", desde.unwrap_or_else(|| "base".to_owned()))
+        .con("motivo", motivo))
 }
 
 /// Una `ronda.json` del contrato vigente.

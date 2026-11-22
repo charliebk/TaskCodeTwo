@@ -919,9 +919,11 @@ pub fn validar_con(
         }
         Ok(Ok(Value::Array(l))) => (l, Vec::new()),
         Ok(Ok(Value::Object(o))) => {
+            // Una clave que falta es una lista vacia (las dos igual): sin
+            // `hallazgos`, los cierres validos no se pierden.
             let lista = |k: &str| match o.get(k) {
                 Some(Value::Array(l)) => Some(l.clone()),
-                None if k == "cierres" => Some(Vec::new()),
+                None => Some(Vec::new()),
                 _ => None,
             };
             let solo_esas = o.keys().all(|k| k == "hallazgos" || k == "cierres");
@@ -1853,7 +1855,9 @@ pub struct InformeTarea {
 
 impl InformeTarea {
     /// El informe de la tarea `tarea` con lo leido del check de la ronda
-    /// `ronda`.
+    /// `ronda`. Nuevos, persisten y cerrados se cuentan como en el check: en
+    /// una ronda `ligera` (lo dice la linea `Ronda N (ligera)` de su resumen)
+    /// la ronda no sube y no hay nada nuevo, asi que todo abierto persiste.
     pub fn nuevo(
         tarea: &str,
         (pr, sha, ronda): (u64, &str, u32),
@@ -1862,10 +1866,11 @@ impl InformeTarea {
         aceptados: Vec<AceptadoDe>,
     ) -> Self {
         let (criticos, importantes, menores) = recuento(&aceptados);
+        let ligera = ronda::modo_de_resumen(resumen) == Some(ronda::Modo::Ligera);
         let abiertos = |nueva: bool| {
             aceptados
                 .iter()
-                .filter(|a| a.abierto() && (a.ronda >= ronda) == nueva)
+                .filter(|a| a.abierto() && (!ligera && a.ronda >= ronda) == nueva)
                 .count()
         };
         Self {
@@ -2470,7 +2475,7 @@ mod tests {
                 "respuesta:json-invalido",
             ),
             (
-                "```json\n{\"cierres\": []}\n```".to_owned(),
+                "```json\n{\"hallazgos\": [], \"cierres\": null}\n```".to_owned(),
                 "respuesta:json-invalido",
             ),
         ];
@@ -2489,6 +2494,11 @@ mod tests {
         );
         assert_eq!(v.motivos(), ["I1:id-repetido"]);
         assert_eq!(v.cierres.len(), 1);
+        // MEN-4 (rust) de la ronda 1: sin `hallazgos` (como sin `cierres`),
+        // es una lista vacia y el cierre valido no se pierde.
+        let solo_cierres = format!("```json\n{{\"cierres\": [{}]}}\n```", cierre("I1", 12));
+        let v = validar_con("r", &solo_cierres, &d, Some(&informe), &abiertos);
+        assert_eq!((v.cierres.len(), v.rechazados.len()), (1, 0), "{v:?}");
         // Sin informe, un abierto con paso_rojo no se cierra (falla en
         // cerrado); con el paso ya en verde (fmt), si.
         let v = validar_con("r", &con(&[cierre("F1", 5)]), &d, None, &abiertos);
@@ -2512,6 +2522,71 @@ mod tests {
         let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
         assert_eq!(v.rechazados[0].indice, Some(1));
         assert_eq!(v.aceptados.len(), 1);
+    }
+
+    /// MEN-1 (rust) de la ronda 1: el informe de la tarea cuenta nuevos,
+    /// persisten y cerrados igual que el check, tambien en una ronda `ligera`
+    /// (la ronda no sube y no hay nada nuevo). El modo sale de la linea
+    /// `Ronda N (<modo>)` del resumen, que se lee de vuelta para cada modo.
+    #[test]
+    fn el_informe_de_la_tarea_cuenta_como_el_check() {
+        let menor = |id: &str, fichero: &str| {
+            let mut a = abierto(id, "MENOR", 8, EV_BORDE);
+            a.ronda = 2;
+            a.hallazgo.fichero = fichero.to_owned();
+            a
+        };
+        let verde = ronda::Anterior {
+            ronda: 2,
+            sha: "a".repeat(40),
+            dictamen: Dictamen::Verde,
+            abiertos: vec![menor("M1", "b.rs"), menor("M2", "c.rs")],
+        };
+        let sha = "b".repeat(40);
+        let cuenta = |v: &Veredicto| {
+            let resumen = resumen_veredicto(v, "");
+            assert_eq!(ronda::modo_de_resumen(&resumen), Some(v.modo), "{resumen}");
+            let i = InformeTarea::nuevo(
+                "TASK-001",
+                (1, &sha, v.ronda),
+                (v.dictamen.conclusion(), v.dictamen),
+                &resumen,
+                v.aceptados.clone(),
+            );
+            assert_eq!(
+                (i.nuevos, i.persisten, i.cerrados),
+                (v.nuevos, v.persisten, v.cerrados),
+                "{:?}",
+                v.modo
+            );
+        };
+        let d = ronda::decidir(Some(&verde), &["b.rs".to_owned()], 2, false);
+        assert_eq!(d.modo, ronda::Modo::Ligera);
+        let v = veredicto_ronda(&[], Some(&d));
+        assert_eq!((v.nuevos, v.persisten, v.cerrados), (0, 1, 1));
+        cuenta(&v);
+        // Incremental con un nuevo: ese cuenta como nuevo y M2 persiste.
+        let d = ronda::decidir(
+            Some(&verde),
+            &["b.rs".to_owned(), "x.rs".to_owned()],
+            2,
+            false,
+        );
+        let nuevo = validar("r", &una(BORDE), &diff(), None);
+        let v = veredicto_ronda(&[Some(nuevo.clone())], Some(&d));
+        assert_eq!(
+            (v.modo, v.nuevos, v.persisten),
+            (ronda::Modo::Incremental, 1, 1)
+        );
+        cuenta(&v);
+        // Completa (ronda 1) y tope.
+        cuenta(&veredicto_ronda(&[Some(nuevo)], None));
+        let mut rojo = verde.clone();
+        rojo.dictamen = Dictamen::Rojo;
+        rojo.abiertos
+            .push(abierto("I1", "IMPORTANTE", 12, EV_BORDE));
+        let d = ronda::decidir(Some(&rojo), &[], 2, false);
+        cuenta(&veredicto_ronda(&[], Some(&d)));
     }
 
     /// F6-6, criterio 2: lo publicado por F6-5 (v2) se sigue leyendo: un

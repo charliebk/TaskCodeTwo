@@ -26,6 +26,8 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+mod comun;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -850,4 +852,82 @@ fn validar_esquema(raiz: &Value, s: &Value, v: &Value, donde: &str) -> Vec<Strin
         }
     }
     e
+}
+
+/// IMP-1 (calidad) de la ronda 1, con un repo Git real: tras la ronda
+/// anterior (commit A) se trae `develop` a la rama con un merge y se sigue;
+/// el diff incremental desde `tc2 hallazgos desde` solo tiene lo del PR, no
+/// lo que trajo `develop`. Sin merge, sale desde A tal cual; si A no es
+/// ancestro (rebase), `base` (el diff vuelve a `base...head`).
+#[test]
+fn el_diff_incremental_no_arrastra_lo_que_trae_la_base() {
+    let f = comun::Fixture::nueva("hallazgos-desde");
+    let r = f.raiz.join("repo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "repo"]);
+    let commit = |m: &str| {
+        f.crudo(&r, &["add", "-A"]);
+        f.crudo(&r, &["commit", "-q", "-m", m]);
+        f.crudo(&r, &["rev-parse", "HEAD"]).trim().to_owned()
+    };
+    comun::escribir(&r, "pr.rs", "1\n");
+    comun::escribir(&r, "otro.rs", "1\n");
+    commit("base");
+    f.crudo(&r, &["checkout", "-q", "-b", "feat"]);
+    comun::escribir(&r, "pr.rs", "1\n2\n");
+    let a = commit("A");
+    comun::escribir(&r, "pr.rs", "1\n2\nsin merge\n");
+    let sin_merge = commit("sin merge");
+    f.crudo(&r, &["checkout", "-q", "develop"]);
+    comun::escribir(&r, "otro.rs", "1\najeno\n");
+    commit("develop avanza");
+    f.crudo(&r, &["checkout", "-q", "feat"]);
+    f.crudo(&r, &["merge", "-q", "--no-edit", "develop"]);
+    comun::escribir(&r, "pr.rs", "1\n2\nsin merge\n3\n");
+    let b = commit("B");
+    // Sin desde: el rango de dos puntos arrastra otro.rs (es de develop).
+    assert_eq!(
+        f.crudo(&r, &["diff", "--name-only", &a, &b]),
+        "otro.rs\npr.rs\n"
+    );
+    let g = f.git();
+    let (desde, motivo) = tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &a, &b);
+    assert_eq!(motivo, "merge");
+    let desde = desde.expect("un arbol desde el que sacar el diff");
+    assert_eq!(f.crudo(&r, &["diff", "--name-only", &desde, &b]), "pr.rs\n");
+    let diff = f.crudo(&r, &["diff", &desde, &b]);
+    assert!(diff.contains("+sin merge\n+3\n"), "{diff}");
+    assert!(!diff.contains("ajeno"), "{diff}");
+    // Sin merge desde A: el propio A.
+    assert_eq!(
+        tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &a, &sin_merge),
+        (Some(a.clone()), "directo")
+    );
+    // A no es ancestro del head: base.
+    let ajeno = f.crudo(&r, &["rev-parse", "develop"]).trim().to_owned();
+    assert_eq!(
+        tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &b, &ajeno),
+        (None, "no-ancestro")
+    );
+    comun::registro_permitido(&g.registro());
+    // La orden: argumentos que no son un SHA o una ref, uso.
+    let (codigo, _, stderr) = hallazgos(&[
+        "desde",
+        "--anterior",
+        "x",
+        "--head",
+        &b,
+        "--base",
+        "develop",
+    ]);
+    assert_eq!(codigo, Some(2), "{stderr}");
+    let (codigo, _, stderr) = hallazgos(&[
+        "desde",
+        "--anterior",
+        &a,
+        "--head",
+        &b,
+        "--base",
+        "--output=x",
+    ]);
+    assert_eq!(codigo, Some(2), "{stderr}");
 }
