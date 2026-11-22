@@ -14,6 +14,10 @@
 //! F6-5 (TASK-051), criterio 2: con el check `revision-ia` terminado,
 //! `review` guarda su informe en `TASK-NNN/revision/` de la rama de estado
 //! (repetir no escribe nada); con el check pendiente, nada.
+//!
+//! F6-6 (TASK-052), criterio 1: `review` repetido guarda, antes de empujar,
+//! el informe del head anterior del PR (la ronda anterior), con su ronda y
+//! sus nuevos y cerrados.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -48,8 +52,12 @@ struct Doble {
     extra: Entorno,
     urls: RefCell<Vec<String>>,
     prs: RefCell<Vec<(String, String, String, String)>>,
-    /// Lo que da `estado-puertas` (sin nada, un error).
+    /// Lo que da `estado-puertas` (sin nada, un error); antes, en orden, lo
+    /// de `cola_puertas` (F6-6: antes y despues del push).
     puertas: RefCell<Option<Informe>>,
+    cola_puertas: RefCell<Vec<Informe>>,
+    /// Lo que da `prs-abiertos` (sin nada, un error).
+    abiertos: RefCell<Option<Vec<PrAbierto>>>,
     /// Lo que da `leer-revision` y cuantas veces se pidio.
     revision: RefCell<Option<RevisionPublicada>>,
     lecturas: RefCell<Vec<(u64, u64)>>,
@@ -62,8 +70,13 @@ fn sin_uso(op: &str) -> Informe {
 }
 
 impl Plataforma for Compartida {
-    fn prs_abiertos(&self, _: Rol) -> Paso<Vec<PrAbierto>> {
-        Err(sin_uso("prs-abiertos"))
+    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
+        assert_eq!(rol, Rol::Agente);
+        self.0
+            .abiertos
+            .borrow()
+            .clone()
+            .ok_or_else(|| sin_uso("prs-abiertos"))
     }
     fn entorno_push(&self, url: &str) -> Paso<Entorno> {
         self.0.urls.borrow_mut().push(url.to_owned());
@@ -80,6 +93,10 @@ impl Plataforma for Compartida {
         Informe::nuevo("abrir-pr", r).con("pr", "12")
     }
     fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
+        let mut cola = self.0.cola_puertas.borrow_mut();
+        if !cola.is_empty() {
+            return cola.remove(0);
+        }
         self.0
             .puertas
             .borrow()
@@ -365,7 +382,7 @@ fn review_guarda_el_informe_de_la_revision_ia() {
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert!(
         i.linea().contains(&format!(
-            " revision-ia=fallo hallazgos=rojo informe={ruta} revisoras="
+            " revision-ia=fallo hallazgos=rojo informe={ruta} ronda=1 nuevos=1 cerrados=0 revisoras="
         )),
         "{}",
         i.linea()
@@ -398,7 +415,7 @@ fn review_guarda_el_informe_de_la_revision_ia() {
     );
     assert!(md.contains("Veredicto: **rojo**"), "{md}");
     assert!(
-        md.contains(r"| rev:a | I1 | IMPORTANTE | contrato | a.txt | 1 | borde | falta \| algo |"),
+        md.contains(r"| rev:a | 1 | abierto | I1 | IMPORTANTE | contrato | a.txt | 1 | borde | falta \| algo |"),
         "{md}"
     );
 
@@ -425,4 +442,148 @@ fn review_guarda_el_informe_de_la_revision_ia() {
         i.linea()
     );
     assert_eq!(rama_estado(), antes);
+}
+
+fn rojo() -> Informe {
+    Informe::nuevo("estado-puertas", Resultado::Rechazada)
+        .con("motivo", "check-rojo")
+        .con_lista("checks", vec!["revision-ia".to_owned()])
+}
+
+fn pendiente() -> Informe {
+    Informe::nuevo("estado-puertas", Resultado::Esperando)
+        .con_lista("falta", vec!["revision-ia".to_owned()])
+}
+
+fn aceptado(id: &str, severidad: &str, ronda: u32, estado: &str) -> tc2::hallazgos::AceptadoDe {
+    serde_json::from_str(&format!(
+        r#"{{"revisora":"rev:a","hallazgo":{{"id":"{id}","severidad":"{severidad}","clase":"contrato","fichero":"a.txt","linea":1,"descripcion":"d","evidencia":{{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}}},"ronda":{ronda},"estado":"{estado}"}}"#
+    ))
+    .unwrap()
+}
+
+/// F6-6, criterio 1 (integracion con Git real): en cada `review` repetido,
+/// antes de empujar, el informe del check del head anterior del PR (que
+/// despues del push ya no se lee por el PR) queda en la rama de estado con su
+/// ronda; tras dos rondas hay dos informes y la linea dice `ronda=2 nuevos=1
+/// cerrados=1`.
+#[test]
+fn review_guarda_el_informe_del_head_anterior_antes_del_push() {
+    let f = Fixture::nueva("review-rondas");
+    let g = f.git();
+    let (bare, clon, wt) = preparar(&f, &g);
+    escribir(
+        &clon,
+        ".taskcode/config.yml",
+        "---\nformato: 2\nplataforma:\n  proveedor: \"github\"\n  api: \"https://api.github.com\"\n  revisor_id: 99001\n",
+    );
+    f.crudo(&clon, &["add", ".taskcode/config.yml"]);
+    f.crudo(&clon, &["commit", "-q", "-m", "config"]);
+    f.crudo(&clon, &["push", "-q", "origin", "develop"]);
+    let doble = Rc::new(Doble::default());
+    let cabeza = || f.crudo(&wt, &["rev-parse", "HEAD"]).trim().to_owned();
+    let commit = |n: &str| {
+        escribir(&wt, "a.txt", &format!("ronda {n}\n"));
+        f.crudo(
+            &wt,
+            &["commit", "-q", "-am", &format!("feat(TASK-001): {n}")],
+        );
+    };
+    let informe = |sha: &str| -> Option<tc2::hallazgos::InformeTarea> {
+        let ruta = format!(
+            "{}:TASK-001/revision/revision-ia-{}.json",
+            estado::RAMA,
+            &sha[..12]
+        );
+        let o = std::process::Command::new("git")
+            .args(["show", &ruta])
+            .current_dir(&bare)
+            .output()
+            .unwrap();
+        o.status
+            .success()
+            .then(|| serde_json::from_slice(&o.stdout).unwrap())
+    };
+    let pr = |sha: &str| {
+        Some(vec![PrAbierto {
+            numero: 12,
+            rama: RAMA.to_owned(),
+            sha: sha.to_owned(),
+            borrador: false,
+        }])
+    };
+
+    // Ronda 0: el primer review abre el PR; sin PR previo no hay nada que leer.
+    *doble.puertas.borrow_mut() = Some(pendiente());
+    let i = review(&g, &clon, &doble, &[]);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    let h1 = cabeza();
+    assert!(doble.lecturas.borrow().is_empty());
+
+    // El check de h1 (ronda 1) termina en rojo; se empuja h2: antes del push
+    // se guarda el informe de h1; despues, el check de h2 esta pendiente.
+    commit("2");
+    let h2 = cabeza();
+    *doble.abiertos.borrow_mut() = pr(&h1);
+    *doble.cola_puertas.borrow_mut() = vec![rojo(), pendiente()];
+    *doble.revision.borrow_mut() = Some(RevisionPublicada {
+        sha: h1.clone(),
+        conclusion: "failure".to_owned(),
+        titulo: "revision-ia: rojo (ronda=1 criticos=0 importantes=1 menores=0)".to_owned(),
+        resumen: "r1".to_owned(),
+        aceptados: vec![aceptado("I1", "IMPORTANTE", 1, "abierto")],
+    });
+    let i = review(&g, &clon, &doble, &[]);
+    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    assert!(
+        i.linea().contains(&format!(
+            " revision-ia=pendiente hallazgos=rojo informe=TASK-001/revision/revision-ia-{}.json ronda=1 nuevos=1 cerrados=0 revisoras=",
+            &h1[..12]
+        )),
+        "{}",
+        i.linea()
+    );
+    assert_eq!(f.crudo(&bare, &["rev-parse", RAMA]).trim(), h2);
+    let r1 = informe(&h1).unwrap_or_else(|| panic!("sin informe de h1"));
+    assert_eq!((r1.ronda, r1.nuevos, r1.importantes), (1, 1, 1));
+
+    // Ronda 2 en h2: cierra I1 y encuentra un MENOR nuevo; se empuja h3.
+    commit("3");
+    *doble.abiertos.borrow_mut() = pr(&h2);
+    *doble.cola_puertas.borrow_mut() =
+        vec![Informe::nuevo("estado-puertas", Resultado::Ok), pendiente()];
+    *doble.revision.borrow_mut() = Some(RevisionPublicada {
+        sha: h2.clone(),
+        conclusion: "success".to_owned(),
+        titulo: "revision-ia: verde (ronda=2 criticos=0 importantes=0 menores=2)".to_owned(),
+        resumen: "r2".to_owned(),
+        aceptados: vec![
+            aceptado("I1", "IMPORTANTE", 1, "cerrado"),
+            aceptado("N1", "MENOR", 2, "abierto"),
+            aceptado("M0", "MENOR", 1, "abierto"),
+        ],
+    });
+    let i = review(&g, &clon, &doble, &[]);
+    assert!(
+        i.linea().contains(&format!(
+            " hallazgos=verde informe=TASK-001/revision/revision-ia-{}.json ronda=2 nuevos=1 cerrados=1 revisoras=",
+            &h2[..12]
+        )),
+        "{}",
+        i.linea()
+    );
+    let r2 = informe(&h2).unwrap_or_else(|| panic!("sin informe de h2"));
+    assert_eq!(
+        (
+            r2.ronda,
+            r2.nuevos,
+            r2.persisten,
+            r2.cerrados,
+            r2.importantes
+        ),
+        (2, 1, 1, 1, 0)
+    );
+    // Los dos informes siguen en la rama de estado.
+    assert!(informe(&h1).is_some());
+    assert_eq!(*doble.lecturas.borrow(), [(12, 99001), (12, 99001)]);
 }

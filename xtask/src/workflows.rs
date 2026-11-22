@@ -2209,6 +2209,74 @@ fn publicar_transporta_el_veredicto(texto: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// F6-6: `preparar` lee el check de la ronda anterior (`checks: read`), corre
+/// `tc2 hallazgos anterior` y `tc2 hallazgos ronda` y pasa la ronda a `tc2
+/// revisoras`; `validar` pasa los abiertos a `validar` y la ronda a
+/// `veredicto`. Sin una de esas piezas el workflow seguiria dando siempre la
+/// ronda 1 (o un `incompleta`) y solo el E2E lo veria.
+fn rondas_en_el_workflow(texto: &str) -> Result<(), String> {
+    let raiz = leer_yaml(texto)?;
+    let checks = raiz
+        .get("jobs")
+        .and_then(|j| j.get("preparar"))
+        .and_then(|j| j.get("permissions"))
+        .and_then(|p| p.get("checks"))
+        .and_then(Nodo::texto);
+    if checks != Some("read") {
+        return Err("preparar sin checks: read".to_owned());
+    }
+    let preparar = runs_del_job(&raiz, "preparar");
+    for (pieza, error) in [
+        (
+            "tc2 hallazgos anterior ",
+            "preparar no corre tc2 hallazgos anterior",
+        ),
+        (
+            "tc2 hallazgos ronda ",
+            "preparar no corre tc2 hallazgos ronda",
+        ),
+        (
+            "tc2 hallazgos abiertos ",
+            "preparar no corre tc2 hallazgos abiertos",
+        ),
+        // El diff incremental sin lo que entro de la base por un merge.
+        (
+            "tc2 hallazgos desde ",
+            "preparar no corre tc2 hallazgos desde",
+        ),
+        // Todos los check-runs de cada commit, no solo el ultimo.
+        (
+            "-f check_name=revision-ia -f filter=all ",
+            "preparar no pide filter=all",
+        ),
+    ] {
+        if !preparar.contains(pieza) {
+            return Err(error.to_owned());
+        }
+    }
+    let revisoras = preparar
+        .split("tc2 revisoras ")
+        .nth(1)
+        .and_then(|r| r.split("> \"$salida/seleccion.json\"").next())
+        .unwrap_or_default();
+    if !revisoras.contains("--ronda \"$numero\"") {
+        return Err("tc2 revisoras sin --ronda".to_owned());
+    }
+    let validar = runs_del_job(&raiz, "validar");
+    let veredicto = validar
+        .split("tc2 hallazgos veredicto ")
+        .nth(1)
+        .and_then(|r| r.lines().next())
+        .unwrap_or_default();
+    if !veredicto.contains("\"${ronda[@]}\"") || !validar.contains("ronda=(--ronda ") {
+        return Err("veredicto sin --ronda".to_owned());
+    }
+    if !validar.contains("abiertos=(--abiertos ") || !validar.contains("\"${abiertos[@]}\"") {
+        return Err("validar sin --abiertos".to_owned());
+    }
+    Ok(())
+}
+
 /// El workflow del revisor pasa el lint con el perfil revision-ia: cuatro
 /// jobs (F6-4); `consultar` y `publicar` en el entorno `revisor`, sin
 /// checkout, cada uno solo con su secreto; `preparar` y `validar` sin
@@ -2275,6 +2343,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
     );
     assert_eq!(validar_sube_lo_que_lee_publicar(&texto), Ok(()));
     assert_eq!(publicar_transporta_el_veredicto(&texto), Ok(()));
+    assert_eq!(rondas_en_el_workflow(&texto), Ok(()));
     assert!(
         runs_de("preparar")
             .iter()
@@ -2469,6 +2538,62 @@ fn cada_mutacion_del_revisor_da_su_error() {
             "«{esperado}» no salio: {r:?}"
         );
     }
+    // F6-6: una mutacion por regla de las rondas da rojo.
+    let rondas: [(&str, &str, &str); 9] = [
+        (
+            "linea=$(cd base && tc2 hallazgos desde ",
+            "linea=$(cd base && tc2 hallazgos base ",
+            "preparar no corre tc2 hallazgos desde",
+        ),
+        (
+            " -f filter=all -f per_page=100",
+            " -f per_page=100",
+            "preparar no pide filter=all",
+        ),
+        (
+            "      actions: read\n      checks: read\n    outputs:",
+            "      actions: read\n    outputs:",
+            "preparar sin checks: read",
+        ),
+        (
+            "linea=$(cd base && tc2 hallazgos anterior ",
+            "linea=$(cd base && tc2 hallazgos previo ",
+            "preparar no corre tc2 hallazgos anterior",
+        ),
+        (
+            "(cd base && tc2 hallazgos ronda ",
+            "(cd base && tc2 hallazgos rondas ",
+            "preparar no corre tc2 hallazgos ronda",
+        ),
+        (
+            "              tc2 hallazgos abiertos --ronda",
+            "              tc2 hallazgos repartir --ronda",
+            "preparar no corre tc2 hallazgos abiertos",
+        ),
+        (
+            " --ronda \"$numero\" --detalle",
+            " --detalle",
+            "tc2 revisoras sin --ronda",
+        ),
+        (
+            "\"$out/resumen.txt\" \"${ronda[@]}\" \"${veredicto[@]}\"",
+            "\"$out/resumen.txt\" \"${veredicto[@]}\"",
+            "veredicto sin --ronda",
+        ),
+        (
+            "\"${informe[@]}\" \"${abiertos[@]}\" \\",
+            "\"${informe[@]}\" \\",
+            "validar sin --abiertos",
+        ),
+    ];
+    for (original, mutado, esperado) in rondas {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let r = rondas_en_el_workflow(&texto.replacen(original, mutado, 1));
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains(esperado)),
+            "«{esperado}» no salio: {r:?}"
+        );
+    }
 }
 
 /// El llamador de la guia de F6-3 pasa el lint de su perfil; `secrets:
@@ -2515,6 +2640,17 @@ fn llamador_de_revision_ia_hereda_solo_hacia_revision_ia() {
         lint_revision(&llamador)
             .iter()
             .any(|e| e.contains("secrets: inherit"))
+    );
+    // F6-6: el llamador da checks: read (preparar lee la ronda anterior) y
+    // nunca checks: write.
+    assert!(llamador.contains("      checks: read\n"), "{llamador}");
+    let checks_escritura = llamador.replace("      checks: read\n", "      checks: write\n");
+    assert!(
+        lint_llamador_revision(&checks_escritura)
+            .iter()
+            .any(|e| e.contains("escritura")),
+        "{:?}",
+        lint_llamador_revision(&checks_escritura)
     );
     // El llamador no escribe con el GITHUB_TOKEN.
     let con_escritura = llamador.replace("      contents: read\n", "      contents: write\n");

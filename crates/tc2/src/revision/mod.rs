@@ -20,7 +20,10 @@
 //! 5. F6-5: si `revision-ia` ya termino (`ok` o `fallo`),
 //!    [`Plataforma::leer_revision`] con el agente y el informe en la carpeta
 //!    de la tarea por el punto unico de escritura ([`GuardarRevision`]:
-//!    `TASK-NNN/revision/revision-ia-<sha12>.json` y `.md`).
+//!    `TASK-NNN/revision/revision-ia-<sha12>.json` y `.md`). F6-6: tambien
+//!    antes del push, con el PR de la rama ya abierto y la tarea en
+//!    revision, el del head anterior (el de la ronda anterior), que despues
+//!    del push ya no se lee por el PR.
 //!
 //! «PR enlazado a la tarea» sin tocar el esquema (F1-9): titulo
 //! `TASK-NNN: <titulo>` y cuerpo de [`cuerpo_pr`] con las rutas de la tarea
@@ -29,7 +32,8 @@
 //!
 //! Linea: `review ok id=TASK-NNN rama=<r> pr=<n> estado=en-revision
 //! revision-ia=<ok|pendiente|fallo|sin-revisor|sin-leer>
-//! [hallazgos=<rojo|verde|incompleta|sin-leer> [informe=<ruta>]] revisoras=<ids>
+//! [hallazgos=<rojo|verde|incompleta|tope|sin-leer> [informe=<ruta> ronda=R
+//! nuevos=N cerrados=C]] revisoras=<ids>
 //! modelo=<m> reglas=<ids> avisos=<...>` (la seleccion de F6-3, anotada en
 //! `roles.revision`). Repetirla sin
 //! nada nuevo sale `sin-cambios`.
@@ -286,8 +290,34 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 4. La seleccion de revision (F6-3), con el diff de la rama y lo de la
     // base; no cambia nada si falla: lo dice en `avisos`.
     let sel = seleccion_de(g, &principal, &rama, (&t, &cuerpo), e.claude);
-    // 5. Push y PR con el agente.
+    // 5. Push y PR con el agente. F6-6: antes de empujar, si el PR de la rama
+    // ya existe y su check `revision-ia` termino, el informe de ese head (la
+    // ronda anterior): despues del push el PR apunta al commit nuevo y ese
+    // check ya no se lee por el PR.
     let p = (e.conectar)()?;
+    let personas = crate::roadmap::personas(g, dir);
+    let generar = crate::roadmap::generador(&personas);
+    let ctx = estado::Contexto::nuevo(g, dir, e.base.catalogo, Some(&generar));
+    let revisor = config::de_base(g, &principal)
+        .ok()
+        .and_then(|c| c.plataforma)
+        .and_then(|p| p.revisor_id);
+    let origen = revisor.filter(|id| *id != 0);
+    let con_pr = |i: Informe, pr: u64| i.con("rama", rama.as_str()).con("pr", pr.to_string());
+    let mut previo: Option<Guardado> = None;
+    if let (Some(origen), true) = (origen, t.estado == EN_REVISION)
+        && let Some(abierto) = p
+            .prs_abiertos(Rol::Agente)
+            .ok()
+            .and_then(|l| l.into_iter().find(|x| x.rama == rama))
+        && matches!(
+            revision_ia(p.as_ref(), abierto.numero, Some(origen)),
+            "ok" | "fallo"
+        )
+    {
+        previo = guardar_informe(p.as_ref(), &ctx, (id, &quien), abierto.numero, origen)
+            .map_err(|i| con_pr(i, abierto.numero))?;
+    }
     let publicado = publicar(
         p.as_ref(),
         g,
@@ -298,9 +328,6 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     )?;
     let pr = publicado.pr.to_string();
     // 6. El estado, con el PR ya abierto (y la seleccion en `roles.revision`).
-    let personas = crate::roadmap::personas(g, dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(g, dir, e.base.catalogo, Some(&generar));
     let op = Revisar::nueva(id, &quien, ahora).con_seleccion(AnotacionRevision {
         agente: sel.agentes.first().cloned(),
         modelo: sel.modelo.clone(),
@@ -318,47 +345,28 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         }
     }
     // 7. `revision-ia`, leido con el agente.
-    let revisor = config::de_base(g, &principal)
-        .ok()
-        .and_then(|c| c.plataforma)
-        .and_then(|p| p.revisor_id);
     let ria = revision_ia(p.as_ref(), publicado.pr, revisor);
     // 8. F6-5: con el check terminado, su informe en la carpeta de la tarea.
-    let mut hallazgos: Option<(&'static str, Option<String>)> = None;
-    let mut guardado = false;
-    if let (Some(origen), "ok" | "fallo") = (revisor.filter(|id| *id != 0), ria) {
-        let leido = p
-            .leer_revision(Rol::Agente, publicado.pr, origen)
-            .ok()
-            .and_then(|r| {
-                let d = crate::hallazgos::Dictamen::de_titulo(&r.titulo)?;
-                Some(crate::hallazgos::InformeTarea::nuevo(
-                    id,
-                    publicado.pr,
-                    &r.sha,
-                    (&r.conclusion, d),
-                    &r.resumen,
-                    r.aceptados,
-                ))
-            });
-        hallazgos = Some(("sin-leer", None));
-        if let Some(informe) = leido {
-            let op = GuardarRevision::nueva(id, &quien, &informe);
-            let gr = estado::transaccion(&ctx, &op);
-            match gr.resultado {
-                Resultado::Ok => guardado = true,
-                Resultado::SinCambios => {}
-                _ => {
-                    let mut gr = gr.con("rama", rama.as_str()).con("pr", pr);
-                    if let Some(l) = op.dueno() {
-                        gr = gr.con("asignado", l);
-                    }
-                    return Err(gr);
-                }
-            }
-            hallazgos = Some((informe.veredicto.texto(), Some(op.ruta_json())));
-        }
+    let mut leido_tras_push: Option<Option<Guardado>> = None;
+    if let (Some(origen), "ok" | "fallo") = (origen, ria) {
+        leido_tras_push = Some(
+            guardar_informe(p.as_ref(), &ctx, (id, &quien), publicado.pr, origen)
+                .map_err(|i| con_pr(i, publicado.pr))?,
+        );
     }
+    let guardado = previo.as_ref().is_some_and(|g| g.escrito)
+        || leido_tras_push
+            .as_ref()
+            .and_then(Option::as_ref)
+            .is_some_and(|g| g.escrito);
+    // La linea dice el informe del head actual si se leyo; si no, el del
+    // head anterior guardado antes del push; y `sin-leer` si el check
+    // termino y no se pudo leer.
+    let hallazgos: Option<Guardado> = match (leido_tras_push, previo) {
+        (Some(Some(g)), _) | (_, Some(g)) => Some(g),
+        (Some(None), None) => Some(Guardado::sin_leer()),
+        (None, None) => None,
+    };
     let nada_nuevo = !publicado.empujado
         && !publicado.abierto
         && !guardado
@@ -373,16 +381,88 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         .con("pr", pr)
         .con("estado", EN_REVISION)
         .con(REVISION_IA, ria);
-    if let Some((veredicto, ruta)) = hallazgos {
-        i = i.con("hallazgos", veredicto);
-        if let Some(r) = ruta {
-            i = i.con("informe", r);
+    if let Some(g) = hallazgos {
+        i = i.con("hallazgos", g.veredicto);
+        if let Some((ruta, ronda, nuevos, cerrados)) = g.informe {
+            i = i
+                .con("informe", ruta)
+                .con("ronda", ronda.to_string())
+                .con("nuevos", nuevos.to_string())
+                .con("cerrados", cerrados.to_string());
         }
     }
     Ok(i.con_lista("revisoras", sel.revisoras)
         .con("modelo", sel.modelo)
         .con_lista("reglas", sel.reglas)
         .con_lista("avisos", sel.avisos))
+}
+
+/// Lo que dejo [`guardar_informe`] para la linea de `review`.
+struct Guardado {
+    /// El veredicto del informe, o `sin-leer`.
+    veredicto: &'static str,
+    /// Ruta del JSON en la rama de estado, ronda, nuevos y cerrados.
+    informe: Option<(String, u32, usize, usize)>,
+    /// Si se escribio algo en la rama de estado.
+    escrito: bool,
+}
+
+impl Guardado {
+    fn sin_leer() -> Self {
+        Self {
+            veredicto: "sin-leer",
+            informe: None,
+            escrito: false,
+        }
+    }
+}
+
+/// Lee con el agente el check `revision-ia` del PR `pr` (ya terminado) y
+/// guarda su informe en la carpeta de la tarea (F6-5). `Ok(None)` si no se
+/// pudo leer (o su titulo no es de tc2); `Err` si la escritura fallo.
+fn guardar_informe(
+    p: &dyn Plataforma,
+    ctx: &estado::Contexto<'_>,
+    (id, quien): (&str, &crate::identidad::Quien),
+    pr: u64,
+    origen: u64,
+) -> Result<Option<Guardado>, Informe> {
+    let leido = p.leer_revision(Rol::Agente, pr, origen).ok().and_then(|r| {
+        let d = crate::hallazgos::Dictamen::de_titulo(&r.titulo)?;
+        let ronda = crate::hallazgos::ronda_de_titulo(&r.titulo)?;
+        Some(crate::hallazgos::InformeTarea::nuevo(
+            id,
+            (pr, &r.sha, ronda),
+            (&r.conclusion, d),
+            &r.resumen,
+            r.aceptados,
+        ))
+    });
+    let Some(informe) = leido else {
+        return Ok(None);
+    };
+    let op = GuardarRevision::nueva(id, quien, &informe);
+    let gr = estado::transaccion(ctx, &op);
+    let escrito = match gr.resultado {
+        Resultado::Ok => true,
+        Resultado::SinCambios => false,
+        _ => {
+            return Err(match op.dueno() {
+                Some(l) => gr.con("asignado", l),
+                None => gr,
+            });
+        }
+    };
+    Ok(Some(Guardado {
+        veredicto: informe.veredicto.texto(),
+        informe: Some((
+            op.ruta_json(),
+            informe.ronda,
+            informe.nuevos,
+            informe.cerrados,
+        )),
+        escrito,
+    }))
 }
 
 /// La seleccion de revision de la tarea `t` en la rama `rama` (F6-3): rutas

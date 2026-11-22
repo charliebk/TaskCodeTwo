@@ -932,3 +932,14 @@ taskcodetwo/tareas: lotes/noche-173-210.yml (diario), tareas/TASK-NNN/tarea.md (
   del check `carril` (F6) y no se implementa en F4-3.
 - No cambia F1-10: que una tarea de riesgo alto no entre en el lote afecta a
   lanzarlo, no a aprobar su plan.
+
+## Adenda (F6-6, TASK-052) — `## Rondas extra` sube el tope de la CI
+
+- El formato que lee `tc2 hallazgos ronda` es un elemento de lista de primer
+  nivel con texto (`- ...` o `* ...`) por ronda extra en `## Rondas extra` o
+  `## Ronda extra` de la tarea (rama de estado); los subelementos sangrados,
+  los elementos vacíos y lo que va dentro de un bloque de código no cuentan. Cada uno suma uno
+  a `tope_rondas` de la base. Con D6a nadie escribe esa sección de noche: la
+  ronda extra la decide la persona por la mañana. Si el agente la escribiera,
+  solo ganaría rondas (tokens), no saltaría ninguna puerta: la aprobación de
+  la persona sigue siendo obligatoria.

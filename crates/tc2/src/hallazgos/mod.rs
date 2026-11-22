@@ -23,8 +23,18 @@
 //! CRITICO o IMPORTANTE aceptado o si alguna revisora no dejo respuesta
 //! valida; `success` si no), su resumen ([`resumen_veredicto`]) y las
 //! anotaciones por linea ([`anotaciones`]). Tambien es una funcion pura.
+//!
+//! F6-6 (contrato v3): rondas incrementales. Cada check describe su ronda
+//! (titulo con `ronda=`) y lleva en sus anotaciones todos los hallazgos que
+//! siguen abiertos ([`AceptadoDe`] con `ronda` y `estado`). [`ronda`] decide
+//! la ronda siguiente a partir del check anterior; en modo incremental cada
+//! revisora recibe sus abiertos y contesta con un objeto `{hallazgos,
+//! cierres}`: un abierto CRITICO o IMPORTANTE solo se cierra con un
+//! [`Cierre`] valido ([`validar_con`]); si no, sigue abierto (falla en
+//! cerrado). [`veredicto_ronda`] cuenta nuevos, persisten y cerrados.
 
 pub mod orden;
+pub mod ronda;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -34,7 +44,7 @@ use serde_json::Value;
 use crate::verificacion::informe::{Informe as InformeVerificacion, Resultado as ResultadoPaso};
 
 /// Version del contrato de hallazgos.
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 
 /// Hallazgos que se validan como mucho por respuesta; los que sobran se
 /// rechazan juntos con [`motivo::FUERA_DE_TOPE`].
@@ -68,11 +78,18 @@ pub mod motivo {
     pub const BORDE_SIN_DIFERENCIA: &str = "borde-sin-diferencia";
     /// `paso_rojo` no es un paso en rojo del informe de verificacion.
     pub const PASO_ROJO_NO_ESTA: &str = "paso-rojo-no-esta";
+    /// El cierre nombra un id que no es de un abierto de la revisora (F6-6).
+    pub const CIERRE_DESCONOCIDO: &str = "cierre-desconocido";
+    /// El fichero o la linea del cierre no estan en el diff incremental.
+    pub const CIERRE_FUERA_DEL_DIFF: &str = "cierre-fuera-del-diff";
+    /// El abierto traia `paso_rojo` y ese paso sigue en rojo (o no hay
+    /// informe de verificacion).
+    pub const PASO_ROJO_SIGUE_ROJO: &str = "paso-rojo-sigue-rojo";
 }
 
 /// Los motivos de rechazo con su explicacion, en el orden en que se
 /// comprueban. Van tal cual al prompt ([`instrucciones`]) y al esquema.
-pub const MOTIVOS: [(&str, &str); 13] = [
+pub const MOTIVOS: [(&str, &str); 16] = [
     (
         motivo::SIN_BLOQUE,
         "la respuesta no trae ningun bloque json",
@@ -83,7 +100,7 @@ pub const MOTIVOS: [(&str, &str); 13] = [
     ),
     (
         motivo::JSON_INVALIDO,
-        "el bloque no se cierra, no es JSON o no es una lista",
+        "el bloque no se cierra, no es JSON, o no es una lista ni un objeto {hallazgos, cierres}",
     ),
     (
         motivo::FUERA_DE_TOPE,
@@ -118,6 +135,18 @@ pub const MOTIVOS: [(&str, &str); 13] = [
     (
         motivo::PASO_ROJO_NO_ESTA,
         "paso_rojo no es un paso en rojo del informe de verificacion, o no hay informe",
+    ),
+    (
+        motivo::CIERRE_DESCONOCIDO,
+        "el cierre nombra un id que no es de un hallazgo CRITICO o IMPORTANTE abierto de tu lista",
+    ),
+    (
+        motivo::CIERRE_FUERA_DEL_DIFF,
+        "el fichero o la linea del cierre no estan en el lado nuevo del diff incremental que ves",
+    ),
+    (
+        motivo::PASO_ROJO_SIGUE_ROJO,
+        "el abierto traia paso_rojo y ese paso sigue en rojo en el informe de verificacion, o no hay informe",
     ),
 ];
 
@@ -280,8 +309,32 @@ pub struct Aceptado {
     pub evidencia: Evidencia,
 }
 
+/// Un cierre de un abierto (F6-6), tal como lo da la revisora: el id del
+/// abierto y la linea del lado nuevo del diff incremental que lo arregla.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Cierre {
+    pub id: String,
+    pub fichero: String,
+    pub linea: u32,
+    pub motivo: String,
+}
+
+/// Un cierre aceptado: el [`Cierre`] con la revisora y la ronda del abierto
+/// que cierra (un cierre cierra todos los abiertos de la lista con su id).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CierreAceptado {
+    pub revisora: String,
+    pub ronda: u32,
+    pub id: String,
+    pub fichero: String,
+    pub linea: u32,
+    pub motivo: String,
+}
+
 /// Un rechazo: de un hallazgo (`indice` en la lista) o de toda la respuesta
-/// (`indice` nulo).
+/// (`indice` nulo). Los cierres se numeran detras de los hallazgos.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Rechazo {
     pub indice: Option<usize>,
@@ -301,6 +354,9 @@ pub struct Validados {
     pub revisora: String,
     pub aceptados: Vec<Aceptado>,
     pub rechazados: Vec<Rechazo>,
+    /// Los cierres aceptados (F6-6; vacio en la ronda 1).
+    #[serde(default)]
+    pub cierres: Vec<CierreAceptado>,
 }
 
 /// Un [`Rechazo`] leido de vuelta, con el motivo aun sin contrastar.
@@ -672,7 +728,10 @@ fn validar_uno(
     if !vistos.insert(c.id.clone()) {
         return Err(fallo(
             motivo::ID_REPETIDO,
-            format!("el id {} ya lo usa un hallazgo anterior", c.id),
+            format!(
+                "el id {} ya lo usa un hallazgo anterior o un abierto de la ronda anterior",
+                c.id
+            ),
         ));
     }
     let e: Evidencia = serde_json::from_value(evidencia.clone())
@@ -712,21 +771,16 @@ fn validar_uno(
             "esperado y obtenido son iguales: no hay borde".to_owned(),
         ));
     }
-    if let Some(paso) = &e.paso_rojo {
-        let en_rojo = informe.is_some_and(|i| {
-            i.pasos
-                .iter()
-                .any(|p| p.nombre == paso.trim() && p.resultado == ResultadoPaso::Rojo)
-        });
-        if !en_rojo {
-            return Err(fallo(
-                motivo::PASO_ROJO_NO_ESTA,
-                format!(
-                    "el paso {} no figura en rojo en el informe de verificacion",
-                    paso.trim()
-                ),
-            ));
-        }
+    if let Some(paso) = &e.paso_rojo
+        && !en_rojo(informe, paso)
+    {
+        return Err(fallo(
+            motivo::PASO_ROJO_NO_ESTA,
+            format!(
+                "el paso {} no figura en rojo en el informe de verificacion",
+                paso.trim()
+            ),
+        ));
     }
     Ok(Aceptado {
         id: c.id,
@@ -740,18 +794,115 @@ fn validar_uno(
 }
 
 /// Valida la respuesta de la revisora `revisora` contra el diff que vio y,
-/// si lo hay, el informe de verificacion (para `paso_rojo`).
+/// si lo hay, el informe de verificacion (para `paso_rojo`). Ronda 1: sin
+/// abiertos ([`validar_con`]).
 pub fn validar(
     revisora: &str,
     respuesta: &str,
     diff: &Diff,
     informe: Option<&InformeVerificacion>,
 ) -> Validados {
+    validar_con(revisora, respuesta, diff, informe, &[])
+}
+
+/// Si `paso` figura en rojo en el informe.
+fn en_rojo(informe: Option<&InformeVerificacion>, paso: &str) -> bool {
+    informe.is_some_and(|i| {
+        i.pasos
+            .iter()
+            .any(|p| p.nombre == paso.trim() && p.resultado == ResultadoPaso::Rojo)
+    })
+}
+
+/// Valida un cierre contra los abiertos CRITICO o IMPORTANTE de la revisora,
+/// el diff incremental y el informe; da los abiertos que cierra.
+fn validar_cierre<'a>(
+    c: &Value,
+    diff: &Diff,
+    informe: Option<&InformeVerificacion>,
+    abiertos: &'a [AceptadoDe],
+    vistos: &mut BTreeSet<String>,
+) -> Result<(Cierre, Vec<&'a AceptadoDe>), Fallo> {
+    let id = c
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| es_id(s))
+        .map(str::to_owned);
+    let fallo = |motivo: &'static str, detalle: String| Fallo {
+        id: id.clone(),
+        motivo,
+        detalle,
+    };
+    let c: Cierre = serde_json::from_value(c.clone())
+        .map_err(|e| fallo(motivo::HALLAZGO_INVALIDO, format!("cierre: {e}")))?;
+    if !es_id(&c.id) || c.linea == 0 || !no_vacio(&c.fichero) || !no_vacio(&c.motivo) {
+        return Err(fallo(
+            motivo::HALLAZGO_INVALIDO,
+            "cierre: id valido, linea desde 1, y fichero y motivo no vacios".to_owned(),
+        ));
+    }
+    if !vistos.insert(c.id.clone()) {
+        return Err(fallo(
+            motivo::ID_REPETIDO,
+            format!("otro cierre anterior ya cierra {}", c.id),
+        ));
+    }
+    let cerrados: Vec<&AceptadoDe> = abiertos
+        .iter()
+        .filter(|a| a.hallazgo.id == c.id && a.hallazgo.severidad != Severidad::Menor)
+        .collect();
+    if cerrados.is_empty() {
+        return Err(fallo(
+            motivo::CIERRE_DESCONOCIDO,
+            format!(
+                "{} no es un abierto CRITICO o IMPORTANTE de esta revisora",
+                c.id
+            ),
+        ));
+    }
+    if diff.linea(&c.fichero, c.linea).is_none() {
+        return Err(fallo(
+            motivo::CIERRE_FUERA_DEL_DIFF,
+            format!(
+                "{}:{} no esta en el lado nuevo del diff incremental",
+                c.fichero, c.linea
+            ),
+        ));
+    }
+    for a in &cerrados {
+        if let Some(paso) = &a.hallazgo.evidencia.paso_rojo
+            && (informe.is_none() || en_rojo(informe, paso))
+        {
+            return Err(fallo(
+                motivo::PASO_ROJO_SIGUE_ROJO,
+                format!(
+                    "el paso {} sigue en rojo en el informe de verificacion, o no hay informe",
+                    paso.trim()
+                ),
+            ));
+        }
+    }
+    Ok((c, cerrados))
+}
+
+/// Como [`validar`], con los abiertos de la ronda anterior que se le dieron a
+/// esta revisora (F6-6). La respuesta puede ser la lista de hallazgos (v2) o
+/// un objeto `{"hallazgos": [...], "cierres": [...]}`; un hallazgo nuevo no
+/// puede reutilizar el id de un abierto, y cada cierre se valida contra los
+/// abiertos CRITICO o IMPORTANTE, el diff (el incremental) y el informe.
+pub fn validar_con(
+    revisora: &str,
+    respuesta: &str,
+    diff: &Diff,
+    informe: Option<&InformeVerificacion>,
+    abiertos: &[AceptadoDe],
+) -> Validados {
     let mut v = Validados {
         version: VERSION,
         revisora: revisora.to_owned(),
         aceptados: Vec::new(),
         rechazados: Vec::new(),
+        cierres: Vec::new(),
     };
     let de_toda = |motivo: &'static str, detalle: String| Rechazo {
         indice: None,
@@ -759,17 +910,35 @@ pub fn validar(
         motivo,
         detalle,
     };
-    let lista = match bloque_json(respuesta).map(|b| serde_json::from_str::<Value>(&b)) {
+    let forma = "el bloque json no es una lista ni un objeto {hallazgos, cierres}";
+    let bloque = bloque_json(respuesta).map(|b| serde_json::from_str::<Value>(&b));
+    let (lista, cierres) = match bloque {
         Err((m, d)) => {
             v.rechazados.push(de_toda(m, d));
             return v;
         }
-        Ok(Ok(Value::Array(l))) => l,
+        Ok(Ok(Value::Array(l))) => (l, Vec::new()),
+        Ok(Ok(Value::Object(o))) => {
+            // Una clave que falta es una lista vacia (las dos igual): sin
+            // `hallazgos`, los cierres validos no se pierden.
+            let lista = |k: &str| match o.get(k) {
+                Some(Value::Array(l)) => Some(l.clone()),
+                None => Some(Vec::new()),
+                _ => None,
+            };
+            let solo_esas = o.keys().all(|k| k == "hallazgos" || k == "cierres");
+            match (lista("hallazgos"), lista("cierres")) {
+                (Some(h), Some(c)) if solo_esas => (h, c),
+                _ => {
+                    v.rechazados
+                        .push(de_toda(motivo::JSON_INVALIDO, forma.to_owned()));
+                    return v;
+                }
+            }
+        }
         Ok(Ok(_)) => {
-            v.rechazados.push(de_toda(
-                motivo::JSON_INVALIDO,
-                "el bloque json no es una lista".to_owned(),
-            ));
+            v.rechazados
+                .push(de_toda(motivo::JSON_INVALIDO, forma.to_owned()));
             return v;
         }
         Ok(Err(e)) => {
@@ -780,7 +949,8 @@ pub fn validar(
             return v;
         }
     };
-    let mut vistos = BTreeSet::new();
+    // Los ids de los abiertos no se reutilizan: un cierre los nombra.
+    let mut vistos: BTreeSet<String> = abiertos.iter().map(|a| a.hallazgo.id.clone()).collect();
     for (i, h) in lista.iter().enumerate() {
         if i >= TOPE_HALLAZGOS {
             v.rechazados.push(Rechazo {
@@ -798,6 +968,42 @@ pub fn validar(
             Ok(a) => v.aceptados.push(a),
             Err(f) => v.rechazados.push(Rechazo {
                 indice: Some(i),
+                id: f.id,
+                motivo: f.motivo,
+                detalle: f.detalle,
+            }),
+        }
+    }
+    let mut cerrados_vistos = BTreeSet::new();
+    for (j, c) in cierres.iter().enumerate() {
+        let indice = lista.len() + j;
+        if j >= TOPE_HALLAZGOS {
+            v.rechazados.push(Rechazo {
+                indice: Some(indice),
+                id: None,
+                motivo: motivo::FUERA_DE_TOPE,
+                detalle: format!(
+                    "{} cierres pasan del tope de {TOPE_HALLAZGOS}",
+                    cierres.len() - TOPE_HALLAZGOS
+                ),
+            });
+            break;
+        }
+        match validar_cierre(c, diff, informe, abiertos, &mut cerrados_vistos) {
+            Ok((c, cerrados)) => {
+                for a in cerrados {
+                    v.cierres.push(CierreAceptado {
+                        revisora: a.revisora.clone(),
+                        ronda: a.ronda,
+                        id: c.id.clone(),
+                        fichero: c.fichero.clone(),
+                        linea: c.linea,
+                        motivo: c.motivo.clone(),
+                    });
+                }
+            }
+            Err(f) => v.rechazados.push(Rechazo {
+                indice: Some(indice),
                 id: f.id,
                 motivo: f.motivo,
                 detalle: f.detalle,
@@ -880,11 +1086,24 @@ El check `revision-ia` lista los aceptados y los rechazados con su motivo.\n\n",
         "  - `borde`: `entrada`, `esperado` (lo que deberia salir) y `obtenido` (lo que sale segun el codigo), distintos.\n\n",
     );
     s.push_str(
-        "En esta ronda nadie ejecuta la evidencia: se comprueba que este completa y anclada al diff (la ejecucion es de F6-6). \
+        "Nadie ejecuta la evidencia: se comprueba que este completa y anclada al diff. \
 No inventes lineas que no ves: si el diff esta cortado, el hallazgo de lo que no llego se rechaza.\n\n",
     );
+    s.push_str(
+        "Ronda incremental (F6-6): si el prompt trae la seccion «Hallazgos abiertos de la ronda anterior», el diff es el de lo cambiado desde esa ronda y el bloque es un objeto `{\"hallazgos\": [...], \"cierres\": [...]}`. \
+En `hallazgos` van solo los nuevos, con un id que no use ningun abierto. En `cierres`, uno por cada abierto CRITICO o IMPORTANTE de tu lista que el diff arregla, con estas claves y ninguna mas:\n\n",
+    );
+    s.push_str("- `id`: el del abierto.\n");
+    s.push_str(
+        "- `fichero` y `linea`: una linea del lado nuevo del diff incremental en la que queda arreglado (se cuenta como en los hallazgos).\n",
+    );
+    s.push_str("- `motivo`: por que queda arreglado, en una frase.\n\n");
+    s.push_str(
+        "Un abierto sin cierre valido sigue abierto. Si traia `paso_rojo`, ese paso tiene que estar ya en verde en el informe de verificacion. \
+Los MENOR no se cierran asi: se dan por cerrados cuando cambia su fichero.\n\n",
+    );
     s.push_str(&format!(
-        "Como mucho {TOPE_HALLAZGOS} hallazgos. Motivos de rechazo:\n\n"
+        "Como mucho {TOPE_HALLAZGOS} hallazgos y {TOPE_HALLAZGOS} cierres. Motivos de rechazo:\n\n"
     ));
     for (id, explicacion) in MOTIVOS {
         s.push_str(&format!("- `{id}`: {explicacion}.\n"));
@@ -892,8 +1111,27 @@ No inventes lineas que no ves: si el diff esta cortado, el hallazgo de lo que no
     s.push_str("\nEjemplo del bloque:\n\n```json\n");
     s.push_str(EJEMPLO);
     s.push_str("\n```\n");
+    s.push_str(
+        "\nEjemplo del bloque en una ronda incremental (va tambien en un bloque ```json):\n\n```\n",
+    );
+    s.push_str(EJEMPLO_INCREMENTAL);
+    s.push_str("\n```\n");
     s
 }
+
+/// Ejemplo de respuesta de una ronda incremental (lo validan los tests
+/// contra `tests/fixtures/hallazgos/diff.txt` con un abierto `I1`).
+const EJEMPLO_INCREMENTAL: &str = r#"{
+  "hallazgos": [],
+  "cierres": [
+    {
+      "id": "I1",
+      "fichero": "src/calculo.rs",
+      "linea": 12,
+      "motivo": "El tope ya tiene su test."
+    }
+  ]
+}"#;
 
 /// Texto de la respuesta del modelo como texto plano de Markdown en una
 /// linea: sin saltos ni controles, con la puntuacion que da formato escapada
@@ -1056,6 +1294,9 @@ pub enum Dictamen {
     /// Alguna revisora no dejo respuesta valida, o no hubo ninguna: la
     /// revision no ocurrio (falla en cerrado, decision 1 de TASK-051).
     Incompleta,
+    /// Se paso el tope de rondas con un CRITICO o IMPORTANTE abierto: no se
+    /// consulta al modelo y los abiertos se arrastran (F6-6).
+    Tope,
 }
 
 impl Dictamen {
@@ -1065,6 +1306,7 @@ impl Dictamen {
             Dictamen::Rojo => "rojo",
             Dictamen::Verde => "verde",
             Dictamen::Incompleta => "incompleta",
+            Dictamen::Tope => "tope",
         }
     }
 
@@ -1073,7 +1315,7 @@ impl Dictamen {
     pub fn conclusion(self) -> &'static str {
         match self {
             Dictamen::Verde => "success",
-            Dictamen::Rojo | Dictamen::Incompleta => "failure",
+            Dictamen::Rojo | Dictamen::Incompleta | Dictamen::Tope => "failure",
         }
     }
 
@@ -1084,18 +1326,89 @@ impl Dictamen {
             "rojo" => Some(Dictamen::Rojo),
             "verde" => Some(Dictamen::Verde),
             "incompleta" => Some(Dictamen::Incompleta),
+            "tope" => Some(Dictamen::Tope),
             _ => None,
         }
     }
 }
 
+/// La ronda de un titulo del check: la de `(ronda=R ...)` (v3) o 1 si es un
+/// titulo v2, sin `ronda=` (F6-5).
+pub fn ronda_de_titulo(titulo: &str) -> Option<u32> {
+    let resto = titulo.strip_prefix(PREFIJO_TITULO)?;
+    match resto.split_once("(ronda=") {
+        Some((_, r)) => r
+            .split(' ')
+            .next()
+            .and_then(|n| n.parse().ok())
+            .filter(|n| *n >= 1),
+        None => Some(1),
+    }
+}
+
+/// Si un hallazgo sigue abierto o se cerro (F6-6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Estado {
+    #[default]
+    Abierto,
+    Cerrado,
+}
+
+impl Estado {
+    /// Como se escribe en el contrato.
+    pub fn texto(self) -> &'static str {
+        match self {
+            Estado::Abierto => "abierto",
+            Estado::Cerrado => "cerrado",
+        }
+    }
+}
+
+fn ronda_uno() -> u32 {
+    1
+}
+
 /// Un aceptado con la revisora que lo encontro: el `raw_details` de su
-/// anotacion, que `tc2 review` lee de vuelta.
+/// anotacion, que `tc2 review` y la ronda siguiente leen de vuelta. F6-6:
+/// la ronda en la que se encontro y si sigue abierto; un `raw_details` v2,
+/// sin esas claves, se lee como ronda 1 y abierto.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AceptadoDe {
     pub revisora: String,
     pub hallazgo: Aceptado,
+    #[serde(default = "ronda_uno")]
+    pub ronda: u32,
+    #[serde(default)]
+    pub estado: Estado,
+}
+
+impl AceptadoDe {
+    /// Si sigue abierto.
+    pub fn abierto(&self) -> bool {
+        self.estado == Estado::Abierto
+    }
+
+    /// Si es CRITICO o IMPORTANTE.
+    pub fn grave(&self) -> bool {
+        self.hallazgo.severidad != Severidad::Menor
+    }
+}
+
+/// Cuenta CRITICO, IMPORTANTE y MENOR de los abiertos de `aceptados`.
+fn recuento(aceptados: &[AceptadoDe]) -> (usize, usize, usize) {
+    let n = |s: Severidad| {
+        aceptados
+            .iter()
+            .filter(|a| a.abierto() && a.hallazgo.severidad == s)
+            .count()
+    };
+    (
+        n(Severidad::Critico),
+        n(Severidad::Importante),
+        n(Severidad::Menor),
+    )
 }
 
 /// Una revisora en el resumen del veredicto.
@@ -1113,11 +1426,24 @@ pub struct Fila {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Veredicto {
     pub dictamen: Dictamen,
+    /// Ronda de este check (F6-6; 1 sin ronda anterior).
+    pub ronda: u32,
+    /// Modo de la ronda (F6-6).
+    pub modo: ronda::Modo,
+    /// Abiertos por severidad (nuevos y los que persisten).
     pub criticos: usize,
     pub importantes: usize,
     pub menores: usize,
+    /// Aceptados nuevos de esta ronda.
+    pub nuevos: usize,
+    /// Abiertos de rondas anteriores que siguen abiertos.
+    pub persisten: usize,
+    /// Abiertos de rondas anteriores cerrados en esta.
+    pub cerrados: usize,
     pub rechazados: usize,
     pub filas: Vec<Fila>,
+    /// Todos: los abiertos (nuevos y persistentes) y los cerrados en esta
+    /// ronda, con su `estado`.
     pub aceptados: Vec<AceptadoDe>,
 }
 
@@ -1130,13 +1456,34 @@ impl Veredicto {
             .count()
     }
 
+    /// Si fue una verificacion ligera, sin modelo (F6-6).
+    pub fn ligera(&self) -> bool {
+        self.modo == ronda::Modo::Ligera
+    }
+
     /// Titulo del check.
     pub fn titulo(&self) -> String {
-        titulo_de(self.dictamen, self.criticos, self.importantes, self.menores)
+        titulo_de(
+            self.dictamen,
+            self.ronda,
+            (self.criticos, self.importantes, self.menores),
+        )
     }
 }
 
-fn titulo_de(d: Dictamen, criticos: usize, importantes: usize, menores: usize) -> String {
+fn titulo_de(
+    d: Dictamen,
+    ronda: u32,
+    (criticos, importantes, menores): (usize, usize, usize),
+) -> String {
+    format!(
+        "{PREFIJO_TITULO}{} (ronda={ronda} criticos={criticos} importantes={importantes} menores={menores})",
+        d.texto()
+    )
+}
+
+/// El titulo de un check v2 (F6-5, sin ronda): se sigue leyendo como ronda 1.
+fn titulo_v2(d: Dictamen, (criticos, importantes, menores): (usize, usize, usize)) -> String {
     format!(
         "{PREFIJO_TITULO}{} (criticos={criticos} importantes={importantes} menores={menores})",
         d.texto()
@@ -1151,6 +1498,10 @@ fn titulo_de(d: Dictamen, criticos: usize, importantes: usize, menores: usize) -
 /// con cualquier titulo (el de `publicar` cuando no hay veredicto de
 /// `validar` o la API lo rechaza). `None` si no casan: un check con menos
 /// anotaciones de las que dice su titulo (un lote que no llego) o alterado.
+///
+/// F6-6: los recuentos son de los abiertos (los cerrados en esa ronda van
+/// como anotacion `notice`); vale el titulo v3, con `ronda=`, y el v2 (ronda
+/// 1); un `tope` tiene algun CRITICO o IMPORTANTE abierto, como un `rojo`.
 pub fn dictamen_publicado(
     titulo: &str,
     conclusion: &str,
@@ -1160,35 +1511,46 @@ pub fn dictamen_publicado(
     if conclusion != d.conclusion() {
         return None;
     }
-    let n = |s: Severidad| {
-        aceptados
-            .iter()
-            .filter(|a| a.hallazgo.severidad == s)
-            .count()
-    };
-    let (c, i, m) = (
-        n(Severidad::Critico),
-        n(Severidad::Importante),
-        n(Severidad::Menor),
-    );
+    let (c, i, m) = recuento(aceptados);
     let coherente = match d {
-        Dictamen::Rojo => c + i > 0,
+        Dictamen::Rojo | Dictamen::Tope => c + i > 0,
         Dictamen::Verde => c + i == 0,
         Dictamen::Incompleta => true,
     };
-    let casa =
-        titulo == titulo_de(d, c, i, m) || (d == Dictamen::Incompleta && aceptados.is_empty());
+    let casa = ronda_de_titulo(titulo).is_some_and(|r| titulo == titulo_de(d, r, (c, i, m)))
+        || titulo == titulo_v2(d, (c, i, m))
+        || (d == Dictamen::Incompleta && aceptados.is_empty());
     (coherente && casa).then_some(d)
 }
 
 /// Junta los resultados de `validar` de cada revisora (`None` si no dejo
-/// uno legible). En F6-5 todo aceptado esta abierto (el cierre es de F6-6).
+/// uno legible), sin ronda anterior: ronda 1 ([`veredicto_ronda`]).
 pub fn veredicto(revisoras: &[Option<Validados>]) -> Veredicto {
+    veredicto_ronda(revisoras, None)
+}
+
+/// Junta los resultados de `validar` de cada revisora con la decision de la
+/// ronda (F6-6). Los aceptados de las revisoras son nuevos de esta ronda; de
+/// los abiertos heredados, un CRITICO o IMPORTANTE se cierra solo si alguna
+/// revisora dejo un cierre valido de el, y los MENOR cerrados por la
+/// decision (su fichero cambio) salen cerrados. `tope` y `ligera` no
+/// consultan al modelo: sin revisoras, dan `tope` (con los abiertos
+/// arrastrados) y `verde`.
+pub fn veredicto_ronda(
+    revisoras: &[Option<Validados>],
+    decision: Option<&ronda::Decision>,
+) -> Veredicto {
+    let numero = decision.map_or(1, |d| d.ronda);
     let mut v = Veredicto {
         dictamen: Dictamen::Verde,
+        ronda: numero,
+        modo: decision.map_or(ronda::Modo::Completa, |d| d.modo),
         criticos: 0,
         importantes: 0,
         menores: 0,
+        nuevos: 0,
+        persisten: 0,
+        cerrados: 0,
         rechazados: 0,
         filas: Vec::new(),
         aceptados: Vec::new(),
@@ -1204,14 +1566,12 @@ pub fn veredicto(revisoras: &[Option<Validados>]) -> Veredicto {
             continue;
         };
         for a in &r.aceptados {
-            match a.severidad {
-                Severidad::Critico => v.criticos += 1,
-                Severidad::Importante => v.importantes += 1,
-                Severidad::Menor => v.menores += 1,
-            }
+            v.nuevos += 1;
             v.aceptados.push(AceptadoDe {
                 revisora: r.revisora.clone(),
                 hallazgo: a.clone(),
+                ronda: numero,
+                estado: Estado::Abierto,
             });
         }
         v.rechazados += r.rechazados.len();
@@ -1226,7 +1586,38 @@ pub fn veredicto(revisoras: &[Option<Validados>]) -> Veredicto {
                 .map(|x| x.motivo),
         });
     }
-    v.dictamen = if v.filas.is_empty() || v.incompletas() > 0 {
+    if let Some(d) = decision {
+        let cerrado_por = |a: &AceptadoDe| {
+            revisoras.iter().flatten().any(|r| {
+                r.cierres.iter().any(|c| {
+                    c.revisora == a.revisora && c.ronda == a.ronda && c.id == a.hallazgo.id
+                })
+            })
+        };
+        for a in &d.abiertos {
+            let mut a = a.clone();
+            if a.grave() && cerrado_por(&a) {
+                a.estado = Estado::Cerrado;
+                v.cerrados += 1;
+            } else {
+                a.estado = Estado::Abierto;
+                v.persisten += 1;
+            }
+            v.aceptados.push(a);
+        }
+        for a in &d.cerrados {
+            let mut a = a.clone();
+            a.estado = Estado::Cerrado;
+            v.cerrados += 1;
+            v.aceptados.push(a);
+        }
+    }
+    (v.criticos, v.importantes, v.menores) = recuento(&v.aceptados);
+    v.dictamen = if v.modo == ronda::Modo::Tope {
+        Dictamen::Tope
+    } else if v.modo == ronda::Modo::Ligera && v.filas.is_empty() {
+        Dictamen::Verde
+    } else if v.filas.is_empty() || v.incompletas() > 0 {
         Dictamen::Incompleta
     } else if v.criticos + v.importantes > 0 {
         Dictamen::Rojo
@@ -1325,7 +1716,8 @@ fn raw_details(a: &AceptadoDe) -> String {
 }
 
 /// Una anotacion por aceptado, en lotes de [`ANOTACIONES_POR_LOTE`]:
-/// `failure` para CRITICO e IMPORTANTE, `warning` para MENOR; titulo y
+/// `failure` para CRITICO e IMPORTANTE, `warning` para MENOR y `notice` para
+/// los cerrados en esta ronda (F6-6); titulo y
 /// mensaje pasados por [`plano`] (un mensaje vacio pasa a
 /// [`MENSAJE_SIN_TEXTO`]); `raw_details`, el [`AceptadoDe`] en JSON acotado a
 /// [`TOPE_RAW_DETAILS`].
@@ -1335,20 +1727,24 @@ pub fn anotaciones(v: &Veredicto) -> Vec<Vec<Anotacion>> {
         .iter()
         .map(|a| {
             let h = &a.hallazgo;
-            let titulo = format!(
+            let mut titulo = format!(
                 "{} {} {} ({})",
                 plano(&h.id, 64),
                 h.severidad.texto(),
                 h.clase.texto(),
                 plano(&a.revisora, 120)
             );
+            if !a.abierto() {
+                titulo.push_str(&format!(" cerrado en la ronda {}", v.ronda));
+            }
             Anotacion {
                 path: h.fichero.clone(),
                 start_line: h.linea,
                 end_line: h.linea,
-                annotation_level: match h.severidad {
-                    Severidad::Critico | Severidad::Importante => "failure",
-                    Severidad::Menor => "warning",
+                annotation_level: match (a.estado, h.severidad) {
+                    (Estado::Cerrado, _) => "notice",
+                    (_, Severidad::Critico | Severidad::Importante) => "failure",
+                    (_, Severidad::Menor) => "warning",
                 }
                 .to_owned(),
                 // GitHub corta el titulo en 255 caracteres.
@@ -1378,12 +1774,21 @@ pub fn resumen_veredicto(v: &Veredicto, extra: &str) -> String {
         Dictamen::Incompleta => {
             "Alguna revisora no dejo una respuesta valida (o no hubo ninguna): la revision no se completo y el check sale en rojo (F6-5)."
         }
+        Dictamen::Tope => {
+            "Se paso el tope de rondas con hallazgos CRITICOS o IMPORTANTES abiertos: no se consulta al modelo, los abiertos siguen y el check sale en rojo. Una ronda mas la decide la persona en `## Rondas extra` de la tarea (F6-6)."
+        }
     };
     let mut s = format!(
         "**Veredicto: {}** (conclusion {}). {explicacion}\n\n\
-         Aceptados: {} CRITICO, {} IMPORTANTE, {} MENOR; rechazados: {}; revisoras: {}, incompletas: {}.\n\n",
+         Ronda {} ({}): {} nuevos, {} persisten, {} cerrados.\n\n\
+         Abiertos: {} CRITICO, {} IMPORTANTE, {} MENOR; rechazados: {}; revisoras: {}, incompletas: {}.\n\n",
         v.dictamen.texto(),
         v.dictamen.conclusion(),
+        v.ronda,
+        v.modo.texto(),
+        v.nuevos,
+        v.persisten,
+        v.cerrados,
         v.criticos,
         v.importantes,
         v.menores,
@@ -1432,28 +1837,40 @@ pub struct InformeTarea {
     pub sha: String,
     pub conclusion: String,
     pub veredicto: Dictamen,
+    /// Ronda del check (F6-6).
+    pub ronda: u32,
+    /// Abiertos por severidad.
     pub criticos: usize,
     pub importantes: usize,
     pub menores: usize,
+    /// Abiertos encontrados en esta ronda, abiertos de rondas anteriores y
+    /// cerrados en esta (F6-6).
+    pub nuevos: usize,
+    pub persisten: usize,
+    pub cerrados: usize,
     /// El resumen del check (ya pasado por [`plano`]).
     pub resumen: String,
     pub aceptados: Vec<AceptadoDe>,
 }
 
 impl InformeTarea {
-    /// El informe de la tarea `tarea` con lo leido del check.
+    /// El informe de la tarea `tarea` con lo leido del check de la ronda
+    /// `ronda`. Nuevos, persisten y cerrados se cuentan como en el check: en
+    /// una ronda `ligera` (lo dice la linea `Ronda N (ligera)` de su resumen)
+    /// la ronda no sube y no hay nada nuevo, asi que todo abierto persiste.
     pub fn nuevo(
         tarea: &str,
-        pr: u64,
-        sha: &str,
+        (pr, sha, ronda): (u64, &str, u32),
         (conclusion, veredicto): (&str, Dictamen),
         resumen: &str,
         aceptados: Vec<AceptadoDe>,
     ) -> Self {
-        let n = |s: Severidad| {
+        let (criticos, importantes, menores) = recuento(&aceptados);
+        let ligera = ronda::modo_de_resumen(resumen) == Some(ronda::Modo::Ligera);
+        let abiertos = |nueva: bool| {
             aceptados
                 .iter()
-                .filter(|a| a.hallazgo.severidad == s)
+                .filter(|a| a.abierto() && (!ligera && a.ronda >= ronda) == nueva)
                 .count()
         };
         Self {
@@ -1463,9 +1880,13 @@ impl InformeTarea {
             sha: sha.to_owned(),
             conclusion: conclusion.to_owned(),
             veredicto,
-            criticos: n(Severidad::Critico),
-            importantes: n(Severidad::Importante),
-            menores: n(Severidad::Menor),
+            ronda,
+            criticos,
+            importantes,
+            menores,
+            nuevos: abiertos(true),
+            persisten: abiertos(false),
+            cerrados: aceptados.iter().filter(|a| !a.abierto()).count(),
             resumen: resumen.to_owned(),
             aceptados,
         }
@@ -1476,12 +1897,17 @@ impl InformeTarea {
     pub fn markdown(&self) -> String {
         let mut s = format!(
             "# Revision IA de {} (PR {}, commit {})\n\n\
-             Veredicto: **{}** (conclusion {}). Aceptados: {} CRITICO, {} IMPORTANTE, {} MENOR.\n\n",
+             Veredicto: **{}** (conclusion {}). Ronda {}: {} nuevos, {} persisten, {} cerrados. \
+             Abiertos: {} CRITICO, {} IMPORTANTE, {} MENOR.\n\n",
             plano(&self.tarea, 64),
             self.pr,
             plano(&self.sha, 64),
             self.veredicto.texto(),
             plano(&self.conclusion, 32),
+            self.ronda,
+            self.nuevos,
+            self.persisten,
+            self.cerrados,
             self.criticos,
             self.importantes,
             self.menores
@@ -1490,13 +1916,15 @@ impl InformeTarea {
             s.push_str("Sin hallazgos aceptados.\n");
         } else {
             s.push_str(
-                "| revisora | id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|---|\n",
+                "| revisora | ronda | estado | id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|---|---|---|\n",
             );
             for a in &self.aceptados {
                 let h = &a.hallazgo;
                 s.push_str(&format!(
-                    "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                    "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
                     plano(&a.revisora, 120),
+                    a.ronda,
+                    a.estado.texto(),
                     plano(&h.id, 64),
                     h.severidad.texto(),
                     h.clase.texto(),
@@ -1710,6 +2138,20 @@ mod tests {
         }
         let v = validar("r", &t, &diff(), None);
         assert_eq!((v.aceptados.len(), v.rechazados.len()), (2, 0), "{v:?}");
+        // F6-6: el ejemplo incremental cierra el abierto I1.
+        for x in ["«Hallazgos abiertos de la ronda anterior»", "`cierres`"] {
+            assert!(t.contains(x), "falta {x}");
+        }
+        assert!(t.contains(EJEMPLO_INCREMENTAL));
+        let i1 = abierto("I1", "IMPORTANTE", 12, EV_BORDE);
+        let v = validar_con(
+            "r",
+            &format!("```json\n{EJEMPLO_INCREMENTAL}\n```"),
+            &diff(),
+            None,
+            &[i1],
+        );
+        assert_eq!((v.cierres.len(), v.rechazados.len()), (1, 0), "{v:?}");
     }
 
     /// El esquema declara los mismos motivos, severidades y tipos que el
@@ -1853,8 +2295,7 @@ mod tests {
         );
         let informe = InformeTarea::nuevo(
             "TASK-051",
-            12,
-            &"a".repeat(40),
+            (12, &"a".repeat(40), 1),
             ("failure", Dictamen::Rojo),
             "r",
             Vec::new(),
@@ -1864,6 +2305,30 @@ mod tests {
         assert_eq!(requeridas("informe-tarea"), claves(&informe));
         let de = serde_json::to_value(&v.aceptados).unwrap_or_else(|x| panic!("{x}"));
         assert_eq!(requeridas("aceptado-de"), claves(&de[0]));
+        // F6-6: el cierre y el cierre aceptado, con las claves del codigo.
+        let c = Cierre {
+            id: "I1".to_owned(),
+            fichero: "f".to_owned(),
+            linea: 1,
+            motivo: "m".to_owned(),
+        };
+        let cv = serde_json::to_value(&c).unwrap_or_else(|x| panic!("{x}"));
+        assert_eq!(requeridas("cierre"), claves(&cv));
+        assert_eq!(claves(&e["$defs"]["cierre"]["properties"]), claves(&cv));
+        let ca = CierreAceptado {
+            revisora: "r".to_owned(),
+            ronda: 1,
+            id: c.id,
+            fichero: c.fichero,
+            linea: 1,
+            motivo: c.motivo,
+        };
+        let ca = serde_json::to_value(&ca).unwrap_or_else(|x| panic!("{x}"));
+        assert_eq!(requeridas("cierre-aceptado"), claves(&ca));
+        assert_eq!(
+            e["$defs"]["informe-tarea"]["properties"]["veredicto"]["enum"],
+            serde_json::json!(["rojo", "verde", "incompleta", "tope"])
+        );
     }
 
     /// Un mensaje que `plano` deja vacio no sale vacio, y `raw_details` cabe
@@ -1941,6 +2406,239 @@ mod tests {
             serde_json::from_str(&a.raw_details).unwrap_or_else(|x| panic!("{x}"));
         let pasos = leido.hallazgo.evidencia.pasos.unwrap_or_default();
         assert!(!pasos.is_empty() && pasos.len() < 30_000, "{}", pasos.len());
+    }
+
+    /// Un abierto de la revisora `r` en la ronda 1, con la evidencia dada.
+    fn abierto(id: &str, severidad: &str, linea: u32, evidencia: &str) -> AceptadoDe {
+        serde_json::from_str(&format!(
+            r#"{{"revisora":"r","hallazgo":{{"id":"{id}","severidad":"{severidad}","clase":"correccion","fichero":"src/calculo.rs","linea":{linea},"descripcion":"d","evidencia":{evidencia}}}}}"#
+        ))
+        .unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    const EV_BORDE: &str = r#"{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}"#;
+
+    /// F6-6, criterio 1 (unitario): cada regla del cierre rechaza con su
+    /// motivo y un abierto sin cierre valido no se cierra.
+    #[test]
+    fn cada_regla_del_cierre_rechaza_con_su_motivo() {
+        let d = diff();
+        let informe = crate::verificacion::informe::leer(ROJO).unwrap_or_else(|e| panic!("{e}"));
+        let abiertos = vec![
+            abierto("I1", "IMPORTANTE", 12, EV_BORDE),
+            abierto("M1", "MENOR", 8, EV_BORDE),
+            abierto(
+                "R1",
+                "CRITICO",
+                5,
+                r#"{"tipo":"reproduccion","paso_rojo":"clippy"}"#,
+            ),
+            abierto(
+                "F1",
+                "IMPORTANTE",
+                5,
+                r#"{"tipo":"reproduccion","paso_rojo":"fmt"}"#,
+            ),
+        ];
+        let cierre = |id: &str, linea: u32| {
+            format!(
+                r#"{{"id":"{id}","fichero":"src/calculo.rs","linea":{linea},"motivo":"arreglado"}}"#
+            )
+        };
+        let con = |cierres: &[String]| {
+            format!(
+                "Informe.\n\n```json\n{{\"hallazgos\": [], \"cierres\": [{}]}}\n```\n",
+                cierres.join(",")
+            )
+        };
+        let casos: Vec<(String, &str)> = vec![
+            (con(&[cierre("X9", 12)]), "X9:cierre-desconocido"),
+            // Los MENOR no pasan por el cierre del modelo.
+            (con(&[cierre("M1", 8)]), "M1:cierre-desconocido"),
+            (con(&[cierre("I1", 99)]), "I1:cierre-fuera-del-diff"),
+            (con(&[cierre("R1", 5)]), "R1:paso-rojo-sigue-rojo"),
+            (
+                con(&[r#"{"id":"I1","fichero":"src/calculo.rs","linea":12}"#.to_owned()]),
+                "I1:hallazgo-invalido",
+            ),
+            (
+                con(&[cierre("I1", 12).replace("arreglado", " ")]),
+                "I1:hallazgo-invalido",
+            ),
+            // Un hallazgo nuevo no reutiliza el id de un abierto.
+            (
+                una(BORDE.replace("\"id\":\"B\"", "\"id\":\"I1\"").as_str()),
+                "I1:id-repetido",
+            ),
+            (
+                "```json\n{\"hallazgos\": [], \"otra\": []}\n```".to_owned(),
+                "respuesta:json-invalido",
+            ),
+            (
+                "```json\n{\"hallazgos\": [], \"cierres\": null}\n```".to_owned(),
+                "respuesta:json-invalido",
+            ),
+        ];
+        for (respuesta, esperado) in casos {
+            let v = validar_con("r", &respuesta, &d, Some(&informe), &abiertos);
+            assert_eq!(v.motivos(), [esperado], "{respuesta}");
+            assert!(v.cierres.is_empty(), "{respuesta}: {:?}", v.cierres);
+        }
+        // Un segundo cierre del mismo abierto se rechaza; el primero vale.
+        let v = validar_con(
+            "r",
+            &con(&[cierre("I1", 12), cierre("I1", 12)]),
+            &d,
+            Some(&informe),
+            &abiertos,
+        );
+        assert_eq!(v.motivos(), ["I1:id-repetido"]);
+        assert_eq!(v.cierres.len(), 1);
+        // MEN-4 (rust) de la ronda 1: sin `hallazgos` (como sin `cierres`),
+        // es una lista vacia y el cierre valido no se pierde.
+        let solo_cierres = format!("```json\n{{\"cierres\": [{}]}}\n```", cierre("I1", 12));
+        let v = validar_con("r", &solo_cierres, &d, Some(&informe), &abiertos);
+        assert_eq!((v.cierres.len(), v.rechazados.len()), (1, 0), "{v:?}");
+        // Sin informe, un abierto con paso_rojo no se cierra (falla en
+        // cerrado); con el paso ya en verde (fmt), si.
+        let v = validar_con("r", &con(&[cierre("F1", 5)]), &d, None, &abiertos);
+        assert_eq!(v.motivos(), ["F1:paso-rojo-sigue-rojo"]);
+        let v = validar_con(
+            "r",
+            &con(&[cierre("F1", 5), cierre("I1", 12)]),
+            &d,
+            Some(&informe),
+            &abiertos,
+        );
+        assert_eq!(v.motivos(), Vec::<String>::new());
+        let cerrados: Vec<(&str, u32)> =
+            v.cierres.iter().map(|c| (c.id.as_str(), c.ronda)).collect();
+        assert_eq!(cerrados, [("F1", 1), ("I1", 1)]);
+        // Los cierres se numeran detras de los hallazgos.
+        let r = format!(
+            "```json\n{{\"hallazgos\": [{BORDE}], \"cierres\": [{}]}}\n```",
+            cierre("X9", 12)
+        );
+        let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
+        assert_eq!(v.rechazados[0].indice, Some(1));
+        assert_eq!(v.aceptados.len(), 1);
+    }
+
+    /// MEN-1 (rust) de la ronda 1: el informe de la tarea cuenta nuevos,
+    /// persisten y cerrados igual que el check, tambien en una ronda `ligera`
+    /// (la ronda no sube y no hay nada nuevo). El modo sale de la linea
+    /// `Ronda N (<modo>)` del resumen, que se lee de vuelta para cada modo.
+    #[test]
+    fn el_informe_de_la_tarea_cuenta_como_el_check() {
+        let menor = |id: &str, fichero: &str| {
+            let mut a = abierto(id, "MENOR", 8, EV_BORDE);
+            a.ronda = 2;
+            a.hallazgo.fichero = fichero.to_owned();
+            a
+        };
+        let verde = ronda::Anterior {
+            ronda: 2,
+            sha: "a".repeat(40),
+            dictamen: Dictamen::Verde,
+            abiertos: vec![menor("M1", "b.rs"), menor("M2", "c.rs")],
+        };
+        let sha = "b".repeat(40);
+        let cuenta = |v: &Veredicto| {
+            let resumen = resumen_veredicto(v, "");
+            assert_eq!(ronda::modo_de_resumen(&resumen), Some(v.modo), "{resumen}");
+            let i = InformeTarea::nuevo(
+                "TASK-001",
+                (1, &sha, v.ronda),
+                (v.dictamen.conclusion(), v.dictamen),
+                &resumen,
+                v.aceptados.clone(),
+            );
+            assert_eq!(
+                (i.nuevos, i.persisten, i.cerrados),
+                (v.nuevos, v.persisten, v.cerrados),
+                "{:?}",
+                v.modo
+            );
+        };
+        let d = ronda::decidir(Some(&verde), &["b.rs".to_owned()], 2, false);
+        assert_eq!(d.modo, ronda::Modo::Ligera);
+        let v = veredicto_ronda(&[], Some(&d));
+        assert_eq!((v.nuevos, v.persisten, v.cerrados), (0, 1, 1));
+        cuenta(&v);
+        // Incremental con un nuevo: ese cuenta como nuevo y M2 persiste.
+        let d = ronda::decidir(
+            Some(&verde),
+            &["b.rs".to_owned(), "x.rs".to_owned()],
+            2,
+            false,
+        );
+        let nuevo = validar("r", &una(BORDE), &diff(), None);
+        let v = veredicto_ronda(&[Some(nuevo.clone())], Some(&d));
+        assert_eq!(
+            (v.modo, v.nuevos, v.persisten),
+            (ronda::Modo::Incremental, 1, 1)
+        );
+        cuenta(&v);
+        // Completa (ronda 1) y tope.
+        cuenta(&veredicto_ronda(&[Some(nuevo)], None));
+        let mut rojo = verde.clone();
+        rojo.dictamen = Dictamen::Rojo;
+        rojo.abiertos
+            .push(abierto("I1", "IMPORTANTE", 12, EV_BORDE));
+        let d = ronda::decidir(Some(&rojo), &[], 2, false);
+        cuenta(&veredicto_ronda(&[], Some(&d)));
+    }
+
+    /// F6-6, criterio 2: lo publicado por F6-5 (v2) se sigue leyendo: un
+    /// `raw_details` sin ronda ni estado es ronda 1 y abierto, y el titulo
+    /// sin `ronda=` es ronda 1. Un `tope` sin abiertos graves no casa.
+    #[test]
+    fn lo_publicado_en_v2_se_sigue_leyendo() {
+        let v2: AceptadoDe = serde_json::from_str(
+            r#"{"revisora":"r","hallazgo":{"id":"I1","severidad":"IMPORTANTE","clase":"contrato","fichero":"a","linea":1,"descripcion":"d","evidencia":{"tipo":"borde","entrada":"x","esperado":"1","obtenido":"2"}}}"#,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!((v2.ronda, v2.estado), (1, Estado::Abierto));
+        let t2 = "revision-ia: rojo (criticos=0 importantes=1 menores=0)";
+        assert_eq!(ronda_de_titulo(t2), Some(1));
+        assert_eq!(
+            dictamen_publicado(t2, "failure", std::slice::from_ref(&v2)),
+            Some(Dictamen::Rojo)
+        );
+        let t3 = "revision-ia: rojo (ronda=3 criticos=0 importantes=1 menores=0)";
+        assert_eq!(ronda_de_titulo(t3), Some(3));
+        assert_eq!(
+            dictamen_publicado(t3, "failure", std::slice::from_ref(&v2)),
+            Some(Dictamen::Rojo)
+        );
+        assert_eq!(
+            ronda_de_titulo("revision-ia: rojo (ronda=0 criticos=0)"),
+            None
+        );
+        assert_eq!(ronda_de_titulo("otro"), None);
+        // Los cerrados no cuentan: un rojo con su unico grave cerrado no casa.
+        let mut cerrado = v2.clone();
+        cerrado.estado = Estado::Cerrado;
+        assert_eq!(dictamen_publicado(t3, "failure", &[cerrado.clone()]), None);
+        let verde = "revision-ia: verde (ronda=2 criticos=0 importantes=0 menores=0)";
+        assert_eq!(
+            dictamen_publicado(verde, "success", &[cerrado]),
+            Some(Dictamen::Verde)
+        );
+        let tope = "revision-ia: tope (ronda=3 criticos=0 importantes=1 menores=0)";
+        assert_eq!(
+            dictamen_publicado(tope, "failure", std::slice::from_ref(&v2)),
+            Some(Dictamen::Tope)
+        );
+        assert_eq!(dictamen_publicado(tope, "success", &[v2]), None);
+        assert_eq!(
+            dictamen_publicado(
+                "revision-ia: tope (ronda=3 criticos=0 importantes=0 menores=0)",
+                "failure",
+                &[]
+            ),
+            None
+        );
     }
 
     /// El dictamen publicado solo se da si el titulo casa con la conclusion

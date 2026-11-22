@@ -18,8 +18,15 @@
 //!   rojo; mas de 50 aceptados van en lotes.
 //! - Criterio 2: `check.json`, los lotes y el informe de la tarea validan
 //!   contra `$defs/veredicto`, `$defs/lote` y `$defs/informe-tarea`.
+//!
+//! F6-6 (TASK-052): `anterior`, `ronda`, `abiertos`, `validar --abiertos` y
+//! `veredicto --ronda` encadenados de la ronda 1 a la 2 sin GitHub (el check
+//! de la ronda 1 volcado como lo da la API). Sin repositorio (`GIT_DIR` a una
+//! ruta que no existe): la configuracion es la del suelo (tope 2).
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+
+mod comun;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -46,6 +53,10 @@ fn hallazgos(args: &[&str]) -> (Option<i32>, String, String) {
         .arg("hallazgos")
         .args(args)
         .env("TC2_IDIOMA", "es")
+        .env(
+            "GIT_DIR",
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join("sin-git"),
+        )
         .output()
         .unwrap_or_else(|e| panic!("no se pudo lanzar tc2: {e}"));
     (
@@ -306,12 +317,12 @@ fn el_check_refleja_los_hallazgos() {
     let (linea, check) = veredicto(&d, "rojo", &[&a, &b]);
     assert_eq!(
         linea,
-        "hallazgos ok veredicto=rojo conclusion=failure criticos=0 importantes=1 menores=1 revisoras=2 incompletas=0 lotes=1"
+        "hallazgos ok veredicto=rojo conclusion=failure criticos=0 importantes=1 menores=1 revisoras=2 incompletas=0 lotes=1 ronda=1 modo=completa nuevos=2 persisten=0 cerrados=0"
     );
     assert_eq!(check["conclusion"], "failure");
     assert_eq!(
         check["output"]["title"],
-        "revision-ia: rojo (criticos=0 importantes=1 menores=1)"
+        "revision-ia: rojo (ronda=1 criticos=0 importantes=1 menores=1)"
     );
     let notas = check["output"]["annotations"].as_array().unwrap();
     assert_eq!(notas.len(), 2);
@@ -334,7 +345,7 @@ fn el_check_refleja_los_hallazgos() {
     let crudo: Value = serde_json::from_str(notas[0]["raw_details"].as_str().unwrap()).unwrap();
     assert_eq!(
         crudo,
-        serde_json::json!({"revisora": "rev:a", "hallazgo": salida_a["aceptados"][0]})
+        serde_json::json!({"revisora": "rev:a", "hallazgo": salida_a["aceptados"][0], "ronda": 1, "estado": "abierto"})
     );
     assert_eq!(salida_a["rechazados"][0]["id"], "C1");
     assert!(
@@ -350,7 +361,7 @@ fn el_check_refleja_los_hallazgos() {
     let (linea, check) = veredicto(&d, "verde", &[&b]);
     assert_eq!(
         linea,
-        "hallazgos ok veredicto=verde conclusion=success criticos=0 importantes=0 menores=1 revisoras=1 incompletas=0 lotes=1"
+        "hallazgos ok veredicto=verde conclusion=success criticos=0 importantes=0 menores=1 revisoras=1 incompletas=0 lotes=1 ronda=1 modo=completa nuevos=1 persisten=0 cerrados=0"
     );
     assert_eq!(check["conclusion"], "success");
 
@@ -358,7 +369,7 @@ fn el_check_refleja_los_hallazgos() {
     let (linea, check) = veredicto(&d, "prosa", &[&a, &b, &c]);
     assert_eq!(
         linea,
-        "hallazgos ok veredicto=incompleta conclusion=failure criticos=0 importantes=1 menores=1 revisoras=3 incompletas=1 lotes=1"
+        "hallazgos ok veredicto=incompleta conclusion=failure criticos=0 importantes=1 menores=1 revisoras=3 incompletas=1 lotes=1 ronda=1 modo=completa nuevos=2 persisten=0 cerrados=0"
     );
     assert_eq!(check["conclusion"], "failure");
     assert!(
@@ -400,7 +411,7 @@ fn el_check_refleja_los_hallazgos() {
     std::fs::write(&m, muchos.to_string()).unwrap();
     let (linea, check) = veredicto(&d, "lotes", &[&m]);
     assert!(
-        linea.ends_with("importantes=51 menores=0 revisoras=1 incompletas=0 lotes=2"),
+        linea.contains("importantes=51 menores=0 revisoras=1 incompletas=0 lotes=2 "),
         "{linea}"
     );
     assert_eq!(check["output"]["annotations"].as_array().unwrap().len(), 50);
@@ -468,8 +479,7 @@ fn veredicto_e_informe_validan_contra_el_esquema() {
         .collect();
     let informe = tc2::hallazgos::InformeTarea::nuevo(
         "TASK-051",
-        12,
-        &"a".repeat(40),
+        (12, &"a".repeat(40), 1),
         ("failure", tc2::hallazgos::Dictamen::Rojo),
         check["output"]["summary"].as_str().unwrap(),
         aceptados,
@@ -487,6 +497,233 @@ fn veredicto_e_informe_validan_contra_el_esquema() {
     let mut malo = v.clone();
     malo["aceptados"][0]["hallazgo"]["clase"] = Value::from("estilo");
     assert!(!contra("informe-tarea", &malo).is_empty());
+}
+
+// --- Rondas incrementales (F6-6, TASK-052) -----------------------------------
+
+/// Escribe `v` como JSON en `d/<nombre>` y da la ruta.
+fn json_en(d: &Path, nombre: &str, v: &Value) -> PathBuf {
+    let p = d.join(nombre);
+    std::fs::write(&p, v.to_string()).unwrap();
+    p
+}
+
+/// Lanza `tc2 hallazgos <args>` y exige `ok`; da la linea.
+fn ok(args: &[&str]) -> String {
+    let (codigo, linea, err) = hallazgos(args);
+    assert_eq!(codigo, Some(0), "{linea}{err}");
+    linea.trim_end().to_owned()
+}
+
+const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1";
+const ORIGEN: &str = "99001";
+
+/// Criterio «Hallazgos nuevos por ronda, medidos» (F6-6), con el binario real
+/// y sin GitHub: la ronda 1 deja un IMPORTANTE y un MENOR abiertos; el check
+/// volcado como lo da la API da la ronda 2 incremental con los dos; la
+/// revisora cierra el IMPORTANTE con un cierre anclado al diff y encuentra un
+/// MENOR nuevo: `nuevos=1 persisten=1 cerrados=1`, verde, y el cerrado sale
+/// como anotacion `notice`. Un cierre fuera del diff incremental se rechaza y
+/// el IMPORTANTE sigue abierto (rojo). Criterio 2: `ronda.json` y el
+/// `check.json` de la ronda 2 validan contra el esquema v3.
+#[test]
+fn la_ronda_siguiente_mide_nuevos_y_cerrados() {
+    let d = carpeta("rondas");
+    // Ronda 1: I1 (IMPORTANTE, rev:a) y M1 (MENOR en docs/nota.md, rev:b).
+    let a = validados(&d, "r1-a", "rev:a", "respuesta-importante.md");
+    let b = validados(&d, "r1-b", "rev:b", "respuesta-menor-nota.md");
+    let (linea, check1) = veredicto(&d, "r1", &[&a, &b]);
+    assert!(
+        linea.ends_with("lotes=1 ronda=1 modo=completa nuevos=2 persisten=0 cerrados=0"),
+        "{linea}"
+    );
+    // El check de la ronda 1 tal como lo devuelve la API.
+    let checks = json_en(
+        &d,
+        "checks-0.json",
+        &serde_json::json!({"total_count": 1, "check_runs": [{
+            "id": 101, "name": "revision-ia", "status": "completed",
+            "conclusion": check1["conclusion"], "head_sha": SHA_A,
+            "app": {"id": 99001, "slug": "tc2-revisor"},
+            "output": {"title": check1["output"]["title"], "summary": "s", "annotations_count": 2}
+        }]}),
+    );
+    let paginas = json_en(&d, "anotaciones-1.json", &check1["output"]["annotations"]);
+    let rutas = d.join("rutas.txt");
+    std::fs::write(&rutas, "src/calculo.rs\0").unwrap();
+    assert_eq!(
+        ok(&[
+            "anterior",
+            "--check-runs",
+            ruta(&checks),
+            "--origen",
+            ORIGEN
+        ]),
+        format!("hallazgos ok anterior=101 sha={SHA_A} avisos=config-de-base-no-leida")
+    );
+    let dir_ronda = d.join("ronda");
+    let ronda_args = |anot: &Path| -> Vec<String> {
+        [
+            "ronda",
+            "--check-runs",
+            ruta(&checks),
+            "--anotaciones",
+            ruta(anot),
+            "--rutas",
+            ruta(&rutas),
+            "--origen",
+            ORIGEN,
+            "--salida",
+            ruta(&dir_ronda),
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect()
+    };
+    let args = ronda_args(&paginas);
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    assert_eq!(
+        ok(&refs),
+        "hallazgos ok ronda=2 modo=incremental anterior=aaaaaaaaaaaa abiertos=2 tope=2 avisos=config-de-base-no-leida"
+    );
+    let ronda_json = dir_ronda.join("ronda.json");
+    let r: Value = serde_json::from_str(&std::fs::read_to_string(&ronda_json).unwrap()).unwrap();
+    // Una pagina de anotaciones que falta: el check no casa y la ronda no se
+    // calcula (falla en cerrado).
+    let vacia = json_en(&d, "anotaciones-vacia.json", &serde_json::json!([]));
+    let args = ronda_args(&vacia);
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let (codigo, linea, err) = hallazgos(&refs);
+    assert_eq!((codigo, linea.trim_end()), (Some(1), "hallazgos error"));
+    assert!(err.contains("no casa con sus anotaciones"), "{err}");
+    // La revisora rev:a recibe el IMPORTANTE (el MENOR no pasa por el cierre).
+    let detalle = json_en(
+        &d,
+        "detalle.json",
+        &serde_json::json!({"revisoras": [{"id": "rev:a", "skill": null, "rutas": ["src/calculo.rs"]}]}),
+    );
+    let dir_ab = d.join("abiertos");
+    assert_eq!(
+        ok(&[
+            "abiertos",
+            "--ronda",
+            ruta(&ronda_json),
+            "--detalle",
+            ruta(&detalle),
+            "--salida",
+            ruta(&dir_ab)
+        ]),
+        "hallazgos ok revisoras=1 abiertos=1 sin-revisora=0"
+    );
+    let abiertos0 = dir_ab.join("abiertos-0.json");
+    assert!(
+        std::fs::read_to_string(dir_ab.join("abiertos-0.md"))
+            .unwrap()
+            .contains("| I1 | 1 | IMPORTANTE |")
+    );
+    // Ronda 2: un MENOR nuevo y el cierre de I1 en el diff incremental.
+    let validar2 = |nombre: &str, respuesta: &Path| -> (String, PathBuf) {
+        let salida = d.join(format!("{nombre}.json"));
+        let linea = ok(&[
+            "validar",
+            "--respuesta",
+            ruta(respuesta),
+            "--diff",
+            ruta(&fixture("hallazgos/diff.txt")),
+            "--revisora",
+            "rev:a",
+            "--abiertos",
+            ruta(&abiertos0),
+            "--salida",
+            ruta(&salida),
+        ]);
+        (linea, salida)
+    };
+    let (linea, v2) = validar2("r2-a", &fixture("hallazgos/respuesta-ronda2.md"));
+    assert_eq!(
+        linea,
+        "hallazgos ok revisora=rev:a aceptados=1 rechazados=0 motivos= cierres=1"
+    );
+    let ver2 = |nombre: &str, v: &Path| -> (String, Value) {
+        let dir = d.join(nombre);
+        let linea = ok(&[
+            "veredicto",
+            "--salida",
+            ruta(&dir),
+            "--hallazgos",
+            ruta(v),
+            "--ronda",
+            ruta(&ronda_json),
+        ]);
+        let check: Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("check.json")).unwrap())
+                .unwrap();
+        (linea, check)
+    };
+    let (linea, check2) = ver2("r2", &v2);
+    assert_eq!(
+        linea,
+        "hallazgos ok veredicto=verde conclusion=success criticos=0 importantes=0 menores=2 revisoras=1 incompletas=0 lotes=1 ronda=2 modo=incremental nuevos=1 persisten=1 cerrados=1"
+    );
+    assert_eq!(
+        check2["output"]["title"],
+        "revision-ia: verde (ronda=2 criticos=0 importantes=0 menores=2)"
+    );
+    let notas = check2["output"]["annotations"].as_array().unwrap();
+    let nivel = |id: &str| -> (String, String) {
+        let n = notas
+            .iter()
+            .find(|n| n["title"].as_str().unwrap().starts_with(&format!("{id} ")))
+            .unwrap_or_else(|| panic!("sin anotacion de {id}: {notas:?}"));
+        let crudo: Value = serde_json::from_str(n["raw_details"].as_str().unwrap()).unwrap();
+        (
+            n["annotation_level"].as_str().unwrap().to_owned(),
+            format!("{}/{}", crudo["ronda"], crudo["estado"].as_str().unwrap()),
+        )
+    };
+    assert_eq!(nivel("N1"), ("warning".to_owned(), "2/abierto".to_owned()));
+    assert_eq!(nivel("M1"), ("warning".to_owned(), "1/abierto".to_owned()));
+    assert_eq!(nivel("I1"), ("notice".to_owned(), "1/cerrado".to_owned()));
+    // Un cierre fuera del diff incremental: rechazado, I1 sigue abierto.
+    let fuera = d.join("respuesta-fuera.md");
+    std::fs::write(
+        &fuera,
+        std::fs::read_to_string(fixture("hallazgos/respuesta-ronda2.md"))
+            .unwrap()
+            .replace("\"linea\": 12,", "\"linea\": 99,"),
+    )
+    .unwrap();
+    let (linea, v2f) = validar2("r2-fuera", &fuera);
+    assert_eq!(
+        linea,
+        "hallazgos ok revisora=rev:a aceptados=1 rechazados=1 motivos=I1:cierre-fuera-del-diff cierres=0"
+    );
+    let (linea, check2f) = ver2("r2-fuera", &v2f);
+    assert!(
+        linea.contains("veredicto=rojo conclusion=failure criticos=0 importantes=1 menores=2")
+            && linea.ends_with("nuevos=1 persisten=2 cerrados=0"),
+        "{linea}"
+    );
+    assert_eq!(check2f["conclusion"], "failure");
+    // Criterio 2: ronda.json y check.json v3 validan contra el esquema.
+    let esquema: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("esquemas/hallazgos.schema.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let contra = |def: &str, v: &Value| validar_esquema(&esquema, &esquema["$defs"][def], v, "$");
+    assert_eq!(contra("ronda", &r), Vec::<String>::new());
+    assert_eq!(contra("veredicto", &check2), Vec::<String>::new());
+    let mut malo = r.clone();
+    malo["modo"] = Value::from("otra");
+    assert!(!contra("ronda", &malo).is_empty());
+    let salida2: Value = serde_json::from_str(&std::fs::read_to_string(&v2).unwrap()).unwrap();
+    assert_eq!(
+        validar_esquema(&esquema, &esquema, &salida2, "$"),
+        Vec::<String>::new()
+    );
 }
 
 // --- Validador del subconjunto de JSON Schema que usa el esquema ------------
@@ -615,4 +852,82 @@ fn validar_esquema(raiz: &Value, s: &Value, v: &Value, donde: &str) -> Vec<Strin
         }
     }
     e
+}
+
+/// IMP-1 (calidad) de la ronda 1, con un repo Git real: tras la ronda
+/// anterior (commit A) se trae `develop` a la rama con un merge y se sigue;
+/// el diff incremental desde `tc2 hallazgos desde` solo tiene lo del PR, no
+/// lo que trajo `develop`. Sin merge, sale desde A tal cual; si A no es
+/// ancestro (rebase), `base` (el diff vuelve a `base...head`).
+#[test]
+fn el_diff_incremental_no_arrastra_lo_que_trae_la_base() {
+    let f = comun::Fixture::nueva("hallazgos-desde");
+    let r = f.raiz.join("repo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "repo"]);
+    let commit = |m: &str| {
+        f.crudo(&r, &["add", "-A"]);
+        f.crudo(&r, &["commit", "-q", "-m", m]);
+        f.crudo(&r, &["rev-parse", "HEAD"]).trim().to_owned()
+    };
+    comun::escribir(&r, "pr.rs", "1\n");
+    comun::escribir(&r, "otro.rs", "1\n");
+    commit("base");
+    f.crudo(&r, &["checkout", "-q", "-b", "feat"]);
+    comun::escribir(&r, "pr.rs", "1\n2\n");
+    let a = commit("A");
+    comun::escribir(&r, "pr.rs", "1\n2\nsin merge\n");
+    let sin_merge = commit("sin merge");
+    f.crudo(&r, &["checkout", "-q", "develop"]);
+    comun::escribir(&r, "otro.rs", "1\najeno\n");
+    commit("develop avanza");
+    f.crudo(&r, &["checkout", "-q", "feat"]);
+    f.crudo(&r, &["merge", "-q", "--no-edit", "develop"]);
+    comun::escribir(&r, "pr.rs", "1\n2\nsin merge\n3\n");
+    let b = commit("B");
+    // Sin desde: el rango de dos puntos arrastra otro.rs (es de develop).
+    assert_eq!(
+        f.crudo(&r, &["diff", "--name-only", &a, &b]),
+        "otro.rs\npr.rs\n"
+    );
+    let g = f.git();
+    let (desde, motivo) = tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &a, &b);
+    assert_eq!(motivo, "merge");
+    let desde = desde.expect("un arbol desde el que sacar el diff");
+    assert_eq!(f.crudo(&r, &["diff", "--name-only", &desde, &b]), "pr.rs\n");
+    let diff = f.crudo(&r, &["diff", &desde, &b]);
+    assert!(diff.contains("+sin merge\n+3\n"), "{diff}");
+    assert!(!diff.contains("ajeno"), "{diff}");
+    // Sin merge desde A: el propio A.
+    assert_eq!(
+        tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &a, &sin_merge),
+        (Some(a.clone()), "directo")
+    );
+    // A no es ancestro del head: base.
+    let ajeno = f.crudo(&r, &["rev-parse", "develop"]).trim().to_owned();
+    assert_eq!(
+        tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &b, &ajeno),
+        (None, "no-ancestro")
+    );
+    comun::registro_permitido(&g.registro());
+    // La orden: argumentos que no son un SHA o una ref, uso.
+    let (codigo, _, stderr) = hallazgos(&[
+        "desde",
+        "--anterior",
+        "x",
+        "--head",
+        &b,
+        "--base",
+        "develop",
+    ]);
+    assert_eq!(codigo, Some(2), "{stderr}");
+    let (codigo, _, stderr) = hallazgos(&[
+        "desde",
+        "--anterior",
+        &a,
+        "--head",
+        &b,
+        "--base",
+        "--output=x",
+    ]);
+    assert_eq!(codigo, Some(2), "{stderr}");
 }

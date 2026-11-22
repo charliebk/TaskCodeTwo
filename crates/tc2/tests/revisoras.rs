@@ -104,6 +104,22 @@ fn rust_y_vue_por_stdin_dan_las_dos_de_dominio() {
             .ends_with("SKILL.md"),
         "{det}"
     );
+    // F6-6: en la ronda 2 S13 baja el modelo un escalon; la ronda 0 es uso.
+    let mut ronda2 = base.to_vec();
+    ronda2.extend(["--ronda", "2"]);
+    let (codigo, linea) = revisoras(&f, &clon, &ronda2, "src/a.rs\nweb/App.vue\n");
+    assert_eq!(codigo, Some(0), "{linea}");
+    assert!(
+        linea.contains(" modelo=haiku ") && linea.contains(" reglas=M04,S08,S12,S13 "),
+        "{linea}"
+    );
+    let mut ronda0 = base.to_vec();
+    ronda0.extend(["--ronda", "0"]);
+    let (codigo, linea) = revisoras(&f, &clon, &ronda0, "src/a.rs\n");
+    assert_eq!(
+        (codigo, linea.trim_end()),
+        (Some(2), "revisoras uso motivo=ronda-invalida")
+    );
     // Sin --rutas: uso, codigo 2.
     let (codigo, linea) = revisoras(&f, &clon, &["--plugin", &p], "");
     assert_eq!(

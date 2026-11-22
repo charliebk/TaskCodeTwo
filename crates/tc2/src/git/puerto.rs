@@ -51,6 +51,10 @@ pub enum Subcomando {
     Merge,
     /// `git merge-base`
     MergeBase,
+    /// `git merge-tree` (solo `--write-tree`: escribe objetos, no mueve
+    /// ninguna ref ni toca el worktree ni el indice; el diff incremental de
+    /// la revision IA, F6-6)
+    MergeTree,
     /// `git pull`
     Pull,
     /// `git push`
@@ -98,6 +102,7 @@ impl Subcomando {
             Self::LsTree => "ls-tree",
             Self::Merge => "merge",
             Self::MergeBase => "merge-base",
+            Self::MergeTree => "merge-tree",
             Self::Pull => "pull",
             Self::Push => "push",
             Self::ReadTree => "read-tree",

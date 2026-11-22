@@ -824,3 +824,33 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   de la release en el runner propio con el usuario de servicio y los datos de
   solo lectura; `github.event.repository.private` llega con valor al
   reutilizable.
+
+## Adenda (F6-6, TASK-052) — rondas incrementales
+
+- **`checks: read` en `preparar` y en el llamador**: `preparar` lee el check
+  `revision-ia` de la ronda anterior con el `GITHUB_TOKEN` (`checks: read`,
+  lectura ya admitida por la lista blanca de la decisión 1 para `buscar` de
+  F5-2). El llamador tiene que darlo (un reutilizable no gana permisos que
+  el llamador no da); sin él, GitHub rechaza el run entero al validarlo y no
+  se publica ningún check `revision-ia` (falla en cerrado; no verificado aún
+  en un run real). El lint del llamador (`llamador-revision`)
+  admite `checks: read` y rechaza `checks: write`. Ningún job nuevo.
+- **La ronda anterior sale del check de la App del revisor**, filtrado por
+  su `app.id` (`plataforma.revisor_id` de la base), no del informe
+  `revision-ia-<sha12>.json` de la rama de estado, que escribe el agente: si
+  el agente borrara un IMPORTANTE de su informe, la ronda siguiente lo
+  seguiría viendo. Un check que no casa con sus anotaciones (título,
+  conclusión y abiertos) para el cálculo de la ronda (falla en cerrado).
+- **Cierre explícito**: un abierto CRITICO o IMPORTANTE solo se cierra con un
+  cierre anclado al diff incremental (y, si traía `paso_rojo`, con ese paso
+  ya en verde en el informe F5-4); el silencio del modelo no cierra nada. Los
+  abiertos reinyectados en el prompt pasan por `plano`; la defensa contra la
+  inyección sigue siendo de F6-7.
+- **Decisión 3 (ejecución de la evidencia), revisada por la persona el
+  2026-11-22**: la adenda F6-4 decía «F6-6 la ejecuta»; **no entra en
+  F6-6**. Ejecutarla exigiría un comando de test por proyecto (clave nueva de
+  F1-11), un job de clase ejecuta que corra código del PR con la mutación del
+  modelo y saldo en la API para probarlo, y pasa de la fila F6-6 del plan.
+  Queda como acción de Carlos crear una fila F6-x. Mientras, RR-03 se cumple
+  en parte: se exige y valida la evidencia y en el cierre solo se contrasta
+  `paso_rojo` con el informe F5-4.

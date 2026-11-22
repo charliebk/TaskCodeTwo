@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Hallazgos del revisor IA, version 2 (F6-4 y F6-5)",
-  "description": "Salida de `tc2 hallazgos validar --salida`: los hallazgos aceptados y los rechazados con su motivo, para una revisora. $defs/respuesta es lo que la revisora devuelve en su unico bloque json (lo valida hallazgos::validar). Reglas que el esquema no expresa y comprueba tc2: el id no se repite; fichero y linea estan en el lado nuevo del diff que vio la revisora; linea_original de un mutante es el texto de esa linea y la mutacion es distinta; esperado y obtenido de un borde son distintos; paso_rojo es un paso en rojo del informe de verificacion (F5-4). La evidencia se declara y se valida, no se ejecuta (F6-6). Una clave desconocida falla cerrado. F6-5: cada hallazgo lleva su clase (lista cerrada de F1-15); $defs/veredicto es el check.json de `tc2 hallazgos veredicto` (conclusion success o failure, nunca neutral), $defs/lote cada anotaciones-<k>.json y $defs/informe-tarea el informe que `tc2 review` guarda en TASK-NNN/revision/.",
+  "title": "Hallazgos del revisor IA, version 3 (F6-4, F6-5 y F6-6)",
+  "description": "Salida de `tc2 hallazgos validar --salida`: los hallazgos aceptados y los rechazados con su motivo, para una revisora. $defs/respuesta es lo que la revisora devuelve en su unico bloque json (lo valida hallazgos::validar). Reglas que el esquema no expresa y comprueba tc2: el id no se repite; fichero y linea estan en el lado nuevo del diff que vio la revisora; linea_original de un mutante es el texto de esa linea y la mutacion es distinta; esperado y obtenido de un borde son distintos; paso_rojo es un paso en rojo del informe de verificacion (F5-4). La evidencia se declara y se valida, no se ejecuta (F6-6). Una clave desconocida falla cerrado. F6-5: cada hallazgo lleva su clase (lista cerrada de F1-15); $defs/veredicto es el check.json de `tc2 hallazgos veredicto` (conclusion success o failure, nunca neutral), $defs/lote cada anotaciones-<k>.json y $defs/informe-tarea el informe que `tc2 review` guarda en TASK-NNN/revision/. F6-6 (v3): rondas incrementales. La respuesta puede ser la lista (ronda 1) o un objeto {hallazgos, cierres}; un cierre ($defs/cierre) cierra un abierto CRITICO o IMPORTANTE de la revisora si su linea esta en el diff incremental y, si el abierto traia paso_rojo, ese paso ya no esta en rojo. aceptado-de gana ronda y estado (un raw_details v2 sin ellos se lee como ronda 1 y abierto); los recuentos son de los abiertos; los cerrados en la ronda van como anotacion notice; $defs/ronda es el ronda.json de `tc2 hallazgos ronda`. El titulo del check v3 lleva ronda= y tc2 sigue leyendo el v2.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "revisora", "aceptados", "rechazados"],
+  "required": ["version", "revisora", "aceptados", "rechazados", "cierres"],
   "properties": {
     "version": {
-      "description": "version del contrato; otra distinta de 2 es error",
-      "const": 2
+      "description": "version del contrato; otra distinta de 3 es error",
+      "const": 3
     },
     "revisora": {
       "description": "id de la revisora (tc2 revisoras)",
@@ -22,11 +22,34 @@
     "rechazados": {
       "type": "array",
       "items": { "$ref": "#/$defs/rechazo" }
+    },
+    "cierres": {
+      "description": "cierres aceptados (F6-6; vacia en la ronda 1)",
+      "type": "array",
+      "items": { "$ref": "#/$defs/cierre-aceptado" }
     }
   },
   "$defs": {
     "respuesta": {
-      "description": "contenido del unico bloque json de la respuesta de la revisora; vacia si no hay hallazgos",
+      "description": "contenido del unico bloque json de la respuesta de la revisora: la lista de hallazgos (vacia si no hay ninguno) o, en una ronda incremental (F6-6), un objeto con los hallazgos nuevos y los cierres de abiertos",
+      "oneOf": [
+        { "$ref": "#/$defs/lista-hallazgos" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hallazgos"],
+          "properties": {
+            "hallazgos": { "$ref": "#/$defs/lista-hallazgos" },
+            "cierres": {
+              "type": "array",
+              "maxItems": 100,
+              "items": { "$ref": "#/$defs/cierre" }
+            }
+          }
+        }
+      ]
+    },
+    "lista-hallazgos": {
       "type": "array",
       "maxItems": 100,
       "items": { "$ref": "#/$defs/hallazgo" }
@@ -117,18 +140,46 @@
         "obtenido": { "type": "string", "minLength": 1 }
       }
     },
-    "aceptado-de": {
-      "description": "un aceptado con su revisora: el raw_details de su anotacion",
+    "cierre": {
+      "description": "cierre de un abierto CRITICO o IMPORTANTE (F6-6): su id, la linea del lado nuevo del diff incremental que lo arregla y por que",
       "type": "object",
       "additionalProperties": false,
-      "required": ["revisora", "hallazgo"],
+      "required": ["id", "fichero", "linea", "motivo"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+        "fichero": { "type": "string", "minLength": 1 },
+        "linea": { "type": "integer", "minimum": 1 },
+        "motivo": { "type": "string", "minLength": 1 }
+      }
+    },
+    "cierre-aceptado": {
+      "description": "un cierre aceptado, con la revisora y la ronda del abierto que cierra",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revisora", "ronda", "id", "fichero", "linea", "motivo"],
       "properties": {
         "revisora": { "type": "string", "minLength": 1 },
-        "hallazgo": { "$ref": "#/$defs/hallazgo" }
+        "ronda": { "type": "integer", "minimum": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "fichero": { "type": "string", "minLength": 1 },
+        "linea": { "type": "integer", "minimum": 1 },
+        "motivo": { "type": "string", "minLength": 1 }
+      }
+    },
+    "aceptado-de": {
+      "description": "un aceptado con su revisora, la ronda en que se encontro y si sigue abierto: el raw_details de su anotacion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revisora", "hallazgo", "ronda", "estado"],
+      "properties": {
+        "revisora": { "type": "string", "minLength": 1 },
+        "hallazgo": { "$ref": "#/$defs/hallazgo" },
+        "ronda": { "type": "integer", "minimum": 1 },
+        "estado": { "enum": ["abierto", "cerrado"] }
       }
     },
     "anotacion": {
-      "description": "anotacion del check-run: failure para CRITICO e IMPORTANTE, warning para MENOR; raw_details es un aceptado-de en JSON",
+      "description": "anotacion del check-run: failure para CRITICO e IMPORTANTE abiertos, warning para MENOR abiertos y notice para los cerrados en esta ronda (F6-6); raw_details es un aceptado-de en JSON",
       "type": "object",
       "additionalProperties": false,
       "required": ["path", "start_line", "end_line", "annotation_level", "title", "message", "raw_details"],
@@ -136,7 +187,7 @@
         "path": { "type": "string", "minLength": 1 },
         "start_line": { "type": "integer", "minimum": 1 },
         "end_line": { "type": "integer", "minimum": 1 },
-        "annotation_level": { "enum": ["failure", "warning"] },
+        "annotation_level": { "enum": ["failure", "warning", "notice"] },
         "title": { "type": "string", "minLength": 1, "maxLength": 255 },
         "message": { "type": "string", "minLength": 1 },
         "raw_details": { "type": "string", "minLength": 2, "maxLength": 65536 }
@@ -176,22 +227,47 @@
       }
     },
     "informe-tarea": {
-      "description": "TASK-NNN/revision/revision-ia-<sha12>.json: lo leido del check publicado, sin la prosa del modelo",
+      "description": "TASK-NNN/revision/revision-ia-<sha12>.json: lo leido del check publicado, sin la prosa del modelo; los recuentos por severidad son de los abiertos",
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "tarea", "pr", "sha", "conclusion", "veredicto", "criticos", "importantes", "menores", "resumen", "aceptados"],
+      "required": ["version", "tarea", "pr", "sha", "conclusion", "veredicto", "ronda", "criticos", "importantes", "menores", "nuevos", "persisten", "cerrados", "resumen", "aceptados"],
       "properties": {
-        "version": { "const": 2 },
+        "version": { "const": 3 },
         "tarea": { "type": "string", "minLength": 1 },
         "pr": { "type": "integer", "minimum": 1 },
         "sha": { "type": "string", "minLength": 40 },
         "conclusion": { "enum": ["success", "failure"] },
-        "veredicto": { "enum": ["rojo", "verde", "incompleta"] },
+        "veredicto": { "enum": ["rojo", "verde", "incompleta", "tope"] },
+        "ronda": { "type": "integer", "minimum": 1 },
         "criticos": { "type": "integer", "minimum": 0 },
         "importantes": { "type": "integer", "minimum": 0 },
         "menores": { "type": "integer", "minimum": 0 },
+        "nuevos": { "type": "integer", "minimum": 0 },
+        "persisten": { "type": "integer", "minimum": 0 },
+        "cerrados": { "type": "integer", "minimum": 0 },
         "resumen": { "type": "string" },
         "aceptados": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/aceptado-de" }
+        }
+      }
+    },
+    "ronda": {
+      "description": "ronda.json de `tc2 hallazgos ronda` (F6-6): la ronda, el modo, el commit del check anterior (base del diff incremental), el tope efectivo, los abiertos heredados y los MENOR heredados que se cierran porque su fichero cambio",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "ronda", "modo", "sha_anterior", "tope", "abiertos", "cerrados"],
+      "properties": {
+        "version": { "const": 3 },
+        "ronda": { "type": "integer", "minimum": 1 },
+        "modo": { "enum": ["completa", "incremental", "ligera", "tope"] },
+        "sha_anterior": { "type": ["string", "null"] },
+        "tope": { "type": "integer", "minimum": 1 },
+        "abiertos": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/aceptado-de" }
+        },
+        "cerrados": {
           "type": "array",
           "items": { "$ref": "#/$defs/aceptado-de" }
         }
@@ -219,7 +295,10 @@
             "mutante-no-coincide",
             "mutante-sin-cambio",
             "borde-sin-diferencia",
-            "paso-rojo-no-esta"
+            "paso-rojo-no-esta",
+            "cierre-desconocido",
+            "cierre-fuera-del-diff",
+            "paso-rojo-sigue-rojo"
           ]
         },
         "detalle": { "type": "string" }

@@ -1,6 +1,6 @@
-# Revisor IA en CI (F6-3, F6-4, F6-5)
+# Revisor IA en CI (F6-3, F6-4, F6-5, F6-6)
 
-TASK-049, TASK-050 y TASK-051. El check `revision-ia` lo publica la **App del revisor** desde un
+TASK-049, TASK-050, TASK-051 y TASK-052. El check `revision-ia` lo publica la **App del revisor** desde un
 workflow reutilizable que corre cuando termina `verificacion` en un PR
 ([`.github/workflows/revision-ia.yml`](../../.github/workflows/revision-ia.yml)).
 Qué revisoras se lanzan y con qué modelo no lo decide el modelo: lo decide
@@ -9,7 +9,8 @@ Qué revisoras se lanzan y con qué modelo no lo decide el modelo: lo decide
 y el catálogo de la base. Qué hallazgos cuentan tampoco: `tc2 hallazgos
 validar` rechaza todo hallazgo sin evidencia de su tipo anclada a una línea
 del diff (F6-4, «Hallazgos con evidencia»). Ni el color del check: lo saca
-`tc2 hallazgos veredicto` (F6-5, «Veredicto del check»). Clases de jobs y secretos: ADR
+`tc2 hallazgos veredicto` (F6-5, «Veredicto del check»). Ni qué se mira en
+cada ronda: `tc2 hallazgos ronda` (F6-6, «Rondas»). Clases de jobs y secretos: ADR
 [F1-8](../adr/F1-8-seguridad-modelo-de-amenazas.md) (adendas F6-3 y F6-4).
 
 ## Qué hace
@@ -131,6 +132,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      # F6-6: preparar lee el check revision-ia de la ronda anterior.
+      checks: read
     uses: charliebk/TaskCodeTwo/.github/workflows/revision-ia.yml@<sha>
     secrets: inherit
     with:
@@ -140,6 +143,16 @@ jobs:
       rama: ${{ github.event.workflow_run.head_branch }}
       base: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
 ```
+
+Sin `checks: read` en el llamador, el reutilizable no puede pedirlo (no gana
+permisos que el llamador no da) y GitHub rechaza el run entero al validarlo,
+antes de arrancar ningún job: el workflow de revisión sale en rojo con un
+error de permisos («... is requesting 'checks: read', but is only allowed
+'checks: none'») y **no se publica ningún check `revision-ia`**, ni siquiera
+`incompleta` (falla en cerrado: si `revision-ia` es un check requerido, el PR
+no se puede integrar). Un llamador que ya fijaba una versión anterior por SHA
+tiene que añadir `checks: read` al subir el SHA. No verificado aún en un run
+real.
 
 `workflows: [verificacion]` es el `name:` del workflow del proyecto que
 llama a `verificacion.yml`. `<sha>` es el commit de TaskCodeTwo con este
@@ -287,7 +300,8 @@ decide, sin GitHub:
 | Veredicto | Cuándo | Conclusión |
 |---|---|---|
 | `incompleta` | no hay revisoras, o alguna no dejó JSON o su respuesta entera se rechazó (`sin-bloque`, `json-invalido`...) | `failure` |
-| `rojo` | algún CRITICO o IMPORTANTE **aceptado** (en F6-5 todo aceptado está abierto; el cierre llega con F6-6) | `failure` |
+| `rojo` | algún CRITICO o IMPORTANTE **abierto** (nuevo o de una ronda anterior sin cierre válido) | `failure` |
+| `tope` | pasado el tope de rondas con un CRITICO o IMPORTANTE abierto (F6-6) | `failure` |
 | `verde` | el resto (solo MENOR, o nada) | `success` |
 
 Un CRITICO rechazado (sin evidencia, fuera del diff...) no pone el check en
@@ -299,7 +313,8 @@ F6-5 de F1-15).
 Escribe en `<dir>`:
 
 - `check.json` (`$defs/veredicto`): `conclusion`, `output.title`
-  (`revision-ia: <veredicto> (criticos=N importantes=M menores=K)`),
+  (`revision-ia: <veredicto> (ronda=R criticos=N importantes=M menores=K)`,
+  con los abiertos; `tc2` sigue leyendo el título v2 de F6-5, sin `ronda=`),
   `output.summary` (veredicto, recuentos, tabla por revisora y las líneas de
   `--extra` por `plano`) y las primeras 50 anotaciones;
 - `anotaciones-<k>.json` (`$defs/lote`), el cuerpo de cada `PATCH` con las
@@ -307,12 +322,14 @@ Escribe en `<dir>`:
 
 Cada aceptado es una **anotación** del check (se ve en «Files changed»; no
 hacen falta comentarios de PR ni permisos nuevos): `path` y `start_line` del
-hallazgo, nivel `failure` para CRITICO e IMPORTANTE y `warning` para MENOR,
-título `<id> <SEVERIDAD> <clase> (<revisora>)` y mensaje por `plano`, y en
-`raw_details` el aceptado con su revisora en JSON (`$defs/aceptado-de`).
-Línea: `hallazgos ok veredicto=<v> conclusion=<c> criticos=N importantes=M
-menores=K revisoras=R incompletas=I lotes=L`; un rojo no es un fallo de la
-orden.
+hallazgo, nivel `failure` para CRITICO e IMPORTANTE, `warning` para MENOR y
+`notice` para los cerrados en esa ronda (F6-6), título `<id> <SEVERIDAD>
+<clase> (<revisora>)` y mensaje por `plano`, y en `raw_details` el aceptado
+con su revisora, su ronda y su estado en JSON (`$defs/aceptado-de`; uno de
+F6-5 sin ronda ni estado se lee como ronda 1 y abierto). Línea: `hallazgos
+ok veredicto=<v> conclusion=<c> criticos=N importantes=M menores=K
+revisoras=R incompletas=I lotes=L ronda=R modo=<m> nuevos=N persisten=P
+cerrados=C`; un rojo no es un fallo de la orden.
 
 `publicar` no calcula nada: añade `name`, `head_sha`, `status`,
 `details_url` y `output.text`, y acepta la conclusión de `check.json` solo si
@@ -340,12 +357,87 @@ de escritura de la rama de estado:
 - `TASK-NNN/revision/revision-ia-<sha12>.md`: el veredicto y la tabla de
   aceptados, generados por `tc2` con `plano`, **sin** la prosa del modelo.
 
-La línea de `review` gana `hallazgos=<rojo|verde|incompleta|sin-leer>` e
-`informe=<ruta>`. Repetirla con el mismo check sale `sin-cambios`. Con el
+La línea de `review` gana `hallazgos=<rojo|verde|incompleta|tope|sin-leer>`,
+`informe=<ruta>` y (F6-6) `ronda=R nuevos=N cerrados=C`. Antes de empujar,
+si el PR de la rama ya existe y su check `revision-ia` terminó, `review`
+guarda el informe de ese head (el de la ronda anterior): después del push el
+PR apunta al commit nuevo y el check anterior ya no se lee por el PR. Repetirla con el mismo check sale `sin-cambios`. Con el
 check pendiente no se lee ni se escribe nada: el informe se guarda al
 relanzar `review` cuando el check ya terminó. La CI no escribe en la rama de
 estado (necesitaría `contents: write`, que solo tiene el agente). Los
 rechazados quedan solo como recuento y motivos del resumen.
+
+## Rondas (F6-6)
+
+TASK-052, RF-33. Cada check `revision-ia` describe su ronda (título con
+`ronda=`) y lleva en sus anotaciones **todos** los hallazgos que siguen
+abiertos. La ronda siguiente solo necesita ese check, publicado por la App
+del revisor; no la rama de estado, que escribe el agente (F1-8): si el
+agente borrara un IMPORTANTE de su informe, la ronda siguiente lo seguiría
+viendo.
+
+En `preparar`, el paso «Ronda anterior» recorre los commits del PR (`git
+rev-list --first-parent origin/<base>..<head>`, sin el head, como mucho 100;
+si hay más, falla y el check sale `incompleta`) del más nuevo al más viejo y
+vuelca en crudo todos sus check-runs `revision-ia` (`GITHUB_TOKEN` con
+`checks: read`; `filter=all`, no solo el último de cada commit). Tras cada
+volcado, `tc2 hallazgos anterior` dice si ya hay ronda anterior: de cada
+commit, del más nuevo al más viejo, el `revision-ia` terminado de la App del
+revisor (`plataforma.revisor_id` de la configuración de la base; sin él, no
+hay ronda anterior) más nuevo que dice `rojo` o `verde`. Una ronda
+`incompleta` no cuenta ni sirve de base (si en el mismo commit hay antes un
+`rojo`, cuenta ese); una `tope` tampoco (no revisó nada) y una `ligera`
+tampoco (no la vio ningún modelo; se reconoce por la línea `Ronda N (ligera)`
+de su resumen). Del elegido se bajan sus páginas de anotaciones y `tc2
+hallazgos ronda` exige que título, conclusión y abiertos casen (la regla de
+`leer-revision`); si no, falla (falla en cerrado) y el check sale
+`incompleta`, con un mensaje que dice cómo salir: si el check se publicó a
+medias (falló un lote de anotaciones), relanzar el workflow `revision-ia`
+del commit de ese check publica en él uno completo, que pasa delante.
+
+El diff incremental sale de `tc2 hallazgos desde --anterior <sha> --head
+<head> --base origin/<base>`: desde el commit anterior, **sin lo que entró
+de la base después** (un merge de la base o el botón «Update branch»), que
+no es del PR. Si desde entonces no entró nada de la base, es `<sha>..<head>`;
+si entró, es el diff desde el árbol de `<sha>` con lo que trajo la base
+(`git merge-tree --write-tree <sha> <merge-base>`) hasta el head. Tras un
+rebase que deja el commit anterior fuera de la historia, o si esa mezcla
+tiene conflictos, el diff vuelve a `base...head` (falla en cerrado: se revisa
+todo el PR) y los abiertos se arrastran igual. Con los ficheros cambiados de
+ese diff decide `ronda.json`:
+
+| Modo | Cuándo | Qué pasa |
+|---|---|---|
+| `completa` | sin ronda anterior | ronda 1: todo el diff contra la base |
+| `incremental` | el resto | la ronda sube; cada revisora ve el diff desde el commit anterior y sus abiertos CRITICO e IMPORTANTE |
+| `ligera` | anterior `verde`, sin otra `ligera` desde él, y los cambios solo tocan ficheros con MENOR abiertos | sin modelo; verde; la ronda no sube; no sirve de base del diff siguiente |
+| `tope` | anterior `rojo` y la ronda siguiente pasa del tope | sin modelo; dictamen `tope` (`failure`) con los abiertos arrastrados |
+
+El tope efectivo es `tope_rondas` de la configuración de la base más uno por
+cada elemento de lista de primer nivel con texto (`- ...` o `* ...`, fuera de
+los bloques de código) en `## Rondas extra` (o `## Ronda extra`) de la tarea
+(rama de estado). La ronda extra la decide la persona (F1-16, D6a):
+F4-4 traducirá `tope` a la parada `preguntar` de F1-10.
+
+Cierre (falla en cerrado): en modo incremental la respuesta es un objeto
+`{"hallazgos": [...], "cierres": [...]}` (la clave que falte cuenta como
+lista vacía). Un abierto CRITICO o IMPORTANTE solo
+se cierra con un cierre `{id, fichero, linea, motivo}` cuya línea esté en el
+lado nuevo del diff incremental que vio la revisora; si el abierto traía
+`paso_rojo`, ese paso tiene que estar ya en verde en el informe F5-4 del head
+nuevo. Motivos nuevos: `cierre-desconocido`, `cierre-fuera-del-diff`,
+`paso-rojo-sigue-rojo`. Un hallazgo nuevo no puede reutilizar el id de un
+abierto. Los MENOR no pasan por el cierre del modelo: se cierran cuando su
+fichero cambia. `tc2 hallazgos abiertos` reparte los abiertos graves: cada
+uno a su revisora si sigue elegida y, si no, a la que tiene su fichero entre
+sus rutas (los ficheros de los abiertos también entran en las rutas de `tc2
+revisoras --ronda <n>`, con lo que S13 se aplica desde la ronda 2).
+
+`veredicto --ronda` cuenta `nuevos` (aceptados en esta ronda), `persisten`
+(abiertos heredados sin cierre) y `cerrados` (cerrados en esta ronda) y los
+deja en el título, el resumen, las anotaciones y el informe de la carpeta de
+la tarea. La ejecución de la evidencia (adenda F6-4 de F1-8) no entra en
+F6-6 (decisión 3 de TASK-052).
 
 ## Límites conocidos
 
@@ -354,13 +446,34 @@ rechazados quedan solo como recuento y motivos del resumen.
   un rojo por hallazgos.
 - Si un `PATCH` de un lote falla a medias, el check ya está publicado con su
   conclusión y le faltan anotaciones; el job `publicar` sale en rojo.
-- La evidencia de cada hallazgo se valida pero no se ejecuta hasta F6-6.
+- La evidencia de cada hallazgo se valida pero no se ejecuta (fuera de
+  F6-6; decisión 3 de TASK-052). En el cierre solo se contrasta `paso_rojo`
+  con el informe F5-4.
+- Ronda `ligera` (decisión 4 de TASK-052): da verde sin consultar al modelo
+  a un cambio que solo toca ficheros con MENOR abiertos, sea cual sea el
+  cambio (también uno que meta un CRITICO), y da esos MENOR por cerrados sin
+  mirar si se arreglaron. Lo acota que no sirve de base: la ronda siguiente
+  sale desde el último commit revisado por modelo, y no puede ser otra
+  `ligera`, así que lo que entró en la ligera lo ve el modelo en el push
+  siguiente. Si la ligera es el último push antes de integrar, ese cambio
+  se integra sin revisión IA (la revisión por pares de `review` sigue).
+- El ancla de un cierre solo prueba que esa línea está en el lado nuevo del
+  diff incremental (de cualquier fichero: un arreglo puede estar en otro,
+  p. ej. en el test); que esa línea arregle el abierto lo juzga el modelo.
+  Los CRITICO e IMPORTANTE sin cierre válido siguen abiertos.
+- Rondas (F6-6): sin saldo en la API la cadena real no pasa de la ronda 1
+  (`incompleta` no cuenta). Una revisora que reporta un abierto con otro id
+  infla `nuevos`; la anotación de un abierto que persiste conserva la línea
+  de la ronda en que se encontró, aunque el código se haya desplazado. Un
+  force-push que reescribe los commits del PR deja fuera el check anterior:
+  la ronda vuelve a ser la 1, completa. El coste de buscar la ronda anterior
+  es una llamada a la API por commit del PR hasta encontrarla (tope 100).
 - Que GitHub deje pasar las respuestas por `outputs` sin enmascarar ni
   truncar no se ha comprobado aún en un run real (E2E de TASK-050).
 - Las tablas de hallazgos escapan el Markdown del modelo; su informe en
   prosa, debajo, va tal cual (como en F6-3): la defensa es de F6-7.
-- Sin el detector de dominios (F4-6) ni rondas (F6-6): S10, S11 y S13 no se
-  aplican.
+- Sin el detector de dominios (F4-6): S10 y S11 no se aplican (S13 sí, con
+  la ronda de F6-6).
 - El diff y el informe son datos del autor del PR que llegan al modelo; la
   defensa contra inyección de instrucciones es de F6-7.
 - Coste: una llamada por revisora y ronda (2 o 3 en un PR Rust + Vue).
