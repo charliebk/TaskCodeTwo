@@ -11,7 +11,8 @@
 //!
 //! Lo que F6-3 no evalua todavia (adenda F6-3 de F1-15): sin el detector
 //! `dominios()` de F4-6 la lista de dominios es vacia, asi que S10 y S11 no
-//! se cumplen nunca; sin rondas de F6-6 la ronda es 1 y S13 no se cumple.
+//! se cumplen nunca. La ronda (F6-6) la da `--ronda` de `tc2 revisoras`
+//! (en CI, la de `tc2 hallazgos ronda`); sin ella es 1 y S13 no se cumple.
 //! Las filas se leen igual y su vocabulario se valida.
 
 pub mod catalogo;

@@ -2,8 +2,8 @@
 
 crate::i18n::textos! {
     USO_REVISORAS {
-        es: "uso: revisoras [--json] --rutas <fichero|-> [--nul] [--tarea TASK-NNN] [--carril <carril>] [--complejidad <nivel>] [--plugin <nombre>=<carpeta>]... [--informe <fichero> --seccion <salida> [--artefacto <nombre>]] [--detalle <salida.json>]",
-        en: "usage: revisoras [--json] --rutas <file|-> [--nul] [--tarea TASK-NNN] [--carril <lane>] [--complejidad <level>] [--plugin <name>=<folder>]... [--informe <file> --seccion <output> [--artefacto <name>]] [--detalle <output.json>]",
+        es: "uso: revisoras [--json] --rutas <fichero|-> [--nul] [--tarea TASK-NNN] [--carril <carril>] [--complejidad <nivel>] [--plugin <nombre>=<carpeta>]... [--informe <fichero> --seccion <salida> [--artefacto <nombre>]] [--ronda <n>] [--detalle <salida.json>]",
+        en: "usage: revisoras [--json] --rutas <file|-> [--nul] [--tarea TASK-NNN] [--carril <lane>] [--complejidad <level>] [--plugin <name>=<folder>]... [--informe <file> --seccion <output> [--artefacto <name>]] [--ronda <n>] [--detalle <output.json>]",
     }
     NO_SE_LEE {
         es: "no se puede leer ni escribir {ruta}: {error}",

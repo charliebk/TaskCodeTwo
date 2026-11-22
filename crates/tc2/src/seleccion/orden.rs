@@ -1,7 +1,7 @@
 //! `tc2 revisoras [--json] --rutas <fichero|-> [--nul] [--tarea TASK-NNN]
 //! [--carril <c>] [--complejidad <x>] [--plugin <nombre>=<dir>]...
 //! [--informe <fichero> --seccion <salida> [--artefacto <n>]]
-//! [--detalle <salida.json>]` (F6-3).
+//! [--ronda <n>] [--detalle <salida.json>]` (F6-3).
 //!
 //! Las rutas son dato (una por linea, o separadas por NUL con `--nul`; los
 //! dos nombres de cada renombrado), con un tope de [`TOPE_RUTAS`] bytes
@@ -31,6 +31,10 @@
 //! se lee con un tope de [`TOPE_INFORME`] bytes; si vale, `--seccion` recibe
 //! [`seccion_revisor`] y la linea dice `informe=verde|rojo`; si no,
 //! `informe=grande|invalido|sin-informe` y no se escribe seccion.
+//!
+//! `--ronda` (F6-6): la ronda de la revision (por defecto 1), para las
+//! reglas con `ronda>=N` (S13). En CI sale de `ronda.json` de `tc2 hallazgos
+//! ronda`.
 //!
 //! Linea: `revisoras ok revisoras=<ids> agentes=<ids> modelo=<m>
 //! modelo-api=<id> reglas=<ids> avisos=<...> carril=<c> complejidad=<x>
@@ -248,6 +252,7 @@ struct Args {
     artefacto: Option<String>,
     seccion: Option<PathBuf>,
     detalle: Option<PathBuf>,
+    ronda: Option<u32>,
 }
 
 /// Las rutas del texto: con `nul`, separadas por NUL y literales (la salida
@@ -313,6 +318,14 @@ fn args(a: &[String]) -> Result<Args, Informe> {
             "--artefacto" if r.artefacto.is_none() => r.artefacto = Some(valor()?),
             "--seccion" if r.seccion.is_none() => r.seccion = Some(PathBuf::from(valor()?)),
             "--detalle" if r.detalle.is_none() => r.detalle = Some(PathBuf::from(valor()?)),
+            "--ronda" if r.ronda.is_none() => {
+                let n = valor()?
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|n| *n >= 1)
+                    .ok_or_else(|| uso("ronda-invalida"))?;
+                r.ronda = Some(n);
+            }
             _ => return Err(uso("argumento-desconocido")),
         }
     }
@@ -391,7 +404,7 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         carril,
         complejidad: cx.as_deref(),
         modelos_permitidos: &config.seleccion.modelos_permitidos,
-        ronda: 1,
+        ronda: a.ronda.unwrap_or(1),
     };
     let mut s = super::revision(&rutas, &f.catalogo, &f.inventario, &ctx).map_err(|x| {
         Informe::nuevo(NOMBRE, Resultado::Error)
