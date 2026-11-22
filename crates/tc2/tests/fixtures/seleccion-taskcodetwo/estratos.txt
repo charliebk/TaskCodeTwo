@@ -1,0 +1,10 @@
+TASK-137 fix
+TASK-078 toca-github
+TASK-095 solo-adr
+TASK-053 rust-y-workflow
+TASK-118 puertas-sin-ruta
+TASK-128 simple-sin-dominio
+TASK-125 seguimiento
+TASK-077 H2
+TASK-052 H6
+TASK-046 sustituto-H5

@@ -1,3 +1,6 @@
+//! `tc2 seleccion` (F4-6, [`orden_seleccion`]): los tres roles de una tarea
+//! sin escribir nada.
+//!
 //! `tc2 revisoras [--json] --rutas <fichero|-> [--nul] [--tarea TASK-NNN]
 //! [--carril <c>] [--complejidad <x>] [--plugin <nombre>=<dir>]...
 //! [--informe <fichero> --seccion <salida> [--artefacto <n>]]
@@ -487,4 +490,181 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
             .map_err(|x| fallo_lectura(&d.display().to_string(), x.to_string()))?;
     }
     Ok(i)
+}
+
+/// Nombre de la orden que da la seleccion de los tres roles (F4-6).
+pub const SELECCION: &str = "seleccion";
+
+fn uso_seleccion(motivo: &str) -> Informe {
+    Informe::nuevo(SELECCION, Resultado::Uso)
+        .con("motivo", motivo)
+        .diagnostico(&txt::USO_SELECCION)
+}
+
+/// Una tarea leida de un fichero en formato 1 (0.16) o 2: la de la 0.16 se
+/// pasa al modelo de formato 2 con lo que la seleccion mira (tipo,
+/// etiquetas, complejidad y dependencias).
+fn tarea_de_fichero(texto: &str) -> Result<(Tarea, Cuerpo), String> {
+    match crate::tarea::leer(texto).map_err(|e| e.to_string())? {
+        crate::tarea::Documento::Formato2(t, c) => Ok((t, c)),
+        crate::tarea::Documento::Formato1(v, c) => {
+            let mut t = Tarea::nueva(&v.id, &v.titulo, &v.creado);
+            t.tipo = v.tipo;
+            t.etiquetas = v.etiquetas;
+            t.complejidad = v.complejidad;
+            t.dependencias = v.dependencias;
+            Ok((t, c))
+        }
+    }
+}
+
+/// `seleccion [--json] [TASK-NNN] [--tarea-fichero <tarea.md>] [--rutas
+/// <fichero>]` (F4-6): la seleccion de diseno, implementacion y revision de
+/// una tarea sin escribir nada (contrato para el orquestador, F4-4, y
+/// `lote`, F1-16). La tarea sale de la rama de estado o, con
+/// `--tarea-fichero`, de un `tarea.md` en formato 1 o 2 (para medir sobre
+/// tareas reales de la 0.16). Diseno e implementacion se calculan como en
+/// `plan` (el texto, sin rutas, y las senales congeladas); revision, con
+/// las `--rutas` del diff. Inventario, catalogo y configuracion, los de
+/// [`fuentes`] y la base.
+pub fn orden_seleccion(a: &[String], e: &Entorno<'_>) -> Informe {
+    match paso_seleccion(a, e) {
+        Ok(i) | Err(i) => i,
+    }
+}
+
+fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
+    let (mut id, mut fichero, mut rutas_f) = (None, None, None);
+    let mut it = a.iter();
+    while let Some(x) = it.next() {
+        let mut valor = || {
+            it.next()
+                .cloned()
+                .ok_or_else(|| uso_seleccion("falta-valor"))
+        };
+        match x.as_str() {
+            "--tarea-fichero" if fichero.is_none() => fichero = Some(valor()?),
+            "--rutas" if rutas_f.is_none() => rutas_f = Some(valor()?),
+            v if id.is_none() && crate::git::es_id(v) => id = Some(v.to_owned()),
+            _ => return Err(uso_seleccion("argumento-desconocido")),
+        }
+    }
+    let error = |ruta: &str, err: String| {
+        Informe::nuevo(SELECCION, Resultado::Error).diagnostico(
+            Mensaje::nuevo(&txt::NO_SE_LEE)
+                .con("ruta", ruta)
+                .con("error", err),
+        )
+    };
+    let (t, c) = match (&fichero, &id) {
+        (Some(f), _) => {
+            let texto = leer_con_tope(Path::new(f), TOPE_RUTAS)
+                .map_err(|x| error(f, x.to_string()))?
+                .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?;
+            tarea_de_fichero(&texto).map_err(|x| error(f, x))?
+        }
+        (None, Some(id)) => {
+            let v = crate::estado::leer(e.git, e.dir).map_err(|mut i| {
+                SELECCION.clone_into(&mut i.comando);
+                i
+            })?;
+            crate::estado::tarea_de(&v, id).map_err(|f| match f {
+                crate::estado::Fallo::Rechazada {
+                    motivo,
+                    diagnostico,
+                } => Informe::nuevo(SELECCION, Resultado::Rechazada)
+                    .con("motivo", motivo)
+                    .diagnostico(diagnostico),
+                crate::estado::Fallo::Error(m) => {
+                    Informe::nuevo(SELECCION, Resultado::Error).diagnostico(m)
+                }
+            })?
+        }
+        (None, None) => return Err(uso_seleccion("sin-tarea")),
+    };
+    let rutas = match &rutas_f {
+        Some(f) => separar_rutas(
+            &leer_con_tope(Path::new(f), TOPE_RUTAS)
+                .map_err(|x| error(f, x.to_string()))?
+                .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?,
+            false,
+        ),
+        None => Vec::new(),
+    };
+    let f = fuentes(e.git, e.dir, e.claude, &[]);
+    let mut avisos = f.avisos.clone();
+    let config = crate::config::de_base(e.git, e.dir).unwrap_or_else(|_| {
+        avisos.push("config-de-base-no-leida".to_owned());
+        crate::config::Config::suelo()
+    });
+    let (carril, _) = de_tarea(&t, &c);
+    let enunciado = heuristica::Enunciado::de(&c);
+    let r = heuristica::resolver(
+        t.complejidad.as_deref(),
+        &t.etiquetas,
+        &t.tipo,
+        &t.dependencias,
+        &enunciado,
+    );
+    let cx = complejidad(&r);
+    let n = carril.roles_diseno(r.roles, &t.tipo, &config);
+    let ctx = Contexto {
+        carril,
+        complejidad: Some(cx),
+        modelos_permitidos: &config.seleccion.modelos_permitidos,
+        ronda: 1,
+    };
+    let doms_plan = dominios_de(Some((&t, &c)), &[], &config);
+    let doms_rev = dominios_de(Some((&t, &c)), &rutas, &config);
+    let sel = |rol, doms: &super::dominios::Dominios| {
+        let entrada = super::Entrada {
+            rutas: &rutas,
+            dominios: doms,
+            etiquetas: &t.etiquetas,
+            roles_base: n,
+        };
+        super::seleccionar(rol, &entrada, &f.catalogo, &f.inventario, &ctx).map_err(|x| {
+            Informe::nuevo(SELECCION, Resultado::Error)
+                .diagnostico(Mensaje::nuevo(&txt::TABLA_ILEGIBLE).con("error", x))
+        })
+    };
+    let d = sel(super::Rol::Diseno, &doms_plan)?;
+    let im = sel(super::Rol::Implementacion, &doms_plan)?;
+    let rv = sel(super::Rol::Revision, &doms_rev)?;
+    for (rol, s) in [("diseno", &d), ("implementacion", &im), ("revision", &rv)] {
+        avisos.extend(s.avisos.iter().map(|a| format!("{rol}:{a}")));
+    }
+    let nombres = |d: &super::dominios::Dominios| {
+        let v: Vec<String> = d.iter().map(|(x, _)| x.clone()).collect();
+        if v.is_empty() {
+            "ninguno".to_owned()
+        } else {
+            v.join(",")
+        }
+    };
+    let modelo = |s: &Seleccion| {
+        if s.modelo.is_empty() {
+            "-".to_owned()
+        } else {
+            s.modelo.clone()
+        }
+    };
+    Ok(Informe::nuevo(SELECCION, Resultado::Ok)
+        .con("id", t.id.as_str())
+        .con("carril", carril.nombre())
+        .con("complejidad", cx)
+        .con("dominios", nombres(&doms_rev))
+        .con("dominios-diseno", nombres(&doms_plan))
+        .con_lista("senales", rv.senales.clone())
+        .con_lista("diseno-agentes", d.roles.clone())
+        .con("diseno-modelo", modelo(&d))
+        .con_lista("diseno-reglas", d.reglas.clone())
+        .con_lista("implementacion-skills", im.skills.clone())
+        .con("implementacion-modelo", modelo(&im))
+        .con_lista("implementacion-reglas", im.reglas.clone())
+        .con_lista("revision-revisoras", rv.revisoras.clone())
+        .con_lista("revision-agentes", rv.agentes.clone())
+        .con("revision-modelo", modelo(&rv))
+        .con_lista("revision-reglas", rv.reglas.clone())
+        .con_lista("avisos", avisos))
 }

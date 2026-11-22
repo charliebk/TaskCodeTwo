@@ -1,0 +1,13 @@
+crates/tc2/src/hallazgos/mod.rs
+docs/ci/revision-ia.md
+xtask/src/workflows.rs
+docs/adr/F1-8-seguridad-modelo-de-amenazas.md
+.github/workflows/revision-ia.yml
+crates/tc2/src/hallazgos/orden.rs
+crates/tc2/src/i18n/catalogo/hallazgos.rs
+crates/tc2/tests/fixtures/inyeccion/casos.json
+crates/tc2/tests/inyeccion.rs
+crates/tc2/src/hallazgos/prompt.rs
+crates/tc2/src/dato.rs
+crates/tc2/src/lib.rs
+crates/tc2/src/plan/plantillas.rs

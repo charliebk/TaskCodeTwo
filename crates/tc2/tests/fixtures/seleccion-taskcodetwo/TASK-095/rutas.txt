@@ -1,0 +1,2 @@
+docs/adr/F1-19-memoria-del-proyecto.md
+docs/adr/README.md

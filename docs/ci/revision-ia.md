@@ -480,8 +480,12 @@ F6-6 (decisión 3 de TASK-052).
   de 32 KiB para el bloque entero, cercas incluidas (`tc2 hallazgos validar
   --prosa`, F6-7): se lee como código, sin enlaces, imágenes, menciones ni
   HTML.
-- Sin el detector de dominios (F4-6): S10 y S11 no se aplican (S13 sí, con
-  la ronda de F6-6).
+- Dominios (F4-6): `tc2 revisoras` los calcula con las rutas del diff y,
+  con `--tarea`, con el texto vivo y las señales congeladas en
+  `roles.diseno.senales`, siempre con `dominios_extra` de la base. Una
+  revisora declarada para el dominio entra (S10); si no hay, el aviso
+  `dominio-sin-revisora` (S11), y con `puertas-seguridad` S13 no baja el
+  modelo en las rondas de verificación.
 - Inyección de instrucciones (F6-7; adenda F6-7 de F1-8): el prompt lo
   compone `tc2 hallazgos prompt` y todo dato del PR, de la tarea o de una
   ronda anterior va en una cerca que no puede cerrar, rotulado como dato no

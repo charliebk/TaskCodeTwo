@@ -1,0 +1,10 @@
+crates/tc2/tests/progreso.rs
+crates/tc2/src/lib.rs
+crates/tc2/src/progreso/fichero.rs
+crates/tc2/src/progreso/mod.rs
+crates/tc2/src/solape.rs
+crates/tc2/src/toma/mod.rs
+docs/adr/F1-17-progreso-y-estimacion.md
+crates/tc2/src/i18n/catalogo/toma.rs
+crates/tc2/tests/liberar.rs
+crates/tc2/tests/solape.rs
