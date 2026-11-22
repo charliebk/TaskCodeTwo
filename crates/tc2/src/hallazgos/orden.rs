@@ -50,6 +50,8 @@
 //!   `ronda=R modo=<m> nuevos=N persisten=P cerrados=C`).
 //!
 //! F6-7 (prompt injection):
+//! - `validar --prosa <md>`: la prosa del modelo para el check, inerte
+//!   ([`super::prosa`]); el workflow la concatena en vez de la respuesta.
 //! - `prompt --revisora <id> --contexto <txt> [--skill <md>] [--seccion <md>]
 //!   [--abiertos <md>] --diff <txt> --bytes <n> --tope <n> --salida <md>`:
 //!   escribe el prompt de la revisora ([`super::prompt::componer`]); el
@@ -94,6 +96,7 @@ struct Args {
     salida: Option<PathBuf>,
     resumen: Option<PathBuf>,
     abiertos: Option<PathBuf>,
+    prosa: Option<PathBuf>,
 }
 
 fn uso(motivo: &str) -> Informe {
@@ -130,6 +133,7 @@ fn args(a: &[String]) -> Result<Args, Informe> {
             "--salida" if r.salida.is_none() => r.salida = Some(valor()?.into()),
             "--resumen" if r.resumen.is_none() => r.resumen = Some(valor()?.into()),
             "--abiertos" if r.abiertos.is_none() => r.abiertos = Some(valor()?.into()),
+            "--prosa" if r.prosa.is_none() => r.prosa = Some(valor()?.into()),
             _ => return Err(uso("argumento-desconocido")),
         }
     }
@@ -248,6 +252,10 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
     }
     if let Some(p) = &a.resumen {
         std::fs::write(p, super::resumen_markdown(&v)).map_err(|e| fallo_io(p, e.to_string()))?;
+    }
+    if let Some(p) = &a.prosa {
+        std::fs::write(p, super::prosa(revisora, &respuesta))
+            .map_err(|e| fallo_io(p, e.to_string()))?;
     }
     let mut i = Informe::nuevo(NOMBRE, Resultado::Ok)
         .con("revisora", revisora.as_str())

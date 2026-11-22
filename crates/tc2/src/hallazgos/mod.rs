@@ -1135,6 +1135,41 @@ const EJEMPLO_INCREMENTAL: &str = r#"{
   ]
 }"#;
 
+/// Bytes de la prosa de una revisora que van al check (F6-7): el texto del
+/// check se corta en 65000 caracteres y van antes las tablas.
+pub const TOPE_PROSA: usize = 32 * 1024;
+
+/// La prosa de una revisora para el check `revision-ia` (F6-7): el texto
+/// del modelo sin caracteres de formato (Cf), cortado a [`TOPE_PROSA`]
+/// bytes y dentro de un [`crate::dato::bloque`], donde las tablas, enlaces,
+/// imagenes, menciones y HTML que traiga no se presentan. Vacia si la
+/// respuesta no trae texto.
+pub fn prosa(revisora: &str, respuesta: &str) -> String {
+    if respuesta.trim().is_empty() {
+        return String::new();
+    }
+    let limpio: String = respuesta.chars().filter(|c| !es_de_formato(*c)).collect();
+    let mut texto = limpio.as_str();
+    let mut marca = String::new();
+    if texto.len() > TOPE_PROSA {
+        let mut n = TOPE_PROSA;
+        while !texto.is_char_boundary(n) {
+            n -= 1;
+        }
+        marca = format!(
+            "
+[revision-ia: informe cortado a {TOPE_PROSA} bytes de {}]
+",
+            limpio.len()
+        );
+        texto = texto.get(..n).unwrap_or_default();
+    }
+    crate::dato::bloque(
+        &format!("Informe de la revisora {}", plano(revisora, 200)),
+        &format!("{texto}{marca}"),
+    )
+}
+
 /// La seccion del check `revision-ia` para una revisora: las tablas de
 /// aceptados y rechazados, con todo el texto del modelo pasado por
 /// [`plano`].
