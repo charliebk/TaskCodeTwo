@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: feature/task-053-f6-7-defensa-contra-prompt-injection-en
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2837471
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-14
@@ -37,3 +37,10 @@ Tarea F6-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-22T13:06:31Z | plan | automatico | persona | 0.16.1 |
+| 2026-11-22T13:16:03Z | approve | automatico | persona | 0.16.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-22T13:16:03Z | diseno | agente:abd337c8ada9470fb | 70 | 119915 | 2690589 | 26897 | 46 | 2837471 | - | - |
