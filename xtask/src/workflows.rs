@@ -2277,6 +2277,118 @@ fn rondas_en_el_workflow(texto: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Ficheros con datos del PR o del modelo en los `run:` del revisor: la
+/// respuesta, el diff y el prompt (y lo que se saca de la respuesta).
+const DATOS_DEL_PR: [&str; 10] = [
+    "\"$respuesta\"",
+    "\"$completo\"",
+    "\"$texto\"",
+    "\"$prosa\"",
+    "\"$prosa_i\"",
+    "diff-$i",
+    "/diffs/",
+    "/prompts/$i.md",
+    "principio-$i",
+    "final-$i",
+];
+
+/// Ordenes que sacan el contenido de un fichero.
+const LECTORAS: [&str; 8] = [
+    "cat ", "head ", "tail ", "sed ", "awk ", "jq ", "tee ", "base64 ",
+];
+
+/// Si `linea` saca a stdout un fichero de [`DATOS_DEL_PR`]: lo lee con una
+/// [`LECTORAS`] y ni lo redirige (`>`, sin contar `2>`) ni lo guarda en una
+/// variable (`=$(`); `tee` siempre escribe tambien en stdout. `jq --rawfile
+/// <var> <fichero>` carga el fichero en una variable: no cuenta.
+fn saca_datos_a_stdout(linea: &str) -> bool {
+    let mut palabras = Vec::new();
+    let mut it = linea.split_whitespace();
+    while let Some(p) = it.next() {
+        if p == "--rawfile" {
+            it.next();
+            it.next();
+        } else {
+            palabras.push(p);
+        }
+    }
+    let l = palabras
+        .join(" ")
+        .replace("2>/dev/null", "")
+        .replace("2>&1", "");
+    let lee = LECTORAS.iter().any(|o| l.contains(o));
+    let datos = DATOS_DEL_PR.iter().any(|d| l.contains(d));
+    let guarda = l.contains('>') && !l.contains("tee ");
+    let captura = l.contains("=$(");
+    lee && datos && !guarda && !captura
+}
+
+/// F6-7: el prompt de cada revisora solo lo escribe `tc2 hallazgos
+/// prompt`; la prosa del modelo solo entra en el check por `tc2 hallazgos
+/// validar --prosa`; y ningun `run:` saca a stdout la respuesta, el diff ni
+/// el prompt, que el procesador de Actions leeria como comandos
+/// (`::add-mask::`, `::stop-commands::`). Los grupos `{ ... } > fichero`
+/// cuentan como redirigidos.
+fn datos_inertes_en_el_workflow(texto: &str) -> Result<(), String> {
+    let raiz = leer_yaml(texto)?;
+    let preparar = runs_del_job(&raiz, "preparar");
+    let lineas: Vec<&str> = preparar.lines().collect();
+    let escriben: Vec<usize> = (0..lineas.len())
+        .filter(|i| lineas[*i].contains("/prompts/$i.md"))
+        .collect();
+    let por_tc2 = match escriben.as_slice() {
+        [i] => {
+            lineas[*i]
+                .trim()
+                .ends_with("--salida \"$salida/prompts/$i.md\"")
+                && i.checked_sub(1)
+                    .is_some_and(|j| lineas[j].trim().starts_with("tc2 hallazgos prompt "))
+        }
+        _ => false,
+    };
+    if !por_tc2 || preparar.contains("tc2 hallazgos instrucciones") {
+        return Err("el prompt no lo escribe solo tc2 hallazgos prompt".to_owned());
+    }
+    let validar = runs_del_job(&raiz, "validar");
+    let llamada = validar
+        .split("tc2 hallazgos validar ")
+        .nth(1)
+        .and_then(|r| r.split("); then").next())
+        .unwrap_or_default();
+    if !llamada.contains("--prosa \"$prosa_i\"")
+        || validar.contains("cat \"$respuesta\"")
+        || !validar.contains("cat \"$prosa_i\"")
+    {
+        return Err(
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa".to_owned(),
+        );
+    }
+    for job in ["preparar", "consultar", "validar", "publicar"] {
+        let mut redirigido = false;
+        // Las lineas que siguen tras `\` van juntas.
+        let run = runs_del_job(&raiz, job).replace("\\\n", " ");
+        for linea in run.lines() {
+            let t = linea.trim();
+            if t == "{" {
+                redirigido = true;
+                continue;
+            }
+            if redirigido {
+                if t.starts_with('}') {
+                    redirigido = false;
+                }
+                continue;
+            }
+            if saca_datos_a_stdout(t) {
+                return Err(format!(
+                    "job {job}: run envia a stdout datos del PR o del modelo: {t}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// El workflow del revisor pasa el lint con el perfil revision-ia: cuatro
 /// jobs (F6-4); `consultar` y `publicar` en el entorno `revisor`, sin
 /// checkout, cada uno solo con su secreto; `preparar` y `validar` sin
@@ -2344,11 +2456,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
     assert_eq!(validar_sube_lo_que_lee_publicar(&texto), Ok(()));
     assert_eq!(publicar_transporta_el_veredicto(&texto), Ok(()));
     assert_eq!(rondas_en_el_workflow(&texto), Ok(()));
-    assert!(
-        runs_de("preparar")
-            .iter()
-            .any(|r| r.contains("tc2 hallazgos instrucciones"))
-    );
+    assert_eq!(datos_inertes_en_el_workflow(&texto), Ok(()));
     // publicar: solo el artefacto validado, nunca las respuestas en bruto.
     assert!(usa("publicar", "revision-ia-hallazgos"));
     assert!(!usa("publicar", "revision-ia-prompts"));
@@ -2589,6 +2697,42 @@ fn cada_mutacion_del_revisor_da_su_error() {
     for (original, mutado, esperado) in rondas {
         assert!(texto.contains(original), "el caso no casa: {original}");
         let r = rondas_en_el_workflow(&texto.replacen(original, mutado, 1));
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains(esperado)),
+            "«{esperado}» no salio: {r:?}"
+        );
+    }
+    // F6-7: una mutacion por regla de los datos inertes da rojo.
+    let inertes: [(&str, &str, &str); 5] = [
+        (
+            "            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "            echo \"## Lo que devuelves\" >> \"$salida/prompts/$i.md\"\n            printf '%s\\t%s\\t%s\\n' \"$i\" \"$rid\" \"$modelo\" >> \"$salida/prompts/lista.tsv\"\n",
+            "el prompt no lo escribe solo tc2 hallazgos prompt",
+        ),
+        (
+            " --resumen \"$out/resumen-$i.md\" --prosa \"$prosa_i\"); then",
+            " --resumen \"$out/resumen-$i.md\"); then",
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa",
+        ),
+        (
+            "                cat \"$prosa_i\"\n",
+            "                cat \"$respuesta\"\n",
+            "la prosa del modelo no entra solo por tc2 hallazgos validar --prosa",
+        ),
+        (
+            "            printf '%s: %s; %s\\n' \"$rid\" \"$estado\" \"$linea\" >> \"$out/resumen.txt\"\n",
+            "            printf '%s: %s; %s\\n' \"$rid\" \"$estado\" \"$linea\" >> \"$out/resumen.txt\"\n            head -c 2000 \"$respuesta\"\n",
+            "job validar: run envia a stdout datos del PR o del modelo",
+        ),
+        (
+            "            echo \"$rid: $estado\"\n",
+            "            echo \"$rid: $estado\"\n            cat \"$texto\" | tee -a \"$RUNNER_TEMP/log.txt\"\n",
+            "job consultar: run envia a stdout datos del PR o del modelo",
+        ),
+    ];
+    for (original, mutado, esperado) in inertes {
+        assert!(texto.contains(original), "el caso no casa: {original}");
+        let r = datos_inertes_en_el_workflow(&texto.replacen(original, mutado, 1));
         assert!(
             r.as_ref().is_err_and(|e| e.contains(esperado)),
             "«{esperado}» no salio: {r:?}"
