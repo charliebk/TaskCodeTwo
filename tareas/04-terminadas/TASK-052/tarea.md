@@ -6,7 +6,7 @@ sprint: 6
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-052-f6-6-rondas-incrementales
 asignado_a: charlie.bk@gmail.com
@@ -75,6 +75,7 @@ Revision por pares:
 | 2026-11-22T01:03:08Z | start | automatico | persona | 0.16.1 |
 | 2026-11-22T10:58:37Z | review | automatico | persona | 0.16.1 |
 | 2026-11-22T12:33:53Z | review | automatico | persona | 0.16.1 |
+| 2026-11-22T13:06:05Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -87,3 +88,10 @@ Revision por pares:
 | 2026-11-22T11:10:41Z | revision | agente:a28467849fa693716 | 44 | 179498 | 3101094 | 25666 | 10 | 3306302 | 1 | code-quality-reviewer |
 | 2026-11-22T12:42:20Z | revision | agente:a0a65929bf386b854 | 20 | 120113 | 980002 | 5914 | 6 | 1106049 | 2 | rust-wasm-reviewer |
 | 2026-11-22T12:42:20Z | revision | agente:abec821515871329e | 20 | 119014 | 960823 | 7970 | 3 | 1087827 | 2 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 260 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 723 min
+- Paso de la hora: 723 min reales frente a 260 estimados
+- Cierre (finish): 1366 s, de 2026-11-22T12:43:19Z a 2026-11-22T13:06:05Z

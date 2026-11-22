@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-052 — F6-6 Rondas incrementales · etiquetas: (sin etiquetas) · rama feature/task-052-f6-6-rondas-incrementales · terminada 2026-11-22 · tareas/04-terminadas/TASK-052/
 - TASK-051 — F6-5 Hallazgos estructurados · etiquetas: (sin etiquetas) · rama feature/task-051-f6-5-hallazgos-estructurados · terminada 2026-11-22 · tareas/04-terminadas/TASK-051/
 - TASK-046 — F5-6 Hook local rapido, opcional y con confianza · etiquetas: (sin etiquetas) · rama feature/task-046-f5-6-hook-local-rapido-opcional-y-con-co · terminada 2026-11-21 · tareas/04-terminadas/TASK-046/
 - TASK-045 — F5-5 Runner self-hosted Windows por perfil · etiquetas: (sin etiquetas) · rama feature/task-045-f5-5-runner-self-hosted-windows-por-perf · terminada 2026-11-21 · tareas/04-terminadas/TASK-045/

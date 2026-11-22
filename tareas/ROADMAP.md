@@ -42,7 +42,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-052 (en diseño)
+- **En marcha:** ninguna
 - **Listas para empezar:** TASK-085, TASK-053, TASK-054, TASK-056, TASK-058, TASK-061, TASK-063, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
@@ -129,8 +129,8 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 2 | TASK-039 | F4-4 Orquestador del modo automatico | — | TASK-033, TASK-037, TASK-048, TASK-085 | espera a TASK-085 |
 | 3 | TASK-086 | F4-7 taskctl lote: secuencia de tareas sin preguntas | — | TASK-039, TASK-074, TASK-085 | espera a TASK-039, TASK-085 |
 | 4 | TASK-088 | F4-9 Progreso del lote en el terminal | — | TASK-084, TASK-086 | espera a TASK-086 |
-| 12 | TASK-087 | F4-8 Fallos, presupuesto, reanudacion e informe del lote | — | TASK-058, TASK-086 | espera a TASK-058, TASK-086 |
-| 26 | TASK-040 | F4-5 Punto de relevo | — | TASK-039, TASK-064, TASK-069 | espera a TASK-039, TASK-064, TASK-069 |
+| 11 | TASK-087 | F4-8 Fallos, presupuesto, reanudacion e informe del lote | — | TASK-058, TASK-086 | espera a TASK-058, TASK-086 |
+| 25 | TASK-040 | F4-5 Punto de relevo | — | TASK-039, TASK-064, TASK-069 | espera a TASK-039, TASK-064, TASK-069 |
 
 ## H5 — Verificación sin redundancia
 
@@ -147,7 +147,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H6 — Revisión con identidad y búsqueda de errores
 
-6 de 8 terminadas.
+7 de 8 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
@@ -156,8 +156,8 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-049 | F6-3 Revisor en CI con las skills de dominio de la 0.16 | — | TASK-044, TASK-048 | ✅ terminada |
 | — | TASK-050 | F6-4 Busqueda de errores | — | TASK-049 | ✅ terminada |
 | — | TASK-051 | F6-5 Hallazgos estructurados | — | TASK-050 | ✅ terminada |
-| 5 | TASK-052 | F6-6 Rondas incrementales | — | TASK-051 | ▶ en diseño |
-| 6 | TASK-053 | F6-7 Defensa contra prompt injection en PR y tareas | — | TASK-009, TASK-049 | lista para empezar |
+| — | TASK-052 | F6-6 Rondas incrementales | — | TASK-051 | ✅ terminada |
+| 5 | TASK-053 | F6-7 Defensa contra prompt injection en PR y tareas | — | TASK-009, TASK-049 | lista para empezar |
 | — | TASK-137 | F6-3 seguimiento: revision-ia cita el informe del run de origen cuando la verificacion sale de cache | — | — | ✅ terminada |
 
 ## H7 — Integración y publicación
@@ -166,10 +166,10 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 7 | TASK-054 | F7-1 finish: merge en develop por la cola cuando pasan las puertas | — | TASK-018, TASK-051 | lista para empezar |
-| 8 | TASK-055 | F7-2 Resultado obligatorio en cada tarea | — | TASK-054 | espera a TASK-054 |
-| 9 | TASK-056 | F7-3 release y hotfix con tag y notas desde los PR | — | TASK-017 | lista para empezar |
-| 10 | TASK-057 | F7-4 CHANGELOG generado al publicar, no en cada cierre | — | TASK-056 | espera a TASK-056 |
+| 6 | TASK-054 | F7-1 finish: merge en develop por la cola cuando pasan las puertas | — | TASK-018, TASK-051 | lista para empezar |
+| 7 | TASK-055 | F7-2 Resultado obligatorio en cada tarea | — | TASK-054 | espera a TASK-054 |
+| 8 | TASK-056 | F7-3 release y hotfix con tag y notas desde los PR | — | TASK-017 | lista para empezar |
+| 9 | TASK-057 | F7-4 CHANGELOG generado al publicar, no en cada cierre | — | TASK-056 | espera a TASK-056 |
 
 ## H8 — Equipo, métricas e iteración del método
 
@@ -177,13 +177,13 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 11 | TASK-058 | F8-1 metricas: tiempo por fase, rondas, hallazgos, tokens y minutos | — | TASK-042, TASK-051 | lista para empezar |
-| 13 | TASK-059 | F8-2 Presupuesto de tokens por carril con desglose | — | TASK-058 | espera a TASK-058 |
-| 14 | TASK-060 | F8-3 Ciclo de iteracion | — | TASK-058 | espera a TASK-058 |
-| 15 | TASK-061 | F8-4 Espejo opcional en issues de GitHub o GitLab | — | TASK-032 | lista para empezar |
-| 16 | TASK-062 | F8-5 Guia de una pagina y referencia generada desde el codigo | — | TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033, TASK-034, TASK-035, TASK-054, TASK-055, TASK-056, TASK-057, TASK-079, TASK-080, TASK-081, TASK-082, TASK-083, TASK-084 | espera a TASK-054, TASK-055, TASK-056, TASK-057 |
-| 17 | TASK-089 | F8-6 Medicion del acierto de skills, agentes y modelo | — | TASK-058, TASK-085 | espera a TASK-058, TASK-085 |
-| 18 | TASK-090 | F8-7 Metricas finales de cada tarea y de cada lote | — | TASK-058, TASK-083 | espera a TASK-058 |
+| 10 | TASK-058 | F8-1 metricas: tiempo por fase, rondas, hallazgos, tokens y minutos | — | TASK-042, TASK-051 | lista para empezar |
+| 12 | TASK-059 | F8-2 Presupuesto de tokens por carril con desglose | — | TASK-058 | espera a TASK-058 |
+| 13 | TASK-060 | F8-3 Ciclo de iteracion | — | TASK-058 | espera a TASK-058 |
+| 14 | TASK-061 | F8-4 Espejo opcional en issues de GitHub o GitLab | — | TASK-032 | lista para empezar |
+| 15 | TASK-062 | F8-5 Guia de una pagina y referencia generada desde el codigo | — | TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033, TASK-034, TASK-035, TASK-054, TASK-055, TASK-056, TASK-057, TASK-079, TASK-080, TASK-081, TASK-082, TASK-083, TASK-084 | espera a TASK-054, TASK-055, TASK-056, TASK-057 |
+| 16 | TASK-089 | F8-6 Medicion del acierto de skills, agentes y modelo | — | TASK-058, TASK-085 | espera a TASK-058, TASK-085 |
+| 17 | TASK-090 | F8-7 Metricas finales de cada tarea y de cada lote | — | TASK-058, TASK-083 | espera a TASK-058 |
 
 ## H9 — Actualización de proyectos, piloto y 2.0.0
 
@@ -191,19 +191,19 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 19 | TASK-063 | F9-1 taskctl actualizar --simular | — | TASK-013, TASK-020 | lista para empezar |
-| 20 | TASK-064 | F9-2 taskctl actualizar | — | TASK-018, TASK-063 | espera a TASK-063 |
-| 21 | TASK-065 | F9-3 Actualizaciones entre versiones de la 2.x | — | TASK-064 | espera a TASK-064 |
-| 22 | TASK-066 | F9-4 Suite E2E del flujo con dos personas a la vez | — | TASK-033, TASK-054, TASK-055, TASK-056, TASK-057, TASK-076, TASK-077, TASK-081, TASK-082 | espera a TASK-054, TASK-055, TASK-056, TASK-057 |
-| 23 | TASK-067 | F9-5 Prueba de seguridad | — | TASK-053 | espera a TASK-053 |
-| 24 | TASK-068 | F9-6 Auditoria externa repetida con el mismo encargo | — | TASK-066, TASK-067 | espera a TASK-066, TASK-067 |
-| 25 | TASK-069 | F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0 | — | TASK-064 | espera a TASK-064 |
-| 27 | TASK-070 | F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0 | — | TASK-069, TASK-040 | espera a TASK-069, TASK-040 |
-| 28 | TASK-071 | F9-9a Prueba de instalacion en maquinas limpias | — | TASK-026, TASK-062 | espera a TASK-062 |
-| 29 | TASK-091 | F9-4b Prueba nocturna de un lote de 10 tareas | — | TASK-066, TASK-087 | espera a TASK-066, TASK-087 |
-| 30 | TASK-092 | F9-8b Piloto final: TaskCodeTwo con la 2.0 completa | — | TASK-040, TASK-070 | espera a TASK-040, TASK-070 |
-| 31 | TASK-093 | F9-10 Desinstalacion limpia de TaskCode 0.16 | — | TASK-013, TASK-064 | espera a TASK-064 |
-| 32 | TASK-072 | F9-9 Publicar 2.0.0 | — | TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 | espera a TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 |
+| 18 | TASK-063 | F9-1 taskctl actualizar --simular | — | TASK-013, TASK-020 | lista para empezar |
+| 19 | TASK-064 | F9-2 taskctl actualizar | — | TASK-018, TASK-063 | espera a TASK-063 |
+| 20 | TASK-065 | F9-3 Actualizaciones entre versiones de la 2.x | — | TASK-064 | espera a TASK-064 |
+| 21 | TASK-066 | F9-4 Suite E2E del flujo con dos personas a la vez | — | TASK-033, TASK-054, TASK-055, TASK-056, TASK-057, TASK-076, TASK-077, TASK-081, TASK-082 | espera a TASK-054, TASK-055, TASK-056, TASK-057 |
+| 22 | TASK-067 | F9-5 Prueba de seguridad | — | TASK-053 | espera a TASK-053 |
+| 23 | TASK-068 | F9-6 Auditoria externa repetida con el mismo encargo | — | TASK-066, TASK-067 | espera a TASK-066, TASK-067 |
+| 24 | TASK-069 | F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0 | — | TASK-064 | espera a TASK-064 |
+| 26 | TASK-070 | F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0 | — | TASK-069, TASK-040 | espera a TASK-069, TASK-040 |
+| 27 | TASK-071 | F9-9a Prueba de instalacion en maquinas limpias | — | TASK-026, TASK-062 | espera a TASK-062 |
+| 28 | TASK-091 | F9-4b Prueba nocturna de un lote de 10 tareas | — | TASK-066, TASK-087 | espera a TASK-066, TASK-087 |
+| 29 | TASK-092 | F9-8b Piloto final: TaskCodeTwo con la 2.0 completa | — | TASK-040, TASK-070 | espera a TASK-040, TASK-070 |
+| 30 | TASK-093 | F9-10 Desinstalacion limpia de TaskCode 0.16 | — | TASK-013, TASK-064 | espera a TASK-064 |
+| 31 | TASK-072 | F9-9 Publicar 2.0.0 | — | TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 | espera a TASK-068, TASK-069, TASK-070, TASK-071, TASK-092, TASK-093 |
 
 ## H11 — Panel web: dashboard y planificación
 
@@ -211,14 +211,14 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 33 | TASK-129 | F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos | media | — | lista para empezar |
-| 34 | TASK-130 | F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas | media | TASK-129 | espera a TASK-129 |
-| 35 | TASK-131 | F11-3 Coste por tarea: tarifas por modelo configurables y desglose de entrada, salida y cache | media | TASK-130, TASK-058 | espera a TASK-130, TASK-058 |
-| 36 | TASK-132 | F11-4 Esqueleto web Vue servido por tc2 panel: pestanas, tema y build embebido | media | TASK-129 | espera a TASK-129 |
-| 37 | TASK-133 | F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona de cada tarea | media | TASK-131, TASK-132 | espera a TASK-131, TASK-132 |
-| 44 | TASK-134 | F11-6 Pestana Planificacion: tareas por persona y predecesoras | alta | TASK-130, TASK-132, TASK-122 | espera a TASK-130, TASK-132, TASK-122 |
-| 45 | TASK-135 | F11-7 Proyeccion de fechas por persona con el ritmo medido | media | TASK-134 | espera a TASK-134 |
-| 46 | TASK-136 | F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb | media | TASK-133, TASK-134, TASK-135 | espera a TASK-133, TASK-134, TASK-135 |
+| 32 | TASK-129 | F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos | media | — | lista para empezar |
+| 33 | TASK-130 | F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas | media | TASK-129 | espera a TASK-129 |
+| 34 | TASK-131 | F11-3 Coste por tarea: tarifas por modelo configurables y desglose de entrada, salida y cache | media | TASK-130, TASK-058 | espera a TASK-130, TASK-058 |
+| 35 | TASK-132 | F11-4 Esqueleto web Vue servido por tc2 panel: pestanas, tema y build embebido | media | TASK-129 | espera a TASK-129 |
+| 36 | TASK-133 | F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona de cada tarea | media | TASK-131, TASK-132 | espera a TASK-131, TASK-132 |
+| 43 | TASK-134 | F11-6 Pestana Planificacion: tareas por persona y predecesoras | alta | TASK-130, TASK-132, TASK-122 | espera a TASK-130, TASK-132, TASK-122 |
+| 44 | TASK-135 | F11-7 Proyeccion de fechas por persona con el ritmo medido | media | TASK-134 | espera a TASK-134 |
+| 45 | TASK-136 | F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb | media | TASK-133, TASK-134, TASK-135 | espera a TASK-133, TASK-134, TASK-135 |
 
 ## H0 — H0
 
@@ -226,18 +226,18 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
-| 38 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
+| 37 | TASK-114 | F2-12b Lanzador del plugin que fija la version del CLI | media | — | lista para empezar |
 | — | TASK-115 | Seguimiento de F2-12: menores de actualizar --cli y mock HTTP estable | simple | — | ✅ terminada |
 | — | TASK-116 | Nombres de la 2.0 alineados con F1-12 D1a | simple | — | ✅ terminada |
-| 39 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
+| 38 | TASK-117 | Seguimiento de F2-14: menores aceptados de tc2 desinstalar | simple | — | lista para empezar |
 | — | TASK-118 | Aplicar las puertas (rulesets) desde tc2 init | media | — | ✅ terminada |
-| 40 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
-| 41 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
-| 42 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
-| 43 | TASK-122 | tc2 roadmap --grafo: grafo completo de tareas (RF-04) | media | — | lista para empezar |
-| 47 | TASK-123 | Seguimiento de F3-4: menores aceptados de tc2 roadmap | simple | — | lista para empezar |
-| 48 | TASK-124 | Seguimiento de F3-5: menores aceptados de tc2 board y status | simple | — | lista para empezar |
+| 39 | TASK-119 | Seguimiento de F3-1: menores aceptados de tc2 init | simple | — | lista para empezar |
+| 40 | TASK-120 | Seguimiento de F3-2: menores aceptados de tc2 import | simple | — | lista para empezar |
+| 41 | TASK-121 | Seguimiento de F3-3: menores aceptados de tc2 next | simple | — | lista para empezar |
+| 42 | TASK-122 | tc2 roadmap --grafo: grafo completo de tareas (RF-04) | media | — | lista para empezar |
+| 46 | TASK-123 | Seguimiento de F3-4: menores aceptados de tc2 roadmap | simple | — | lista para empezar |
+| 47 | TASK-124 | Seguimiento de F3-5: menores aceptados de tc2 board y status | simple | — | lista para empezar |
 | — | TASK-125 | Seguimiento de F3-10: quitar la copia vieja de la regla de actividad | simple | — | ✅ terminada |
-| 49 | TASK-126 | Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad | simple | — | lista para empezar |
+| 48 | TASK-126 | Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad | simple | — | lista para empezar |
 | — | TASK-127 | Escrituras de estado con muchos ficheros fallan en Windows (git hash-object) | simple | — | ✅ terminada |
 | — | TASK-128 | Seguimiento de F3-11 y F3-12: aviso de solape contra uno mismo, textos al catalogo y test intermitente de progreso | simple | — | ✅ terminada |
