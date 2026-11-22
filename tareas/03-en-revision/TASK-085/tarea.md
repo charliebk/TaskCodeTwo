@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 4322228
 tokens_implementacion: 64605497
-tokens_revision: null
+tokens_revision: 10946991
 creado: 2026-11-14
 actualizado: 2026-11-22
 dependencias: [TASK-036, TASK-049, TASK-080]
@@ -51,3 +51,5 @@ Contexto (Carlos, 2026-11-14, RR-17, imprescindible): para cada tarea y cada rol
 | 2026-11-22T17:19:29Z | diseno | agente:a4af724a5e04d173f | 58 | 199960 | 4097817 | 24393 | 1 | 4322228 | - | - |
 | 2026-11-22T18:43:47Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 34 | 23126 | 6411833 | 8631 | 0 | 6443624 | - | - |
 | 2026-11-22T18:43:47Z | implementacion | agente:ab73915092e08af44 | 362 | 408808 | 57599241 | 153462 | 65 | 58161873 | - | - |
+| 2026-11-22T19:03:54Z | revision | agente:a2e01d7a4a39a342a | 92 | 218701 | 7855057 | 27288 | 4 | 8101138 | 1 | rust-wasm-reviewer |
+| 2026-11-22T19:03:54Z | revision | agente:ad3cafaa4f13575f2 | 44 | 154328 | 2672568 | 18913 | 2 | 2845853 | 1 | code-quality-reviewer |
