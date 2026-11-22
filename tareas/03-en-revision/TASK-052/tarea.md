@@ -40,6 +40,7 @@ Tarea F6-6 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F6-
 | 2026-11-22T01:03:06Z | approve | automatico | persona | 0.16.1 |
 | 2026-11-22T01:03:08Z | start | automatico | persona | 0.16.1 |
 | 2026-11-22T10:58:37Z | review | automatico | persona | 0.16.1 |
+| 2026-11-22T12:33:53Z | review | automatico | persona | 0.16.1 |
 
 ## Coste
 
