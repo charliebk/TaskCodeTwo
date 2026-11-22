@@ -1,15 +1,17 @@
 //! F4-6 (TASK-085), criterio 1 fuera de la muestra del ADR: `tc2 seleccion`
 //! con el binario real sobre 10 tareas terminadas de TaskCodeTwo elegidas
-//! por regla fija (ID mas alto por estrato, ver `estratos.txt` de la
+//! por regla fija (ID mas alto por estrato, escrita en `estratos.txt` de la
 //! fixture), con su `tarea.md` (formato 1 de la 0.16) y las rutas de su
 //! merge en `develop` copiadas en `tests/fixtures/seleccion-taskcodetwo/`.
 //!
 //! El inventario es una carpeta de Claude Code propia con los agentes de
 //! brainstorm del plugin (nunca la de la maquina) y el repo un Git temporal
-//! sin base (`sin-base`): la seleccion sale solo de las tablas del ADR. Lo
-//! que comprueba el test es el contrato y el determinismo; si la propuesta
-//! coincide con la de una persona lo marca Carlos sobre la tabla que imprime
-//! `TC2_TABLA_SELECCION=1` (columna «Comprobado a mano (Carlos)»).
+//! sin base (`sin-base`): la seleccion sale solo de las tablas del ADR. El
+//! test comprueba el contrato, el determinismo y que la tabla que sale del
+//! binario es la dorada `tabla.md` de la fixture (la de la evidencia de
+//! TASK-085); si la propuesta coincide con la de una persona lo marca Carlos
+//! sobre esa tabla (columna «Comprobado a mano (Carlos)»).
+//! `TC2_TABLA_SELECCION=1` la imprime.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -68,9 +70,10 @@ fn lista(v: &serde_json::Value) -> String {
 }
 
 /// Criterio 1: las 10 tareas dan una seleccion por rol, dos ejecuciones dan
-/// el mismo JSON, y lo que la regla garantiza por estrato se cumple (la fix
+/// el mismo JSON, lo que la regla garantiza por estrato se cumple (la fix
 /// va por el carril fix; la que toca `.github/` tiene `puertas-seguridad`
-/// por esa ruta y su aviso; la de solo ADR va a la generica).
+/// por esa ruta y su aviso; la de solo ADR va a la generica) y la tabla es
+/// la dorada.
 #[test]
 fn diez_tareas_de_taskcodetwo() {
     let f = Fixture::nueva("seleccion-diez");
@@ -79,7 +82,11 @@ fn diez_tareas_de_taskcodetwo() {
     std::fs::create_dir_all(&dir).unwrap();
     f.crudo(&dir, &["init", "-q", "-b", "develop"]);
     let estratos = std::fs::read_to_string(fixtures().join("estratos.txt")).unwrap();
-    let filas: Vec<(&str, &str)> = estratos.lines().filter_map(|l| l.split_once(' ')).collect();
+    let filas: Vec<(&str, &str)> = estratos
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| l.split_once(' '))
+        .collect();
     assert_eq!(filas.len(), 10, "{estratos}");
     let mut tabla = String::from(
         "| Tarea | Estrato | Carril | Complejidad | Dominios D / R | Diseño | Implementación | Revisión | Modelo D / I / R | Reglas D · I · R | Avisos | Comprobado a mano (Carlos) |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
@@ -160,4 +167,6 @@ fn diez_tareas_de_taskcodetwo() {
     if std::env::var_os("TC2_TABLA_SELECCION").is_some_and(|v| v == "1") {
         println!("{tabla}");
     }
+    let dorada = std::fs::read_to_string(fixtures().join("tabla.md")).unwrap();
+    assert_eq!(tabla, dorada.replace("\r\n", "\n"));
 }

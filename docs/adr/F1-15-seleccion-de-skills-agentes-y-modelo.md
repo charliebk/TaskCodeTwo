@@ -967,9 +967,16 @@ ni modelo y S14 en diseño; tabla adversaria del detector), `tests/tarea.rs`
 carril y complejidad, agente y modelo en cada petición), `tests/aprobar.rs`
 (`plan`, `approve`, revisión con el texto reescrito y `doctor --recursos`) y
 `tests/seleccion.rs` (10 tareas terminadas de TaskCodeTwo por regla fija,
-deterministas).
+deterministas, comparadas con la tabla dorada `tabla.md` de su fixture).
+S06 y el orden de S07 (solape, prioridad, id y `empate-por-id`) los cubre
+el unitario `skills_de_diseno_y_ejecucion_por_dominio_solape_prioridad_e_id`.
 
 **No verificado**: que las 10 tareas de TaskCodeTwo coincidan con lo que
-haría una persona (lo marca Carlos tras el cierre, D10a); el orquestador
+haría una persona (lo marca Carlos tras el cierre, D10a). En esa tabla la
+columna «Implementación» sale «—» en las 10 y no hay skills de diseño: el
+inventario del test no tiene ninguna skill con `rol: ejecucion` ni
+`rol: diseno` en su bloque yaml, y sin metadatos S06 y S07 no eligen nada.
+La comparación juzga, por tanto, los agentes de diseño, la revisión y los
+modelos, no las skills de implementación ni de diseño; el orquestador
 (F4-4) consumiendo la selección; el revisor en CI con dominios en un PR real
 (E2E).
