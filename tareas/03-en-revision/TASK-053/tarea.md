@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2837471
 tokens_implementacion: 37286137
-tokens_revision: null
+tokens_revision: 6809317
 creado: 2026-11-14
 actualizado: 2026-11-22
 dependencias: [TASK-009, TASK-049]
@@ -48,3 +48,5 @@ Tarea F6-7 del plan (docs/plan/PLAN-TASKCODE-2.md). Dependencias en el plan: F1-
 | 2026-11-22T13:16:03Z | diseno | agente:abd337c8ada9470fb | 70 | 119915 | 2690589 | 26897 | 46 | 2837471 | - | - |
 | 2026-11-22T14:21:37Z | implementacion | sesion:ebd8dc9f-6c20-4b9d-bc57-489282394590 | 22 | 16433 | 3670211 | 4713 | 0 | 3691379 | - | - |
 | 2026-11-22T14:21:37Z | implementacion | agente:adb56f3f403a0bc63 | 290 | 675360 | 32793408 | 125700 | 38 | 33594758 | - | - |
+| 2026-11-22T14:29:42Z | revision | agente:a52c89e7e1e0f5db3 | 62 | 147209 | 3884951 | 21255 | 4 | 4053477 | 1 | rust-wasm-reviewer |
+| 2026-11-22T14:29:42Z | revision | agente:a77c229bd25e5de96 | 44 | 154953 | 2580472 | 20371 | 2 | 2755840 | 1 | code-quality-reviewer |
