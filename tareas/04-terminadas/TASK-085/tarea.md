@@ -6,7 +6,7 @@ sprint: 4
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-085-f4-6-plan-propone-skills-agentes-y-model
 asignado_a: charlie.bk@gmail.com
@@ -79,6 +79,7 @@ Revision por pares (con la regla 4D de Carlos):
 | 2026-11-22T17:19:31Z | start | automatico | persona | 0.16.1 |
 | 2026-11-22T18:43:47Z | review | automatico | persona | 0.16.1 |
 | 2026-11-22T20:24:21Z | review | automatico | persona | 0.16.1 |
+| 2026-11-22T20:54:07Z | finish | automatico | persona | 0.16.1 |
 
 ## Coste
 
@@ -91,3 +92,10 @@ Revision por pares (con la regla 4D de Carlos):
 | 2026-11-22T19:03:54Z | revision | agente:ad3cafaa4f13575f2 | 44 | 154328 | 2672568 | 18913 | 2 | 2845853 | 1 | code-quality-reviewer |
 | 2026-11-22T20:35:54Z | revision | agente:ae74baa6bed97ac4f | 32 | 129108 | 1747238 | 8411 | 3 | 1884789 | 2 | rust-wasm-reviewer |
 | 2026-11-22T20:35:54Z | revision | agente:a7c136ad23e88224d | 18 | 120637 | 878068 | 6392 | 5 | 1005115 | 2 | code-quality-reviewer |
+
+## Duracion
+
+- Estimada: 330 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 215 min
+- Paso de la hora: 215 min reales frente a 330 estimados
+- Cierre (finish): 1031 s, de 2026-11-22T20:36:56Z a 2026-11-22T20:54:07Z

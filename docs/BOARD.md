@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-22. No editar a mano.
 
-## Planificadas (00-planificadas) — 47
+## Planificadas (00-planificadas) — 46
 
 ```text
 ID        Titulo                                                                                           Asignado
@@ -28,7 +28,6 @@ TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0       
 TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                                                (sin asignar)
 TASK-071  F9-9a Prueba de instalacion en maquinas limpias                                                  (sin asignar)
 TASK-072  F9-9 Publicar 2.0.0                                                                              (sin asignar)
-TASK-085  F4-6 plan propone skills, agentes y modelo por rol                                               (sin asignar)
 TASK-086  F4-7 taskctl lote: secuencia de tareas sin preguntas                                             (sin asignar)
 TASK-087  F4-8 Fallos, presupuesto, reanudacion e informe del lote                                         (sin asignar)
 TASK-088  F4-9 Progreso del lote en el terminal                                                            (sin asignar)
@@ -56,7 +55,7 @@ TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido            
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
 ```
 
-## Terminadas (04-terminadas) — 73
+## Terminadas (04-terminadas) — 74
 
 ```text
 ID        Titulo                                                                                                              Asignado
@@ -124,6 +123,7 @@ TASK-081  F3-10 Liberar y reasignar tareas abandonadas                          
 TASK-082  F3-11 Aviso de solape entre tareas en curso                                                                         charlie.bk@gmail.com
 TASK-083  F3-13 Estimacion por fase de cada tarea al planificar                                                               charlie.bk@gmail.com
 TASK-084  F3-12 Progreso en vivo: fases que faltan y tiempo restante                                                          charlie.bk@gmail.com
+TASK-085  F4-6 plan propone skills, agentes y modelo por rol                                                                  charlie.bk@gmail.com
 TASK-094  F1-18 ADR hito de decisiones (ADR) en init y en actualizar                                                          charlie.bk@gmail.com
 TASK-095  F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda                                            charlie.bk@gmail.com
 TASK-113  Puerta de valor F10: informe, datos y descarte del H10                                                              charlie.bk@gmail.com

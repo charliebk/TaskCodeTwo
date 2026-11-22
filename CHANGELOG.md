@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-085 (feature) — F4-6 plan propone skills, agentes y modelo por rol (2026-11-22)
 - TASK-053 (feature) — F6-7 Defensa contra prompt injection en PR y tareas (2026-11-22)
 - TASK-052 (feature) — F6-6 Rondas incrementales (2026-11-22)
 - TASK-051 (feature) — F6-5 Hallazgos estructurados (2026-11-22)
