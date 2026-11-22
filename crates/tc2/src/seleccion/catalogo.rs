@@ -85,9 +85,27 @@ impl Catalogo {
     }
 
     /// Huella del catalogo (12 hex del sha256 de su forma canonica, como
-    /// [`Inventario::huella`]).
+    /// [`Inventario::huella`]): lo que cada entrada declara, sin la `ruta`
+    /// de la que se leyo (la misma skill en otra maquina da la misma huella).
     pub fn huella(&self) -> String {
-        let s = format!("{:?}{:?}", self.revisoras, self.otros);
+        let canonica: Vec<_> = self
+            .revisoras
+            .iter()
+            .chain(&self.otros)
+            .map(|r| {
+                (
+                    &r.id,
+                    &r.rol,
+                    &r.etiquetas,
+                    &r.dominios,
+                    r.prioridad,
+                    &r.patrones,
+                    r.fallback,
+                    r.umbral_dominios,
+                )
+            })
+            .collect();
+        let s = format!("{canonica:?}");
         crate::contrato::corto(&distribucion::sha256::hex(s.as_bytes()))
     }
 
@@ -383,5 +401,22 @@ mod tests {
         let b = Catalogo::nuevo(vec![r("a"), r("b")]);
         assert_eq!(a, b);
         assert_eq!(a.revisoras().len(), 2);
+        // La huella no depende de la ruta de lectura, si de lo declarado.
+        let en = |ruta: &str| Revisora {
+            ruta: ruta.to_owned(),
+            ..r("x")
+        };
+        let huella = |r: Revisora| Catalogo::nuevo(vec![r]).huella();
+        assert_eq!(
+            huella(en("C:/u1/.claude/x/SKILL.md")),
+            huella(en("/home/u2/.claude/x/SKILL.md"))
+        );
+        assert_ne!(
+            huella(en("x")),
+            huella(Revisora {
+                prioridad: 1,
+                ..en("x")
+            })
+        );
     }
 }
