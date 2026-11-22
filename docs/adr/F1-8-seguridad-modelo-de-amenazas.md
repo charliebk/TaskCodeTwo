@@ -854,3 +854,54 @@ Los ADR aceptados no se modifican; lo que este ADR cambia queda aquí y en
   Queda como acción de Carlos crear una fila F6-x. Mientras, RR-03 se cumple
   en parte: se exige y valida la evidencia y en el cierre solo se contrasta
   `paso_rojo` con el informe F5-4.
+
+## Adenda (F6-7, TASK-053) — defensa contra prompt injection en PR y tareas
+
+La defensa sigue siendo por capacidades (decisión 4; RR-08): ni el revisor
+IA ni el agente pueden ejecutar, aprobar ni integrar por haber leído un
+texto hostil. F6-7 no añade un detector de patrones (un filtro se esquiva y
+daría falsos positivos con la propia batería); cierra los huecos que F6-3 a
+F6-6 dejaron anotados y deja la batería como catálogo ejecutable.
+
+- **Una sola regla de cerca y de texto plano** (`crates/tc2/src/dato.rs`):
+  `cerca` (un acento grave más que el tramo más largo de cualquier línea, en
+  cualquier posición, y como poco cuatro), `bloque` (el dato en esa cerca,
+  rotulado «dato no fiable») y `plano` (una línea sin formato, enlaces, HTML
+  ni caracteres Cf). La usan `hallazgos` y `plan`; el `awk` del workflow y
+  la `valla` de `plan` desaparecen.
+- **A9, entradas al prompt**: el prompt lo compone `tc2 hallazgos prompt`
+  (función pura `hallazgos::prompt::componer`), no el workflow. Fuera de
+  cercas solo va texto de `tc2`; el contexto (PR, commit, base, selección y
+  ronda), el informe F5-4, los abiertos de la ronda anterior y el diff van
+  cada uno en un `bloque`; el `SKILL.md` de la base, en su cerca; y «Lo que
+  devuelves» va al final, una sola vez fuera de cercas. De la tarea solo
+  llegan carril y complejidad (listas cerradas) y el número de `## Rondas
+  extra` (que el agente escriba más solo cuesta tokens, con el tope de la
+  base); de la rama, solo `TASK-NNN`; título y descripción del PR no llegan.
+- **A9, salidas al check**: la prosa del modelo ya no va tal cual a
+  `texto.md`: `tc2 hallazgos validar --prosa` la deja sin caracteres Cf,
+  cortada a 32 KiB y dentro de un `bloque`, donde tablas, enlaces, imágenes,
+  menciones y HTML no se presentan (suposición no verificada en GitHub hasta
+  el E2E). Título, conclusión, anotaciones y resumen siguen siendo de `tc2`.
+  El lint de `xtask` exige que el prompt solo lo escriba `tc2 hallazgos
+  prompt`, que la prosa solo entre por `--prosa` y que ningún `run:` saque a
+  stdout la respuesta, el diff o el prompt (el procesador de comandos de
+  Actions leería `::add-mask::` o `::stop-commands::`); es heurístico.
+- **A10 y A16 en local**: la petición de plan lleva el título de la tarea
+  por `plano` y objetivo y criterios en una cerca que no pueden cerrar. Lo
+  que el agente lea directamente de `tarea.md` o del PR sigue dependiendo de
+  las capacidades (A4, A5): F6-7 solo endurece lo que genera `tc2`.
+- **Batería**: `crates/tc2/tests/fixtures/inyeccion/casos.json` (INY-01 a
+  INY-15: superficie, activo, entrada hostil e invariante), ejecutada por
+  `crates/tc2/tests/inyeccion.rs` con el binario real y repos Git
+  temporales; un caso sin test que lo ejecute da rojo. Es una entrada por
+  superficie, no exhaustiva (faltan inyecciones en otros idiomas,
+  codificadas o repartidas entre ficheros y homoglifos). La prueba con un
+  modelo real es de F9-5.
+- **Residual de A9 (riesgo aceptado)**: un modelo inyectado puede devolver
+  0 hallazgos o cerrar un IMPORTANTE con un cierre anclado a una línea que
+  añadió el autor, y el check sale verde. El ancla ya es lo máximo sin romper
+  arreglos legítimos (MEN-3 de TASK-052). Lo contiene que `revision-ia` en
+  verde no es una aprobación: la de la persona es obligatoria (decisión 4).
+  Un nombre de paso F5-4 con texto imperativo (forma cerrada
+  `[a-z0-9._-]`, hasta 64) llega como dato rotulado.

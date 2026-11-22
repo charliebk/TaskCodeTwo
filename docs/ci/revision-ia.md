@@ -1,6 +1,6 @@
-# Revisor IA en CI (F6-3, F6-4, F6-5, F6-6)
+# Revisor IA en CI (F6-3, F6-4, F6-5, F6-6, F6-7)
 
-TASK-049, TASK-050, TASK-051 y TASK-052. El check `revision-ia` lo publica la **App del revisor** desde un
+TASK-049, TASK-050, TASK-051, TASK-052 y TASK-053. El check `revision-ia` lo publica la **App del revisor** desde un
 workflow reutilizable que corre cuando termina `verificacion` en un PR
 ([`.github/workflows/revision-ia.yml`](../../.github/workflows/revision-ia.yml)).
 Qué revisoras se lanzan y con qué modelo no lo decide el modelo: lo decide
@@ -471,11 +471,20 @@ F6-6 (decisión 3 de TASK-052).
 - Que GitHub deje pasar las respuestas por `outputs` sin enmascarar ni
   truncar no se ha comprobado aún en un run real (E2E de TASK-050).
 - Las tablas de hallazgos escapan el Markdown del modelo; su informe en
-  prosa, debajo, va tal cual (como en F6-3): la defensa es de F6-7.
+  prosa, debajo, va en un bloque cercado, sin caracteres Cf y cortado a
+  32 KiB (`tc2 hallazgos validar --prosa`, F6-7): se lee como código, sin
+  enlaces, imágenes, menciones ni HTML.
 - Sin el detector de dominios (F4-6): S10 y S11 no se aplican (S13 sí, con
   la ronda de F6-6).
-- El diff y el informe son datos del autor del PR que llegan al modelo; la
-  defensa contra inyección de instrucciones es de F6-7.
+- Inyección de instrucciones (F6-7; adenda F6-7 de F1-8): el prompt lo
+  compone `tc2 hallazgos prompt` y todo dato del PR, de la tarea o de una
+  ronda anterior va en una cerca que no puede cerrar, rotulado como dato no
+  fiable. Eso no impide que el modelo obedezca: un modelo inyectado puede
+  devolver 0 hallazgos o un cierre válido y el check sale verde. Por eso
+  `revision-ia` en verde no es una aprobación (la de la persona es
+  obligatoria). No se ha medido con un modelo real si la cerca reduce la
+  obediencia (sin saldo; es de F9-5). La batería de PR maliciosos es
+  `crates/tc2/tests/fixtures/inyeccion/casos.json`.
 - Coste: una llamada por revisora y ronda (2 o 3 en un PR Rust + Vue).
 - El informe de una verificación reutilizada se encuentra por la línea
   `Perfil <p>: reutilizada de ... (origen <sha>, ...)` del log de
