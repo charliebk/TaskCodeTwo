@@ -489,19 +489,19 @@ pub fn seleccion_de(
         });
     let f = seleccion::orden::fuentes(g, principal, claude, &[]);
     avisos.extend(f.avisos.iter().cloned());
-    let (carril, cx) = seleccion::orden::de_tarea(t, cuerpo);
+    let (carril, r) = seleccion::orden::de_tarea(t, cuerpo);
     let cfg = config::de_base(g, principal).unwrap_or_else(|_| {
         avisos.push("config-de-base-no-leida".to_owned());
         config::Config::suelo()
     });
     let ctx = seleccion::Contexto {
         carril,
-        complejidad: Some(cx),
+        complejidad: Some(seleccion::orden::complejidad(&r)),
         modelos_permitidos: &cfg.seleccion.modelos_permitidos,
         ronda: 1,
     };
     // F4-6: con los dominios (texto vivo, rutas del diff y lo congelado).
-    let doms = seleccion::orden::dominios_de(Some((t, cuerpo)), &rutas, &cfg);
+    let doms = seleccion::orden::dominios_de(Some((t, cuerpo)), &rutas, &cfg).unwrap_or_default();
     let entrada = seleccion::Entrada {
         rutas: &rutas,
         dominios: &doms,

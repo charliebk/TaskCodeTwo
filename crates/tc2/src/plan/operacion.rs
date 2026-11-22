@@ -52,7 +52,7 @@ use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
 use crate::inventario::Inventario;
-use crate::seleccion::{self, Catalogo, dominios};
+use crate::seleccion::{self, Catalogo};
 use crate::tarea::{Asignado, Cuerpo, Transicion};
 use crate::toma::instante;
 
@@ -157,7 +157,8 @@ impl Planificar {
         self
     }
 
-    /// La seleccion de diseno e implementacion de la tarea (F4-6).
+    /// La seleccion de diseno e implementacion de la tarea (F4-6). `Err` si
+    /// las tablas del ADR no se leen.
     fn seleccion(
         &self,
         t: &crate::tarea::Tarea,
@@ -165,14 +166,8 @@ impl Planificar {
         carril: Carril,
         resolucion: &heuristica::Resolucion,
         n: u8,
-    ) -> (seleccion::Seleccion, seleccion::Seleccion) {
-        let tabla = seleccion::tabla::dominios(seleccion::tabla::ADR).unwrap_or_default();
-        let texto = dominios::Texto {
-            objetivo: &enunciado.objetivo,
-            criterios: &enunciado.criterios,
-            etiquetas: &t.etiquetas,
-        };
-        let doms = dominios::dominios(&texto, &[], &tabla, &self.config.seleccion.dominios_extra);
+    ) -> Result<(seleccion::Seleccion, seleccion::Seleccion), String> {
+        let doms = seleccion::orden::dominios_vivos(Some((t, enunciado)), &[], &self.config)?;
         let entrada = seleccion::Entrada {
             rutas: &[],
             dominios: &doms,
@@ -185,11 +180,11 @@ impl Planificar {
             modelos_permitidos: &self.config.seleccion.modelos_permitidos,
             ronda: 1,
         };
-        let s = |rol| {
-            seleccion::seleccionar(rol, &entrada, &self.catalogo, &self.inventario, &ctx)
-                .unwrap_or_default()
-        };
-        (s(seleccion::Rol::Diseno), s(seleccion::Rol::Implementacion))
+        let s = |rol| seleccion::seleccionar(rol, &entrada, &self.catalogo, &self.inventario, &ctx);
+        Ok((
+            s(seleccion::Rol::Diseno)?,
+            s(seleccion::Rol::Implementacion)?,
+        ))
     }
 
     /// `roles.<rol>` con la seleccion `s` (la `regla` de la 0.16 se
@@ -312,7 +307,7 @@ fn peticiones(d: &Datos<'_>, roles: &[Rol], forma: Forma) -> Vec<(String, String
 }
 
 /// Los dominios de unas senales `<dominio>:<senal>:<valor>`, sin repetir.
-pub fn dominios_de(senales: &[String]) -> Vec<String> {
+pub fn dominios_de_senales(senales: &[String]) -> Vec<String> {
     let mut v: Vec<String> = Vec::new();
     for s in senales {
         let d = s.split(':').next().unwrap_or_default().to_owned();
@@ -327,12 +322,8 @@ pub fn dominios_de(senales: &[String]) -> Vec<String> {
 /// seleccion (por el sufijo del id: `taskcode-plugin:brainstorm-riesgos`
 /// es `brainstorm-riesgos`), sin el unificador, que decide la forma. Con
 /// `n` por encima de la escalera (`politica_carriles`, hasta 5) se suman los
-/// condicionales que falten, como [`roles::seleccionar`]. Si la tabla no se
-/// pudo leer (sin filas aplicadas), los de antes de F4-6.
-fn roles_de(s: &seleccion::Seleccion, n: u8, etiquetas: &[String]) -> Vec<Rol> {
-    if s.reglas.is_empty() {
-        return roles::seleccionar(n, etiquetas);
-    }
+/// condicionales que falten, como [`roles::seleccionar`].
+fn roles_de(s: &seleccion::Seleccion, n: u8) -> Vec<Rol> {
     let mut v: Vec<Rol> = s
         .roles
         .iter()
@@ -427,8 +418,15 @@ impl Operacion for Planificar {
             &enunciado,
         );
         let n = carril.roles_diseno(resolucion.roles, &t.tipo, &self.config);
-        let (sd, si) = self.seleccion(&t, &enunciado, carril, &resolucion, n);
-        let roles = roles_de(&sd, n, &t.etiquetas);
+        let (sd, si) = self
+            .seleccion(&t, &enunciado, carril, &resolucion, n)
+            .map_err(|x| {
+                Fallo::Error(
+                    Mensaje::nuevo(&crate::i18n::catalogo::seleccion::TABLA_ILEGIBLE)
+                        .con("error", x),
+                )
+            })?;
+        let roles = roles_de(&sd, n);
         let forma = if roles.len() == 1 {
             Forma::Redaccion
         } else {
@@ -482,7 +480,7 @@ impl Operacion for Planificar {
             roles: roles.iter().map(|r| r.titulo).collect(),
             forma,
             peticiones: nombres(ronda),
-            dominios: dominios_de(&sd.senales),
+            dominios: dominios_de_senales(&sd.senales),
             modelos: (sd.modelo.clone(), si.modelo.clone()),
             avisos: sd.avisos.iter().chain(&si.avisos).cloned().collect(),
         });

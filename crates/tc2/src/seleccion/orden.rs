@@ -160,10 +160,10 @@ pub fn fuentes(
     }
 }
 
-/// Carril efectivo y complejidad de una tarea: el carril mayor entre el
-/// declarado por el tipo y el congelado; la complejidad mayor entre la
-/// declarada y la heuristica (F1-15 decision 1).
-pub fn de_tarea(t: &Tarea, c: &Cuerpo) -> (Carril, &'static str) {
+/// Carril efectivo y resolucion de la heuristica de una tarea: el carril
+/// mayor entre el declarado por el tipo y el congelado; de la resolucion
+/// salen la complejidad ([`complejidad`]) y los roles de diseno.
+pub fn de_tarea(t: &Tarea, c: &Cuerpo) -> (Carril, heuristica::Resolucion) {
     let declarado = Carril::declarado(&t.tipo);
     let carril = t
         .carril
@@ -178,41 +178,61 @@ pub fn de_tarea(t: &Tarea, c: &Cuerpo) -> (Carril, &'static str) {
         &t.dependencias,
         &e,
     );
-    (carril, complejidad(&r))
+    (carril, r)
 }
 
-/// Los dominios de una tarea para la revision (F4-6; F1-15 decision 3):
-/// los del texto vivo y las `rutas` del diff con `dominios_extra` de la
-/// configuracion de la base, mas las senales congeladas con el plan
-/// aprobado (`roles.diseno.senales`): reescribir la tarea no quita un
-/// dominio. Sin tarea, solo las rutas.
+/// Los dominios del texto vivo de una tarea (objetivo y criterios de `e`,
+/// etiquetas de `t`) y de las `rutas`, con `dominios_extra` de la
+/// configuracion de la base (F1-15 decision 3). Sin tarea, solo las rutas.
+/// `Err` si la tabla del ADR no se lee.
+pub fn dominios_vivos(
+    tarea: Option<(&Tarea, &heuristica::Enunciado)>,
+    rutas: &[String],
+    cfg: &crate::config::Config,
+) -> Result<super::dominios::Dominios, String> {
+    let tabla = super::tabla::dominios(super::tabla::ADR)?;
+    let texto = match tarea {
+        Some((t, e)) => super::dominios::Texto {
+            objetivo: &e.objetivo,
+            criterios: &e.criterios,
+            etiquetas: &t.etiquetas,
+        },
+        None => super::dominios::Texto {
+            objetivo: "",
+            criterios: &[],
+            etiquetas: &[],
+        },
+    };
+    Ok(super::dominios::dominios(
+        &texto,
+        rutas,
+        &tabla,
+        &cfg.seleccion.dominios_extra,
+    ))
+}
+
+/// Los dominios de una tarea para la revision (F4-6): los de
+/// [`dominios_vivos`] mas las senales congeladas con el plan aprobado
+/// (`roles.diseno.senales`): reescribir la tarea no quita un dominio.
 pub fn dominios_de(
     tarea: Option<(&Tarea, &Cuerpo)>,
     rutas: &[String],
     cfg: &crate::config::Config,
-) -> super::dominios::Dominios {
-    let tabla = super::tabla::dominios(super::tabla::ADR).unwrap_or_default();
-    let extra = &cfg.seleccion.dominios_extra;
+) -> Result<super::dominios::Dominios, String> {
     match tarea {
         Some((t, c)) => {
             let e = heuristica::Enunciado::de(c);
-            let texto = super::dominios::Texto {
-                objetivo: &e.objetivo,
-                criterios: &e.criterios,
-                etiquetas: &t.etiquetas,
-            };
-            let d = super::dominios::dominios(&texto, rutas, &tabla, extra);
-            super::dominios::union(&d, &t.roles.diseno.senales)
+            let d = dominios_vivos(Some((t, &e)), rutas, cfg)?;
+            Ok(super::dominios::union(&d, &t.roles.diseno.senales))
         }
-        None => {
-            let texto = super::dominios::Texto {
-                objetivo: "",
-                criterios: &[],
-                etiquetas: &[],
-            };
-            super::dominios::dominios(&texto, rutas, &tabla, extra)
-        }
+        None => dominios_vivos(None, rutas, cfg),
     }
+}
+
+/// El informe de error de `comando` si las tablas del ADR no se leen.
+fn tabla_ilegible(comando: &str, error: String) -> Informe {
+    Informe::nuevo(comando, Resultado::Error)
+        .diagnostico(Mensaje::nuevo(&txt::TABLA_ILEGIBLE).con("error", error))
 }
 
 /// La complejidad de la seleccion: la mayor entre la declarada y la
@@ -422,7 +442,7 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         avisos.push("config-de-base-no-leida".to_owned());
         crate::config::Config::suelo()
     });
-    let mut doms = dominios_de(None, &rutas, &config);
+    let mut doms = dominios_de(None, &rutas, &config).map_err(|x| tabla_ilegible(NOMBRE, x))?;
     if let Some(id) = &a.tarea {
         let leida = crate::estado::leer(e.git, e.dir)
             .map_err(|i| i.valor("motivo").unwrap_or("estado").to_owned())
@@ -434,10 +454,11 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
             });
         match leida {
             Ok((t, c)) => {
-                let (k, x) = de_tarea(&t, &c);
+                let (k, r) = de_tarea(&t, &c);
                 carril = k;
-                cx = Some(x.to_owned());
-                doms = dominios_de(Some((&t, &c)), &rutas, &config);
+                cx = Some(complejidad(&r).to_owned());
+                doms = dominios_de(Some((&t, &c)), &rutas, &config)
+                    .map_err(|x| tabla_ilegible(NOMBRE, x))?;
             }
             Err(m) => avisos.push(format!("tarea-no-leida:{m}")),
         }
@@ -597,15 +618,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         avisos.push("config-de-base-no-leida".to_owned());
         crate::config::Config::suelo()
     });
-    let (carril, _) = de_tarea(&t, &c);
-    let enunciado = heuristica::Enunciado::de(&c);
-    let r = heuristica::resolver(
-        t.complejidad.as_deref(),
-        &t.etiquetas,
-        &t.tipo,
-        &t.dependencias,
-        &enunciado,
-    );
+    let (carril, r) = de_tarea(&t, &c);
     let cx = complejidad(&r);
     let n = carril.roles_diseno(r.roles, &t.tipo, &config);
     let ctx = Contexto {
@@ -614,8 +627,10 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         modelos_permitidos: &config.seleccion.modelos_permitidos,
         ronda: 1,
     };
-    let doms_plan = dominios_de(Some((&t, &c)), &[], &config);
-    let doms_rev = dominios_de(Some((&t, &c)), &rutas, &config);
+    let doms_plan =
+        dominios_de(Some((&t, &c)), &[], &config).map_err(|x| tabla_ilegible(SELECCION, x))?;
+    let doms_rev =
+        dominios_de(Some((&t, &c)), &rutas, &config).map_err(|x| tabla_ilegible(SELECCION, x))?;
     let sel = |rol, doms: &super::dominios::Dominios| {
         let entrada = super::Entrada {
             rutas: &rutas,
@@ -623,10 +638,8 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
             etiquetas: &t.etiquetas,
             roles_base: n,
         };
-        super::seleccionar(rol, &entrada, &f.catalogo, &f.inventario, &ctx).map_err(|x| {
-            Informe::nuevo(SELECCION, Resultado::Error)
-                .diagnostico(Mensaje::nuevo(&txt::TABLA_ILEGIBLE).con("error", x))
-        })
+        super::seleccionar(rol, &entrada, &f.catalogo, &f.inventario, &ctx)
+            .map_err(|x| tabla_ilegible(SELECCION, x))
     };
     let d = sel(super::Rol::Diseno, &doms_plan)?;
     let im = sel(super::Rol::Implementacion, &doms_plan)?;
@@ -636,19 +649,9 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     }
     let nombres = |d: &super::dominios::Dominios| {
         let v: Vec<String> = d.iter().map(|(x, _)| x.clone()).collect();
-        if v.is_empty() {
-            "ninguno".to_owned()
-        } else {
-            v.join(",")
-        }
+        crate::plan::lista_o_ninguno(&v)
     };
-    let modelo = |s: &Seleccion| {
-        if s.modelo.is_empty() {
-            "-".to_owned()
-        } else {
-            s.modelo.clone()
-        }
-    };
+    let modelo = |s: &Seleccion| crate::plan::o_guion(&s.modelo).to_owned();
     Ok(Informe::nuevo(SELECCION, Resultado::Ok)
         .con("id", t.id.as_str())
         .con("carril", carril.nombre())
