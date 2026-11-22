@@ -277,6 +277,15 @@ fn roles_ampliados_ida_y_vuelta() {
     assert_eq!(v["roles"]["revision"]["ronda"].as_u64(), Some(2));
     // Una clave que no conoce el modelo sigue rechazandose.
     assert!(tarea::leer(&ampliada.replace("ronda: 2", "otra: 2")).is_err());
+    // `agente` y `ronda` son solo de revision.
+    assert!(
+        tarea::leer(&ampliada.replace("diseno: {modelo", "diseno: {agente: \"x\", modelo"))
+            .is_err()
+    );
+    assert!(
+        tarea::leer(&ampliada.replace("catalogo: \"def\"}", "catalogo: \"def\", ronda: 1}"))
+            .is_err()
+    );
 }
 
 /// C1 (ii) y (iii): lo que escribe el modelo lo lee igual el propio modelo y

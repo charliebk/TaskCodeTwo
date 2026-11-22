@@ -19,8 +19,8 @@ use std::fmt;
 
 pub use cuerpo::{Cuerpo, PAUSA, REANUDAR, Seccion, Transicion};
 pub use modelo::{
-    Asignado, COMPLEJIDADES, ESTADOS, Heredado, LOGIN_MAX, REGLAS, Rol, RolRevision, Roles, TIPOS,
-    Tarea, TareaV1, id_valido, login_valido, titulo_valido,
+    Asignado, COMPLEJIDADES, ESTADOS, Heredado, LOGIN_MAX, REGLAS, Rol, Roles, TIPOS, Tarea,
+    TareaV1, id_valido, login_valido, titulo_valido,
 };
 
 /// Un `tarea.md` leido.

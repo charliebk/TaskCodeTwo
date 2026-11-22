@@ -266,10 +266,14 @@ fn asignado(v: Option<serde_json::Value>) -> Result<Option<Asignado>, ErrorTarea
     }
 }
 
-/// Un rol de `roles` (diseno, implementacion).
+/// Un rol de `roles` (diseno, implementacion o revision). `agente` y
+/// `ronda` son solo de revision: en diseno e implementacion se rechazan al
+/// leer y no se escriben.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rol {
+    /// Agente que revisa (solo revision).
+    pub agente: Option<String>,
     /// Modelo del rol (contenido de F1-15).
     pub modelo: Option<String>,
     /// Skills del rol.
@@ -293,38 +297,7 @@ pub struct Rol {
     pub inventario: Option<String>,
     /// Huella del catalogo con el que se calculo.
     pub catalogo: Option<String>,
-}
-
-/// El rol de revision, que ademas nombra el agente.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RolRevision {
-    /// Agente que revisa.
-    pub agente: Option<String>,
-    /// Modelo del revisor.
-    pub modelo: Option<String>,
-    /// Skills del revisor.
-    pub skills: Vec<String>,
-    /// Regla que eligio la skill (vocabulario de la 0.16).
-    pub regla: Option<String>,
-    /// Agentes elegidos (F1-15 decision 10; F4-6).
-    #[serde(default)]
-    pub agentes: Vec<String>,
-    /// Ids de las filas de las tablas de F1-15 que se aplicaron.
-    #[serde(default)]
-    pub reglas: Vec<String>,
-    /// Senales de dominio (`<dominio>:<senal>:<valor>`); en diseno son las
-    /// congeladas con el plan aprobado.
-    #[serde(default)]
-    pub senales: Vec<String>,
-    /// Avisos de la seleccion.
-    #[serde(default)]
-    pub avisos: Vec<String>,
-    /// Huella del inventario con el que se calculo.
-    pub inventario: Option<String>,
-    /// Huella del catalogo con el que se calculo.
-    pub catalogo: Option<String>,
-    /// Ronda de revision en la que se calculo.
+    /// Ronda de revision en la que se calculo (solo revision).
     pub ronda: Option<u32>,
 }
 
@@ -338,7 +311,7 @@ pub struct Roles {
     /// Implementacion.
     pub implementacion: Rol,
     /// Revision.
-    pub revision: RolRevision,
+    pub revision: Rol,
 }
 
 /// Tarea en formato 2 (F1-9, punto 3).
@@ -481,8 +454,15 @@ fn fecha(clave: &str, s: String) -> Result<String, ErrorTarea> {
     }
 }
 
-fn rol(clave: &str, r: Rol) -> Result<Rol, ErrorTarea> {
+/// `roles.<rol>` validado; `revision` dice si admite `agente` y `ronda`.
+fn rol(clave: &str, r: Rol, revision: bool) -> Result<Rol, ErrorTarea> {
+    for (k, hay) in [("agente", r.agente.is_some()), ("ronda", r.ronda.is_some())] {
+        if hay && !revision {
+            return Err(ErrorTarea::en(clave, format!("clave «{k}» desconocida")));
+        }
+    }
     Ok(Rol {
+        agente: texto_opcional(clave, r.agente)?,
         modelo: texto_opcional(clave, r.modelo)?,
         skills: textos(clave, r.skills)?,
         regla: uno_de_opcional(clave, r.regla, &REGLAS)?,
@@ -492,30 +472,25 @@ fn rol(clave: &str, r: Rol) -> Result<Rol, ErrorTarea> {
         avisos: textos(clave, r.avisos)?,
         inventario: texto_opcional(clave, r.inventario)?,
         catalogo: texto_opcional(clave, r.catalogo)?,
+        ronda: r.ronda,
     })
 }
 
 /// Las claves ampliadas de F4-6, solo las que tienen valor (una tarea de
 /// antes se reescribe byte a byte igual).
-fn ampliado(
-    agentes: &[String],
-    reglas: &[String],
-    senales: &[String],
-    avisos: &[String],
-    huellas: (Option<&str>, Option<&str>),
-) -> String {
+fn ampliado(r: &Rol) -> String {
     let mut s = String::new();
     for (k, v) in [
-        ("agentes", agentes),
-        ("reglas", reglas),
-        ("senales", senales),
-        ("avisos", avisos),
+        ("agentes", &r.agentes),
+        ("reglas", &r.reglas),
+        ("senales", &r.senales),
+        ("avisos", &r.avisos),
     ] {
         if !v.is_empty() {
             s.push_str(&format!(", {k}: {}", yaml::lista(v)));
         }
     }
-    for (k, v) in [("inventario", huellas.0), ("catalogo", huellas.1)] {
+    for (k, v) in [("inventario", &r.inventario), ("catalogo", &r.catalogo)] {
         if let Some(v) = v {
             s.push_str(&format!(", {k}: {}", yaml::cadena(v)));
         }
@@ -564,9 +539,9 @@ impl Tarea {
                     modelo: Some("sonnet".to_owned()),
                     ..Rol::default()
                 },
-                revision: RolRevision {
+                revision: Rol {
                     agente: Some("general-purpose".to_owned()),
-                    ..RolRevision::default()
+                    ..Rol::default()
                 },
             },
             estimacion: None,
@@ -638,7 +613,6 @@ impl Tarea {
             ));
         }
         let roles = exigir("roles", c.roles)?;
-        let revision = roles.revision;
         let estimacion = c.estimacion.and_then(|_| {
             partes
                 .entradas
@@ -660,21 +634,9 @@ impl Tarea {
             rama: texto_opcional("rama", c.rama)?,
             asignado_a: asignado(c.asignado_a)?,
             roles: Roles {
-                diseno: rol("roles.diseno", roles.diseno)?,
-                implementacion: rol("roles.implementacion", roles.implementacion)?,
-                revision: RolRevision {
-                    agente: texto_opcional("roles.revision", revision.agente)?,
-                    modelo: texto_opcional("roles.revision", revision.modelo)?,
-                    skills: textos("roles.revision", revision.skills)?,
-                    regla: uno_de_opcional("roles.revision", revision.regla, &REGLAS)?,
-                    agentes: textos("roles.revision", revision.agentes)?,
-                    reglas: textos("roles.revision", revision.reglas)?,
-                    senales: textos("roles.revision", revision.senales)?,
-                    avisos: textos("roles.revision", revision.avisos)?,
-                    inventario: texto_opcional("roles.revision", revision.inventario)?,
-                    catalogo: texto_opcional("roles.revision", revision.catalogo)?,
-                    ronda: revision.ronda,
-                },
+                diseno: rol("roles.diseno", roles.diseno, false)?,
+                implementacion: rol("roles.implementacion", roles.implementacion, false)?,
+                revision: rol("roles.revision", roles.revision, true)?,
             },
             estimacion,
             tokens_diseno: c.tokens_diseno,
@@ -699,19 +661,20 @@ impl Tarea {
     /// con `\n`; el cuerpo, byte a byte como se leyo).
     pub fn escribir(&self, cuerpo: &Cuerpo) -> String {
         let r = &self.roles;
-        let rol = |x: &Rol| {
+        // Revision lleva `agente` delante; `ronda` solo sale con valor.
+        let rol = |x: &Rol, revision: bool| {
+            let agente = if revision {
+                format!("agente: {}, ", yaml::opcional(x.agente.as_deref()))
+            } else {
+                String::new()
+            };
+            let ronda = x.ronda.map(|n| format!(", ronda: {n}")).unwrap_or_default();
             format!(
-                "{{modelo: {}, skills: {}, regla: {}{}}}",
+                "{{{agente}modelo: {}, skills: {}, regla: {}{}{ronda}}}",
                 yaml::opcional(x.modelo.as_deref()),
                 yaml::lista(&x.skills),
                 yaml::opcional(x.regla.as_deref()),
-                ampliado(
-                    &x.agentes,
-                    &x.reglas,
-                    &x.senales,
-                    &x.avisos,
-                    (x.inventario.as_deref(), x.catalogo.as_deref())
-                )
+                ampliado(x)
             )
         };
         let mut s = String::from("---\nformato: 2\n");
@@ -738,29 +701,11 @@ impl Tarea {
                 .as_ref()
                 .map_or_else(|| "null".to_owned(), Asignado::yaml),
         );
-        let rv = &r.revision;
-        let ronda = rv
-            .ronda
-            .map(|n| format!(", ronda: {n}"))
-            .unwrap_or_default();
-        let revision = format!(
-            "{{agente: {}, modelo: {}, skills: {}, regla: {}{}{ronda}}}",
-            yaml::opcional(rv.agente.as_deref()),
-            yaml::opcional(rv.modelo.as_deref()),
-            yaml::lista(&rv.skills),
-            yaml::opcional(rv.regla.as_deref()),
-            ampliado(
-                &rv.agentes,
-                &rv.reglas,
-                &rv.senales,
-                &rv.avisos,
-                (rv.inventario.as_deref(), rv.catalogo.as_deref())
-            )
-        );
         let roles = format!(
-            "\n  diseno: {}\n  implementacion: {}\n  revision: {revision}",
-            rol(&r.diseno),
-            rol(&r.implementacion)
+            "\n  diseno: {}\n  implementacion: {}\n  revision: {}",
+            rol(&r.diseno, false),
+            rol(&r.implementacion, false),
+            rol(&r.revision, true)
         );
         s.push_str("roles:");
         s.push_str(&roles);

@@ -89,7 +89,7 @@ impl Revisar {
     }
 
     /// `roles.revision` de `t` con la seleccion; `None` si no hay seleccion.
-    fn anotar(&self, t: &crate::tarea::Tarea) -> Option<crate::tarea::RolRevision> {
+    fn anotar(&self, t: &crate::tarea::Tarea) -> Option<crate::tarea::Rol> {
         let s = self.seleccion.as_ref()?;
         let mut rv = t.roles.revision.clone();
         rv.agente.clone_from(&s.agente);
