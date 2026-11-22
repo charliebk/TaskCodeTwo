@@ -17,10 +17,12 @@ use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
-    Creada, EstadoPuerta, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado,
-    Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas, Usuario, aplicar_en_lote,
+    Creada, EstadoPuerta, FalloLectura, Firma, LEER_REVISION, ModeloPuertas, Paso, Personas,
+    PlanObservado, Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas,
+    RevisionPublicada, Usuario, aplicar_en_lote,
 };
 use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
 const ABRIR_PR: &str = "abrir-pr";
@@ -68,6 +70,7 @@ enum Endpoint<'a> {
     CrearRuleset,
     CheckRuns(&'a str),
     CheckRunsDeRama(&'a str),
+    Anotaciones(u64),
     Reviews(u64),
     PermisosWorkflow,
     Commit(&'a str),
@@ -103,6 +106,10 @@ impl Endpoint<'_> {
             Self::CheckRunsDeRama(rama) => (
                 Metodo::Get,
                 format!("{r}/commits/heads/{rama}/check-runs?per_page=100"),
+            ),
+            Self::Anotaciones(id) => (
+                Metodo::Get,
+                format!("{r}/check-runs/{id}/annotations?per_page=100"),
             ),
             Self::Reviews(n) => (Metodo::Get, format!("{r}/pulls/{n}/reviews?per_page=100")),
             Self::PermisosWorkflow => (Metodo::Get, format!("{r}/actions/permissions/workflow")),
@@ -184,12 +191,33 @@ struct CheckRunsApi {
 
 #[derive(Deserialize)]
 struct CheckRunApi {
+    /// Solo lo usa `leer-revision` (F6-5).
+    #[serde(default)]
+    id: u64,
     name: String,
     status: String,
     #[serde(default)]
     conclusion: Option<String>,
     #[serde(default)]
     app: Option<AppApi>,
+    /// Solo lo usa `leer-revision` (F6-5).
+    #[serde(default)]
+    output: Option<SalidaCheckApi>,
+}
+
+#[derive(Deserialize, Default)]
+struct SalidaCheckApi {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    summary: Option<String>,
+}
+
+/// Una anotacion de un check-run: solo su `raw_details` (F6-5).
+#[derive(Deserialize)]
+struct AnotacionApi {
+    #[serde(default)]
+    raw_details: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -579,6 +607,78 @@ impl Plataforma for GitHub {
             // `unknown` (GitHub aun calculando) no se da por conflicto:
             // `merge-pr` lo vuelve a comprobar en la plataforma (405).
             sin_conflictos: p.mergeable_state.as_deref() != Some("dirty"),
+        })
+    }
+
+    fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
+        let op = LEER_REVISION;
+        if rol == Rol::Revisor {
+            return Err(rol_no_valido(op, rol));
+        }
+        let permiso = &t::PERMISO_PR_Y_CHECKS;
+        let p: PrApi = self
+            .con
+            .leer(op, rol, permiso, self.ep(&Endpoint::Pr(pr)))?;
+        if !sha_valido(&p.head.sha) {
+            return Err(self.con.invalida_por(op, &t::RAMA_BASE_O_SHA));
+        }
+        let (_, ruta) = self.ep(&Endpoint::CheckRuns(&p.head.sha));
+        let runs: Vec<CheckRunApi> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
+            self.con
+                .parsear::<CheckRunsApi>(op, c)
+                .map(|x| x.check_runs)
+        })?;
+        // Como `estado-puertas`: el mas nuevo de ese nombre que publico su
+        // origen, y solo si ya termino.
+        let check = runs
+            .into_iter()
+            .find(|r| {
+                r.name == crate::revision::REVISION_IA
+                    && r.app.as_ref().is_some_and(|a| a.id == origen)
+            })
+            .filter(|r| r.status == "completed" && r.id != 0);
+        let Some(check) = check else {
+            return Err(Informe::nuevo(op, Resultado::Esperando)
+                .con("pr", pr.to_string())
+                .con("motivo", "sin-check")
+                .diagnostico(
+                    Mensaje::nuevo(&t::REVISION_SIN_CHECK)
+                        .con("pr", pr.to_string())
+                        .con("origen", origen.to_string())
+                        .con("sha", corto(&p.head.sha)),
+                ));
+        };
+        let (_, ruta) = self.ep(&Endpoint::Anotaciones(check.id));
+        let crudos: Vec<Option<String>> = self.con.leer_paginas(op, rol, permiso, ruta, |c| {
+            self.con
+                .parsear::<Vec<AnotacionApi>>(op, c)
+                .map(|v| v.into_iter().map(|a| a.raw_details).collect())
+        })?;
+        // Cada `raw_details` es un aceptado que escribio `tc2 hallazgos
+        // veredicto`; uno que falta o no tiene esa forma falla cerrado.
+        let aceptados = crudos
+            .iter()
+            .map(|c| {
+                c.as_deref()
+                    .and_then(|c| serde_json::from_str::<crate::hallazgos::AceptadoDe>(c).ok())
+                    .ok_or_else(|| self.con.invalida_por(op, &t::RAW_DETAILS_REVISION))
+            })
+            .collect::<Paso<Vec<_>>>()?;
+        let salida = check.output.unwrap_or_default();
+        let conclusion = check.conclusion.unwrap_or_default();
+        let titulo = salida.title.unwrap_or_default();
+        // El titulo tiene que casar con la conclusion y con los aceptados
+        // leidos: un lote de anotaciones que no llego, o un check alterado,
+        // falla cerrado en vez de dar un informe incoherente.
+        if crate::hallazgos::dictamen_publicado(&titulo, &conclusion, &aceptados).is_none() {
+            return Err(self.con.invalida_por(op, &t::RAW_DETAILS_REVISION));
+        }
+        Ok(RevisionPublicada {
+            sha: p.head.sha,
+            conclusion,
+            titulo,
+            resumen: salida.summary.unwrap_or_default(),
+            aceptados,
         })
     }
 
@@ -974,6 +1074,134 @@ mod tests {
                 Personas::default(),
             );
             assert!(r.is_err_and(|i| i.resultado == Resultado::Uso), "{repo}");
+        }
+    }
+
+    /// El doble HTTP de los tests de integracion, el mismo fichero.
+    #[path = "../../../../tests/comun/http_mock.rs"]
+    #[allow(dead_code, clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    mod http_mock;
+
+    const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    fn importante(id: &str) -> String {
+        let raw = serde_json::json!({
+            "revisora": "rev:a",
+            "hallazgo": {
+                "id": id, "severidad": "IMPORTANTE", "clase": "contrato",
+                "fichero": "src/a.rs", "linea": 3, "descripcion": "d",
+                "evidencia": {"tipo": "borde", "entrada": "x", "esperado": "1", "obtenido": "2"}
+            }
+        })
+        .to_string();
+        serde_json::json!({"path": "src/a.rs", "start_line": 3, "raw_details": raw}).to_string()
+    }
+
+    /// `leer-revision` con un check `revision-ia` de conclusion
+    /// `conclusion`, titulo `titulo` y esas anotaciones.
+    #[allow(clippy::panic)]
+    fn leer(conclusion: &str, titulo: &str, anotaciones: &[String]) -> Paso<RevisionPublicada> {
+        use http_mock::{Mock, Simulada};
+        let mock = Mock::nuevo();
+        mock.responder(
+            "GET",
+            "/repos/o/r/pulls/12",
+            Simulada::json(
+                200,
+                &format!(
+                    "{{\"number\":12,\"state\":\"open\",\"merged\":false,\"mergeable_state\":\"clean\",\"head\":{{\"ref\":\"feature/x\",\"sha\":\"{SHA}\"}},\"base\":{{\"ref\":\"develop\",\"sha\":\"{SHA}\"}}}}"
+                ),
+            ),
+        );
+        let run = serde_json::json!({
+            "id": 5, "name": "revision-ia", "app": {"id": 99001}, "status": "completed",
+            "conclusion": conclusion, "output": {"title": titulo, "summary": "resumen"}
+        });
+        mock.responder(
+            "GET",
+            &format!("/repos/o/r/commits/{SHA}/check-runs"),
+            Simulada::json(200, &format!("{{\"check_runs\":[{run}]}}")),
+        );
+        mock.responder(
+            "GET",
+            "/repos/o/r/check-runs/5/annotations",
+            Simulada::json(200, &format!("[{}]", anotaciones.join(","))),
+        );
+        let gh = GitHub::nuevo(
+            Base::nueva(&mock.base()).unwrap_or_else(|_| panic!("base")),
+            "o/r",
+            Box::new(
+                super::super::CredencialesFijas::nuevas()
+                    .con(Rol::Agente, super::super::Secreto::nuevo("ghp_prueba")),
+            ),
+            Personas::default(),
+        )
+        .unwrap_or_else(|i| panic!("{}", i.linea()));
+        gh.leer_revision(Rol::Agente, 12, 99001)
+    }
+
+    /// MEN-1 de la ronda 1 de TASK-051: el titulo del check tiene que casar
+    /// con su conclusion y con los aceptados de sus anotaciones; si no,
+    /// `respuesta-invalida` (falla cerrado) en vez de un informe incoherente.
+    #[test]
+    #[allow(clippy::panic)]
+    fn leer_revision_exige_que_el_titulo_case_con_las_anotaciones() {
+        let _serie = http_mock::serie();
+        let una = [importante("I1")];
+        let r = leer(
+            "failure",
+            "revision-ia: rojo (criticos=0 importantes=1 menores=0)",
+            &una,
+        )
+        .unwrap_or_else(|i| panic!("{}", i.linea()));
+        assert_eq!(r.aceptados.len(), 1);
+        // El fallback de `publicar` sin veredicto: incompleta sin anotaciones.
+        let r = leer(
+            "failure",
+            "revision-ia: incompleta (sin veredicto de validar)",
+            &[],
+        );
+        assert!(r.is_ok(), "{:?}", r.err().map(|i| i.linea()));
+        let malos: [(&str, &str, &[String]); 5] = [
+            // El titulo dice mas de lo que llego (un lote perdido).
+            (
+                "success",
+                "revision-ia: rojo (criticos=3 importantes=2 menores=0)",
+                &[],
+            ),
+            (
+                "failure",
+                "revision-ia: rojo (criticos=3 importantes=2 menores=0)",
+                &[],
+            ),
+            // Recuentos que no son los de las anotaciones.
+            (
+                "failure",
+                "revision-ia: rojo (criticos=0 importantes=2 menores=0)",
+                &una,
+            ),
+            // Conclusion que no es la del dictamen.
+            (
+                "success",
+                "revision-ia: rojo (criticos=0 importantes=1 menores=0)",
+                &una,
+            ),
+            // Verde con un IMPORTANTE abierto.
+            (
+                "success",
+                "revision-ia: verde (criticos=0 importantes=1 menores=0)",
+                &una,
+            ),
+        ];
+        for (conclusion, titulo, anotaciones) in malos {
+            let i = leer(conclusion, titulo, anotaciones)
+                .err()
+                .unwrap_or_else(|| panic!("aceptado: {conclusion} {titulo}"));
+            assert_eq!(
+                i.linea(),
+                "leer-revision error motivo=respuesta-invalida",
+                "{conclusion} {titulo}"
+            );
         }
     }
 }

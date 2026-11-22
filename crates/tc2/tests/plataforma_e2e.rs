@@ -706,3 +706,204 @@ fn review_abre_el_pr_del_agente_contra_develop() {
     drop(clon);
     drop(limpieza);
 }
+
+/// El token de un `Secreto` para el arnes, sacado de la cabecera que da
+/// `entorno_git` (el `Secreto` no lo expone fuera de la biblioteca). No se
+/// imprime nunca.
+fn token_del_arnes(s: &Secreto) -> String {
+    use base64::Engine as _;
+    let vars = tc2::plataforma::entorno_git(Proveedor::GitHub, "https://github.com/", s, None);
+    let cabecera = vars
+        .iter()
+        .find_map(|(_, v)| {
+            v.to_str()?
+                .strip_prefix("Authorization: Basic ")
+                .map(str::to_owned)
+        })
+        .expect("cabecera de entorno_git");
+    let claro = base64::engine::general_purpose::STANDARD
+        .decode(cabecera)
+        .unwrap();
+    String::from_utf8(claro)
+        .unwrap()
+        .split_once(':')
+        .unwrap()
+        .1
+        .to_owned()
+}
+
+/// (e) F6-5 (TASK-051), criterio «el check refleja los hallazgos», sin el
+/// modelo: en un PR temporal la App del revisor publica el `check.json` de
+/// `tc2 hallazgos veredicto` (51 aceptados con un IMPORTANTE: rojo) y su
+/// segundo lote con un PATCH, como el job `publicar`; con la App del agente,
+/// `revision_ia` da `fallo` y `leer-revision` devuelve las 51 anotaciones
+/// (el PATCH las suma a las del POST). Limpia el PR y la rama. Variables de
+/// (c) mas `TC2_E2E_APP_REVISOR_ID` y `TC2_E2E_APP_REVISOR_CLAVE` (ruta al
+/// PEM de la App del revisor).
+///
+/// ```text
+/// TC2_E2E_REPO=dueno/repo TC2_E2E_TOKEN=... TC2_E2E_APP_ID=... TC2_E2E_APP_CLAVE=/ruta/agente.pem TC2_E2E_APP_REVISOR_ID=... TC2_E2E_APP_REVISOR_CLAVE=/ruta/revisor.pem cargo test -p tc2 --test plataforma_e2e revision_ia_publica_el_veredicto -- --ignored --nocapture --test-threads=1
+/// ```
+#[test]
+#[ignore = "E2E: escribe en el repo de pruebas de GitHub (TC2_E2E_REPO, TC2_E2E_TOKEN, TC2_E2E_APP_ID, TC2_E2E_APP_CLAVE, TC2_E2E_APP_REVISOR_ID, TC2_E2E_APP_REVISOR_CLAVE)"]
+fn revision_ia_publica_el_veredicto_y_review_lo_lee() {
+    use tc2::revision;
+
+    let arnes = Arnes::nuevo();
+    let repo = arnes.e.repo.clone();
+    let var = |n: &str| std::env::var(n).unwrap_or_else(|_| panic!("define {n}"));
+    let (app_id, clave) = (var("TC2_E2E_APP_ID"), var("TC2_E2E_APP_CLAVE"));
+    let rev_id = var("TC2_E2E_APP_REVISOR_ID");
+    let rev_clave = var("TC2_E2E_APP_REVISOR_CLAVE");
+    let origen: u64 = rev_id.parse().unwrap();
+
+    let limpieza = Limpieza::nueva(&arnes);
+    let rama = format!("e2e/revision-ia-{}", sufijo());
+    limpieza.rama(&rama);
+    let sha = arnes.rama_con_commit(&rama, "develop");
+    let fichero = format!("e2e/{rama}.txt");
+    let vars = |v: &str| match v {
+        "TC2_APP_AGENTE_ID" => Some(app_id.clone()),
+        "TC2_APP_AGENTE_CLAVE" => Some(clave.clone()),
+        _ => None,
+    };
+    let gh = GitHub::nuevo(
+        Base::github(),
+        &repo,
+        Box::new(de_entorno_con(vars, false)),
+        Personas::default(),
+    )
+    .unwrap();
+    let i = gh.abrir_pr(
+        &rama,
+        "develop",
+        "E2E TASK-051",
+        "check revision-ia con hallazgos (F6-5)",
+    );
+    assert_eq!(i.resultado, Resultado::Ok, "{}", ver(&i));
+    let n = i.valor("pr").unwrap().to_owned();
+    limpieza.pr(&n);
+    let pr: u64 = n.parse().unwrap();
+
+    // tc2 hallazgos veredicto sobre una salida de validar con 51 aceptados
+    // (uno IMPORTANTE) anclados al fichero del PR: dos lotes.
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("e2e-revision-ia");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let aceptados: Vec<Value> = (0..51)
+        .map(|k| {
+            let severidad = if k == 0 { "IMPORTANTE" } else { "MENOR" };
+            json!({
+                "id": format!("H{k}"), "severidad": severidad,
+                "clase": "correccion", "fichero": fichero, "linea": 1,
+                "descripcion": format!("hallazgo {k} del E2E de TASK-051"),
+                "evidencia": {"tipo": "borde", "entrada": "x", "esperado": "1", "obtenido": "2"}
+            })
+        })
+        .collect();
+    let validados =
+        json!({"version": 2, "revisora": "rev:e2e", "aceptados": aceptados, "rechazados": []});
+    std::fs::write(dir.join("hallazgos-0.json"), validados.to_string()).unwrap();
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_tc2"))
+        .args(["hallazgos", "veredicto", "--salida"])
+        .arg(&dir)
+        .arg("--hallazgos")
+        .arg(dir.join("hallazgos-0.json"))
+        .env("TC2_IDIOMA", "es")
+        .output()
+        .unwrap();
+    let linea = String::from_utf8_lossy(&o.stdout).into_owned();
+    eprintln!("  {}", linea.trim_end());
+    assert!(
+        linea.contains("veredicto=rojo conclusion=failure"),
+        "{linea}"
+    );
+    let leer = |p: &str| -> Value {
+        serde_json::from_str(&std::fs::read_to_string(dir.join(p)).unwrap()).unwrap()
+    };
+    let (check, lote) = (leer("check.json"), leer("anotaciones-1.json"));
+
+    // Publicar como el job `publicar`: la App del revisor, POST y PATCH.
+    let revisor = CredencialesApp::desde_fichero(
+        &rev_id,
+        std::path::Path::new(&rev_clave),
+        &Base::github(),
+        &repo,
+        Rol::Revisor,
+    )
+    .unwrap();
+    let token = token_del_arnes(&revisor.obtener(Rol::Revisor).unwrap());
+    let base = format!("https://api.github.com/repos/{repo}");
+    let mut cuerpo = check.clone();
+    cuerpo["name"] = json!("revision-ia");
+    cuerpo["head_sha"] = json!(sha);
+    cuerpo["status"] = json!("completed");
+    cuerpo["output"]["text"] = json!("texto del E2E");
+    let (e, v) = arnes
+        .intentar_con(&token, "POST", &format!("{base}/check-runs"), Some(cuerpo))
+        .expect("red");
+    assert_eq!(e, 201, "{v}");
+    assert_eq!(v["app"]["id"].as_u64(), Some(origen), "{v}");
+    let id = v["id"].as_u64().unwrap();
+    eprintln!(
+        "  check-run {id} {} annotations_count={}",
+        v["conclusion"], v["output"]["annotations_count"]
+    );
+    let mut parche = lote.clone();
+    parche["output"]["text"] = json!("texto del E2E");
+    let (e, v) = arnes
+        .intentar_con(
+            &token,
+            "PATCH",
+            &format!("{base}/check-runs/{id}"),
+            Some(parche),
+        )
+        .expect("red");
+    assert_eq!(e, 200, "{v}");
+    eprintln!(
+        "  tras el PATCH: annotations_count={}",
+        v["output"]["annotations_count"]
+    );
+    assert_eq!(
+        v["output"]["annotations_count"].as_u64(),
+        Some(51),
+        "el PATCH no suma: {v}"
+    );
+    assert_eq!(v["conclusion"], "failure");
+
+    // El agente: revision-ia en fallo y leer-revision con las 51.
+    let mut ria = "";
+    for _ in 0..10 {
+        ria = revision::revision_ia(&gh, pr, Some(origen));
+        if ria == "fallo" {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    eprintln!("  revision-ia={ria}");
+    assert_eq!(ria, "fallo");
+    let r = gh
+        .leer_revision(Rol::Agente, pr, origen)
+        .unwrap_or_else(|i| panic!("{}", ver(&i)));
+    eprintln!(
+        "  leer-revision: {} {} aceptados={}",
+        r.conclusion,
+        r.titulo,
+        r.aceptados.len()
+    );
+    assert_eq!(r.sha, sha);
+    assert_eq!(r.conclusion, "failure");
+    assert_eq!(
+        tc2::hallazgos::Dictamen::de_titulo(&r.titulo),
+        Some(tc2::hallazgos::Dictamen::Rojo)
+    );
+    assert!(r.resumen.contains("**Veredicto: rojo**"), "{}", r.resumen);
+    let mut ids: Vec<String> = r.aceptados.iter().map(|a| a.hallazgo.id.clone()).collect();
+    ids.sort();
+    let mut esperados: Vec<String> = (0..51).map(|k| format!("H{k}")).collect();
+    esperados.sort();
+    assert_eq!(ids, esperados);
+    assert!(r.aceptados.iter().all(|a| a.revisora == "rev:e2e"));
+
+    drop(limpieza);
+}

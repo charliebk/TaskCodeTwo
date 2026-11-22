@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Hallazgos del revisor IA, version 1 (F6-4)",
-  "description": "Salida de `tc2 hallazgos validar --salida`: los hallazgos aceptados y los rechazados con su motivo, para una revisora. $defs/respuesta es lo que la revisora devuelve en su unico bloque json (lo valida hallazgos::validar). Reglas que el esquema no expresa y comprueba tc2: el id no se repite; fichero y linea estan en el lado nuevo del diff que vio la revisora; linea_original de un mutante es el texto de esa linea y la mutacion es distinta; esperado y obtenido de un borde son distintos; paso_rojo es un paso en rojo del informe de verificacion (F5-4). La evidencia se declara y se valida, no se ejecuta (F6-6). Una clave desconocida falla cerrado.",
+  "title": "Hallazgos del revisor IA, version 2 (F6-4 y F6-5)",
+  "description": "Salida de `tc2 hallazgos validar --salida`: los hallazgos aceptados y los rechazados con su motivo, para una revisora. $defs/respuesta es lo que la revisora devuelve en su unico bloque json (lo valida hallazgos::validar). Reglas que el esquema no expresa y comprueba tc2: el id no se repite; fichero y linea estan en el lado nuevo del diff que vio la revisora; linea_original de un mutante es el texto de esa linea y la mutacion es distinta; esperado y obtenido de un borde son distintos; paso_rojo es un paso en rojo del informe de verificacion (F5-4). La evidencia se declara y se valida, no se ejecuta (F6-6). Una clave desconocida falla cerrado. F6-5: cada hallazgo lleva su clase (lista cerrada de F1-15); $defs/veredicto es el check.json de `tc2 hallazgos veredicto` (conclusion success o failure, nunca neutral), $defs/lote cada anotaciones-<k>.json y $defs/informe-tarea el informe que `tc2 review` guarda en TASK-NNN/revision/.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "revisora", "aceptados", "rechazados"],
   "properties": {
     "version": {
-      "description": "version del contrato; otra distinta de 1 es error",
-      "const": 1
+      "description": "version del contrato; otra distinta de 2 es error",
+      "const": 2
     },
     "revisora": {
       "description": "id de la revisora (tc2 revisoras)",
@@ -34,7 +34,7 @@
     "hallazgo": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "severidad", "fichero", "linea", "descripcion", "evidencia"],
+      "required": ["id", "severidad", "clase", "fichero", "linea", "descripcion", "evidencia"],
       "properties": {
         "id": {
           "description": "unico en la respuesta",
@@ -43,6 +43,10 @@
         },
         "severidad": {
           "enum": ["CRITICO", "IMPORTANTE", "MENOR"]
+        },
+        "clase": {
+          "description": "lista cerrada de F1-15 (decision 12); si encaja en varias, la primera",
+          "enum": ["puerta-seguridad", "contrato", "correccion", "fidelidad-evidencia", "reproducibilidad"]
         },
         "fichero": {
           "description": "ruta de la cabecera +++ b/<ruta> del diff, sin b/",
@@ -111,6 +115,86 @@
         "entrada": { "type": "string", "minLength": 1 },
         "esperado": { "type": "string", "minLength": 1 },
         "obtenido": { "type": "string", "minLength": 1 }
+      }
+    },
+    "aceptado-de": {
+      "description": "un aceptado con su revisora: el raw_details de su anotacion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revisora", "hallazgo"],
+      "properties": {
+        "revisora": { "type": "string", "minLength": 1 },
+        "hallazgo": { "$ref": "#/$defs/hallazgo" }
+      }
+    },
+    "anotacion": {
+      "description": "anotacion del check-run: failure para CRITICO e IMPORTANTE, warning para MENOR; raw_details es un aceptado-de en JSON",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "start_line", "end_line", "annotation_level", "title", "message", "raw_details"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "annotation_level": { "enum": ["failure", "warning"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "message": { "type": "string", "minLength": 1 },
+        "raw_details": { "type": "string", "minLength": 2, "maxLength": 65536 }
+      }
+    },
+    "salida-check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "summary", "annotations"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "annotations": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/anotacion" }
+        }
+      }
+    },
+    "veredicto": {
+      "description": "check.json: la conclusion y la salida del check-run con las primeras 50 anotaciones; name y head_sha los pone el job publicar",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conclusion", "output"],
+      "properties": {
+        "conclusion": { "enum": ["success", "failure"] },
+        "output": { "$ref": "#/$defs/salida-check" }
+      }
+    },
+    "lote": {
+      "description": "anotaciones-<k>.json: el cuerpo del PATCH con las anotaciones que siguen",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output"],
+      "properties": {
+        "output": { "$ref": "#/$defs/salida-check" }
+      }
+    },
+    "informe-tarea": {
+      "description": "TASK-NNN/revision/revision-ia-<sha12>.json: lo leido del check publicado, sin la prosa del modelo",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "tarea", "pr", "sha", "conclusion", "veredicto", "criticos", "importantes", "menores", "resumen", "aceptados"],
+      "properties": {
+        "version": { "const": 2 },
+        "tarea": { "type": "string", "minLength": 1 },
+        "pr": { "type": "integer", "minimum": 1 },
+        "sha": { "type": "string", "minLength": 40 },
+        "conclusion": { "enum": ["success", "failure"] },
+        "veredicto": { "enum": ["rojo", "verde", "incompleta"] },
+        "criticos": { "type": "integer", "minimum": 0 },
+        "importantes": { "type": "integer", "minimum": 0 },
+        "menores": { "type": "integer", "minimum": 0 },
+        "resumen": { "type": "string" },
+        "aceptados": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/aceptado-de" }
+        }
       }
     },
     "rechazo": {

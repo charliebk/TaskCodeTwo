@@ -274,6 +274,26 @@ pub enum PlanObservado {
     GitLab(Option<TierGitLab>),
 }
 
+/// Nombre de la operacion `leer-revision` (adenda F6-5 a F1-4 y F1-13).
+pub const LEER_REVISION: &str = "leer-revision";
+
+/// Lo que `leer-revision` lee del check `revision-ia` terminado (F6-5): la
+/// conclusion, el titulo y el resumen del check, y los aceptados de sus
+/// anotaciones (`raw_details`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RevisionPublicada {
+    /// Sha de la cabeza del PR en la que esta el check (40 hex).
+    pub sha: String,
+    /// `success` o `failure` (o lo que diga la plataforma).
+    pub conclusion: String,
+    /// `output.title`.
+    pub titulo: String,
+    /// `output.summary`.
+    pub resumen: String,
+    /// Uno por anotacion, en el orden de la plataforma.
+    pub aceptados: Vec<crate::hallazgos::AceptadoDe>,
+}
+
 /// Un PR (o MR) abierto del propio repo, con lo minimo que necesita `board`
 /// (F3-5, D3 de TASK-032: sin checks ni aprobaciones).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -417,6 +437,21 @@ pub trait Plataforma {
         )
         .con("motivo", "no-soportada")
         .diagnostico(&crate::i18n::catalogo::plataforma::ENTORNO_PUSH_NO_SOPORTADO))
+    }
+
+    /// `leer-revision` (agente o persona; adenda F6-5 a F1-4 y F1-13): el
+    /// check `revision-ia` que publico `origen` en la cabeza del PR `pr`, ya
+    /// terminado, con los aceptados de sus anotaciones. Si aun no esta,
+    /// `esperando motivo=sin-check`. Por defecto (GitLab, donde la revision
+    /// en CI no existe, y los adaptadores de prueba), `rechazada
+    /// motivo=no-soportada`.
+    fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
+        let _ = (rol, pr, origen);
+        Err(
+            Informe::nuevo(LEER_REVISION, crate::contrato::Resultado::Rechazada)
+                .con("motivo", "no-soportada")
+                .diagnostico(&crate::i18n::catalogo::plataforma::LEER_REVISION_NO_SOPORTADA),
+        )
     }
 
     /// `estado-puertas` (agente o persona): checks con su origen,

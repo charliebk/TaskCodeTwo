@@ -9,6 +9,7 @@ los dos tienen que salir rechazados.
   {
     "id": "H1",
     "severidad": "CRITICO",
+    "clase": "correccion",
     "fichero": "src/calculo.rs",
     "linea": 5,
     "descripcion": "La condicion esta al reves: con dos o mas valores devuelve None.",
@@ -22,6 +23,7 @@ los dos tienen que salir rechazados.
   {
     "id": "H2",
     "severidad": "IMPORTANTE",
+    "clase": "contrato",
     "fichero": "src/calculo.rs",
     "linea": 12,
     "descripcion": "Ningun test fija el tope de 100.",
@@ -35,6 +37,7 @@ los dos tienen que salir rechazados.
   {
     "id": "H3",
     "severidad": "MENOR",
+    "clase": "correccion",
     "fichero": "src/calculo.rs",
     "linea": 8,
     "descripcion": "Con la lista vacia divide entre cero.",
@@ -47,6 +50,7 @@ los dos tienen que salir rechazados.
   {
     "id": "H4",
     "severidad": "MENOR",
+    "clase": "correccion",
     "fichero": "src/calculo.rs",
     "linea": 3,
     "descripcion": "El comentario podria ser mas claro."
@@ -54,6 +58,7 @@ los dos tienen que salir rechazados.
   {
     "id": "H5",
     "severidad": "IMPORTANTE",
+    "clase": "contrato",
     "fichero": "src/calculo.rs",
     "linea": 40,
     "descripcion": "Linea que la revisora no ha visto.",

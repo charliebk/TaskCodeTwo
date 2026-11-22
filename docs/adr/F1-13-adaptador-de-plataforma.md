@@ -568,3 +568,17 @@ no se ha configurado nada en ninguna plataforma):
 - **Las escrituras de la decisión 4** (`abrir-pr`, `merge-pr`,
   `aplicar-puertas`): solo por la documentación de la API.
 - **El límite de ficheros del diff de un MR en GitLab**.
+
+## Adenda (F6-5, TASK-051) — operación `leer-revision`
+
+La lista cerrada del puerto gana `leer-revision` (agente o persona; el
+revisor no), como el precedente `entorno-push` de F6-2: lee el check
+`revision-ia` del head del PR que publicó su origen (`app.id` =
+`plataforma.revisor_id`, el mismo filtro que `estado-puertas`), solo si ya
+terminó (si no, `esperando motivo=sin-check`), con su conclusión, título y
+resumen, y pagina `check-runs/{id}/annotations` para leer los aceptados de
+cada `raw_details`; uno que falta o no es un aceptado de `tc2 hallazgos
+veredicto` da `error motivo=respuesta-invalida`. Permiso: `checks:read` (y
+`pull_requests:read` para el head), que el agente ya tiene (F1-6). Por
+defecto, `rechazada motivo=no-soportada`: GitLab no tiene revisión en CI.
+Lo usa `tc2 review` para guardar el informe en la carpeta de la tarea.

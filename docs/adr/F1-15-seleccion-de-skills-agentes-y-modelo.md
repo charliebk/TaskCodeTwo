@@ -850,3 +850,21 @@ fixtures que copian el bloque yaml de las 5 revisoras de la 0.16.2
 **No verificado (E2E de quien orquesta)**: el workflow en un PR real (App
 del revisor, clave del modelo, check `revision-ia` en `neutral` publicado por
 la App, el prompt con la sección del informe y sin ejecutar la suite).
+
+## Adenda (F6-5, TASK-051) — columna «Clase» y conclusión del check
+
+- **Clase**: la consecuencia «F6-5 añade la columna Clase» se cumple en el
+  contrato de hallazgos v2 (`crates/tc2/esquemas/hallazgos.schema.json`):
+  `clase` es obligatoria en cada hallazgo, con la lista cerrada de la
+  decisión 12 (`puerta-seguridad`, `contrato`, `correccion`,
+  `fidelidad-evidencia`, `reproducibilidad`; precedencia en ese orden). Si
+  falta o no es de la lista, el hallazgo se rechaza con `hallazgo-invalido`.
+  Las instrucciones del prompt salen de las mismas constantes
+  (`hallazgos::Clase`).
+- **Conclusión de `revision-ia`**: sustituye la D4 de la adenda F6-3
+  (`neutral`). `tc2 hallazgos veredicto` da `failure` si queda abierto un
+  CRITICO o IMPORTANTE aceptado (veredicto `rojo`) o si alguna revisora no
+  dejó respuesta válida o no hubo ninguna (`incompleta`), y `success` en el
+  resto (`verde`). Nunca `neutral`: GitHub lo da por cumplido en un check
+  obligatorio y una revisión que no ocurrió pasaría la puerta (RR-04). Guía:
+  `docs/ci/revision-ia.md`, «Veredicto del check».

@@ -17,6 +17,10 @@
 //!    revision» sin PR. Si falla, la linea lleva el `pr=` y repetir converge.
 //! 4. [`Plataforma::estado_puertas`] con el agente para leer `revision-ia`
 //!    (D1: se lee y se informa; lo publica el revisor en F6-3).
+//! 5. F6-5: si `revision-ia` ya termino (`ok` o `fallo`),
+//!    [`Plataforma::leer_revision`] con el agente y el informe en la carpeta
+//!    de la tarea por el punto unico de escritura ([`GuardarRevision`]:
+//!    `TASK-NNN/revision/revision-ia-<sha12>.json` y `.md`).
 //!
 //! «PR enlazado a la tarea» sin tocar el esquema (F1-9): titulo
 //! `TASK-NNN: <titulo>` y cuerpo de [`cuerpo_pr`] con las rutas de la tarea
@@ -24,11 +28,13 @@
 //! rama.
 //!
 //! Linea: `review ok id=TASK-NNN rama=<r> pr=<n> estado=en-revision
-//! revision-ia=<ok|pendiente|fallo|sin-revisor|sin-leer> revisoras=<ids>
+//! revision-ia=<ok|pendiente|fallo|sin-revisor|sin-leer>
+//! [hallazgos=<rojo|verde|incompleta|sin-leer> [informe=<ruta>]] revisoras=<ids>
 //! modelo=<m> reglas=<ids> avisos=<...>` (la seleccion de F6-3, anotada en
 //! `roles.revision`). Repetirla sin
 //! nada nuevo sale `sin-cambios`.
 
+pub mod guardar;
 pub mod operacion;
 
 use std::path::Path;
@@ -45,6 +51,7 @@ use crate::seleccion;
 use crate::tarea::Tarea;
 use crate::toma;
 
+pub use guardar::GuardarRevision;
 pub use operacion::{AnotacionRevision, EN_REVISION, Revisar, desde_anotacion};
 
 /// Nombre de la orden y de la operacion de la rama de estado.
@@ -316,19 +323,63 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
         .and_then(|c| c.plataforma)
         .and_then(|p| p.revisor_id);
     let ria = revision_ia(p.as_ref(), publicado.pr, revisor);
-    let nada_nuevo =
-        !publicado.empujado && !publicado.abierto && tr.resultado == Resultado::SinCambios;
+    // 8. F6-5: con el check terminado, su informe en la carpeta de la tarea.
+    let mut hallazgos: Option<(&'static str, Option<String>)> = None;
+    let mut guardado = false;
+    if let (Some(origen), "ok" | "fallo") = (revisor.filter(|id| *id != 0), ria) {
+        let leido = p
+            .leer_revision(Rol::Agente, publicado.pr, origen)
+            .ok()
+            .and_then(|r| {
+                let d = crate::hallazgos::Dictamen::de_titulo(&r.titulo)?;
+                Some(crate::hallazgos::InformeTarea::nuevo(
+                    id,
+                    publicado.pr,
+                    &r.sha,
+                    (&r.conclusion, d),
+                    &r.resumen,
+                    r.aceptados,
+                ))
+            });
+        hallazgos = Some(("sin-leer", None));
+        if let Some(informe) = leido {
+            let op = GuardarRevision::nueva(id, &quien, &informe);
+            let gr = estado::transaccion(&ctx, &op);
+            match gr.resultado {
+                Resultado::Ok => guardado = true,
+                Resultado::SinCambios => {}
+                _ => {
+                    let mut gr = gr.con("rama", rama.as_str()).con("pr", pr);
+                    if let Some(l) = op.dueno() {
+                        gr = gr.con("asignado", l);
+                    }
+                    return Err(gr);
+                }
+            }
+            hallazgos = Some((informe.veredicto.texto(), Some(op.ruta_json())));
+        }
+    }
+    let nada_nuevo = !publicado.empujado
+        && !publicado.abierto
+        && !guardado
+        && tr.resultado == Resultado::SinCambios;
     let resultado = if nada_nuevo {
         Resultado::SinCambios
     } else {
         Resultado::Ok
     };
-    Ok(Informe::nuevo(NOMBRE, resultado)
+    let mut i = Informe::nuevo(NOMBRE, resultado)
         .con("rama", rama.as_str())
         .con("pr", pr)
         .con("estado", EN_REVISION)
-        .con(REVISION_IA, ria)
-        .con_lista("revisoras", sel.revisoras)
+        .con(REVISION_IA, ria);
+    if let Some((veredicto, ruta)) = hallazgos {
+        i = i.con("hallazgos", veredicto);
+        if let Some(r) = ruta {
+            i = i.con("informe", r);
+        }
+    }
+    Ok(i.con_lista("revisoras", sel.revisoras)
         .con("modelo", sel.modelo)
         .con_lista("reglas", sel.reglas)
         .con_lista("avisos", sel.avisos))

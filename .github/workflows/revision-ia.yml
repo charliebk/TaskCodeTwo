@@ -1,11 +1,12 @@
 # Workflow reutilizable del revisor IA en CI (TASK-049, F6-3; TASK-050,
-# F6-4; ADR F1-15 decisiones 1, 2 y 6, F1-8, F1-6 D5a y adendas F6-3 de
-# F1-15 y F6-3 y F6-4 de F1-8).
+# F6-4; TASK-051, F6-5; ADR F1-15 decisiones 1, 2 y 6, F1-8, F1-6 D5a y
+# adendas F6-3 y F6-5 de F1-15 y F6-3 y F6-4 de F1-8).
 #
 # El enrutado no lo decide el modelo: `tc2 revisoras` elige las revisoras,
 # las reglas y el modelo con las tablas de F1-15 y el catalogo de la base.
 # Tampoco decide que hallazgos cuentan: `tc2 hallazgos validar` rechaza el
-# que no trae evidencia de su tipo anclada a una linea del diff (F6-4).
+# que no trae evidencia de su tipo anclada a una linea del diff (F6-4). Ni
+# el veredicto: `tc2 hallazgos veredicto` saca la conclusion (F6-5).
 # Cuatro jobs, cada uno en su clase de F1-8:
 #   - preparar (lee, sin secretos ni escritura: contents y actions): saca la
 #     base (nunca el head del PR), el plugin taskcode a un SHA fijado y el
@@ -26,15 +27,21 @@
 #     Un job con privilegio no sube artefactos (lint).
 #   - validar (ejecuta: `contents` y `actions` de lectura, sin secretos):
 #     compila tc2 como preparar y pasa cada respuesta por `tc2 hallazgos
-#     validar` contra el diff que vio esa revisora; sube
-#     `revision-ia-hallazgos` (resumen y texto del check, JSON por revisora).
+#     validar` contra el diff que vio esa revisora y junta todas con `tc2
+#     hallazgos veredicto` (check.json con la conclusion, el resumen y las
+#     anotaciones por linea, y los lotes anotaciones-<k>.json); sube
+#     `revision-ia-hallazgos` (eso, el texto del check y el JSON por
+#     revisora).
 #   - publicar (privilegio por el entorno `revisor`, sin checkout, solo la
 #     App del revisor: TC2_APP_REVISOR_ID y TC2_APP_REVISOR_CLAVE): lee
-#     `revision-ia-hallazgos` como dato y publica el check-run `revision-ia`
-#     en el head con conclusion `neutral` (D4; el rojo es de F6-5) y el
-#     resumen (seleccion, estado de cada revisora y la linea de `tc2
-#     hallazgos`). El GITHUB_TOKEN no escribe nada. Sin la App, sale limpio
-#     con un aviso y no publica.
+#     `revision-ia-hallazgos` como dato y publica tal cual el check.json de
+#     validar como check-run `revision-ia` en el head (conclusion `success`
+#     o `failure`: un CRITICO o IMPORTANTE aceptado, o una revisora sin
+#     respuesta valida, la deja en rojo; F6-5), y despues cada lote de
+#     anotaciones. Sin el artefacto, o con una conclusion que no es una de
+#     esas dos, publica `failure` con veredicto `incompleta`: no calcula
+#     nada. El GITHUB_TOKEN no escribe nada. Sin la App, sale limpio con un
+#     aviso y no publica.
 #
 # Uso desde el proyecto (fijado por SHA; workflow_run toma el llamador de la
 # rama por defecto, que un PR no puede cambiar):
@@ -534,6 +541,8 @@ jobs:
             exit 1
           fi
           cp "$dir/resumen.txt" "$out/resumen.txt"
+          printf 'preparar=success consultar=%s\n' "$CONSULTAR" >> "$out/resumen.txt"
+          veredicto=()
           : > "$out/texto.md"
           prosa="$RUNNER_TEMP/prosa.md"
           : > "$prosa"
@@ -556,6 +565,8 @@ jobs:
               linea="hallazgos error"
             fi
             printf '%s: %s; %s\n' "$rid" "$estado" "$linea" >> "$out/resumen.txt"
+            # Si validar no dejo su JSON, veredicto la cuenta como incompleta.
+            veredicto+=(--hallazgos "$out/hallazgos-$i.json")
             {
               echo "## $rid ($modelo)"
               echo
@@ -580,6 +591,8 @@ jobs:
               cat "$prosa"
             } >> "$out/texto.md"
           fi
+          # F6-5: la conclusion la saca tc2; publicar solo la transporta.
+          tc2 hallazgos veredicto --salida "$out" --extra "$out/resumen.txt" "${veredicto[@]}" | tee "$out/veredicto.txt"
           cat "$out/resumen.txt"
       - name: Hallazgos para publicar
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -619,21 +632,27 @@ jobs:
           fi
           dir="$RUNNER_TEMP/revision-ia-hallazgos"
           mkdir -p "$dir"
-          resumen="$RUNNER_TEMP/resumen.txt"
           texto="$RUNNER_TEMP/texto.md"
-          printf 'preparar=%s consultar=%s validar=%s\n' "$PREPARAR" "$CONSULTAR" "$VALIDAR" > "$resumen"
+          veredicto="$RUNNER_TEMP/veredicto.json"
           echo "Sin hallazgos validados." > "$texto"
           # Lo escribe validar (tc2 de este workflow sobre la respuesta del
-          # modelo): se lee como dato, con tope, y no se ejecuta nada.
+          # modelo): se lee como dato y no se ejecuta nada. La conclusion es
+          # la de check.json, si es una de las dos admitidas.
+          conclusion=""
           art=$(gh api --method GET "repos/$REPO/actions/runs/$RUN_ID/artifacts" -f name=revision-ia-hallazgos --jq '.artifacts[0].id // ""') || art=""
           if [ -n "$art" ] && gh api "repos/$REPO/actions/artifacts/$art/zip" > "$RUNNER_TEMP/hallazgos.zip" \
-            && unzip -q -o "$RUNNER_TEMP/hallazgos.zip" -d "$dir" && [ -s "$dir/resumen.txt" ]; then
-            cat "$dir/resumen.txt" >> "$resumen"
+            && unzip -q -o "$RUNNER_TEMP/hallazgos.zip" -d "$dir" && [ -s "$dir/check.json" ]; then
+            conclusion=$(jq -r '.conclusion // ""' "$dir/check.json") || conclusion=""
             if [ -s "$dir/texto.md" ]; then cp "$dir/texto.md" "$texto"; fi
-          else
-            echo "::warning::revision-ia: no se encuentra o no se lee el artefacto revision-ia-hallazgos de validar; el check sale neutral con sin-hallazgos"
-            echo "sin-hallazgos" >> "$resumen"
           fi
+          case "$conclusion" in
+            success|failure) cp "$dir/check.json" "$veredicto" ;;
+            *)
+              echo "::warning::revision-ia: sin check.json legible de validar (preparar=$PREPARAR consultar=$CONSULTAR validar=$VALIDAR); se publica failure con veredicto incompleta"
+              printf 'preparar=%s consultar=%s validar=%s\nsin veredicto de validar: la revision no se completo\n' "$PREPARAR" "$CONSULTAR" "$VALIDAR" > "$RUNNER_TEMP/resumen.txt"
+              jq -n --rawfile s "$RUNNER_TEMP/resumen.txt" \
+                '{conclusion: "failure", output: {title: "revision-ia: incompleta (sin veredicto de validar)", summary: $s, annotations: []}}' > "$veredicto" ;;
+          esac
           # Token de instalacion de la App del revisor (JWT RS256 con openssl;
           # la clave solo vive en un fichero temporal de este paso).
           b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
@@ -658,11 +677,41 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$token"
-          # D4 de F6-3: neutral con el resumen; no bloquea hasta F6-5. Con
-          # --rawfile: el texto no pasa por argv (tope de 128 KiB por argumento).
-          jq -n --arg sha "$HEAD_SHA" --rawfile s "$resumen" --rawfile t "$texto" --arg url "$EJECUCION" \
-            '{name: "revision-ia", head_sha: $sha, status: "completed", conclusion: "neutral", details_url: $url,
-              output: {title: "revision-ia: neutral (F6-4)", summary: ($s | .[0:65000]), text: ($t | .[0:65000])}}' > "$RUNNER_TEMP/check.json"
-          api -X POST -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/check-runs" --data-binary "@$RUNNER_TEMP/check.json" \
-            | jq -r '"check-run \(.id) app_id=\(.app.id) \(.name) \(.conclusion)"'
-          cat "$resumen"
+          # El check.json tal cual, con lo que solo sabe este job (nombre, SHA,
+          # enlace) y el texto; con --rawfile, nada pasa por argv (tope de
+          # 128 KiB por argumento).
+          crear() {
+            jq --arg sha "$HEAD_SHA" --rawfile t "$texto" --arg url "$EJECUCION" \
+              '{name: "revision-ia", head_sha: $sha, status: "completed", details_url: $url, conclusion: .conclusion,
+                output: (.output | .summary |= .[0:65000] | .text = ($t | .[0:65000]))}' "$veredicto" > "$RUNNER_TEMP/check.json"
+            api -X POST -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/check-runs" --data-binary "@$RUNNER_TEMP/check.json" \
+              | jq -r '"\(.id) app_id=\(.app.id) \(.name) \(.conclusion)"' | tee /dev/stderr | cut -d' ' -f1
+          }
+          lotes=si
+          id=$(crear) || id=""
+          case "$id" in
+            ''|*[!0-9]*)
+              # La API rechazo el check (p. ej. una anotacion fuera de sus
+              # limites): se publica failure con veredicto incompleta y sin
+              # anotaciones, para que el check exista y diga por que.
+              echo "::warning::revision-ia: la API rechazo el check con el veredicto de validar; se publica failure con veredicto incompleta"
+              printf 'preparar=%s consultar=%s validar=%s\nla API rechazo el check con el veredicto de validar: la revision no se completo\n' "$PREPARAR" "$CONSULTAR" "$VALIDAR" > "$RUNNER_TEMP/resumen.txt"
+              jq -n --rawfile s "$RUNNER_TEMP/resumen.txt" \
+                '{conclusion: "failure", output: {title: "revision-ia: incompleta (la API rechazo el veredicto)", summary: $s, annotations: []}}' > "$veredicto"
+              lotes=no
+              id=$(crear) || id="" ;;
+          esac
+          case "$id" in
+            ''|*[!0-9]*) echo "::error::revision-ia: la API no devolvio el id del check-run" >&2; exit 1 ;;
+          esac
+          # Las anotaciones que pasan de 50 van en PATCH, un lote por peticion
+          # (la API las anade a las que ya hay).
+          for k in $(seq 1 20); do
+            [ "$lotes" = si ] || break
+            lote="$dir/anotaciones-$k.json"
+            [ -s "$lote" ] || break
+            jq --rawfile t "$texto" '.output |= (.summary |= .[0:65000] | .text = ($t | .[0:65000]))' "$lote" > "$RUNNER_TEMP/lote.json"
+            api -X PATCH -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/check-runs/$id" --data-binary "@$RUNNER_TEMP/lote.json" \
+              | jq -r '"anotaciones=\(.output.annotations_count)"' | sed "s/^/lote $k: /"
+          done
+          jq -r '.output.title' "$veredicto"

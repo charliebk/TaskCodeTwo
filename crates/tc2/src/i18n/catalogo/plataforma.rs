@@ -314,6 +314,18 @@ crate::i18n::textos! {
     }
 
     // --- aplicar-puertas (TASK-118) ---
+    LEER_REVISION_NO_SOPORTADA {
+        es: "esta plataforma no publica el check revision-ia (la revision IA en CI solo existe en GitHub): no hay informe que leer",
+        en: "this platform does not publish the revision-ia check (AI review in CI only exists on GitHub): there is no report to read",
+    }
+    REVISION_SIN_CHECK {
+        es: "el PR {pr} aun no tiene terminado el check revision-ia de la App {origen} en {sha}: espera a que acabe el workflow revision-ia y vuelve a lanzar tc2 review",
+        en: "PR {pr} does not yet have a finished revision-ia check from App {origen} on {sha}: wait for the revision-ia workflow to finish and run tc2 review again",
+    }
+    RAW_DETAILS_REVISION {
+        es: "el raw_details de una anotacion del check revision-ia, que no es un hallazgo de tc2 hallazgos veredicto",
+        en: "the raw_details of a revision-ia check annotation, which is not a finding from tc2 hallazgos veredicto",
+    }
     APLICAR_NO_SOPORTADA {
         es: "esta plataforma no admite aplicar las puertas desde tc2: aplicalas a mano con la propuesta de tc2 init --json",
         en: "this platform does not support applying the gates from tc2: apply them by hand with the proposal from tc2 init --json",
