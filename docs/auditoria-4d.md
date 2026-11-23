@@ -181,7 +181,7 @@ Hay una tarea por grupo o dueño con todos sus IMPORTANTE y CRITICO. Las D1 entr
 | A5 — Selección, inventario, recursos y doctor | pendiente [A5] | [A5-01](#a5-01), [A5-02](#a5-02), [A5-03](#a5-03), [A5-08](#a5-08), [A5-09](#a5-09), [A5-06](#a5-06) |
 | A6 — Estimación, progreso, roadmap y tablero | pendiente [A6] | [A6-04](#a6-04), [A6-02](#a6-02), [A6-03](#a6-03), [A6-05](#a6-05), [A6-06](#a6-06), [A6-07](#a6-07) |
 | A7 — Config, init, desinstalar, i18n, confianza, ciclo y verificación | pendiente [A7] | [A7-04](#a7-04), [A7-01](#a7-01), [A7-03](#a7-03), [A7-05](#a7-05), [A7-07](#a7-07), [A7-09](#a7-09), [A7-10](#a7-10), [A7-11](#a7-11) |
-| A8 — Transversal: actualizar_cli, instalacion y xtask | pendiente [A8] | [A8-13](#a8-13), [A9-03](#a9-03), [A8-15](#a8-15), [A9-02](#a9-02), [A11-02](#a11-02), [A11-03](#a11-03), [A11-04](#a11-04) |
+| A8 — Transversal: actualizar_cli, instalacion, contrato, dato y xtask | pendiente [A8] | [A8-13](#a8-13), [A9-03](#a9-03), [A8-15](#a8-15), [A9-02](#a9-02), [A11-02](#a11-02), [A11-03](#a11-03), [A11-04](#a11-04) |
 | A10 — Scripts de CI e instaladores | pendiente [A10] | [A10-01](#a10-01), [A10-02](#a10-02), [A10-05](#a10-05), [A11-01](#a11-01) |
 | Abstracción común — soporte de tests compartido (tests/comun y módulos `prueba`) | pendiente [XT] | [A8-02](#a8-02), [A8-11](#a8-11), [A8-12](#a8-12), [A8-16](#a8-16), [A8-20](#a8-20), [A8-05](#a8-05), [A3-06](#a3-06), [A8-01](#a8-01), [A8-18](#a8-18) |
 | Abstracción común — capa de órdenes y operaciones con dueño | pendiente [XO] | [A8-07](#a8-07), [A8-19](#a8-19), [A8-06](#a8-06), [A8-08](#a8-08), [A8-09](#a8-09), [A8-10](#a8-10) |
@@ -3994,7 +3994,7 @@ assertion `left == right` failed: accion ruta=.../repo\.taskcode/config.yml clas
 test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 17.70s
 ```
 
-### A8 — Transversal: actualizar_cli, instalacion y xtask
+### A8 — Transversal: actualizar_cli, instalacion, contrato, dato y xtask
 
 <a id="a8-13"></a>
 
