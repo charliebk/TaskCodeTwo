@@ -17,14 +17,12 @@
 mod comun;
 
 use std::collections::BTreeSet;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Output;
 
+use comun::lanzar;
+use comun::remoto::{CONFIG_AUTOMATICO, PERSONAS, identificar};
 use comun::{Fixture, escribir, volcado};
 use serde_json::Value;
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 
 /// Casos de `el_prompt_encierra_todo_dato_del_pr`.
 const CASOS_PROMPT: [&str; 8] = [
@@ -133,46 +131,12 @@ fn sin_fuera(md: &str, hostil: &str) {
 
 // --- Remoto y binario ---------------------------------------------------------
 
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-const CONFIG: &str = "---\nformato: 2\nmodo_flujo: automatico\n";
-
-/// `origin` en GitHub servido por el remoto bare de la fixture (como en
-/// `tests/plan.rs`).
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
-
 /// Remoto con personas, configuracion y la tarea de `alta` (`tc2 new`); el
 /// clon `a` tiene `origin` en GitHub y la identidad de ana.
 fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
     let (bare, prep) = f.remoto_y_clon();
     escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG);
+    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
     f.crudo(&prep, &["add", ".taskcode"]);
     f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
     f.crudo(&prep, &["push", "-q", "origin", "develop"]);
@@ -180,17 +144,8 @@ fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
     v.extend_from_slice(alta);
     let o = lanzar(&prep, f.entorno(), &v);
     assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
-    f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "a"]);
-    let a = f.raiz.join("a");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id: 1001,
-        login: "ana".to_owned(),
-    };
-    Cache::en(&a.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
+    let a = f.clon_github(&bare, "a");
+    identificar(&a, 1001, "ana");
     (bare, a)
 }
 
@@ -259,7 +214,7 @@ fn la_carpeta_de_la_tarea_y_la_peticion_de_plan_quedan_inertes() {
         criterio,
     ];
     let (bare, a) = remoto_con_tarea(&f, &alta);
-    let o = lanzar(&a, entorno_ssh(&f), &["plan", "TASK-001"]);
+    let o = lanzar(&a, f.entorno_ssh(), &["plan", "TASK-001"]);
     assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     let p = f.crudo(
         &bare,

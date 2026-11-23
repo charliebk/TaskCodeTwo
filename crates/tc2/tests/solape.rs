@@ -12,65 +12,31 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
+use comun::remoto::identificar;
 use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta, Quien};
+use tc2::identidad::{Cuenta, Quien};
 use tc2::plataforma::Proveedor;
 use tc2::solape::{self, EnCurso};
 use tc2::tarea::Asignado;
 
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
 const PERSONAS: &str =
     "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"luis\"}\n";
 const RAMA_1: &str = "feature/task-001-uno";
 const RAMA_2: &str = "feature/task-002-dos";
 const RAMA_3: &str = "feature/task-003-tres";
 
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
     comun::orden_tc2()
         .current_dir(dir)
         .args(args)
-        .envs(entorno_ssh(f))
+        .envs(f.entorno_ssh())
         .output()
         .expect("lanzar tc2")
-}
-
-/// `git <args>` en `dir` con el remoto de la fixture.
-fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .expect("lanzar git");
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-    texto(&o.stdout)
 }
 
 /// Las claves `solape*` y `en-curso-modulos` de una linea.
@@ -88,23 +54,6 @@ fn sin_solape(linea: &str) -> String {
         .filter(|kv| !kv.starts_with("solape") && !kv.starts_with("en-curso-modulos"))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-fn otro_clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
 }
 
 fn worktree(dir: &Path, id: &str) -> PathBuf {
@@ -144,7 +93,7 @@ fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
 
 /// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
 fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let op = Escribir {
         ruta: format!("{id}/tarea.md"),
         de,
@@ -173,7 +122,7 @@ fn tocar(f: &Fixture, dir: &Path, id: &str, rama: &str, ficheros: &[&str], publi
     }
     f.crudo(&wt, &["commit", "-q", "-m", &format!("trabajo de {id}")]);
     if publicar {
-        git(f, &wt, &["push", "-q", "origin", rama]);
+        f.git_ssh(&wt, &["push", "-q", "origin", rama]);
     }
 }
 
@@ -213,9 +162,9 @@ fn escena(
             .expect("tc2 new");
         assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
     }
-    let a = otro_clon(&f, &bare, "a");
+    let a = f.clon_github(&bare, "a");
     identificar(&a, 1001, "ana");
-    let b = otro_clon(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "luis");
     start(&f, &a, "TASK-001");
     tocar(&f, &a, "TASK-001", RAMA_1, de_ana, true);
@@ -494,7 +443,7 @@ fn start_de_luis(
     e: &Escena,
     id: &str,
 ) -> (tc2::contrato::Informe, Option<solape::Solape>, Vec<String>) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
+    let g = tc2::git::Git::nuevo().con_entorno(e.f.entorno_ssh());
     let luis = || -> Result<Quien, tc2::contrato::Informe> {
         Ok(Quien::Persona(Cuenta {
             proveedor: Proveedor::GitHub,
@@ -563,7 +512,7 @@ fn c10_uno_mas_k_mas_uno_procesos() {
     let l = i.linea();
     assert_eq!(valor(&l, "en-curso-modulos"), Some("TASK-001:src/x"), "{l}");
     // Sin otra tarea en curso, ningun proceso.
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
+    let g = tc2::git::Git::nuevo().con_entorno(e.f.entorno_ssh());
     let solo: Vec<EnCurso> = en_curso()
         .into_iter()
         .filter(|t| t.id == "TASK-002")
@@ -582,7 +531,7 @@ fn c10_uno_mas_k_mas_uno_procesos() {
 #[test]
 fn c5_sin_red_y_sin_origin_sin_claves() {
     let e = escena("solape-c5", &["src/x/a.rs"], &["src/x/a.rs"], nada);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
+    let g = tc2::git::Git::nuevo().con_entorno(e.f.entorno_ssh());
     let luis = || -> Result<Quien, tc2::contrato::Informe> {
         Ok(Quien::Persona(Cuenta {
             proveedor: Proveedor::GitHub,
@@ -623,7 +572,7 @@ fn c5_sin_red_y_sin_origin_sin_claves() {
     let c = e.f.otro_clon(&e.bare, "sin-origin");
     e.f.crudo(&c, &["branch", "-q", RAMA_2, "origin/develop"]);
     e.f.crudo(&c, &["remote", "remove", "origin"]);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&e.f));
+    let g = tc2::git::Git::nuevo().con_entorno(e.f.entorno_ssh());
     assert_eq!(
         solape::calcular(&g, &c, "TASK-002", RAMA_2, &cuenta_de_luis(), &en_curso()),
         None
@@ -643,7 +592,7 @@ fn h1_diff_fallido_marca_incompleto() {
         let arbol = f.crudo(a, &["rev-parse", "origin/develop^{tree}"]);
         let huerfano = f.crudo(a, &["commit-tree", arbol.trim(), "-m", "huerfano"]);
         let destino = format!("{}:refs/heads/{RAMA_3}", huerfano.trim());
-        git(f, a, &["push", "-q", "origin", &destino]);
+        f.git_ssh(a, &["push", "-q", "origin", &destino]);
     });
     for (out, _) in [&e.primera, &e.ultima] {
         assert_eq!(valor(out, "solape-incompleto"), Some("TASK-003"), "{out}");
@@ -671,7 +620,7 @@ fn h2_renombrado_y_borrado_dan_los_dos_nombres() {
         f.crudo(&wt, &["mv", "README.md", NUEVO]);
         f.crudo(&wt, &["rm", "-q", ".taskcode/personas.yml"]);
         f.crudo(&wt, &["commit", "-q", "-m", "renombrar y borrar"]);
-        git(f, &wt, &["push", "-q", "origin", RAMA_1]);
+        f.git_ssh(&wt, &["push", "-q", "origin", RAMA_1]);
     });
     let (out, err) = &e.ultima;
     assert_eq!(
@@ -783,7 +732,7 @@ fn c11_ruta_con_control_saneada_y_escapada() {
             ],
         );
         f.crudo(&wt, &["commit", "-q", "-m", "ruta rara"]);
-        git(f, &wt, &["push", "-q", "origin", RAMA_1]);
+        f.git_ssh(&wt, &["push", "-q", "origin", RAMA_1]);
     });
     let (out, err) = &e.primera;
     assert!(!out.chars().any(char::is_control), "{out:?}");

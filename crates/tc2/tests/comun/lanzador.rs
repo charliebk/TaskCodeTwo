@@ -7,6 +7,8 @@
 //! lo suyo: en `Command` gana la ultima operacion sobre cada variable, asi
 //! que un `.env(..)` o `.env_remove(..)` posterior cambia la base.
 
+use std::ffi::OsString;
+use std::path::Path;
 use std::process::{Command, Output};
 
 use tc2::plataforma::Rol;
@@ -28,6 +30,16 @@ pub fn orden_tc2() -> Command {
         }
     }
     c
+}
+
+/// `tc2 <args>` en `dir` con la base comun y `entorno`.
+pub fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
+    orden_tc2()
+        .current_dir(dir)
+        .args(args)
+        .envs(entorno)
+        .output()
+        .expect("lanzar tc2")
 }
 
 /// Bytes de una salida como texto.

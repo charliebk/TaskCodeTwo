@@ -8,10 +8,10 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
+use comun::remoto::{PERSONAS, identificar};
 use comun::{Fixture, escribir, texto, valor};
 use tc2::carril::Carril;
 use tc2::contrato::Resultado;
@@ -19,14 +19,9 @@ use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Leida, Operacion};
 use tc2::estimacion::{
     self, Commits, Estimacion, Objetivo, PorFase, Rango, eventos, historico, real::real,
 };
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 use tc2::tarea::{self, Cuerpo, Tarea};
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
 
 // ---------------------------------------------------------------- paridad (C1, C2)
 
@@ -193,30 +188,11 @@ fn c1_real_del_enunciado_igual_que_la_poc() {
 
 // ---------------------------------------------------------------- E2E
 
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
     comun::orden_tc2()
         .current_dir(dir)
         .args(args)
-        .envs(entorno_ssh(f))
+        .envs(f.entorno_ssh())
         .output()
         .expect("lanzar tc2")
 }
@@ -227,24 +203,6 @@ fn correr(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Strin
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
 }
 
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-/// Otro clon con `origin` en GitHub.
-fn clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
-}
-
 /// Remoto con `personas.yml` en `develop` y el clon `a` de ana.
 fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
     let (bare, prep) = f.remoto_y_clon();
@@ -252,7 +210,7 @@ fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
     f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
     f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
     f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let a = clon(f, &bare, "a");
+    let a = f.clon_github(&bare, "a");
     identificar(&a, 1001, "ana");
     (bare, a)
 }
@@ -284,7 +242,7 @@ fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
 }
 
 fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let i = estado::transaccion(
         &Contexto::nuevo(&g, dir, &sin_catalogo, None),
         &Poner(ficheros.to_vec()),
@@ -544,14 +502,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     }
     // El ciclo no toca la estimacion (la rama, publicada: si no, `reasignar`
     // no deja la tarea).
-    let o = Command::new("git")
-        .current_dir(&a)
-        .args(["push", "-q", "origin", "feature/task-006-abierta"])
-        .envs(entorno_ssh(&f))
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "{}", texto(&o.stderr));
+    f.git_ssh(&a, &["push", "-q", "origin", "feature/task-006-abierta"]);
     for args in [
         vec!["pausa", "TASK-006"],
         vec!["reanudar", "TASK-006"],
@@ -562,7 +513,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
         assert_eq!(valor(&out, "estimacion"), None, "{out}");
         assert_eq!(bloque(&publicado(&f, &bare, "TASK-006")), nuevo, "{args:?}");
     }
-    let b = clon(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let (c, out, err) = correr(&f, &b, &["liberar", "TASK-006"]);
     assert_eq!(c, Some(0), "{out} {err}");
@@ -694,7 +645,7 @@ fn c7_un_git_log_y_nunca_ella_misma() {
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
     poner(&f, &a, &seis);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let e = estimacion::Entorno {
         dir: &a,
         git: &g,
@@ -729,20 +680,6 @@ fn c7_un_git_log_y_nunca_ella_misma() {
     }
 }
 
-/// `git` directo con el «ssh» del remoto y variables de mas.
-fn git_ssh(f: &Fixture, dir: &Path, args: &[&str], vars: &[(&str, &str)]) {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .envs(vars.iter().copied())
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-}
-
 /// R1-01: `git::historia` con commits reales. Un commit `TASK-001` en el
 /// `develop` del remoto a las 11:40 parte la pausa de C1: el real de
 /// implementacion pasa de 75 a 85 y el error frente a los 30 guardados, de
@@ -760,10 +697,9 @@ fn r1_01_un_commit_de_develop_cambia_el_real() {
     };
     assert_eq!(error(&f).as_deref(), Some("45"));
     // El commit, en el `develop` del remoto desde otro clon.
-    let p = clon(&f, &bare, "p");
+    let p = f.clon_github(&bare, "p");
     let fecha = "2026-11-17T11:40:00Z";
-    git_ssh(
-        &f,
+    f.git_ssh_con(
         &p,
         &[
             "commit",
@@ -774,10 +710,10 @@ fn r1_01_un_commit_de_develop_cambia_el_real() {
         ],
         &[("GIT_COMMITTER_DATE", fecha), ("GIT_AUTHOR_DATE", fecha)],
     );
-    git_ssh(&f, &p, &["push", "-q", "origin", "develop"], &[]);
+    f.git_ssh(&p, &["push", "-q", "origin", "develop"]);
     // Sin `fetch`, `estimar` no lo ve; tras el `fetch`, si.
     assert_eq!(error(&f).as_deref(), Some("45"));
-    git_ssh(&f, &a, &["fetch", "-q", "origin"], &[]);
+    f.git_ssh(&a, &["fetch", "-q", "origin"]);
     assert_eq!(error(&f).as_deref(), Some("55"));
 }
 
@@ -789,7 +725,7 @@ fn llamadas(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Vec
     let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
-        .envs(entorno_ssh(f))
+        .envs(f.entorno_ssh())
         .env("GIT_TRACE", &traza)
         .output()
         .unwrap();
@@ -862,7 +798,7 @@ fn doctor_cuenta_el_historico() {
     let mal = mal.replacen("| review-x |", "| review |", 1);
     fs.push((r, mal));
     poner(&f, &a, &fs);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let sin =
         |_: &tc2::plataforma::Personas| -> Result<tc2::tablero::Conectada, tc2::tablero::Consulta> {
             Err(tc2::tablero::Consulta::NoConfigurada)

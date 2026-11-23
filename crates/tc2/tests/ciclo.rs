@@ -11,63 +11,21 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
+use comun::lanzar;
+use comun::remoto::{PERSONAS, identificar};
 use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'"
-            .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
 
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 /// Un exito no escribe en stderr; un fallo, una linea.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
-    salida(&lanzar(dir, entorno_ssh(f), args))
+    salida(&lanzar(dir, f.entorno_ssh(), args))
 }
 
 fn salida(o: &Output) -> (Option<i32>, String) {
@@ -82,19 +40,6 @@ fn salida(o: &Output) -> (Option<i32>, String) {
     (o.status.code(), out.trim_end().to_owned())
 }
 
-fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .expect("lanzar git");
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-    texto(&o.stdout)
-}
-
 /// Las claves de una linea de contrato, en orden (sin comando ni
 /// resultado).
 fn claves(linea: &str) -> Vec<&str> {
@@ -103,17 +48,6 @@ fn claves(linea: &str) -> Vec<&str> {
         .skip(2)
         .filter_map(|kv| kv.split_once('=').map(|(k, _)| k))
         .collect()
-}
-
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
 }
 
 /// Remoto con `personas.yml` y las tareas de `titulos` (`tc2 new`); el clon
@@ -128,15 +62,9 @@ fn preparar(f: &Fixture, titulos: &[&str]) -> (PathBuf, PathBuf) {
         let o = lanzar(&prep, f.entorno(), &["new", t]);
         assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
     }
-    let a = otro_clon(f, &bare, "a");
+    let a = f.clon_github(&bare, "a");
     identificar(&a, 1001, "ana");
     (bare, a)
-}
-
-fn otro_clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
 }
 
 fn publicado(f: &Fixture, bare: &Path, ruta: &str) -> String {
@@ -213,7 +141,7 @@ fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
 
 /// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
 fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let op = Escribir {
         ruta: format!("{id}/tarea.md"),
         de,
@@ -376,11 +304,7 @@ fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
         assert_eq!(c, Some(0), "{out}");
     }
     let rama = "feature/task-001-uno";
-    git(
-        &f,
-        &worktree(&a, "TASK-001"),
-        &["push", "-q", "origin", rama],
-    );
+    f.git_ssh(&worktree(&a, "TASK-001"), &["push", "-q", "origin", rama]);
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "worktree"), Some("quitado"), "{out}");
@@ -413,7 +337,7 @@ fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
     // Desde dentro del worktree de la tarea (publicado y limpio): se
     // conserva, no se quita la carpeta en la que se esta.
     let wt3 = worktree(&a, "TASK-003");
-    git(&f, &wt3, &["push", "-q", "origin", "feature/task-003-tres"]);
+    f.git_ssh(&wt3, &["push", "-q", "origin", "feature/task-003-tres"]);
     let (c, out) = tc2(&f, &wt3, &["descartar", "TASK-003", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "worktree"), Some("conservado"), "{out}");
@@ -440,15 +364,15 @@ fn c5_rama_publicada_desde_otro_clon_quita_el_worktree() {
     assert_eq!(c, Some(0), "{out}");
     let rama = "feature/task-001-uno";
     // La persona sigue la tarea en otro clon y publica la rama desde alli.
-    let b = otro_clon(&f, &bare, "b");
-    git(&f, &b, &["switch", "-q", "-c", rama, "origin/develop"]);
+    let b = f.clon_github(&bare, "b");
+    f.git_ssh(&b, &["switch", "-q", "-c", rama, "origin/develop"]);
     escribir(&b, "seguido.txt", "desde el otro clon\n");
-    git(&f, &b, &["add", "seguido.txt"]);
-    git(&f, &b, &["commit", "-q", "-m", "seguido"]);
-    git(&f, &b, &["push", "-q", "origin", rama]);
+    f.git_ssh(&b, &["add", "seguido.txt"]);
+    f.git_ssh(&b, &["commit", "-q", "-m", "seguido"]);
+    f.git_ssh(&b, &["push", "-q", "origin", rama]);
     // El primero no la ha visto.
     let remota = format!("refs/remotes/origin/{rama}");
-    assert!(git(&f, &a, &["for-each-ref", &remota]).trim().is_empty());
+    assert!(f.git_ssh(&a, &["for-each-ref", &remota]).trim().is_empty());
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("descartar ok id=TASK-001 "), "{out}");
@@ -474,7 +398,7 @@ fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
         assert_eq!(c, Some(0), "{out}");
     }
     let wt2 = worktree(&a, "TASK-002");
-    git(&f, &wt2, &["checkout", "-q", "--detach"]);
+    f.git_ssh(&wt2, &["checkout", "-q", "--detach"]);
     for (id, motivo) in [("TASK-001", "sin-publicar"), ("TASK-002", "sin-rama")] {
         let wt = worktree(&a, id);
         let antes = std::fs::read_to_string(wt.join("README.md")).unwrap();
@@ -524,11 +448,11 @@ fn desde_una_subcarpeta_del_clon_o_del_worktree() {
 fn c6_de_otra_persona_se_rechaza_sin_asignado_o_propia_no() {
     let f = Fixture::nueva("ciclo-c6");
     let (bare, a) = preparar(&f, &["Uno", "Dos", "Tres"]);
-    let b = otro_clon(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let (c, out) = tc2(&f, &b, &["start", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
-    git(&f, &a, &["fetch", "-q", "origin"]);
+    f.git_ssh(&a, &["fetch", "-q", "origin"]);
     let antes = f.huella(&bare, &a);
     for args in [
         vec!["descartar", "TASK-001", "no"],
@@ -624,7 +548,7 @@ fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
     let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     let antes = f.huella(&bare, &a);
-    let o = lanzar(&a, entorno_sin_red(&f), &["descartar", "TASK-001", "no"]);
+    let o = lanzar(&a, f.entorno_sin_red(), &["descartar", "TASK-001", "no"]);
     let (c, out) = salida(&o);
     assert_eq!(c, Some(4), "{out}");
     assert!(out.starts_with("descartar sinred id=TASK-001"), "{out}");
@@ -634,7 +558,7 @@ fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
     assert!(pendientes().trim().is_empty());
     // La pausa queda pendiente.
     let p = punta(&f, &bare);
-    let o = lanzar(&a, entorno_sin_red(&f), &["pausa", "TASK-001"]);
+    let o = lanzar(&a, f.entorno_sin_red(), &["pausa", "TASK-001"]);
     let (c, out) = salida(&o);
     assert_eq!(c, Some(4), "{out}");
     assert!(out.starts_with("pausa sinred id=TASK-001"), "{out}");

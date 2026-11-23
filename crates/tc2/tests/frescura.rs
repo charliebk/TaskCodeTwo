@@ -13,6 +13,7 @@ mod comun;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use comun::remoto::ORIGIN;
 use comun::{Fixture, escribir, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
@@ -21,38 +22,6 @@ use tc2::plataforma::Personas;
 use tc2::tablero::{self, Conectada, Consulta, Entorno};
 
 const RAMA: &str = estado::RAMA;
-const ORIGIN_SSH: &str = "ssh://git@github.com/o/r.git";
-
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-/// Entorno de git cuyo «ssh» no llega al host, como sin red.
-fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'"
-            .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
 
 /// Entorno de git cuyo «ssh» llega y el servidor no acepta la clave.
 fn entorno_denegado(f: &Fixture) -> Vec<(OsString, OsString)> {
@@ -88,7 +57,7 @@ fn lanzar(
 
 /// `tc2 <args>` con el remoto de la fixture (ruta local o ssh servido).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
-    lanzar(dir, entorno_ssh(f), "es", args)
+    lanzar(dir, f.entorno_ssh(), "es", args)
 }
 
 /// Las claves del JSON de una orden.
@@ -122,15 +91,8 @@ fn nueva(f: &Fixture, dir: &Path, titulo: &str) -> String {
 fn con_tarea(f: &Fixture) -> (PathBuf, PathBuf) {
     let (bare, a) = f.remoto_y_clon();
     nueva(f, &a, "Primera");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN_SSH]);
+    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
     (bare, a)
-}
-
-/// Otro clon del bare con `origin` por ssh.
-fn clon_ssh(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN_SSH]);
-    d
 }
 
 fn sin_plataforma(_: &Personas) -> Result<Conectada, Consulta> {
@@ -143,7 +105,7 @@ fn sin_plataforma(_: &Personas) -> Result<Conectada, Consulta> {
 fn c1_b_ve_lo_que_publica_a_sin_fetch_previo() {
     let f = Fixture::nueva("frescura-c1");
     let (bare, a) = con_tarea(&f);
-    let b = clon_ssh(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     let linea = nueva(&f, &a, "Segunda");
     assert!(linea.starts_with("new ok id=TASK-002 "), "{linea}");
     let commit = valor(&linea, "commit").unwrap().to_owned();
@@ -186,7 +148,7 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
     assert_eq!(estado::sincronizado_texto(marca.leer()), hora);
     let commit = k["commit"].as_str().unwrap().to_owned();
     // Lo que se publique despues no se ve sin red.
-    let b = clon_ssh(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     nueva(&f, &b, "Segunda");
     for json in [true, false] {
         let args: &[&str] = if json {
@@ -194,7 +156,7 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
         } else {
             &["status"]
         };
-        let (c, out, err) = lanzar(&a, entorno_sin_red(&f), "es", args);
+        let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", args);
         assert_eq!(c, 0, "{out} {err}");
         if json {
             let k = claves(&out);
@@ -215,14 +177,14 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
             "{err}"
         );
     }
-    let (_, _, en) = lanzar(&a, entorno_sin_red(&f), "en", &["status"]);
+    let (_, _, en) = lanzar(&a, f.entorno_sin_red(), "en", &["status"]);
     assert!(
         en.starts_with("warning: no network") && en.contains(" ago)"),
         "{en}"
     );
     // Un clon que nunca sincronizo con `tc2`.
-    let nuevo = clon_ssh(&f, &bare, "nuevo");
-    let (c, out, err) = lanzar(&nuevo, entorno_sin_red(&f), "es", &["status", "--json"]);
+    let nuevo = f.clon_github(&bare, "nuevo");
+    let (c, out, err) = lanzar(&nuevo, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     let k = claves(&out);
     assert_eq!(
@@ -294,7 +256,7 @@ fn c3_la_hora_en_texto_y_en_json() {
             && err.trim_end().ends_with("(hace menos de 1 min)"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&a, entorno_ssh(&f), "en", &["roadmap"]);
+    let (_, _, en) = lanzar(&a, f.entorno_ssh(), "en", &["roadmap"]);
     assert!(en.starts_with("state synchronised with origin at "), "{en}");
 }
 
@@ -409,7 +371,7 @@ fn c5_tras_new_la_hora_es_la_de_ese_new() {
         .unwrap();
     let antes = estado::sincronizado_texto(Some(tc2::identidad::ahora()));
     nueva(&f, &a, "Segunda");
-    let (c, out, err) = lanzar(&a, entorno_sin_red(&f), "es", &["status", "--json"]);
+    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     let k = claves(&out);
     assert_eq!(k["remoto"], "sin-red", "{out}");
@@ -512,18 +474,18 @@ fn c7_pendientes_y_avisos_de_tareas() {
     assert_eq!(claves(&out)["pendientes"], "0", "{out}");
     assert!(claves(&out).get("tareas").is_none(), "{out}");
     // Una operacion sin red queda pendiente.
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_sin_red(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_sin_red());
     let i = estado::transaccion(&Contexto::nuevo(&g, &a, &sin_catalogo, None), &Nota);
     assert_eq!(i.resultado, Resultado::Sinred, "{}", i.linea());
     assert_eq!(i.valor("pendiente"), Some("si"));
-    let (c, out, err) = lanzar(&a, entorno_sin_red(&f), "es", &["status", "--json"]);
+    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     assert_eq!(claves(&out)["pendientes"], "1", "{out}");
     let refs = f.crudo(&a, &["for-each-ref", "refs/taskcodetwo/pendientes/"]);
     assert_eq!(refs.lines().count(), 1, "{refs}");
     // En texto tambien, al final, solo con alguna (M2 de la revision 1; con
     // cero no sale, lo comprueba C2). `status` solo lee: no la publica.
-    let (c, out, _) = lanzar(&a, entorno_sin_red(&f), "es", &["status"]);
+    let (c, out, _) = lanzar(&a, f.entorno_sin_red(), "es", &["status"]);
     assert_eq!(c, 0, "{out}");
     let linea = out.trim_end();
     assert!(
@@ -538,8 +500,8 @@ fn c7_pendientes_y_avisos_de_tareas() {
     );
 
     // con-cambios: `tareas/` montada, atrasada y con cambios sin publicar.
-    let b = clon_ssh(&f, &bare, "b");
-    let gb = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let b = f.clon_github(&bare, "b");
+    let gb = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     assert!(estado::montar(&gb, &b).resultado.es_exito());
     escribir(&b.join("tareas"), "TASK-001/notas.txt", "mio\n");
     let (c, _, _) = tc2(&f, &a, &["new", "Segunda"]);
@@ -566,7 +528,7 @@ fn c7_pendientes_y_avisos_de_tareas() {
         err.starts_with("aviso: la rama local taskcodetwo/tareas tiene commits"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&b, entorno_ssh(&f), "en", &["status"]);
+    let (_, _, en) = lanzar(&b, f.entorno_ssh(), "en", &["status"]);
     assert!(en.starts_with("warning: the local branch"), "{en}");
 }
 
@@ -577,7 +539,7 @@ fn c8_doctor_sin_fetch_y_con_sincronizado() {
     let f = Fixture::nueva("frescura-c8");
     let (_bare, a) = con_tarea(&f);
     let conectar = |_: &Personas| Err(Consulta::NoConfigurada);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     // La marca la dejo el `new`: su hora.
     let hora = estado::sincronizado_texto(estado::Marca::en(&a.join(".git")).leer());
     assert!(es_hora(&hora), "{hora}");
@@ -632,7 +594,7 @@ fn c9_el_stdout_de_roadmap_es_lo_que_publicaria_escribir() {
     // `--comparar` tambien dice la frescura (M1 de la revision 1).
     assert_eq!(valor(&out, "remoto"), Some("consultado"), "{out}");
     assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
-    let (c, out, err) = lanzar(&a, entorno_sin_red(&f), "es", &["roadmap", "--comparar"]);
+    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["roadmap", "--comparar"]);
     assert_eq!(c, 3, "{out} {err}");
     assert_eq!(valor(&out, "remoto"), Some("sin-red"), "{out}");
     assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
@@ -690,7 +652,7 @@ fn c10_rama_reescrita_en_origin_no_es_sin_red() {
         err.starts_with("aviso: origin tiene la rama de estado reescrita"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&a, entorno_ssh(&f), "en", &["status"]);
+    let (_, _, en) = lanzar(&a, f.entorno_ssh(), "en", &["status"]);
     assert!(
         en.starts_with("warning: origin has the state branch rewritten"),
         "{en}"
@@ -719,7 +681,7 @@ fn c11_ref_remota_bloqueada_no_es_sin_red() {
     let (c, _, _) = tc2(&f, &a, &["status"]);
     assert_eq!(c, 0);
     // Algo nuevo en `origin`, para que el `fetch` tenga que mover la ref.
-    let b = clon_ssh(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     nueva(&f, &b, "Segunda");
     let lock = a
         .join(".git")

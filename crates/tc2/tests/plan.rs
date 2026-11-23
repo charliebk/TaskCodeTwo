@@ -10,54 +10,20 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Output;
 
+use comun::lanzar;
+use comun::remoto::{CONFIG_AUTOMATICO, PERSONAS, identificar};
 use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-/// Configuracion de la base con el modo que `plan` congela.
-const CONFIG: &str = "---\nformato: 2\nmodo_flujo: automatico\n";
-
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
 
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 /// Un exito no escribe en stderr; un fallo, una linea.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
-    let o = lanzar(dir, entorno_ssh(f), args);
+    let o = lanzar(dir, f.entorno_ssh(), args);
     let out = texto(&o.stdout);
     assert_eq!(out.lines().count(), 1, "{out}");
     let err = texto(&o.stderr);
@@ -69,24 +35,13 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
     (o.status.code(), out.trim_end().to_owned())
 }
 
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
 /// Remoto con `personas.yml`, la configuracion (modo automatico) y las
 /// tareas de `altas` (`tc2 new` con sus argumentos); el clon `a` que
 /// devuelve tiene `origin` en GitHub y la identidad de ana.
 fn preparar(f: &Fixture, altas: &[&[&str]]) -> (PathBuf, PathBuf) {
     let (bare, prep) = f.remoto_y_clon();
     escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG);
+    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
     f.crudo(&prep, &["add", ".taskcode"]);
     f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
     f.crudo(&prep, &["push", "-q", "origin", "develop"]);
@@ -96,9 +51,7 @@ fn preparar(f: &Fixture, altas: &[&[&str]]) -> (PathBuf, PathBuf) {
         let o = lanzar(&prep, f.entorno(), &v);
         assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
     }
-    f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "a"]);
-    let a = f.raiz.join("a");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
+    let a = f.clon_github(&bare, "a");
     identificar(&a, 1001, "ana");
     (bare, a)
 }
@@ -206,7 +159,7 @@ fn c2_uno_en_fix_y_cuatro_mas_unificador_en_riesgo_alto() {
 
 /// `tc2 <args>` como [`tc2`], con la carpeta de Claude Code `claude`.
 fn tc2_claude(f: &Fixture, dir: &Path, claude: &Path, args: &[&str]) -> (Option<i32>, String) {
-    let mut e = entorno_ssh(f);
+    let mut e = f.entorno_ssh();
     e.push(("CLAUDE_CONFIG_DIR".into(), claude.as_os_str().to_owned()));
     let o = lanzar(dir, e, args);
     let out = texto(&o.stdout);
@@ -493,7 +446,7 @@ fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
 
 /// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
 fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let op = Escribir {
         ruta: format!("{id}/tarea.md"),
         de,

@@ -12,11 +12,12 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 use std::sync::{Arc, Barrier};
 
+use comun::lanzar;
+use comun::remoto::{PERSONAS, identificar};
 use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
@@ -24,80 +25,10 @@ use tc2::identidad::{Cache, Cuenta};
 use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture
-/// (`upload-pack` para leer, `receive-pack` para publicar).
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-/// Entorno de git cuyo «ssh» no llega al host, como sin red.
-fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'"
-            .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
 
 /// `tc2 <args>` en `dir` con el remoto de la fixture.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    lanzar(dir, entorno_ssh(f), args)
-}
-
-/// `git <args>` en `dir` con el remoto de la fixture.
-fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .expect("lanzar git");
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-    texto(&o.stdout)
-}
-
-/// Identifica el clon `dir` como la persona `id`/`login` (cache vigente).
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
+    lanzar(dir, f.entorno_ssh(), args)
 }
 
 /// Remoto con `personas.yml` en `develop` y las tareas de `altas` (cada una,
@@ -115,16 +46,9 @@ fn preparar(f: &Fixture, altas: &[&[&str]]) -> (PathBuf, PathBuf) {
         let o = lanzar(&prep, f.entorno(), &args);
         assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
     }
-    let a = otro_clon(f, &bare, "a");
+    let a = f.clon_github(&bare, "a");
     identificar(&a, 1001, "ana");
     (bare, a)
-}
-
-/// Otro clon con `origin` en GitHub.
-fn otro_clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
 }
 
 /// `tarea.md` publicado de `id`.
@@ -200,7 +124,7 @@ fn escribir_estado(
     ruta: &str,
     cambiar: impl Fn(Option<String>) -> String + 'static,
 ) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let op = Escribir {
         ruta: ruta.to_owned(),
         cambiar: Box::new(cambiar),
@@ -226,7 +150,7 @@ fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) 
 fn c1_dos_clones_a_la_vez_solo_uno_la_toma() {
     let f = Arc::new(Fixture::nueva("toma-c1"));
     let (bare, a) = preparar(&f, &[&["Primera"]]);
-    let b = otro_clon(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let barrera = Arc::new(Barrier::new(2));
     let hilos: Vec<_> = [("ana", a.clone()), ("beto", b.clone())]
@@ -326,7 +250,7 @@ fn c2_repetir_y_reanudar_siendo_el_dueno() {
     let wt = worktree(&a, "TASK-001");
     f.crudo(&wt, &["add", "hecho.txt"]);
     f.crudo(&wt, &["commit", "-q", "-m", "trabajo"]);
-    git(&f, &wt, &["push", "-q", "origin", rama]);
+    f.git_ssh(&wt, &["push", "-q", "origin", rama]);
     let publicada = f.crudo(&a, &["rev-parse", rama]);
     editar(
         &f,
@@ -359,8 +283,7 @@ fn c3_sin_red_no_deja_nada() {
     let f = Fixture::nueva("toma-c3");
     let (bare, a) = preparar(&f, &[&["Primera"]]);
     // Con la rama de estado local, como tras cualquier escritura.
-    git(
-        &f,
+    f.git_ssh(
         &a,
         &[
             "branch",
@@ -370,7 +293,7 @@ fn c3_sin_red_no_deja_nada() {
         ],
     );
     let antes = f.huella(&bare, &a);
-    let o = lanzar(&a, entorno_sin_red(&f), &["start", "TASK-001"]);
+    let o = lanzar(&a, f.entorno_sin_red(), &["start", "TASK-001"]);
     let out = texto(&o.stdout);
     assert_eq!(o.status.code(), Some(4), "{out}");
     assert!(out.starts_with("start sinred id=TASK-001 "), "{out}");
@@ -497,8 +420,7 @@ fn c5_tareas_que_no_se_empiezan() {
 fn c6_rama_del_id_en_el_remoto_sin_dueno_es_ocupada() {
     let f = Fixture::nueva("toma-c6");
     let (bare, a) = preparar(&f, &[&["Primera"]]);
-    git(
-        &f,
+    f.git_ssh(
         &a,
         &[
             "push",
