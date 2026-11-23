@@ -70,3 +70,7 @@ Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466b
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-23T14:26:39Z | diseno | agente:a3d66ffa5f9c04410 | 50 | 121972 | 1919336 | 30761 | 36 | 2072119 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — 3e2dba4
