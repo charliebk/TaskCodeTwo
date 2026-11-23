@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -35,3 +35,9 @@ Extraer a `crates/tc2/tests/comun/` (integración) y a módulos `prueba` de `src
 - [ ] A8-05 (`divergente`, absorbe A2-06): un doble nulo de `Plataforma`, con un comportamiento único si se llama a un método que no se usa, sustituye a los cinco de `identidad.rs:649-679`, `revision/mod.rs:537-568`, `tablero.rs:998-1025`, `tests/revision.rs:68-130` y `tests/tablero.rs`.
 - [ ] A8-01 (absorbe A4-09 y parte de A3-06) y A8-18: `entorno_ssh`, `entorno_sin_red`, `identificar`, `git`, `otro_clon`, `editar`, `texto` y `sin_catalogo` (rangos de la ficha A8-01) están en `tests/comun/`. `estado` + `motivo` de los tests unitarios (`ciclo/operacion.rs:297-311`, `ciclo/liberar.rs:439-453`, `toma/operacion.rs:320-334` y los `motivo` de la ficha A8-18) están en un módulo `pub(crate)` de prueba.
 - [ ] `cargo test -p tc2 --no-fail-fast` da el mismo número de tests en verde que antes (se pega el recuento antes y después en el `## Resultado`), `cargo xtask verificar` sale en verde y el `## Resultado` lista los 9 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-23T14:17:53Z | plan | automatico | persona | 0.17.1 |
