@@ -7,7 +7,7 @@ el plan senala lo que ese rol no cubrio.)
 
 ## Enfoque propuesto
 
-Duracion estimada: 330 min
+Duracion estimada: 60 min (parte a del troceo; la tarea entera estimaba 330 min)
 
 Señales: unos 38 ficheros de `crates/tc2/tests` y 10 de `crates/tc2/src` tocados; dos capas (integración en `tests/comun`, unitarios en `#[cfg(test)] pub(crate) mod prueba`); 8 criterios y 9 IDs; 26 ficheros con lanzador propio (`git grep CARGO_BIN_EXE_tc2`: 38 apariciones en 26 ficheros). Pasa de 60 min: ver `## Troceo`.
 
@@ -158,3 +158,7 @@ Duracion estimada: 50 min
 - [ ] `git grep -n 'impl Plataforma for' -- crates/tc2` solo devuelve `github.rs`, `gitlab.rs` y los dos `Doble<P>`, y no queda ningún `sin_uso`.
 - [ ] Dos tests `#[should_panic(expected = "merge-pr")]` sobre un `Doble` vacío, uno en `plataforma::prueba` y otro en `tests/soporte.rs`.
 - [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-05 y A2-06 con su commit.
+
+## Troceo aceptado
+
+Troceo aceptado por una persona el 2026-11-23: TASK-148a, TASK-148b, TASK-148c, TASK-148d, TASK-148e, TASK-148f, todas en la misma rama. Este plan es el de TASK-148a; las demas partes se planifican al empezarlas.
