@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2375381
 tokens_implementacion: 287015785
-tokens_revision: null
+tokens_revision: 10143535
 creado: 2026-11-22
 actualizado: 2026-11-23
 dependencias: []
@@ -88,6 +88,7 @@ Sin comprobar: A10-05 con wget real; los E2E con tokens reales quedan «no verif
 | 2026-11-23T00:11:13Z | implementacion | agente:ad9affd01f2ab3b25 | 86 | 370243 | 11038877 | 50715 | 27 | 11459921 | - | - |
 | 2026-11-23T00:11:13Z | implementacion | agente:ae16802ea1d1aba78 | 166 | 398106 | 25773898 | 72088 | 51 | 26244258 | - | - |
 | 2026-11-23T00:11:13Z | implementacion | agente:ae2610917fc669d59 | 140 | 449679 | 19675028 | 59824 | 57 | 20184671 | - | - |
+| 2026-11-23T01:36:32Z | revision | agente:acbd87d997b8114a8 | 128 | 167232 | 9943148 | 33027 | 3 | 10143535 | 1 | - |
 
 ## Verificacion ligera
 
