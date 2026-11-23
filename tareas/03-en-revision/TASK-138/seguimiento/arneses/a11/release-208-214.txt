@@ -1,0 +1,7 @@
+          cat ./*.sha256 > SHA256SUMS
+          rm ./*.sha256
+          cp ../instalar/install.sh ../instalar/install.ps1 .
+          mkdir malo
+          cp tc2-* malo/
+          awk '{ c = substr($1, 1, 1); print (c == "0" ? "1" : "0") substr($1, 2) "  " $2 }' SHA256SUMS > malo/SHA256SUMS
+          ! cmp -s SHA256SUMS malo/SHA256SUMS
