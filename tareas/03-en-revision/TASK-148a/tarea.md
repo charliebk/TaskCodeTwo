@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2072119
 tokens_implementacion: 10611113
-tokens_revision: null
+tokens_revision: 4351512
 creado: 2026-11-23
 actualizado: 2026-11-23
 dependencias: []
@@ -72,8 +72,13 @@ Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466b
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-23T14:26:39Z | diseno | agente:a3d66ffa5f9c04410 | 50 | 121972 | 1919336 | 30761 | 36 | 2072119 | - | - |
 | 2026-11-23T16:15:13Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 106 | 82112 | 10505065 | 23830 | 8 | 10611113 | - | - |
+| 2026-11-23T22:24:09Z | revision | agente:ae1bd2af6067c0940 | 70 | 142362 | 4192448 | 16632 | 8 | 4351512 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 3e2dba4
 - 4D — 3e2dba4: helper buscado, criterios citados, 1 test mutado
+
+## Verificacion ligera
+
+- 2026-11-23T22:24:19Z: ronda 1; commit revisado f7970589d6f2080942bd030da79babc481b8a140; commit verificado 9a1d6539f6f2506850482aeb6924c078a0f18de9; ficheros: ninguno; corregidos: ninguno; pendientes: MEN-1
