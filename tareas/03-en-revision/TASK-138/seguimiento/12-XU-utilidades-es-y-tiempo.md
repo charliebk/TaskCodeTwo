@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, abstraccion comun XU (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, abstraccion comun XU (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE)
 > Extraer las utilidades de E/S y de tiempo que la auditoría 4D (`docs/auditoria-4d.md`, commit auditado d82ea9d) encontró copiadas entre dueños: 4 casos IMPORTANTE (tres `divergente`) de los grupos escritura-atomica, lectura-con-tope, espera-con-plazo y fechas-utc, más la ficha fusionada A7-02. Toca `huella`, `confianza`, `desinstalar`, `identidad`, `estado`, `hallazgos`, `seleccion`, `progreso`, `actualizar_cli`, `verificacion`, `alta`, `toma` y `xtask`. No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

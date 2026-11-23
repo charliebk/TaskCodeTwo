@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A8 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A8 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE)
 > Corregir los 7 casos IMPORTANTE del grupo A8 de `docs/auditoria-4d.md` (commit auditado d82ea9d) que no son de abstracción común: 2 Duplicaciones internas y 5 Disfraces de test con mutante confirmado. No se piden los MENOR (A8-14, A8-21, A9-04, A11-05, A11-06, A11-07). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

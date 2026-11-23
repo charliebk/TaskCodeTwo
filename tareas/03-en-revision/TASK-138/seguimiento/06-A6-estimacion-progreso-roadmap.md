@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A6 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A6 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE)
 > Corregir los 6 casos IMPORTANTE del grupo A6 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 5 Duplicaciones (una `divergente`) y 1 Disfraz de test con mutante confirmado. A6-01 va en la tarea de la capa de órdenes (A8-06). No se pide el MENOR (A6-08). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

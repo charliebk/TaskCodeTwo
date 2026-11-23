@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A3 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A3 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A3 plan, importar y alta (5 IMPORTANTE)
 > Corregir los 5 casos IMPORTANTE del grupo A3 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 2 Duplicaciones (una `divergente`), 1 Desviación que cambia el comportamiento y 2 Disfraces de test con mutante confirmado. A3-04 y A3-06 van en las tareas de abstracción común (A8-07 y soporte de tests). No se piden los MENOR (A3-07, A3-09). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

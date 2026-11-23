@@ -3730,7 +3730,7 @@ _Texto renderizado en español en el sitio y metido en `{error}`: con `TC2_IDIOM
 - modulo: init / desinstalar (i18n)
 - severidad: IMPORTANTE
 - normalizacion: consolidador TASK-138, 2026-11-22: sube de MENOR a IMPORTANTE: es D2 que cambia la salida (con `TC2_IDIOMA=en` el diagnostico mezcla un trozo en espanol, contra F2-8/RF-73). La regla del plan (decision 4) deja D2 en MENOR solo si no cambia el comportamiento.
-- motivo_severidad: D2: el codigo se aparta de F2-8 (RF-73), que fija que el texto se genera al escribir la salida en el idioma que toque. Aqui se renderiza en espanol en el sitio (`Idioma::Es` fijo, o un literal) y ese texto entra como valor del hueco `{error}` de `FALLO_AL_APLICAR`: con `TC2_IDIOMA=en` el diagnostico sale en ingles con un trozo en espanol. Solo afecta al diagnostico de stderr; la linea de stdout, `motivo` y los codigos no cambian (ADR F1-4). Por eso se deja en MENOR.
+- motivo_severidad: D2: el codigo se aparta de F2-8 (RF-73), que fija que el texto se genera al escribir la salida en el idioma que toque. Aqui se renderiza en espanol en el sitio (`Idioma::Es` fijo, o un literal) y ese texto entra como valor del hueco `{error}` de `FALLO_AL_APLICAR`: con `TC2_IDIOMA=en` el diagnostico sale en ingles con un trozo en espanol. Solo afecta al diagnostico de stderr; la linea de stdout, `motivo` y los codigos no cambian (ADR F1-4). Por eso no llega a CRITICO; es IMPORTANTE porque cambia la salida (ver `normalizacion`).
 - estado: confirmado (lectura contra d82ea9d)
 - grupo_seguimiento: A7
 
@@ -4108,8 +4108,8 @@ _El único test de `detectar_modo` no pasa por las ramas `opt/homebrew` ni `wing
 - ubicacion: crates/tc2/src/instalacion.rs:56 y :62 (`detectar_modo`, ramas `opt/homebrew` y `winget/links`), test que deberia cubrirlas: crates/tc2/src/instalacion.rs:280-332 (`detectar_modo_con_rutas_de_los_tres_sistemas`)
 - modulo: instalacion
 - severidad: IMPORTANTE
-- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente de confirmar por mutacion»: la seccion «Mutación» confirma los dos mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo queda superada.
-- motivo_severidad: Disfraz en test, candidato: el unico test de `detectar_modo` no pasa por dos de las ramas que reconocen un gestor de paquetes. Si una se rompe, `tc2 actualizar --cli` trata un `tc2` de Homebrew (`/opt/homebrew/bin`) o de winget (`WinGet\Links`) como instalado a mano y lo sustituye por encima del gestor; `tc2 desinstalar` usa el mismo `Modo` (`instalacion::Entorno::modo`). No llega a CRITICO: no hay perdida de datos ni fallo de seguridad (el binario nuevo pasa por sha256 y attestation igual). Sin ejecutar: queda `pendiente-mutacion`.
+- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente de confirmar por mutacion»: la seccion «Mutación» confirma los dos mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo se sustituyo en la ronda 1 de revision.
+- motivo_severidad: Disfraz en test, candidato: el unico test de `detectar_modo` no pasa por dos de las ramas que reconocen un gestor de paquetes. Si una se rompe, `tc2 actualizar --cli` trata un `tc2` de Homebrew (`/opt/homebrew/bin`) o de winget (`WinGet\Links`) como instalado a mano y lo sustituye por encima del gestor; `tc2 desinstalar` usa el mismo `Modo` (`instalacion::Entorno::modo`). No llega a CRITICO: no hay perdida de datos ni fallo de seguridad (el binario nuevo pasa por sha256 y attestation igual). Confirmado por mutacion (seccion «Mutación»: mutantes en verde y control en rojo).
 - evidencia:
 
   Codigo, `crates/tc2/src/instalacion.rs:52-62`
@@ -4227,8 +4227,8 @@ _`comprobar_nuevo` (el binario nuevo arranca y dice versión, target y sha256) n
 - ubicacion: crates/tc2/src/actualizar_cli.rs:406-415 (llamada a `comprobar_nuevo` y rechazo `binario-no-arranca`) y :710-745 (`comprobar_nuevo`); tests que deberian cubrirlo: crates/tc2/tests/actualizar_cli.rs (todos sus `#[test]`, 293-704) y crates/tc2/src/actualizar_cli.rs:779-1046 (`mod tests`)
 - modulo: actualizar_cli
 - severidad: IMPORTANTE
-- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente de confirmar por mutacion»: la seccion «Mutación» confirma los dos mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo queda superada.
-- motivo_severidad: Disfraz en test, candidato: el paso que exige que el binario nuevo arranque y diga su version, su target, el sha256 que calculo este proceso y un protocolo antes de sustituir el `tc2` instalado (ADR F1-14, punto 4; cabecera de actualizar_cli.rs:18-22) no tiene ningun test que lo haga fallar. El unico binario que llega a ese paso en los tests es `tc2_falso`, construido para pasarlo (examples/tc2_falso.rs:6-8: responde con el sha256 de su propio fichero). Si `comprobar_nuevo` se rompe y devuelve siempre `Ok(())`, `tc2 actualizar --cli` sustituye el ejecutable por un fichero que no arranca, o que dice ser otra version o de otro target, y la persona se queda sin CLI. No llega a CRITICO: el sha256 contra `SHA256SUMS` y la attestation se comprueban antes (actualizar_cli.rs:376-402), asi que no entra un binario ajeno a la release. Sin ejecutar: queda `pendiente-mutacion`.
+- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente de confirmar por mutacion»: la seccion «Mutación» confirma los dos mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo se sustituyo en la ronda 1 de revision.
+- motivo_severidad: Disfraz en test, candidato: el paso que exige que el binario nuevo arranque y diga su version, su target, el sha256 que calculo este proceso y un protocolo antes de sustituir el `tc2` instalado (ADR F1-14, punto 4; cabecera de actualizar_cli.rs:18-22) no tiene ningun test que lo haga fallar. El unico binario que llega a ese paso en los tests es `tc2_falso`, construido para pasarlo (examples/tc2_falso.rs:6-8: responde con el sha256 de su propio fichero). Si `comprobar_nuevo` se rompe y devuelve siempre `Ok(())`, `tc2 actualizar --cli` sustituye el ejecutable por un fichero que no arranca, o que dice ser otra version o de otro target, y la persona se queda sin CLI. No llega a CRITICO: el sha256 contra `SHA256SUMS` y la attestation se comprueban antes (actualizar_cli.rs:376-402), asi que no entra un binario ajeno a la release. Confirmado por mutacion (seccion «Mutación»: mutantes en verde y control en rojo).
 - evidencia:
 
   Codigo, `crates/tc2/src/actualizar_cli.rs:406-410`
@@ -4351,8 +4351,8 @@ _Cuatro de las cinco órdenes de `orden_del_gestor` solo se prueban «no vacías
 - ubicacion: crates/tc2/src/instalacion.rs:77-87 (`orden_del_gestor`, ramas npm, homebrew, winget y scoop de :79-82) y :223-234 (`dirs_de_instalacion`, el `if !v.contains(&d)` de :229); tests que deberian cubrirlo: crates/tc2/src/instalacion.rs:317 (`assert!(!orden_del_gestor(gestor).is_empty())` en `detectar_modo_con_rutas_de_los_tres_sistemas`), :334-374 (`rutas_del_entorno_por_sistema`) y crates/tc2/tests/desinstalar.rs:760-810 (`plugin_y_gestor_no_borran_el_binario`)
 - modulo: instalacion
 - severidad: IMPORTANTE
-- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo queda superada.
-- motivo_severidad: Disfraz en test, candidato: el criterio C9 de TASK-078 pide que `tc2 desinstalar` escriba «la orden exacta» que quita un `tc2` de un gestor (desinstalar.rs:757-758), y de las cinco ordenes solo la de cargo tiene un test con su texto (desinstalar.rs:807); las otras cuatro solo se comprueban como «no vacias» (instalacion.rs:317). Si una se rompe (otro paquete, otro gestor), la persona recibe una orden que no quita nada o quita otra cosa, y la suite sigue en verde. Ademas, la deduplicacion de `dirs_de_instalacion` (la que evita listar dos veces la misma carpeta cuando `TC2_INSTALL_DIR` es la de por defecto) no la ejercita ningun test: el unico caso pone `TC2_INSTALL_DIR` vacio (:340, :345). No llega a CRITICO: no se pierde ni corrompe nada (con `Decision::Persona` la orden la lanza la persona) y el codigo de hoy es correcto. Sin ejecutar: queda `pendiente-mutacion`.
+- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo se sustituyo en la ronda 1 de revision.
+- motivo_severidad: Disfraz en test, candidato: el criterio C9 de TASK-078 pide que `tc2 desinstalar` escriba «la orden exacta» que quita un `tc2` de un gestor (desinstalar.rs:757-758), y de las cinco ordenes solo la de cargo tiene un test con su texto (desinstalar.rs:807); las otras cuatro solo se comprueban como «no vacias» (instalacion.rs:317). Si una se rompe (otro paquete, otro gestor), la persona recibe una orden que no quita nada o quita otra cosa, y la suite sigue en verde. Ademas, la deduplicacion de `dirs_de_instalacion` (la que evita listar dos veces la misma carpeta cuando `TC2_INSTALL_DIR` es la de por defecto) no la ejercita ningun test: el unico caso pone `TC2_INSTALL_DIR` vacio (:340, :345). No llega a CRITICO: no se pierde ni corrompe nada (con `Decision::Persona` la orden la lanza la persona) y el codigo de hoy es correcto. Confirmado por mutacion (seccion «Mutación»: mutantes en verde y control en rojo).
 - evidencia:
 
   Codigo, `crates/tc2/src/instalacion.rs:77-86`
@@ -4492,8 +4492,8 @@ _Ningún test escapa `*`, `_`, `~` ni `&` en `plano`: quitar `&` dejaría pasar 
 - ubicacion: crates/tc2/src/dato.rs:73-97 (`plano`, escapes de `'*'` en :76, `'_'` en :77, `'~'` en :86 y `'&'` en :88); tests que deberian cubrirlo: crates/tc2/src/dato.rs:207-227 (`plano_deja_el_texto_inerte`), que es donde remite crates/tc2/src/hallazgos/mod.rs:2176 («Las reglas de `plano` se prueban en `dato`»)
 - modulo: dato (A8; lo usan hallazgos y plan, F6-7)
 - severidad: IMPORTANTE
-- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo queda superada.
-- motivo_severidad: Disfraz en test, candidato: `plano` es la regla unica para meter texto ajeno (del PR, de la tarea o del modelo) en Markdown sin que cambie su forma (cabecera dato.rs:1-3, ADR F1-8 adenda F6-7), y su doc promete que no abre formato ni HTML (:48-53). De sus 17 caracteres escapados, al menos cuatro no aparecen escapados en ningun test del repo: `*` y `_` (enfasis), `~` (tachado) y `&` (entidades HTML). Quitar `'&'` de la lista dejaria pasar `&#x202E;`, que GitHub pinta como U+202E: justo el cambio de direccion que `plano` quita cuando llega como caracter (:55, test :209-216). La suite seguiria en verde. No llega a CRITICO: el codigo de hoy escapa los cuatro; el test no tapa un fallo existente. Sin ejecutar: queda `pendiente-mutacion`.
+- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo se sustituyo en la ronda 1 de revision.
+- motivo_severidad: Disfraz en test, candidato: `plano` es la regla unica para meter texto ajeno (del PR, de la tarea o del modelo) en Markdown sin que cambie su forma (cabecera dato.rs:1-3, ADR F1-8 adenda F6-7), y su doc promete que no abre formato ni HTML (:48-53). De sus 17 caracteres escapados, al menos cuatro no aparecen escapados en ningun test del repo: `*` y `_` (enfasis), `~` (tachado) y `&` (entidades HTML). Quitar `'&'` de la lista dejaria pasar `&#x202E;`, que GitHub pinta como U+202E: justo el cambio de direccion que `plano` quita cuando llega como caracter (:55, test :209-216). La suite seguiria en verde. No llega a CRITICO: el codigo de hoy escapa los cuatro; el test no tapa un fallo existente. Confirmado por mutacion (seccion «Mutación»: mutantes en verde y control en rojo).
 - evidencia:
 
   Codigo, `crates/tc2/src/dato.rs:73-77` y `:86-89`
@@ -4615,8 +4615,8 @@ _El brazo de `cadena_json` que escapa los controles U+0000-U+001F no lo pasa nin
 - ubicacion: crates/tc2/src/contrato.rs:336 (`cadena_json`, brazo `c if (c as u32) < 0x20 => \u00XX`); tests que deberian cubrirlo: crates/tc2/src/contrato.rs:367-406 (`linea_de_contrato_y_json_con_las_mismas_claves`, `el_diagnostico_va_a_stderr_solo_si_falla`) y los tests `--json` de doctor y recursos (crates/tc2/src/doctor/mod.rs:524-528, :634-638; crates/tc2/tests/doctor.rs:952-957; crates/tc2/tests/recursos.rs:371-377)
 - modulo: contrato (A8; lo usan contrato, doctor, inventario y version)
 - severidad: IMPORTANTE
-- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo queda superada.
-- motivo_severidad: Disfraz en test, candidato: el contrato (ADR F1-4, cabecera contrato.rs:3-6) promete stdout sin ANSI y, con `--json`, un objeto JSON en una linea; los controles U+0000-U+001F distintos de `\n`, `\r` y `\t` los escapa solo el brazo de :336, y ningun test pasa por el con un valor que lleve uno de esos controles. Los tests `--json` que miran «sin ESC» (`!contains('\u{1b}')`) lo hacen sobre entradas que no traen ESC. Si el brazo se quita, un valor ajeno con ESC o BEL (el nombre de una skill leido del disco, inventario.rs:118-125; una ruta de `desinstalar`, contrato.rs:285) sale crudo en `--json`: JSON invalido (RFC 8259 exige escapar U+0000-U+001F) y ANSI en stdout. No llega a CRITICO: el codigo de hoy escapa; el test no tapa un fallo existente. Sin ejecutar: queda `pendiente-mutacion`.
+- normalizacion: consolidador TASK-138, 2026-11-22: quita «pendiente-mutacion»: la seccion «Mutación» confirma los mutantes en verde y el control en rojo. La frase «Sin ejecutar: queda pendiente-mutacion» del motivo se sustituyo en la ronda 1 de revision.
+- motivo_severidad: Disfraz en test, candidato: el contrato (ADR F1-4, cabecera contrato.rs:3-6) promete stdout sin ANSI y, con `--json`, un objeto JSON en una linea; los controles U+0000-U+001F distintos de `\n`, `\r` y `\t` los escapa solo el brazo de :336, y ningun test pasa por el con un valor que lleve uno de esos controles. Los tests `--json` que miran «sin ESC» (`!contains('\u{1b}')`) lo hacen sobre entradas que no traen ESC. Si el brazo se quita, un valor ajeno con ESC o BEL (el nombre de una skill leido del disco, inventario.rs:118-125; una ruta de `desinstalar`, contrato.rs:285) sale crudo en `--json`: JSON invalido (RFC 8259 exige escapar U+0000-U+001F) y ANSI en stdout. No llega a CRITICO: el codigo de hoy escapa; el test no tapa un fallo existente. Confirmado por mutacion (seccion «Mutación»: mutantes en verde y control en rojo).
 - evidencia:
 
   Codigo, `crates/tc2/src/contrato.rs:329-338`
@@ -4718,7 +4718,7 @@ _`! cmp -s` bajo `set -eu` nunca para: la guarda del ensayo de `actualizar --cli
 - modulo: scripts de CI (release.yml, job de ensayo de `tc2 actualizar --cli`, TASK-027)
 - severidad: IMPORTANTE
 - normalizacion: consolidador TASK-138, 2026-11-22: sube de MENOR a IMPORTANTE. Es Disfraz real: la guarda de :60 nunca para (reproducido con el arnes d4-cmp.sh), y la regla 4D del plan (decision 4) fija D4 real >= IMPORTANTE; que hoy no tape un fallo ya existente impide CRITICO, no baja de IMPORTANTE.
-- motivo_severidad: Disfraz en script: la linea pretende abortar el ensayo si el `SHA256SUMS` alterado («malo») saliera igual que el bueno, pero en POSIX `set -e` no actua sobre una tuberia negada con `!`, asi que la guarda nunca para nada. Hoy no tapa un fallo real: el `awk` de :58 cambia siempre el primer caracter, y si ambos ficheros salieran vacios el paso 2 fallaria despues por otro motivo (no daria `motivo=sha256-no-casa`). Por eso MENOR y no IMPORTANTE.
+- motivo_severidad: Disfraz en script: la linea pretende abortar el ensayo si el `SHA256SUMS` alterado («malo») saliera igual que el bueno, pero en POSIX `set -e` no actua sobre una tuberia negada con `!`, asi que la guarda nunca para nada. Hoy no tapa un fallo real: el `awk` de :58 cambia siempre el primer caracter, y si ambos ficheros salieran vacios el paso 2 fallaria despues por otro motivo (no daria `motivo=sha256-no-casa`). Por eso no llega a CRITICO; es IMPORTANTE por ser D4 real (ver `normalizacion`).
 - evidencia:
 
   `.github/scripts/probar-actualizar.sh:19` y `:57-60`
@@ -4731,13 +4731,14 @@ _`! cmp -s` bajo `set -eu` nunca para: la guarda del ensayo de `actualizar --cli
   ! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS"
   ```
 
-  Entrada con la que no hace el trabajo: dos `SHA256SUMS` identicos. Arnes `task-138/a10/demo/d4-cmp.sh` (copia la linea 60 tal cual, comprueba que es identica a `sed -n 60p` del commit auditado, y la ejecuta con `set -eu` sobre dos ficheros iguales), ejecutado con `sh` (GNU bash 5.3.15 en modo sh) en una carpeta temporal bajo task-138, sin red:
+  Entrada con la que no hace el trabajo: dos `SHA256SUMS` identicos. Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a10/d4-cmp.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-actualizar.sh`; copia la linea 60 tal cual, comprueba que es identica a `sed -n 60p` del commit auditado, y la ejecuta con `set -eu` sobre dos ficheros iguales), ejecutado con `sh` (GNU bash 5.3.15 en modo sh) en una carpeta temporal bajo task-138, sin red:
   ```
   linea 60: ! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS"
   (la linea ejecutada es identica a la 60)
-  SIGUE: los ficheros son iguales y set -e no paro (estado de la linea: 0)
+  SIGUE: los ficheros son iguales y set -e no paro (estado de la linea: 1)
   salida=0
   ```
+  (Corregido en la ronda 1 de revision: la primera version del arnes rotulaba como «estado de la linea» el `$?` de la comprobacion `[ ... ] && echo` posterior, que daba 0. El arnes guarda ahora el `$?` justo despues de la linea 60: con dos ficheros iguales `! cmp -s` da 1 y `set -e` no para.)
   POSIX (`set -e`): no se aplica a una tuberia que empieza por `!`. El mismo script usa la forma buena en otra parte (`probar-instalador.sh:205`: `! grep -qF '/viejo' ... || rojo ...`).
 
   Version correcta (1 linea): `! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS" || rojo "el SHA256SUMS alterado es igual al bueno"`.
@@ -4785,7 +4786,7 @@ _El modo `publico` de `probar-instalador.sh` imprime VERDE si el instalador sale
       curl -fsSL "$url/install.sh" | HOME="$1" SHELL=/bin/sh sh
   ```
 
-  Entrada con la que no hace el trabajo: un instalador que sale 0 sin instalar nada (p. ej. curl falla y la tuberia da el 0 de `sh`). Arnes `task-138/a10/demo/d4-sin-version.sh`: carga las lineas 268-287 del commit auditado tal cual (`sed -n '268,287p'`), con `so=unix` y `linea_unix() { false | HOME="$1" SHELL=/bin/sh sh; }` (lo que da la linea 47 cuando curl falla). Ejecutado con `sh` en una carpeta temporal bajo task-138, sin red:
+  Entrada con la que no hace el trabajo: un instalador que sale 0 sin instalar nada (p. ej. curl falla y la tuberia da el 0 de `sh`). Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a10/d4-sin-version.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-instalador.sh`): carga las lineas 268-287 del commit auditado tal cual (`sed -n '268,287p'`), con `so=unix` y `linea_unix() { false | HOME="$1" SHELL=/bin/sh sh; }` (lo que da la linea 47 cuando curl falla). Ejecutado con `sh` en una carpeta temporal bajo task-138, sin red:
   ```
 
   probar: VERDE: sin TC2_VERSION, ultima estable o error con el arreglo
@@ -4811,7 +4812,7 @@ _La rama `wget` de `install.sh` no limita la redirección a https como promete e
 - severidad: IMPORTANTE
 - verificado: no (lectura; conducta de wget sin reproducir)
 - normalizacion: consolidador TASK-138, 2026-11-22: sube de MENOR a IMPORTANTE y queda NO VERIFICADO: la promesa del comentario (solo redirecciones a https) no se cumple en la rama wget por lectura, pero la conducta de wget no se reprodujo (no hay wget y no se descarga nada). La tarea de seguimiento lo reproduce primero; si wget no sigue la redireccion a http, el caso se descarta.
-- motivo_severidad: Disfraz en codigo: el comentario de la funcion promete «solo se aceptan redirecciones a https» y la rama de curl lo cumple (`--proto-redir '=https'`), pero la rama de wget, la que usan los sistemas sin curl (alpine, que release.yml prueba asi: «alpine (sin curl, sin bash)», `.github/workflows/release.yml:174`), no pasa ninguna restriccion de protocolo. No llega a IMPORTANTE: `SHA256SUMS` y el binario llegan por el mismo canal, asi que la restriccion protege poco frente a quien ya controla la primera respuesta https; y `tc2 actualizar --cli` si la cumple (`crates/tc2/src/descarga.rs:216-222`, `redireccion_permitida`: https y lista de hosts).
+- motivo_severidad: Disfraz en codigo: el comentario de la funcion promete «solo se aceptan redirecciones a https» y la rama de curl lo cumple (`--proto-redir '=https'`), pero la rama de wget, la que usan los sistemas sin curl (alpine, que release.yml prueba asi: «alpine (sin curl, sin bash)», `.github/workflows/release.yml:174`), no pasa ninguna restriccion de protocolo. No llega a CRITICO, y es IMPORTANTE NO VERIFICADO (ver `normalizacion`): `SHA256SUMS` y el binario llegan por el mismo canal, asi que la restriccion protege poco frente a quien ya controla la primera respuesta https; y `tc2 actualizar --cli` si la cumple (`crates/tc2/src/descarga.rs:216-222`, `redireccion_permitida`: https y lista de hosts).
 - evidencia:
 
   `instalar/install.sh:47-56`
@@ -4863,7 +4864,7 @@ _`! cmp -s` en mitad del paso «vY» de `release.yml` nunca para: la guarda de q
             rm Cargo.toml.orig
   ```
 
-  Entrada con la que no hace el trabajo: un `Cargo.toml` cuya linea `version = "..."` no casa con `VERSION` (el `sed` no cambia nada). Arnes `task-138/a11/d4-release-284.sh`: toma las lineas 281-285 con `git show d82ea9d:.github/workflows/release.yml | sed -n 281,285p` (fichero `a11/release-281-285.txt`), les quita la sangria, anade un `echo SIGUE` y lo ejecuta con el shell que GitHub Actions usa para `shell: bash` (`bash --noprofile --norc -eo pipefail`), GNU bash 5.3.15, sin red y sin cargo, en una carpeta temporal bajo task-138:
+  Entrada con la que no hace el trabajo: un `Cargo.toml` cuya linea `version = "..."` no casa con `VERSION` (el `sed` no cambia nada). Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a11/d4-release-284.sh`: toma las lineas 281-285 con `git show d82ea9d:.github/workflows/release.yml | sed -n 281,285p` (fichero `arneses/a11/release-281-285.txt`, junto al arnes; el contraste usa `release-208-214.txt`), les quita la sangria, anade un `echo SIGUE` y lo ejecuta con el shell que GitHub Actions usa para `shell: bash` (`bash --noprofile --norc -eo pipefail`), GNU bash 5.3.15, sin red y sin cargo, en una carpeta temporal bajo task-138:
   ```
   SIGUE: el sed no cambio Cargo.toml y la guarda de la linea 284 no paro
   salida=0
@@ -7575,6 +7576,8 @@ Hay una fila por módulo de `src`, por fichero de `tests` y por cada fichero o c
 | `plantillas/` | 1 | A10 | completa | 0 | 1 | 0 | 0 | A10-03 | — |
 | `xtask/` | 3 | A8, A9, A10 | completa | 1 | 0 | 0 | 0 | A9-03 | — |
 | **Total** | **283** | | | **54** | **12** | **17** | **25** | **108** | |
+
+La fila «configuración y manifiestos» agrupa estos 11 ficheros, todos con lectura completa salvo `Cargo.lock` (mecánica): `.cargo/config.toml`, `.gitattributes`, `.gitignore`, `.taskcode/config.yml`, `Cargo.lock`, `Cargo.toml`, `crates/distribucion/Cargo.toml`, `crates/tc2/Cargo.toml`, `rust-toolchain.toml`, `rustfmt.toml`, `xtask/Cargo.toml`. Los `Cargo.toml` de `crates/distribucion/` y de `xtask/` cuentan aquí y no en la fila de su carpeta.
 
 Los E2E con tokens reales (`crates/tc2/tests/plataforma_e2e.rs`, `crates/tc2/tests/plataforma_gitlab_e2e.rs`) se leyeron enteros, pero son **no verificables por mutación**: van con `#[ignore]` y necesitan GitHub y GitLab reales. Su único caso (A1-06) es D1 de lectura.
 

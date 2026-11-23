@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A2 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A2 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A2 hallazgos y revision (7 IMPORTANTE)
 > Corregir los 7 casos IMPORTANTE del grupo A2 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 4 Duplicaciones en `crates/tc2/src/hallazgos/` y 3 Disfraces de test con mutante confirmado. A2-01 y A2-06 se fusionaron en las tareas de abstracción común (A8-07 y A8-05) y aquí no se piden. Tampoco los MENOR (A2-07 a A2-10). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

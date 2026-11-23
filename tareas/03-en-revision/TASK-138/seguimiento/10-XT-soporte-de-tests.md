@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, abstraccion comun XT (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, abstraccion comun XT (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: soporte de tests compartido en tests/comun y modulos prueba (9 IMPORTANTE)
 > Extraer a `crates/tc2/tests/comun/` (integración) y a módulos `prueba` de `src` (tests unitarios) el soporte de tests que la auditoría 4D (`docs/auditoria-4d.md`, commit auditado d82ea9d) encontró copiado entre dueños: 9 casos IMPORTANTE (siete `divergente`, contando A3-06) de los grupos lanzador-tests, servidor-http-test, instantanea-de-carpeta, soporte-tests-unitarios y dobles-plataforma. La tarea también cierra las fichas fusionadas en ellos (A3-06 en parte, A4-09, A5-07, A7-06, A2-06). Toca los tests de A1 a A8. No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

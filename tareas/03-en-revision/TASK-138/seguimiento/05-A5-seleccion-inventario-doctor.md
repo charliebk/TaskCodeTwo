@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A5 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A5 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE)
 > Corregir los 6 casos IMPORTANTE del grupo A5 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 4 Duplicaciones (dos `divergente`), 1 Desviación de F1-15 que cambia el comportamiento y 1 Disfraz de test con mutante confirmado. A5-07 va en la tarea de soporte de tests compartido. No se piden los MENOR (A5-04, A5-05, A5-10 a A5-14). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

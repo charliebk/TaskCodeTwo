@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A7 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A7 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE)
 > Corregir los 8 casos IMPORTANTE del grupo A7 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 4 Duplicaciones (una `divergente`), 1 Desviación de F2-8 que cambia la salida y 3 Disfraces (uno en código y dos de test con mutante confirmado). A7-02 y A7-06 van en las tareas de abstracción común (A8-04 y A8-12). No se pide el MENOR (A7-08). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

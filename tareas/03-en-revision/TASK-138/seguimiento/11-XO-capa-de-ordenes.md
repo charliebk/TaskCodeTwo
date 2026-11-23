@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, abstraccion comun XO (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, abstraccion comun XO (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)
 > Extraer las piezas de la capa de órdenes que la auditoría 4D (`docs/auditoria-4d.md`, commit auditado d82ea9d) encontró copiadas entre dueños: 6 casos IMPORTANTE de los grupos operacion-con-dueno, fallo-a-informe, envoltorio-de-orden y config-de-base, más las fichas fusionadas en ellos (A2-01, A3-04, A6-01). Toca `revision`, `plan`, `toma`, `ciclo`, `roadmap`, `estimacion`, `siguiente`, `tablero`, `seleccion` e `importar`. No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

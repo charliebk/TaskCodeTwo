@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A4 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A4 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE)
 > Corregir los 9 casos IMPORTANTE del grupo A4 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 8 Duplicaciones (dos `divergente`) y 1 Disfraz en código en la guarda de argumentos de git. A4-09 va en la tarea de soporte de tests compartido. No se piden los MENOR (A4-11, A4-12). No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.

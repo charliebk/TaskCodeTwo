@@ -1,4 +1,4 @@
-# Seguimiento de TASK-138, grupo A1 (fuera del repo; para `taskctl import --tipo fix`)
+# Seguimiento de TASK-138, grupo A1 (copiar fuera del repo antes de `taskctl import --tipo fix`)
 
 ### Auditoria 4D: A1 plataforma e identidad (11 IMPORTANTE)
 > Corregir los 11 casos IMPORTANTE del grupo A1 de `docs/auditoria-4d.md` (commit auditado d82ea9d): 6 Duplicaciones (una `divergente`) y 5 Disfraces en `crates/tc2/src/plataforma/` y sus tests. Cada caso tiene su ficha con evidencia literal y, para los D4 de test, el diff del mutante que hoy sobrevive. Los MENOR del grupo (A1-12) no se piden. No depende de ninguna tarea ni reordena la cadena H4 ni TASK-040.
