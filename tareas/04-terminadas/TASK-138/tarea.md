@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: media
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: feature/task-138-auditoria-4d-de-todo-el-codigo-de-taskco
 asignado_a: charlie.bk@gmail.com
@@ -64,6 +64,7 @@ Sin comprobar: A10-05 con wget real; los E2E con tokens reales quedan «no verif
 | 2026-11-22T21:07:27Z | approve | automatico | persona | 0.17.0 |
 | 2026-11-22T21:07:28Z | start | automatico | persona | 0.17.0 |
 | 2026-11-23T00:11:13Z | review | automatico | persona | 0.17.0 |
+| 2026-11-23T01:36:43Z | finish | automatico | persona | 0.17.0 |
 
 ## Coste
 
@@ -97,3 +98,10 @@ Sin comprobar: A10-05 con wget real; los E2E con tokens reales quedan «no verif
 ## Verificacion de documentacion
 
 - 2026-11-23T01:36:33Z: la tarea solo cambia documentacion (35 fichero(s) dentro de rutas_documentacion de "develop"); no se ejecuta `cargo xtask verificar --perfil rapida`, sin comprobacion de documentacion declarada
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 269 min
+- Paso de la hora: 269 min reales frente a 300 estimados
+- Cierre (finish): 10 s, de 2026-11-23T01:36:33Z a 2026-11-23T01:36:43Z
