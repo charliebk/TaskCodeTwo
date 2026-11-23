@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-148a — lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148) · etiquetas: (sin etiquetas) · rama fix/task-148-auditoria-4d-soporte-de-tests-compartido · terminada 2026-11-23 · tareas/04-terminadas/TASK-148a/
 - TASK-138 — Auditoria 4D de todo el codigo de TaskCodeTwo · etiquetas: (sin etiquetas) · rama feature/task-138-auditoria-4d-de-todo-el-codigo-de-taskco · terminada 2026-11-23 · tareas/04-terminadas/TASK-138/
 - TASK-085 — F4-6 plan propone skills, agentes y modelo por rol · etiquetas: (sin etiquetas) · rama feature/task-085-f4-6-plan-propone-skills-agentes-y-model · terminada 2026-11-22 · tareas/04-terminadas/TASK-085/
 - TASK-053 — F6-7 Defensa contra prompt injection en PR y tareas · etiquetas: (sin etiquetas) · rama feature/task-053-f6-7-defensa-contra-prompt-injection-en · terminada 2026-11-22 · tareas/04-terminadas/TASK-053/
