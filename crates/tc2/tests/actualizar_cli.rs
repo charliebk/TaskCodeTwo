@@ -9,6 +9,8 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+mod comun;
+
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -210,14 +212,14 @@ fn sha256(ruta: &Path) -> String {
 fn instalar_vx(dir: &Path) -> PathBuf {
     std::fs::create_dir_all(dir).unwrap();
     let destino = dir.join(format!("tc2{}", std::env::consts::EXE_SUFFIX));
-    std::fs::copy(env!("CARGO_BIN_EXE_tc2"), &destino).unwrap();
+    std::fs::copy(comun::BINARIO, &destino).unwrap();
     destino
 }
 
 /// Ruta de un ejemplo (`tc2_falso`, `gh_falso`), que `cargo test` deja en
 /// `examples/`.
 fn ejemplo(nombre: &str) -> PathBuf {
-    let ruta = Path::new(env!("CARGO_BIN_EXE_tc2"))
+    let ruta = Path::new(comun::BINARIO)
         .parent()
         .unwrap()
         .join("examples")
@@ -398,11 +400,7 @@ fn el_tc2_de_la_cache_del_plugin_no_se_sustituye() {
 /// Sin `--cli`, uso: actualizar un proyecto es de F9-2.
 #[test]
 fn actualizar_sin_cli_es_uso() {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
-        .args(["actualizar"])
-        .env("TC2_IDIOMA", "es")
-        .output()
-        .unwrap();
+    let o = comun::orden_tc2().args(["actualizar"]).output().unwrap();
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(texto(&o.stdout), "actualizar uso motivo=sin-cli\n");
 }

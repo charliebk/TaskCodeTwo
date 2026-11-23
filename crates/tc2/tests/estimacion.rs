@@ -213,15 +213,10 @@ fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
 }
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .expect("lanzar tc2")
 }
@@ -803,16 +798,11 @@ fn r1_01_un_commit_de_develop_cambia_el_real() {
 fn llamadas(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Vec<String>) {
     let traza = f.raiz.join(format!("traza-{}.txt", args[0]));
     let _ = std::fs::remove_file(&traza);
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno_ssh(f))
         .env("GIT_TRACE", &traza)
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .unwrap();
     let t = std::fs::read_to_string(&traza).unwrap_or_default();

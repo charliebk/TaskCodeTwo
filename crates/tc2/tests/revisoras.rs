@@ -15,7 +15,7 @@ mod comun;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use comun::{Fixture, escribir};
 
@@ -33,12 +33,11 @@ fn revisoras(
 ) -> (Option<i32>, String) {
     let vacia = f.raiz.join("claude-vacia");
     std::fs::create_dir_all(&vacia).unwrap();
-    let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let mut c = comun::orden_tc2()
         .arg("revisoras")
         .args(args)
         .current_dir(dir)
         .envs(f.entorno())
-        .env("TC2_IDIOMA", "es")
         .env("CLAUDE_CONFIG_DIR", &vacia)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -61,14 +61,10 @@ fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
 }
 
 fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno)
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .expect("lanzar tc2")
 }

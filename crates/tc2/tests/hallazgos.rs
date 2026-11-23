@@ -29,7 +29,6 @@
 mod comun;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde_json::Value;
 
@@ -49,10 +48,9 @@ fn carpeta(nombre: &str) -> PathBuf {
 
 /// Lanza `tc2 hallazgos <args>`; da (codigo, stdout, stderr).
 fn hallazgos(args: &[&str]) -> (Option<i32>, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .arg("hallazgos")
         .args(args)
-        .env("TC2_IDIOMA", "es")
         .env(
             "GIT_DIR",
             Path::new(env!("CARGO_TARGET_TMPDIR")).join("sin-git"),

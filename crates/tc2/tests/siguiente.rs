@@ -7,7 +7,7 @@
 mod comun;
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use comun::{Fixture, escribir};
 use tc2::estado;
@@ -16,13 +16,11 @@ use tc2::tarea::{Cuerpo, Tarea};
 const RAMA: &str = estado::RAMA;
 
 fn tc2(f: &Fixture, dir: &Path, idioma: &str, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
         .env("TC2_IDIOMA", idioma)
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .expect("lanzar tc2")
 }
@@ -190,13 +188,10 @@ fn next_sin_red_usa_la_copia_del_clon() {
             "ssh://git@github.com/o/r.git",
         ],
     );
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(&clon)
         .arg("next")
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .env(
             "GIT_SSH_COMMAND",
             "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'",

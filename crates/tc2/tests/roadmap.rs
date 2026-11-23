@@ -20,13 +20,10 @@ const RAMA: &str = estado::RAMA;
 
 /// (codigo, stdout, stderr) de `tc2 <args>` en `dir`.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .expect("lanzar tc2");
     (

@@ -9,7 +9,6 @@ mod comun;
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use comun::{Fixture, escribir};
 use tc2::estado;
@@ -147,7 +146,7 @@ fn tc2_con_path(
     args: &[&str],
     path: Option<&OsStr>,
 ) -> (i32, String, String) {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
+    let mut c = comun::orden_tc2();
     if let Some(p) = path {
         c.env("PATH", p);
     }
@@ -155,14 +154,8 @@ fn tc2_con_path(
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CEILING_DIRECTORIES", &f.raiz)
         .env("CLAUDE_CONFIG_DIR", claude)
-        .env_remove("TC2_TOKEN_AGENTE")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_REVISOR")
         .output()
         .expect("lanzar tc2");
     (

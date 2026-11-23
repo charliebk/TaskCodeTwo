@@ -20,7 +20,7 @@ mod comun;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 use std::time::{Duration, Instant, SystemTime};
 
 use comun::{Fixture, escribir};
@@ -147,11 +147,10 @@ impl Caso {
     }
 
     fn tc2(&self, dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
+        let mut c = comun::orden_tc2();
         c.args(args)
             .current_dir(dir)
             .envs(self.fx.entorno())
-            .env("TC2_IDIOMA", "es")
             .env("LOCALAPPDATA", &self.datos)
             .env("XDG_CACHE_HOME", &self.datos)
             .env("TESTIGO", &self.testigo)

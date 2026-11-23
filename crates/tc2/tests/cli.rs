@@ -2,7 +2,7 @@
 
 #![allow(clippy::panic)] // en un test, panic! es la forma de fallar
 
-use std::process::Command;
+mod comun;
 
 fn tc2(args: &[&str]) -> std::process::Output {
     tc2_en("es", args)
@@ -11,7 +11,7 @@ fn tc2(args: &[&str]) -> std::process::Output {
 /// Lanza `tc2` con `TC2_IDIOMA` fijado, para no depender del locale de la
 /// maquina que corre los tests.
 fn tc2_en(idioma: &str, args: &[&str]) -> std::process::Output {
-    match Command::new(env!("CARGO_BIN_EXE_tc2"))
+    match comun::orden_tc2()
         .args(args)
         .env("TC2_IDIOMA", idioma)
         .output()
@@ -78,7 +78,7 @@ fn version_json_del_binario_con_su_sha256() {
         Ok(v) => v,
         Err(e) => panic!("version --json no es JSON: {e}"),
     };
-    let bytes = match std::fs::read(env!("CARGO_BIN_EXE_tc2")) {
+    let bytes = match std::fs::read(comun::BINARIO) {
         Ok(b) => b,
         Err(e) => panic!("no se pudo leer tc2: {e}"),
     };

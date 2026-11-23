@@ -9,7 +9,7 @@ mod comun;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 use std::sync::{Arc, Barrier};
 
 use comun::Fixture;
@@ -18,12 +18,10 @@ use tc2::estado;
 const RAMA: &str = estado::RAMA;
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .expect("lanzar tc2")
 }
