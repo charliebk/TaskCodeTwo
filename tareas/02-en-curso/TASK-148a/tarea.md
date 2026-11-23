@@ -38,6 +38,25 @@ Objetivo de la tarea entera:
 - [ ] Un test de `tests/soporte.rs` comprueba que `comun::tc2(dir)` quita `TC2_TOKEN_PERSONA`, `TC2_TOKEN_AGENTE`, `TC2_TOKEN_REVISOR` y las variables `TC2_APP_*`, y fija `TC2_IDIOMA=es`.
 - [ ] `cargo test -p tc2 --no-fail-fast` da el recuento de antes más los tests nuevos y las copias del test de `http_mock` justificadas, y `cargo xtask verificar` sale en verde; el `## Resultado` lista A8-02 y A5-07 con su commit.
 
+## Resultado
+
+Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466bd4): `BINARIO` y `orden_tc2()`, que devuelve el `Command` con `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0` y `TC2_IDIOMA=es` (con `tc2::i18n::VARIABLE`) y quita los tokens de los tres roles y las variables de GitHub App (`Rol::variable` y `Rol::variables_app`). Los 26 ficheros que lanzaban `CARGO_BIN_EXE_tc2` lo usan; cada test anade despues lo suyo (`current_dir`, `stdin`, `PATH`, `CLAUDE_CONFIG_DIR`, otro idioma...), y en `Command` gana la ultima operacion por variable.
+
+- **A8-02** y **A5-07** (fusionado en A8-02): 1466bd4.
+- `git grep -n 'CARGO_BIN_EXE_tc2' -- crates/tc2/tests` solo devuelve `crates/tc2/tests/comun/lanzador.rs:15`.
+- Test nuevo `tests/soporte.rs::el_lanzador_quita_credenciales_y_fija_el_idioma`.
+- Recuento con `cargo test -p tc2 --no-fail-fast` (target propio en `%LOCALAPPDATA%\pruebas-claude`):
+  - antes (6f699e7): 47 binarios, 762 ok, 1 fallo, 13 ignorados. El fallo es `desinstalar::puertos::tests::el_auxiliar_real_borra_tras_salir_el_proceso` (plazo de 10 s), con la suite del hook de Stop corriendo a la vez; no lo toca este cambio y despues pasa.
+  - despues (1466bd4): 48 binarios, 768 ok, 0 fallos, 13 ignorados.
+  - Cuadre: 763 + 1 test nuevo + 4 copias del test `comun::http_mock::tras_una_respuesta_completa_el_mock_no_manda_fin` en los binarios que pasan a declarar `mod comun;` (`soporte`, `cli`, `actualizar_cli`, `plataforma_e2e`) = 768.
+- Cambio de comportamiento deliberado: los ficheros que no quitaban tokens (alta, importar, convivencia_016, roadmap, seleccion, siguiente, hallazgos, revisoras, verificar, cli, actualizar_cli, plataforma_e2e, git_binario) o no fijaban `TC2_IDIOMA` pasan a aislarse. Ninguno se puso en rojo.
+- `cargo clippy -p tc2 --tests --all-features -- -D warnings` y `cargo fmt --check` limpios.
+
+## Divergencias
+
+- La funcion se llama `comun::orden_tc2()` y no `comun::tc2(dir)`: una funcion `tc2` dentro de `comun` choca con la ruta del crate `tc2` (`use tc2::...` del propio modulo), y sin carpeta porque cuatro lanzadores (cli, hallazgos, actualizar_cli, plataforma_e2e) no la fijan. El criterio 2 se comprueba igual sobre `orden_tc2()`.
+- `texto` no se crea aqui: las copias de `texto` son de la parte b (su criterio la nombra), y crearla sin usarla seria codigo muerto.
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
