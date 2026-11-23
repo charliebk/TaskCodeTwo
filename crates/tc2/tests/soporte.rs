@@ -43,3 +43,20 @@ fn el_lanzador_quita_credenciales_y_fija_el_idioma() {
     }
     assert_eq!(c.get_program(), OsStr::new(comun::BINARIO));
 }
+
+/// A8-20: el git de sistema comun lee la configuracion de la fixture, no la
+/// del usuario que corre los tests.
+#[test]
+fn git_en_aisla_la_configuracion_del_usuario() {
+    let f = comun::Fixture::nueva("soporte-git-en");
+    let email = comun::git::git_en(&f.raiz, &f.entorno(), &["config", "--global", "user.email"]);
+    assert_eq!(email.trim_end(), "prueba@example.com");
+}
+
+/// A8-20: sin `GIT_CONFIG_GLOBAL` no se lanza git (entraria la configuracion
+/// global de quien corre los tests).
+#[test]
+#[should_panic(expected = "GIT_CONFIG_GLOBAL")]
+fn git_en_sin_gitconfig_propio_no_lanza_git() {
+    comun::git::git_en(std::path::Path::new("."), &[], &["--version"]);
+}

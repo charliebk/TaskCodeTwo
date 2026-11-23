@@ -14,8 +14,8 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
+use crate::comun::git::git_en;
 use tc2::contrato::Resultado;
 use tc2::git::{self, Git};
 use tc2::plataforma::{AutorGit, Proveedor, Secreto, entorno_git};
@@ -38,20 +38,7 @@ impl Drop for Clon {
 
 impl Clon {
     fn git(&self, dir: &Path, args: &[&str]) -> String {
-        let o = Command::new("git")
-            .current_dir(dir)
-            .args(args)
-            .envs(self.env.iter().cloned())
-            .env("LC_ALL", "C")
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()
-            .expect("lanzar git");
-        assert!(
-            o.status.success(),
-            "git {args:?}: {}",
-            String::from_utf8_lossy(&o.stderr)
-        );
-        String::from_utf8_lossy(&o.stdout).trim().to_owned()
+        git_en(dir, &self.env, args).trim().to_owned()
     }
 }
 
