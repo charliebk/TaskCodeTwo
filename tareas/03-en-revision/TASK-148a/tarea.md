@@ -76,3 +76,4 @@ Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466b
 ## Autorrevision
 
 - rust-wasm-reviewer — 3e2dba4
+- 4D — 3e2dba4: helper buscado, criterios citados, 1 test mutado
