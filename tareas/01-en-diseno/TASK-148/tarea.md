@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2072119
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -41,3 +41,9 @@ Extraer a `crates/tc2/tests/comun/` (integración) y a módulos `prueba` de `src
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-23T14:17:53Z | plan | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-23T14:26:39Z | diseno | agente:a3d66ffa5f9c04410 | 50 | 121972 | 1919336 | 30761 | 36 | 2072119 | - | - |
