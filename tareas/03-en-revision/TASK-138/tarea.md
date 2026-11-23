@@ -93,3 +93,7 @@ Sin comprobar: A10-05 con wget real; los E2E con tokens reales quedan «no verif
 ## Verificacion ligera
 
 - 2026-11-23T01:35:34Z: ronda 1; commit revisado 14de27c9ff1a6be919beb9b56e9f3c2bdbc2f7af; commit verificado 1882024a158e7e965c34e537d5f3721ba2f9382b; ficheros: docs/auditoria-4d.md; corregidos: MEN-1, MEN-2, MEN-5; pendientes: MEN-3, MEN-4
+
+## Verificacion de documentacion
+
+- 2026-11-23T01:36:33Z: la tarea solo cambia documentacion (35 fichero(s) dentro de rutas_documentacion de "develop"); no se ejecuta `cargo xtask verificar --perfil rapida`, sin comprobacion de documentacion declarada
