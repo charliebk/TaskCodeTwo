@@ -117,26 +117,44 @@ Alternativas descartadas: `Opciones { carpetas, contenido }` en la instantánea 
 
 Orden: a → b obligado; c, d, e y f son independientes entre sí y de a/b, y se hacen en serie por los ficheros que comparten. Cada parte cierra con `cargo test -p tc2 --no-fail-fast` (recuento antes y después) y `cargo xtask verificar` en verde.
 
-### Parte a: lanzador del binario (A8-02, absorbe A5-07 y el lanzador de A3-06)
-- Unos 60 min. Crea `comun/lanzador.rs` (`BINARIO`, `tc2`, `texto`) y migra los 26 ficheros.
-- Criterio: `git grep -n 'CARGO_BIN_EXE_tc2' -- crates/tc2/tests` solo devuelve `tests/comun/`, y los tres tokens se quitan en todos. Añade `tests/soporte.rs` con el test de A8-02.
+### Parte a: lanzador del binario en tests/comun (A8-02, absorbe A5-07)
+Crea `comun/lanzador.rs` (`BINARIO`, `tc2`, `texto`) con `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0`, `TC2_IDIOMA=es` y sin tokens ni `TC2_APP_*`, y migra los 26 ficheros que lanzan `CARGO_BIN_EXE_tc2`.
+Duracion estimada: 60 min
+- [ ] `git grep -n 'CARGO_BIN_EXE_tc2' -- crates/tc2/tests` solo devuelve ficheros de `tests/comun/`.
+- [ ] Un test de `tests/soporte.rs` comprueba que `comun::tc2(dir)` quita `TC2_TOKEN_PERSONA`, `TC2_TOKEN_AGENTE`, `TC2_TOKEN_REVISOR` y las variables `TC2_APP_*`, y fija `TC2_IDIOMA=es`.
+- [ ] `cargo test -p tc2 --no-fail-fast` da el recuento de antes más los tests nuevos y las copias del test de `http_mock` justificadas, y `cargo xtask verificar` sale en verde; el `## Resultado` lista A8-02 y A5-07 con su commit.
 
-### Parte b: escenario ssh y operacion de prueba (A8-01, A8-16, A3-06; absorbe A4-09; mitad de integracion de A8-20)
-- Unos 90 min. Depende de la parte a. Crea `comun/remoto.rs` y `comun/git.rs`, extiende `comun/ops.rs`, pone `valor` y `salida` en `lanzador.rs`; migra aprobar, ciclo, estimacion, frescura, inyeccion, liberar, plan, progreso, solape, toma, alta, importar y `agente_git`; funde `como_persona` y `hito_como_persona`.
-- Criterio: `entorno_ssh`, `entorno_sin_red`, `identificar`, `git`, `otro_clon`, `editar`, `texto`, `sin_catalogo`, `Escribir`, `salida`, `con_fila` y `preparar` existen solo en `tests/comun/`; una sola `valor`, con `trim_end`; `Clon::git` y `Fixture::crudo` usan `git_en`. Con el test de `valor`.
+### Parte b: escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion)
+Crea `comun/remoto.rs` y `comun/git.rs`, extiende `comun/ops.rs`, pone `valor` y `salida` en `lanzador.rs`, migra aprobar, ciclo, estimacion, frescura, inyeccion, liberar, plan, progreso, solape, toma, alta, importar y `agente_git`, y funde `como_persona` y `hito_como_persona` en `aprobar.rs`.
+Duracion estimada: 90 min
+- [ ] `entorno_ssh`, `entorno_sin_red`, `identificar`, `otro_clon`, `editar`, `sin_catalogo`, `Escribir`, `salida`, `con_fila` y `preparar` solo se definen en `crates/tc2/tests/comun/`.
+- [ ] Hay una sola `valor`, con `trim_end`, y un test de `tests/soporte.rs` comprueba `valor("k=v\n", "k") == Some("v")`.
+- [ ] `agente_git::Clon::git` y `Fixture::crudo` usan `comun::git::git_en`, que aísla la configuración del usuario.
+- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde, con el recuento en `## Resultado` y los IDs con su commit.
 
-### Parte c: servidor HTTP (A8-11)
-- Unos 35 min. `identidad.rs` e `init.rs` usan `comun::http_mock::Mock` y `serie()`.
-- Criterio: no queda ningún `Servidor::nuevo` ni `struct Servidor` en `crates/tc2/tests`.
+### Parte c: servidor HTTP de los tests con comun::http_mock (A8-11)
+`tests/identidad.rs` y `tests/init.rs` usan `comun::http_mock::Mock` y `serie()` en lugar de su `Servidor` propio.
+Duracion estimada: 35 min
+- [ ] `git grep -n -e 'Servidor::nuevo' -e 'struct Servidor' -- crates/tc2/tests` no devuelve nada.
+- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-11 con su commit.
 
-### Parte d: instantanea de carpeta (A8-12, absorbe A7-06)
-- Unos 45 min. Crea `comun/instantanea.rs` y migra init, desinstalar, importar, tablero, frescura y doctor.
-- Criterio: ningún recorrido de carpeta propio en esos seis; el test de `soporte.rs` comprueba carpeta vacía nueva y fichero en subcarpeta.
+### Parte d: instantanea de carpeta comun (A8-12, absorbe A7-06)
+Crea `comun/instantanea.rs` (recursiva, anota carpetas, `"<len> <sha256>"`, con lista de exclusión) y migra init, desinstalar, importar, tablero, frescura y doctor.
+Duracion estimada: 45 min
+- [ ] Ninguno de `tests/init.rs`, `tests/desinstalar.rs`, `tests/importar.rs`, `tests/tablero.rs`, `tests/frescura.rs` y `tests/doctor.rs` recorre carpetas por su cuenta: usan `comun::instantanea`.
+- [ ] Un test de `tests/soporte.rs` comprueba que una carpeta vacía nueva y un fichero en una subcarpeta cambian la foto, y que un nombre excluido no la cambia.
+- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-12 y A7-06 con su commit.
 
-### Parte e: soporte de los unitarios (A8-18, mitad unitaria de A8-20)
-- Unos 50 min. Crea `estado::prueba` (con `EnMemoria`) y `git::prueba`; migra ciclo/operacion, ciclo/liberar, toma/operacion, plan/operacion, plan/aprobar, plan/guardar, revision/operacion, roadmap, siguiente, ciclo/mod, estado/montaje y git/estado.
-- Criterio: `estado` y `motivo` solo en `estado::prueba`; `fn sh` y el `git init` de prueba aíslan con `git::prueba::entorno`. Con el unitario de A8-20.
+### Parte e: soporte comun de los tests unitarios (A8-18, A8-20 unitarios)
+Crea `estado::prueba` (con `EnMemoria` traído de `roadmap::tests`, `estado` y `motivo`) y `git::prueba` (`CONFIG`, `entorno`, `sh`), y migra ciclo/operacion, ciclo/liberar, toma/operacion, plan/operacion, plan/aprobar, plan/guardar, revision/operacion, roadmap, siguiente, ciclo/mod, estado/montaje y git/estado.
+Duracion estimada: 50 min
+- [ ] Las funciones de prueba `estado` y `motivo` y el doble `EnMemoria` solo se definen en `estado::prueba`.
+- [ ] `fn sh` y el `git init` de prueba de `estado/montaje.rs` y `git/estado.rs` aíslan con `git::prueba::entorno`, y un unitario comprueba que `git config user.email` devuelve el de `CONFIG`.
+- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-18 y A8-20 con su commit.
 
-### Parte f: dobles de Plataforma (A8-05, absorbe A2-06)
-- Unos 50 min. Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs`; migra `identidad.rs`, `revision/mod.rs`, `tablero.rs`, `tests/revision.rs` y `tests/tablero.rs`.
-- Criterio: `git grep -n 'impl Plataforma for' -- crates/tc2` solo devuelve `github.rs`, `gitlab.rs` y los dos `Doble<P>`; no queda ningún `sin_uso`. Con los dos `should_panic`.
+### Parte f: dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06)
+Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs` con `panic!` ante un método no esperado, y migra `identidad.rs`, `revision/mod.rs`, `tablero.rs`, `tests/revision.rs` y `tests/tablero.rs`.
+Duracion estimada: 50 min
+- [ ] `git grep -n 'impl Plataforma for' -- crates/tc2` solo devuelve `github.rs`, `gitlab.rs` y los dos `Doble<P>`, y no queda ningún `sin_uso`.
+- [ ] Dos tests `#[should_panic(expected = "merge-pr")]` sobre un `Doble` vacío, uno en `plataforma::prueba` y otro en `tests/soporte.rs`.
+- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-05 y A2-06 con su commit.
