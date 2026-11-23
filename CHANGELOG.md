@@ -5,6 +5,7 @@ por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
 
+- TASK-148a (fix) — lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148) (2026-11-23)
 - TASK-138 (feature) — Auditoria 4D de todo el codigo de TaskCodeTwo (2026-11-23)
 - TASK-085 (feature) — F4-6 plan propone skills, agentes y modelo por rol (2026-11-22)
 - TASK-053 (feature) — F6-7 Defensa contra prompt injection en PR y tareas (2026-11-22)

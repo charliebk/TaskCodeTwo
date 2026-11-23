@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -65,6 +65,7 @@ Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466b
 | 2026-11-23T14:29:33Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-23T14:29:41Z | start | automatico | persona | 0.17.1 |
 | 2026-11-23T16:15:13Z | review | automatico | persona | 0.17.1 |
+| 2026-11-23T22:54:43Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -82,3 +83,10 @@ Lanzador unico del binario en `crates/tc2/tests/comun/lanzador.rs` (commit 1466b
 ## Verificacion ligera
 
 - 2026-11-23T22:24:19Z: ronda 1; commit revisado f7970589d6f2080942bd030da79babc481b8a140; commit verificado 9a1d6539f6f2506850482aeb6924c078a0f18de9; ficheros: ninguno; corregidos: ninguno; pendientes: MEN-1
+
+## Duracion
+
+- Estimada: 60 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 505 min
+- Paso de la hora: 505 min reales frente a 60 estimados
+- Cierre (finish): 1803 s, de 2026-11-23T22:24:40Z a 2026-11-23T22:54:43Z
