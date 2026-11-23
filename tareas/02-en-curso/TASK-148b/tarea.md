@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Crea `comun/remoto.rs` y `comun/git.rs`, extiende `comun/ops.rs`, pone `valor` y
 |---|---|---|---|---|
 | 2026-11-23T22:55:26Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-23T23:05:05Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-23T23:05:30Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
