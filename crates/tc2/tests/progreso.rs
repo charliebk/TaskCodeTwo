@@ -49,15 +49,10 @@ fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
 /// `tc2 <args>` en `dir` con el remoto de la fixture: (codigo, stdout,
 /// stderr).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .expect("lanzar tc2");
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
@@ -504,7 +499,7 @@ fn c9_status_seguir_como_proceso() {
     progreso::fichero::escribir(&carpeta, &ejemplo("TASK-001", "implementacion", ahora)).unwrap();
     let vacio = f.raiz.join("path-vacio");
     std::fs::create_dir_all(&vacio).unwrap();
-    let hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let hijo = comun::orden_tc2()
         .current_dir(&clon)
         .args(["status", "--seguir"])
         .env("PATH", &vacio)
@@ -554,7 +549,7 @@ fn r1_01_status_seguir_termina_al_cerrarse_stdout_con_la_linea_fija() {
         progreso::buscar(&fuera).is_none(),
         "la carpeta temporal esta dentro de un repo: el test no probaria nada"
     );
-    let hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let hijo = comun::orden_tc2()
         .current_dir(&fuera)
         .args(["status", "--seguir"])
         .stdin(Stdio::null())
@@ -604,7 +599,7 @@ fn r1_03_estado_stdin_con_stdout_cerrado_sale_con_0_y_calla() {
     let f = Fixture::nueva("progreso-estado-cerrado");
     let fuera = f.raiz.join("fuera");
     std::fs::create_dir_all(&fuera).unwrap();
-    let mut hijo = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let mut hijo = comun::orden_tc2()
         .current_dir(&fuera)
         .args(["estado", "--stdin"])
         .stdin(Stdio::piped())
@@ -667,18 +662,13 @@ fn c11_init_propone_la_status_line_sin_tocar_settings() {
         if json {
             args.push("--json");
         }
-        let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        let o = comun::orden_tc2()
             .current_dir(&repo)
             .args(&args)
             .envs(f.entorno())
             .env("HOME", &home)
             .env("USERPROFILE", &home)
             .env("CLAUDE_CONFIG_DIR", &claude)
-            .env("LC_ALL", "C")
-            .env("TC2_IDIOMA", "es")
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .env_remove("TC2_TOKEN_PERSONA")
-            .env_remove("TC2_TOKEN_AGENTE")
             .output()
             .unwrap();
         let out = texto(&o.stdout);
@@ -743,7 +733,7 @@ fn c8_fichero_a_medias_da_el_ultimo_bueno() {
 
 /// `tc2 estado --stdin` en `dir` con `json` por stdin y el entorno `vars`.
 fn estado_stdin(dir: &Path, json: &str, vars: &[(&str, &std::ffi::OsStr)]) -> Output {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
+    let mut c = comun::orden_tc2();
     c.current_dir(dir)
         .args(["estado", "--stdin"])
         .stdin(Stdio::piped())

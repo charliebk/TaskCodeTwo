@@ -7,7 +7,6 @@
 mod comun;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use comun::http_mock::{Mock, Simulada, serie};
 use comun::{Fixture, escribir};
@@ -138,20 +137,14 @@ fn rama_de_estado_ausente_o_corrupta_falla() {
 
 /// (codigo, stdout, stderr) de `tc2 <args>` en `dir`, sin tokens.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str], env: &[(&str, &str)]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CEILING_DIRECTORIES", &f.raiz)
         // El inventario (F3-9) lee una carpeta de Claude Code propia, nunca
         // la de la maquina.
         .env("CLAUDE_CONFIG_DIR", f.raiz.join("claude"))
-        .env_remove("TC2_TOKEN_AGENTE")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_REVISOR")
         .envs(env.iter().copied())
         .output()
         .expect("lanzar tc2");

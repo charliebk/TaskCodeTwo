@@ -8,7 +8,7 @@ mod comun;
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 use std::sync::{Arc, Barrier};
 
 use comun::Fixture;
@@ -27,12 +27,10 @@ fn la_rama_de_estado_es_la_de_la_2_0() {
 }
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .expect("lanzar tc2")
 }

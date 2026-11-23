@@ -39,6 +39,7 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 mod agente_git;
+mod comun;
 
 use std::cell::{Cell, RefCell};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -803,12 +804,11 @@ fn revision_ia_publica_el_veredicto_y_review_lo_lee() {
         .collect();
     let validados = json!({"version": tc2::hallazgos::VERSION, "revisora": "rev:e2e", "aceptados": aceptados, "rechazados": []});
     std::fs::write(dir.join("hallazgos-0.json"), validados.to_string()).unwrap();
-    let o = std::process::Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .args(["hallazgos", "veredicto", "--salida"])
         .arg(&dir)
         .arg("--hallazgos")
         .arg(dir.join("hallazgos-0.json"))
-        .env("TC2_IDIOMA", "es")
         .output()
         .unwrap();
     let linea = String::from_utf8_lossy(&o.stdout).into_owned();

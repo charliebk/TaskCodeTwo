@@ -9,7 +9,6 @@ mod comun;
 
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use comun::http_mock::{Mock, Simulada, serie};
 use comun::{Fixture, escribir};
@@ -34,16 +33,11 @@ fn tc2(
     args: &[&str],
     env: &[(&str, &str)],
 ) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(f.entorno())
-        .env("LC_ALL", "C")
         .env("TC2_IDIOMA", idioma)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env_remove("TC2_TOKEN_AGENTE")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_REVISOR")
         .envs(env.iter().copied())
         .output()
         .expect("lanzar tc2");

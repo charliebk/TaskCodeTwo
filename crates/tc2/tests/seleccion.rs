@@ -18,7 +18,6 @@
 mod comun;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use comun::Fixture;
 
@@ -28,15 +27,13 @@ fn fixtures() -> PathBuf {
 
 fn seleccion(f: &Fixture, dir: &Path, claude: &Path, id: &str) -> serde_json::Value {
     let d = fixtures().join(id);
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(dir)
         .args(["seleccion", "--json", "--tarea-fichero"])
         .arg(d.join("tarea.md"))
         .arg("--rutas")
         .arg(d.join("rutas.txt"))
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("TC2_IDIOMA", "es")
         .env("GIT_CEILING_DIRECTORIES", &f.raiz)
         .env("CLAUDE_CONFIG_DIR", claude)
         .output()

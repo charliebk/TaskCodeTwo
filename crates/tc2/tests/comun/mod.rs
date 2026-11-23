@@ -7,7 +7,11 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 pub mod http_mock;
+pub mod lanzador;
 pub mod ops;
+
+#[allow(unused_imports)] // cada fichero de tests usa una parte
+pub use lanzador::{BINARIO, orden_tc2};
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

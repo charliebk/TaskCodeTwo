@@ -12,7 +12,7 @@ mod comun;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use comun::{Fixture, escribir};
 use tc2::contrato::Resultado;
@@ -46,15 +46,10 @@ fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
 }
 
 fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno)
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("TC2_IDIOMA", "es")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .expect("lanzar tc2")
 }

@@ -51,15 +51,10 @@ fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
 }
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tc2"))
+    comun::orden_tc2()
         .current_dir(dir)
         .args(args)
         .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("TC2_IDIOMA", "es")
-        .env_remove("TC2_TOKEN_PERSONA")
-        .env_remove("TC2_TOKEN_AGENTE")
         .output()
         .expect("lanzar tc2")
 }
@@ -221,11 +216,10 @@ fn escena(
     f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
     f.crudo(&prep, &["push", "-q", "origin", "develop"]);
     for t in ["Uno", "Dos", "Tres"] {
-        let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+        let o = comun::orden_tc2()
             .current_dir(&prep)
             .args(["new", t])
             .envs(f.entorno())
-            .env("LC_ALL", "C")
             .output()
             .expect("tc2 new");
         assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));

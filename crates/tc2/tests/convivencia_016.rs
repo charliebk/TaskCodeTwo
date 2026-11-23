@@ -15,7 +15,6 @@ mod comun;
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::process::Command;
 
 use std::time::Duration;
 
@@ -138,12 +137,10 @@ fn la_huella_de_la_016_queda_intacta_tras_new_y_start() {
     let raiz_antes = nombres(&clon);
 
     // `tc2 new` por el binario, como lo lanza la persona.
-    let o = Command::new(env!("CARGO_BIN_EXE_tc2"))
+    let o = comun::orden_tc2()
         .current_dir(&clon)
         .args(["new", "Convivir con la 0.16"])
         .envs(f.entorno())
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .expect("lanzar tc2");
     let out = String::from_utf8_lossy(&o.stdout);

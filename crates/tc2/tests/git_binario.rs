@@ -6,14 +6,14 @@
 mod comun;
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use comun::{Fixture, escribir};
 use tc2::contrato::Resultado;
 use tc2::git;
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str], locale: Option<&str>) -> Output {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_tc2"));
+    let mut c = comun::orden_tc2();
     c.current_dir(dir).args(args).envs(f.entorno());
     // Sin locale fijado, el idioma no puede venir del runner (macOS trae
     // LANG=en_US): se quitan las variables que lee `main.rs` y queda espanol.
