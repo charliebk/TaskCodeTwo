@@ -4731,7 +4731,7 @@ _`! cmp -s` bajo `set -eu` nunca para: la guarda del ensayo de `actualizar --cli
   ! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS"
   ```
 
-  Entrada con la que no hace el trabajo: dos `SHA256SUMS` identicos. Arnes `tareas/04-terminadas/TASK-138/seguimiento/arneses/a10/d4-cmp.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-actualizar.sh`; copia la linea 60 tal cual, comprueba que es identica a `sed -n 60p` del commit auditado, y la ejecuta con `set -eu` sobre dos ficheros iguales), ejecutado con `sh` (GNU bash 5.3.15 en modo sh) en una carpeta temporal bajo task-138, sin red:
+  Entrada con la que no hace el trabajo: dos `SHA256SUMS` identicos. Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a10/d4-cmp.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-actualizar.sh`; copia la linea 60 tal cual, comprueba que es identica a `sed -n 60p` del commit auditado, y la ejecuta con `set -eu` sobre dos ficheros iguales), ejecutado con `sh` (GNU bash 5.3.15 en modo sh) en una carpeta temporal bajo task-138, sin red:
   ```
   linea 60: ! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS"
   (la linea ejecutada es identica a la 60)
@@ -4786,7 +4786,7 @@ _El modo `publico` de `probar-instalador.sh` imprime VERDE si el instalador sale
       curl -fsSL "$url/install.sh" | HOME="$1" SHELL=/bin/sh sh
   ```
 
-  Entrada con la que no hace el trabajo: un instalador que sale 0 sin instalar nada (p. ej. curl falla y la tuberia da el 0 de `sh`). Arnes `tareas/04-terminadas/TASK-138/seguimiento/arneses/a10/d4-sin-version.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-instalador.sh`): carga las lineas 268-287 del commit auditado tal cual (`sed -n '268,287p'`), con `so=unix` y `linea_unix() { false | HOME="$1" SHELL=/bin/sh sh; }` (lo que da la linea 47 cuando curl falla). Ejecutado con `sh` en una carpeta temporal bajo task-138, sin red:
+  Entrada con la que no hace el trabajo: un instalador que sale 0 sin instalar nada (p. ej. curl falla y la tuberia da el 0 de `sh`). Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a10/d4-sin-version.sh` (recibe como argumento el fichero de `git show d82ea9d:.github/scripts/probar-instalador.sh`): carga las lineas 268-287 del commit auditado tal cual (`sed -n '268,287p'`), con `so=unix` y `linea_unix() { false | HOME="$1" SHELL=/bin/sh sh; }` (lo que da la linea 47 cuando curl falla). Ejecutado con `sh` en una carpeta temporal bajo task-138, sin red:
   ```
 
   probar: VERDE: sin TC2_VERSION, ultima estable o error con el arreglo
@@ -4864,7 +4864,7 @@ _`! cmp -s` en mitad del paso «vY» de `release.yml` nunca para: la guarda de q
             rm Cargo.toml.orig
   ```
 
-  Entrada con la que no hace el trabajo: un `Cargo.toml` cuya linea `version = "..."` no casa con `VERSION` (el `sed` no cambia nada). Arnes `tareas/04-terminadas/TASK-138/seguimiento/arneses/a11/d4-release-284.sh`: toma las lineas 281-285 con `git show d82ea9d:.github/workflows/release.yml | sed -n 281,285p` (fichero `arneses/a11/release-281-285.txt`, junto al arnes; el contraste usa `release-208-214.txt`), les quita la sangria, anade un `echo SIGUE` y lo ejecuta con el shell que GitHub Actions usa para `shell: bash` (`bash --noprofile --norc -eo pipefail`), GNU bash 5.3.15, sin red y sin cargo, en una carpeta temporal bajo task-138:
+  Entrada con la que no hace el trabajo: un `Cargo.toml` cuya linea `version = "..."` no casa con `VERSION` (el `sed` no cambia nada). Arnes `tareas/03-en-revision/TASK-138/seguimiento/arneses/a11/d4-release-284.sh`: toma las lineas 281-285 con `git show d82ea9d:.github/workflows/release.yml | sed -n 281,285p` (fichero `arneses/a11/release-281-285.txt`, junto al arnes; el contraste usa `release-208-214.txt`), les quita la sangria, anade un `echo SIGUE` y lo ejecuta con el shell que GitHub Actions usa para `shell: bash` (`bash --noprofile --norc -eo pipefail`), GNU bash 5.3.15, sin red y sin cargo, en una carpeta temporal bajo task-138:
   ```
   SIGUE: el sed no cambio Cargo.toml y la guarda de la linea 284 no paro
   salida=0
