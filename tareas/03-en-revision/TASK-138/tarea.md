@@ -27,10 +27,34 @@ dependencias: []
 Auditar todo el codigo existente de TaskCodeTwo (crates/tc2/src, crates/tc2/tests, xtask, crates/distribucion y .github/workflows) contra la regla 4D de Carlos, recomendada por TaskCode 0.17 al actualizar: 1) Duplicacion: dos funciones o tipos que hacen lo mismo con pequenas diferencias. 2) Desviacion: codigo que se sale del objetivo de su tarea o de su ADR (o un criterio dado por cumplido sin estarlo). 3) Diluvio: lineas y tipos de mas donde bastan pocos. 4) Disfraz: codigo o tests que aparentan resolver algo y no lo comprueban. La auditoria solo diagnostica; las correcciones van en tareas de seguimiento.
 
 ## Criterios de aceptacion
-- [ ] docs/auditoria-4d.md lista cada caso con su regla (D1 a D4), fichero:linea, la evidencia que lo prueba (los dos fragmentos duplicados, el mutante que sobrevive, el criterio desviado) y su severidad CRITICO, IMPORTANTE o MENOR
-- [ ] Cubre todos los modulos de crates/tc2/src, los tests, xtask, crates/distribucion y los workflows; el documento lleva una tabla de cobertura por modulo con el numero de casos
-- [ ] Cada caso IMPORTANTE o CRITICO tiene su tarea de seguimiento en tareas/00-planificadas, agrupadas por modulo
-- [ ] Los casos de Disfraz en tests se prueban con un mutante que sobrevive, ejecutado de verdad
+- [x] docs/auditoria-4d.md lista cada caso con su regla (D1 a D4), fichero:linea, la evidencia que lo prueba (los dos fragmentos duplicados, el mutante que sobrevive, el criterio desviado) y su severidad CRITICO, IMPORTANTE o MENOR
+- [x] Cubre todos los modulos de crates/tc2/src, los tests, xtask, crates/distribucion y los workflows; el documento lleva una tabla de cobertura por modulo con el numero de casos
+- [x] Los casos de Disfraz en tests se prueban con un mutante que sobrevive, ejecutado de verdad
+
+### Tras el cierre
+- [ ] Cada caso IMPORTANTE o CRITICO tiene su tarea de seguimiento en tareas/00-planificadas, agrupadas por modulo (aplazado por decision de Carlos, 2026-11-22: se crea cuando el plugin TaskCode publique su version con arreglos; las 12 tareas estan preparadas en `seguimiento/`)
+
+## Resultado
+
+Auditoria 4D (Duplicacion, Desviacion, Diluvio, Disfraz) de todo el codigo de TaskCodeTwo sobre el commit d82ea9d, solo diagnostico. Informe: `docs/auditoria-4d.md`.
+
+- **108 casos**: 82 IMPORTANTE (18 `divergente`), 0 CRITICO, 26 MENOR. Por regla: D1 54, D2 12, D3 17, D4 25.
+- **Cobertura total**: los 283 ficheros de `git ls-tree d82ea9d` fuera de `tareas/` y `docs/` estan en la tabla de cobertura; lectura completa de todo el codigo, scripts, instaladores, workflows y configuracion; lectura mecanica declarada solo para `Cargo.lock` y 37 fixtures de datos grandes.
+- **Metodo**: pase 0 determinista (ast-grep, clippy con lints de complejidad, scripts propios; sin descargas), 11 auditores con rutas exclusivas (A1-A7 por dominio, A8 transversal y duplicacion entre modulos, A9-A11 para cerrar los huecos detectados por el cruce de cobertura), mutacion dirigida y en serie en un clon propio, y consolidacion con fusion de duplicados y normalizacion de severidades.
+- **Disfraz probado**: los 18 D4 de test con su mutante en verde y su control en rojo, ejecutados de verdad; los D4 de scripts (A10-01, A10-02, A11-01) con arneses que ejecutan las lineas del commit, guardados en `seguimiento/arneses/`. A10-05 (wget) queda como no verificado: no hay wget y el plan prohibe descargarlo.
+- **Seguimiento**: 12 tareas preparadas en `seguimiento/` (9 por dueno y 3 por abstraccion comun: soporte de tests, capa de ordenes y utilidades de E/S y tiempo), sin crear por decision de Carlos (2026-11-22): las correcciones esperan a la nueva version del plugin TaskCode.
+
+Decisiones (opcion recomendada, delegada por Carlos, 2026-11-22): sin descargas; mutacion dirigida y serializada; D1 divergente = IMPORTANTE con marca; criterio 3 aplazado.
+
+Revision por pares:
+- Ronda 1 (14de27c): code-quality-reviewer, aprobada-con-correcciones, sin CRITICO ni IMPORTANTE. Reprodujo por script 605 de 606 lineas de evidencia contra d82ea9d (la otra es una cita recortada de un ADR), 8 casos D1/D2/D3 a mano, 3 mutaciones (A11-04, A1-08, A3-01) y el arnes de A10-01, y cuadro la cobertura. Cinco MENOR corregidos en 1882024: textos de severidad de 8 fichas, salida mal rotulada de A10-01, arneses copiados al repo, cabecera de las tareas preparadas y nota de los 11 ficheros de configuracion. `verificar-menores` reconocio MEN-1, MEN-2 y MEN-5; MEN-3 y MEN-4 viven dentro de la carpeta de la tarea, donde el comando no mira (anotado en `menores-pendientes.md`).
+
+Sin comprobar: A10-05 con wget real; los E2E con tokens reales quedan «no verificables por mutacion».
+
+## Divergencias
+
+- La auditoria tuvo 11 auditores en vez de 8: A9, A10 y A11 se anadieron al detectar ficheros leidos por zonas o fuera del reparto (exigencia de Carlos: ningun fichero sin leer).
+- El criterio 3 (crear las tareas) se aplaza por decision de Carlos; las tareas quedan preparadas en `seguimiento/`.
 
 ## Transiciones
 
