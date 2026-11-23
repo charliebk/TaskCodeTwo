@@ -19,10 +19,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use comun::{Fixture, escribir};
-use tc2::contrato::Informe;
-use tc2::estado::{self, Operacion};
-use tc2::identidad::{Cache, Cuenta, Quien};
+use comun::remoto::como_persona;
+use comun::{Fixture, escribir, texto, valor};
+use tc2::estado;
+use tc2::identidad::{Cache, Cuenta};
+use tc2::plan::{aprobar_en, aprobar_hito_en};
 use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
@@ -84,10 +85,6 @@ fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Outp
         .expect("lanzar tc2")
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// `tc2 <args>` con el entorno dado: (codigo, la unica linea de stdout, stderr).
 fn tc2_con(
     dir: &Path,
@@ -103,12 +100,6 @@ fn tc2_con(
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
     let (c, out, _) = tc2_con(dir, entorno_ssh(f), args);
     (c, out)
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 fn ana() -> Cuenta {
@@ -178,24 +169,6 @@ fn clave(f: &Fixture) -> PathBuf {
     c
 }
 
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
-/// `approve` de la persona ana con la biblioteca: la linea de contrato.
-fn como_persona(dir: &Path, entorno: Vec<(OsString, OsString)>) -> String {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno);
-    let q = || -> Result<Quien, Informe> { Ok(Quien::Persona(ana())) };
-    let e = tc2::toma::Entorno {
-        dir,
-        git: &g,
-        quien: &q,
-        catalogo: &sin_catalogo,
-        ahora: tc2::identidad::ahora(),
-    };
-    tc2::plan::aprobar_en(&e, "TASK-001").linea()
-}
-
 /// Criterio 1 (E2E): el agente (sin terminal) no aprueba: `approve
 /// rechazada motivo=identidad rol=persona` y el remoto intacto, tambien con
 /// `--decidido-por automatico` (que ni existe: `uso`).
@@ -256,7 +229,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
     let cuerpo = f.crudo(&bare, &["cat-file", "-p", &guardado]);
     assert!(!cuerpo.contains("gpgsig"), "plan guardar firmo: {cuerpo}");
 
-    let out = como_persona(&a, firma.clone());
+    let out = como_persona(&a, firma.clone(), ana(), |e| aprobar_en(e, "TASK-001"));
     assert!(out.starts_with("approve ok id=TASK-001 commit="), "{out}");
     let sha = punta(&f, &bare);
     assert_eq!(valor(&out, "commit"), sha.get(..12), "{out}");
@@ -299,7 +272,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
         "{fila}"
     );
     // Repetir: nada que escribir ni que firmar.
-    let otra = como_persona(&a, firma);
+    let otra = como_persona(&a, firma, ana(), |e| aprobar_en(e, "TASK-001"));
     assert!(
         otra.starts_with("approve sin-cambios id=TASK-001"),
         "{otra}"
@@ -315,7 +288,12 @@ fn c3_una_clave_que_no_firma_rechaza_sin_publicar() {
     let (bare, a) = preparar(&f);
     guardar_plan(&f, &a, entorno_ssh(&f), "# Plan\n\nhecho\n");
     let antes = f.huella(&bare, &a);
-    let out = como_persona(&a, con_firma(entorno_ssh(&f), &f.raiz.join("no-existe")));
+    let out = como_persona(
+        &a,
+        con_firma(entorno_ssh(&f), &f.raiz.join("no-existe")),
+        ana(),
+        |e| aprobar_en(e, "TASK-001"),
+    );
     assert_eq!(out, "approve rechazada id=TASK-001 motivo=firma");
     assert_eq!(f.huella(&bare, &a), antes);
 }
@@ -327,7 +305,9 @@ fn c3_el_esqueleto_no_se_aprueba() {
     let (bare, a) = preparar(&f);
     let antes = f.huella(&bare, &a);
     let clave = clave(&f);
-    let out = como_persona(&a, con_firma(entorno_ssh(&f), &clave));
+    let out = como_persona(&a, con_firma(entorno_ssh(&f), &clave), ana(), |e| {
+        aprobar_en(e, "TASK-001")
+    });
     assert_eq!(out, "approve rechazada id=TASK-001 motivo=plan-esqueleto");
     assert_eq!(f.huella(&bare, &a), antes);
 }
@@ -375,20 +355,6 @@ fn d1a_pedir_cambios_y_plan_abre_la_ronda_2() {
 }
 
 // --- F4-3 (TASK-038): `tc2 approve --hito <n>` ---
-
-/// `approve --hito <hito>` de la persona ana con la biblioteca.
-fn hito_como_persona(dir: &Path, entorno: Vec<(OsString, OsString)>, hito: u32) -> String {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno);
-    let q = || -> Result<Quien, Informe> { Ok(Quien::Persona(ana())) };
-    let e = tc2::toma::Entorno {
-        dir,
-        git: &g,
-        quien: &q,
-        catalogo: &sin_catalogo,
-        ahora: tc2::identidad::ahora(),
-    };
-    tc2::plan::aprobar_hito_en(&e, hito).linea()
-}
 
 /// Remoto con personas y configuracion y `n` tareas del sprint 4
 /// (`TASK-001`...), cada una planificada por el agente y con su plan propio
@@ -463,7 +429,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
     let firma = con_firma(entorno_ssh(&f), &clave);
     let antes = punta(&f, &bare);
 
-    let out = hito_como_persona(&a, firma.clone(), 4);
+    let out = como_persona(&a, firma.clone(), ana(), |e| aprobar_hito_en(e, 4));
     println!("{out}");
     assert!(out.starts_with("approve ok hito=4 commit="), "{out}");
     let ids: Vec<String> = (1..=10).map(|i| format!("TASK-{i:03}")).collect();
@@ -556,7 +522,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
     );
 
     // Repetir: nada que escribir ni que firmar.
-    let otra = hito_como_persona(&a, firma, 4);
+    let otra = como_persona(&a, firma, ana(), |e| aprobar_hito_en(e, 4));
     println!("{otra}");
     assert!(otra.starts_with("approve sin-cambios hito=4"), "{otra}");
     assert_eq!(punta(&f, &bare), sha);
@@ -577,7 +543,9 @@ fn f4_3_approve_hito_todo_o_nada() {
     assert_eq!(c, Some(0), "{out}");
     let antes = f.huella(&bare, &a);
     let clave = clave(&f);
-    let out = hito_como_persona(&a, con_firma(entorno_ssh(&f), &clave), 4);
+    let out = como_persona(&a, con_firma(entorno_ssh(&f), &clave), ana(), |e| {
+        aprobar_hito_en(e, 4)
+    });
     println!("{out}");
     assert_eq!(
         out,
@@ -709,7 +677,7 @@ fn plan_approve_review_usan_la_seleccion() {
     let clave = clave(&f);
     let firma = con_firma(entorno_ssh(&f), &clave);
     guardar_plan(&f, &a, firma.clone(), "# Plan\n\nhecho\n");
-    let out = como_persona(&a, firma);
+    let out = como_persona(&a, firma, ana(), |e| aprobar_en(e, "TASK-001"));
     assert!(out.starts_with("approve ok id=TASK-001 commit="), "{out}");
     assert_eq!(
         valor(&out, "dominios"),

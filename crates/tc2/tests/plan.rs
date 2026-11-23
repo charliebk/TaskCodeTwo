@@ -14,7 +14,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta};
@@ -54,10 +54,6 @@ fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Outp
         .expect("lanzar tc2")
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 /// Un exito no escribe en stderr; un fallo, una linea.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
@@ -71,12 +67,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
         assert_eq!(err.lines().count(), 1, "{err}");
     }
     (o.status.code(), out.trim_end().to_owned())
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 fn identificar(dir: &Path, id: u64, login: &str) {

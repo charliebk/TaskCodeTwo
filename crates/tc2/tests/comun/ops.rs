@@ -118,6 +118,11 @@ pub fn catalogo(a: &str) -> Option<Box<dyn Operacion>> {
     }
 }
 
+/// Catalogo vacio: ninguna pendiente que re-ejecutar.
+pub fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
+    None
+}
+
 /// Generador minimo de `ROADMAP.md`: una linea por fichero de `notas/`.
 pub fn roadmap(e: &dyn Estado) -> Result<String, Fallo> {
     let mut s = String::from("# Roadmap de prueba\n");

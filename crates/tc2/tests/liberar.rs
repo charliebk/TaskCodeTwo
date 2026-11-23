@@ -16,10 +16,12 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use comun::{Fixture, escribir};
-use tc2::contrato::{Informe, Resultado};
+use comun::remoto::como_persona;
+use comun::{Fixture, escribir, texto, valor};
+use tc2::ciclo::dejar_en;
+use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta, Quien};
+use tc2::identidad::{Cache, Cuenta};
 use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
@@ -65,10 +67,6 @@ fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Outp
         .expect("lanzar tc2")
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
     salida(&lanzar(dir, entorno_ssh(f), args))
@@ -103,12 +101,6 @@ fn git_con(f: &Fixture, dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Stri
         .expect("lanzar git");
     assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
     texto(&o.stdout)
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 fn cuenta(id: u64, login: &str) -> Cuenta {
@@ -283,21 +275,6 @@ fn envejecer(f: &Fixture, dir: &Path, id: &str) {
         tarea(f, &f.raiz.join("remoto.git"), id).contains("| 2020-01-01T00:00:00Z | start |"),
         "no se envejecio"
     );
-}
-
-/// `liberar` (sin `destino`) o `reasignar` con la biblioteca, lanzado por
-/// una persona en un terminal: la linea de contrato.
-fn como_persona(f: &Fixture, dir: &Path, quien: Cuenta, id: &str, destino: Option<&str>) -> String {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
-    let q = move || -> Result<Quien, Informe> { Ok(Quien::Persona(quien.clone())) };
-    let e = tc2::toma::Entorno {
-        dir,
-        git: &g,
-        quien: &q,
-        catalogo: &sin_catalogo,
-        ahora: tc2::identidad::ahora(),
-    };
-    tc2::ciclo::dejar_en(&e, id, destino).linea()
 }
 
 /// C1 y C2: el dueno libera su tarea en curso (publicada): `planificada`,
@@ -503,7 +480,9 @@ fn c5_c6_c10_tarea_de_otra_persona_por_actividad() {
     for id in ["TASK-001", "TASK-002"] {
         envejecer(&f, &a, id);
     }
-    let out = como_persona(&f, &a, cuenta(1001, "ana"), "TASK-001", None);
+    let out = como_persona(&a, entorno_ssh(&f), cuenta(1001, "ana"), |e| {
+        dejar_en(e, "TASK-001", None)
+    });
     assert_eq!(valor(&out, "motivo"), Some("activa"), "{out}");
     // La rama tambien envejecida: el agente no puede, ana en persona si.
     let viejo = Some("2020-01-02T00:00:00Z");
@@ -515,7 +494,9 @@ fn c5_c6_c10_tarea_de_otra_persona_por_actividad() {
     assert_eq!(valor(&out, "motivo"), Some("requiere-persona"), "{out}");
     assert_eq!(valor(&out, "asignado"), Some("beto"), "{out}");
     assert_eq!(punta(&f, &bare), p);
-    let out = como_persona(&f, &a, cuenta(1001, "ana"), "TASK-001", Some("ana"));
+    let out = como_persona(&a, entorno_ssh(&f), cuenta(1001, "ana"), |e| {
+        dejar_en(e, "TASK-001", Some("ana"))
+    });
     assert!(out.starts_with("reasignar ok id=TASK-001 commit="), "{out}");
     assert_eq!(valor(&out, "asignado-anterior"), Some("beto"), "{out}");
     assert_eq!(valor(&out, "asignado"), Some("ana"), "{out}");
@@ -524,7 +505,9 @@ fn c5_c6_c10_tarea_de_otra_persona_por_actividad() {
         " | reasignar | manual | persona | {} |\n",
         tc2::VERSION
     )));
-    let out = como_persona(&f, &a, cuenta(1001, "ana"), "TASK-002", None);
+    let out = como_persona(&a, entorno_ssh(&f), cuenta(1001, "ana"), |e| {
+        dejar_en(e, "TASK-002", None)
+    });
     assert!(out.starts_with("liberar ok id=TASK-002 commit="), "{out}");
     assert_eq!(valor(&out, "asignado-anterior"), Some("beto"), "{out}");
     assert!(tarea(&f, &bare, "TASK-002").contains("\nestado: \"planificada\"\n"));
@@ -707,7 +690,9 @@ fn c12_heredado_queda_como_objeto() {
     assert_eq!(c, Some(3), "{out}");
     assert_eq!(valor(&out, "motivo"), Some("requiere-persona"), "{out}");
     let antes = tarea(&f, &bare, "TASK-001");
-    let out = como_persona(&f, &a, cuenta(1002, "beto"), "TASK-001", Some("beto"));
+    let out = como_persona(&a, entorno_ssh(&f), cuenta(1002, "beto"), |e| {
+        dejar_en(e, "TASK-001", Some("beto"))
+    });
     assert!(out.starts_with("reasignar ok id=TASK-001 "), "{out}");
     assert_eq!(valor(&out, "asignado-anterior"), Some("ana@x.com"), "{out}");
     let despues = tarea(&f, &bare, "TASK-001");

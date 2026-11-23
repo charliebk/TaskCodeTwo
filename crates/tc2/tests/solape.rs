@@ -16,7 +16,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta, Quien};
@@ -59,10 +59,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
         .expect("lanzar tc2")
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// `git <args>` en `dir` con el remoto de la fixture.
 fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
     let o = Command::new("git")
@@ -75,13 +71,6 @@ fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
         .expect("lanzar git");
     assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
     texto(&o.stdout)
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// Las claves `solape*` y `en-curso-modulos` de una linea.

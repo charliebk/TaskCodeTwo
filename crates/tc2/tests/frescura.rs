@@ -13,7 +13,7 @@ mod comun;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::i18n::Idioma;
@@ -89,13 +89,6 @@ fn lanzar(
 /// `tc2 <args>` con el remoto de la fixture (ruta local o ssh servido).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
     lanzar(dir, entorno_ssh(f), "es", args)
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split_whitespace()
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// Las claves del JSON de una orden.

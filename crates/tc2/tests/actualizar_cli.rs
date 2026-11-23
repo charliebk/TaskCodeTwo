@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 
+use comun::texto;
 use distribucion::Target;
 
 /// Carpeta temporal de una prueba, bajo `target/tmp` del workspace
@@ -273,10 +274,6 @@ fn lanzar_con(
         c.env(k, v);
     }
     c.output().unwrap()
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
 }
 
 /// Ficheros de `dir` que no son el ejecutable.

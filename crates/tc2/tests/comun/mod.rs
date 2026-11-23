@@ -10,9 +10,10 @@ pub mod git;
 pub mod http_mock;
 pub mod lanzador;
 pub mod ops;
+pub mod remoto;
 
 #[allow(unused_imports)] // cada fichero de tests usa una parte
-pub use lanzador::{BINARIO, orden_tc2};
+pub use lanzador::{BINARIO, orden_tc2, texto, valor, volcado};
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

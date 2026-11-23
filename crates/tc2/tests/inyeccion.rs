@@ -21,7 +21,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, volcado};
 use serde_json::Value;
 use tc2::identidad::{Cache, Cuenta};
 use tc2::plataforma::Proveedor;
@@ -167,14 +167,6 @@ fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Outp
         .expect("lanzar tc2")
 }
 
-fn salida(o: &Output) -> String {
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&o.stdout),
-        String::from_utf8_lossy(&o.stderr)
-    )
-}
-
 /// Remoto con personas, configuracion y la tarea de `alta` (`tc2 new`); el
 /// clon `a` tiene `origin` en GitHub y la identidad de ana.
 fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
@@ -187,7 +179,7 @@ fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
     let mut v = vec!["new"];
     v.extend_from_slice(alta);
     let o = lanzar(&prep, f.entorno(), &v);
-    assert_eq!(o.status.code(), Some(0), "{}", salida(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "a"]);
     let a = f.raiz.join("a");
     f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
@@ -268,7 +260,7 @@ fn la_carpeta_de_la_tarea_y_la_peticion_de_plan_quedan_inertes() {
     ];
     let (bare, a) = remoto_con_tarea(&f, &alta);
     let o = lanzar(&a, entorno_ssh(&f), &["plan", "TASK-001"]);
-    assert_eq!(o.status.code(), Some(0), "{}", salida(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     let p = f.crudo(
         &bare,
         &[
@@ -307,7 +299,7 @@ fn ok(f: &Fixture, dir: &Path, args: &[&str]) -> String {
     let mut e = f.entorno();
     e.push(("CLAUDE_CONFIG_DIR".into(), vacia.into_os_string()));
     let o = lanzar(dir, e, args);
-    assert_eq!(o.status.code(), Some(0), "tc2 {args:?}: {}", salida(&o));
+    assert_eq!(o.status.code(), Some(0), "tc2 {args:?}: {}", volcado(&o));
     String::from_utf8_lossy(&o.stdout).into_owned()
 }
 
@@ -659,7 +651,7 @@ fn hallazgos(dir: &Path, args: &[&str]) -> String {
         o.status.code(),
         Some(0),
         "hallazgos {args:?}: {}",
-        salida(&o)
+        volcado(&o)
     );
     String::from_utf8_lossy(&o.stdout).into_owned()
 }

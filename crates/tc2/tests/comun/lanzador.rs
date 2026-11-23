@@ -7,7 +7,7 @@
 //! lo suyo: en `Command` gana la ultima operacion sobre cada variable, asi
 //! que un `.env(..)` o `.env_remove(..)` posterior cambia la base.
 
-use std::process::Command;
+use std::process::{Command, Output};
 
 use tc2::plataforma::Rol;
 
@@ -28,4 +28,30 @@ pub fn orden_tc2() -> Command {
         }
     }
     c
+}
+
+/// Bytes de una salida como texto.
+pub fn texto(b: &[u8]) -> String {
+    String::from_utf8_lossy(b).into_owned()
+}
+
+/// Valor de `clave=` en la linea de contrato: la primera linea de `salida`,
+/// sin el final de linea.
+pub fn valor<'a>(salida: &'a str, clave: &str) -> Option<&'a str> {
+    salida
+        .lines()
+        .next()?
+        .trim_end()
+        .split(' ')
+        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+}
+
+/// Codigo, stdout y stderr de una salida, para el mensaje de un assert.
+pub fn volcado(o: &Output) -> String {
+    format!(
+        "codigo {:?}\nstdout: {}\nstderr: {}",
+        o.status.code(),
+        texto(&o.stdout),
+        texto(&o.stderr)
+    )
 }

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Output;
 use std::sync::{Arc, Barrier};
 
-use comun::Fixture;
+use comun::{Fixture, texto, valor};
 use tc2::alta::Alta;
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
@@ -33,10 +33,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
         .envs(f.entorno())
         .output()
         .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
 }
 
 /// Carpetas `TASK-*` publicadas en el remoto y el titulo de cada una.
@@ -171,13 +167,6 @@ fn el_segundo_clon_recibe_el_siguiente_id_sin_fetch_previo() {
             ),
         ]
     );
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// TASK-076 C2: una rama de tarea que solo esta en el remoto (sin carpeta)
@@ -388,7 +377,7 @@ fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
         let out = texto(&o.stdout);
         let err = texto(&o.stderr);
         assert_eq!(o.status.code(), Some(2), "{args:?}: {out} {err}");
-        assert_eq!(valor(out.trim_end(), "motivo"), Some(motivo), "{out}");
+        assert_eq!(valor(&out, "motivo"), Some(motivo), "{out}");
         assert_eq!(err.lines().count(), 1, "{err}");
     }
     let despues = f.crudo(

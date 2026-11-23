@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Barrier};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta};
@@ -74,10 +74,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
     lanzar(dir, entorno_ssh(f), args)
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// `git <args>` en `dir` con el remoto de la fixture.
 fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
     let o = Command::new("git")
@@ -90,13 +86,6 @@ fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
         .expect("lanzar git");
     assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
     texto(&o.stdout)
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// Identifica el clon `dir` como la persona `id`/`login` (cache vigente).
@@ -385,7 +374,7 @@ fn c3_sin_red_no_deja_nada() {
     let out = texto(&o.stdout);
     assert_eq!(o.status.code(), Some(4), "{out}");
     assert!(out.starts_with("start sinred id=TASK-001 "), "{out}");
-    assert_eq!(valor(out.trim_end(), "pendiente"), Some("no"), "{out}");
+    assert_eq!(valor(&out, "pendiente"), Some("no"), "{out}");
     assert_eq!(f.huella(&bare, &a), antes);
     let pendientes = f.crudo(&a, &["for-each-ref", "refs/taskcodetwo/"]);
     assert!(pendientes.trim().is_empty(), "{pendientes}");

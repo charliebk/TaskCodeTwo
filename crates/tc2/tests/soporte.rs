@@ -60,3 +60,12 @@ fn git_en_aisla_la_configuracion_del_usuario() {
 fn git_en_sin_gitconfig_propio_no_lanza_git() {
     comun::git::git_en(std::path::Path::new("."), &[], &["--version"]);
 }
+
+/// A3-06: una sola `valor`, sobre la linea de contrato (la primera) y sin el
+/// final de linea; no confunde una clave con otra que empieza igual.
+#[test]
+fn valor_recorta_y_lee_la_linea_de_contrato() {
+    assert_eq!(comun::valor("k=v\n", "k"), Some("v"));
+    assert_eq!(comun::valor("a k=1\nb k=2\n", "k"), Some("1"));
+    assert_eq!(comun::valor("x kk=1 k=2", "k"), Some("2"));
+}

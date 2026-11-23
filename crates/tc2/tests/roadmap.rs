@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, valor};
 use tc2::estado::{self, Estado, Fallo};
 use tc2::plataforma::Personas;
 use tc2::roadmap::{self, generar::ids_de_la_linea, mermaid, zona};
@@ -484,9 +484,7 @@ fn publicar_estado(f: &Fixture, bare: &Path) {
 
 /// Valor de `clave=` (lista separada por comas) de una linea de contrato.
 fn lista(linea: &str, clave: &str) -> Vec<String> {
-    linea
-        .split_whitespace()
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+    valor(linea, clave)
         .unwrap_or_default()
         .split(',')
         .filter(|s| !s.is_empty())

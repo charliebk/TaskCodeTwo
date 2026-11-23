@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::sync::{Arc, Barrier};
 
-use comun::Fixture;
+use comun::{Fixture, texto, valor};
 use tc2::estado;
 
 const RAMA: &str = estado::RAMA;
@@ -24,18 +24,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
         .envs(f.entorno())
         .output()
         .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .trim_end()
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// Escribe el fichero de import en la carpeta temporal de la fixture.

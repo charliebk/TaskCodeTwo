@@ -11,7 +11,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::identidad::{Cache, Cuenta};
@@ -22,10 +22,6 @@ use tc2::tarea::{Cuerpo, Tarea};
 const ORIGIN: &str = "ssh://git@github.com/o/r.git";
 const PERSONAS: &str =
     "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
 
 /// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
 fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {

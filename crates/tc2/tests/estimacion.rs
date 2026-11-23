@@ -12,7 +12,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto, valor};
 use tc2::carril::Carril;
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Leida, Operacion};
@@ -221,22 +221,10 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
         .expect("lanzar tc2")
 }
 
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
 /// (codigo, stdout, stderr) de `tc2 <args>`.
 fn correr(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
     let o = tc2(f, dir, args);
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .lines()
-        .next()?
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 fn identificar(dir: &Path, id: u64, login: &str) {
