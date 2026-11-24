@@ -588,9 +588,22 @@ pub fn aviso_parecidas(p: &[Parecida], idioma: Idioma) -> Option<String> {
 }
 
 /// Reconstruye un [`Alta`] desde su anotacion (para el catalogo).
+///
+/// La anotacion solo lleva el titulo, y la reconstruida es un alta con ese
+/// titulo y lo demas de la plantilla (tipo, objetivo, criterios,
+/// dependencias y lote se pierden). No hace falta mas: un `new` exige red
+/// ([`Operacion::exige_red`], F1-2 D2b), asi que sin red falla y nunca
+/// queda pendiente de reintento; el catalogo no llega a reconstruir uno con
+/// datos. Si `new` dejara de exigir red, la anotacion tendria que llevar la
+/// entrada entera (lo vigila `anotacion_ida_y_vuelta`).
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
+    alta_de_anotacion(a).map(|x| Box::new(x) as Box<dyn Operacion>)
+}
+
+/// La mitad sin `Box` de [`desde_anotacion`].
+fn alta_de_anotacion(a: &str) -> Option<Alta> {
     let titulo = a.strip_prefix(NOMBRE)?.strip_prefix('|')?;
-    titulo_valido(titulo).then(|| Box::new(Alta::nueva(titulo)) as Box<dyn Operacion>)
+    titulo_valido(titulo).then(|| Alta::nueva(titulo))
 }
 
 pub use crate::tarea::titulo_valido;
@@ -1075,7 +1088,20 @@ mod tests {
     fn anotacion_ida_y_vuelta() {
         let a = Alta::con_fecha("con | barra", "2026-11-15");
         assert_eq!(a.anotacion(), "new|con | barra");
-        assert!(desde_anotacion(&a.anotacion()).is_some());
+        // La reconstruida es la misma operacion (como en `ciclo`).
+        let r = desde_anotacion(&a.anotacion());
+        assert_eq!(
+            r.as_ref()
+                .map(|x| (x.nombre().to_owned(), x.anotacion(), x.exige_red())),
+            Some((a.nombre().to_owned(), a.anotacion(), a.exige_red()))
+        );
+        // Solo el titulo: basta porque un `new` exige red y nunca queda
+        // pendiente (F1-2 D2b). Si dejara de exigirla, esto sale en rojo.
+        assert!(a.exige_red());
+        assert_eq!(
+            alta_de_anotacion(&a.anotacion()).map(|x| x.entrada),
+            Some(Entrada::nueva("con | barra"))
+        );
         assert!(desde_anotacion("new|").is_none());
         assert!(desde_anotacion("otra|x").is_none());
         assert!(desde_anotacion("newx|t").is_none());
