@@ -403,20 +403,13 @@ pub(crate) fn construir_commit_sellado(
     Ok(Some(s.stdout.trim().to_owned()))
 }
 
-/// Si `origin` esta configurado. `ls-remote --get-url` no habla con el
-/// remoto: sin `origin`, devuelve el nombre tal cual.
+/// Si `origin` esta configurado (sin hablar con el remoto).
 pub(crate) fn hay_remoto(git: &Git, dir: &Path, op: &str) -> Paso<bool> {
-    let s = correr(
-        git,
-        dir,
-        op,
-        Subcomando::LsRemote,
-        &["--get-url", super::REMOTO],
-    )?;
-    Ok(s.exito() && s.stdout.trim() != super::REMOTO && !s.stdout.trim().is_empty())
+    Ok(url_origin(git, dir, op)?.is_some())
 }
 
-/// URL de `origin`, si esta configurado (sin hablar con el remoto).
+/// URL de `origin`, si esta configurado. `ls-remote --get-url` no habla con
+/// el remoto: sin `origin`, devuelve el nombre tal cual.
 pub(crate) fn url_origin(git: &Git, dir: &Path, op: &str) -> Paso<Option<String>> {
     let s = correr(
         git,
