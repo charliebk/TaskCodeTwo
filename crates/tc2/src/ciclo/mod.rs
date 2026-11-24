@@ -434,16 +434,10 @@ fn de_la_orden(mut i: Informe, nombre: &str, id: &str) -> Informe {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::prueba::{R, aislar, entorno, sh};
     use crate::identidad::{Cuenta, Quien};
     use crate::plataforma::Proveedor;
-    use std::ffi::OsString;
     use std::path::PathBuf;
-    use std::process::Command;
-
-    type R<T> = Result<T, Box<dyn std::error::Error>>;
-
-    /// Configuracion de git aislada de la del usuario.
-    const CONFIG: &str = "[user]\n\tname = Prueba\n\temail = prueba@example.com\n[core]\n\tautocrlf = false\n[init]\n\tdefaultBranch = develop\n[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n";
 
     const PERSONAS: &str =
         "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
@@ -457,31 +451,6 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
-    }
-
-    fn entorno(raiz: &Path) -> Vec<(OsString, OsString)> {
-        vec![
-            ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
-            (
-                "GIT_CONFIG_GLOBAL".into(),
-                raiz.join("gitconfig").into_os_string(),
-            ),
-        ]
-    }
-
-    /// git de sistema para preparar el escenario; devuelve stdout recortado.
-    fn sh(raiz: &Path, dir: &Path, args: &[&str]) -> R<String> {
-        let s = Command::new("git")
-            .current_dir(dir)
-            .args(args)
-            .envs(entorno(raiz))
-            .env("LC_ALL", "C")
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()?;
-        if !s.status.success() {
-            return Err(format!("git {args:?}: {}", String::from_utf8_lossy(&s.stderr)).into());
-        }
-        Ok(String::from_utf8_lossy(&s.stdout).trim().to_owned())
     }
 
     fn persona(id: u64, login: &str) -> Quien {
@@ -508,7 +477,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&raiz);
         std::fs::create_dir_all(&raiz)?;
         let _borrar = Carpeta(raiz.clone());
-        std::fs::write(raiz.join("gitconfig"), CONFIG)?;
+        aislar(&raiz)?;
         sh(
             &raiz,
             &raiz,
@@ -573,7 +542,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&raiz);
         std::fs::create_dir_all(&raiz)?;
         let _borrar = Carpeta(raiz.clone());
-        std::fs::write(raiz.join("gitconfig"), CONFIG)?;
+        aislar(&raiz)?;
         sh(
             &raiz,
             &raiz,

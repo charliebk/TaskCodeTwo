@@ -516,11 +516,10 @@ impl Operacion for Planificar {
 mod tests {
     use super::*;
     use crate::config::ModoFlujo;
+    use crate::estado::prueba::{EnMemoria, motivo};
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
     use crate::tarea::Tarea;
-    use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.
     const AHORA: u64 = 1_794_910_830;
@@ -541,26 +540,10 @@ mod tests {
         t.escribir(&Cuerpo::con_enunciado("Que haga algo", &c))
     }
 
-    fn estado(ficheros: &[(&str, String)]) -> EnMemoria {
-        EnMemoria(
-            ficheros
-                .iter()
-                .map(|(r, t)| ((*r).to_owned(), t.clone()))
-                .collect::<BTreeMap<_, _>>(),
-        )
-    }
-
     fn rutas(r: &Result<Vec<Cambio>, Fallo>) -> Vec<String> {
         r.as_ref()
             .map(|c| c.iter().map(|x| x.ruta.clone()).collect())
             .unwrap_or_default()
-    }
-
-    fn motivo(r: &Result<Vec<Cambio>, Fallo>) -> Option<&str> {
-        match r {
-            Err(Fallo::Rechazada { motivo, .. }) => Some(motivo),
-            _ => None,
-        }
     }
 
     /// Criterio 2 (unitario): uno en fix (solo la peticion de redaccion),
@@ -568,7 +551,7 @@ mod tests {
     /// el modo de la configuracion quedan en la tarea.
     #[test]
     fn uno_en_fix_y_todos_en_riesgo_alto() {
-        let e = estado(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
+        let e = EnMemoria::de_rutas(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
         let mut c = Config::suelo();
         c.modo_flujo = ModoFlujo::Automatico;
         let op = Planificar::nueva("TASK-001", &ana(), None, &c, AHORA);
@@ -629,7 +612,7 @@ mod tests {
     #[test]
     fn rondas_y_carril() {
         let c = Config::suelo();
-        let mut e = estado(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
+        let mut e = EnMemoria::de_rutas(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
         let aplicar = |e: &mut EnMemoria, carril: Option<Carril>, c: &Config| {
             let op = Planificar::nueva("TASK-001", &ana(), carril, c, AHORA);
             let r = op.aplicar(e);
@@ -681,7 +664,7 @@ mod tests {
     #[test]
     fn cambios_pedidos_cierran_la_ronda() {
         let c = Config::suelo();
-        let mut e = estado(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
+        let mut e = EnMemoria::de_rutas(&[("TASK-001/tarea.md", md("fix", "planificada", &["a"]))]);
         let aplicar = |e: &mut EnMemoria| {
             let op = Planificar::nueva("TASK-001", &ana(), None, &c, AHORA);
             let r = op.aplicar(e);
@@ -720,7 +703,7 @@ mod tests {
         sin_objetivo.estado = "planificada".into();
         let otra = md("feature", "planificada", &["a"])
             .replace("asignado_a: null", "asignado_a: {id: 9, login: \"beto\"}");
-        let e = estado(&[
+        let e = EnMemoria::de_rutas(&[
             ("TASK-001/tarea.md", md("feature", "en-curso", &["a"])),
             (
                 "TASK-002/tarea.md",
@@ -788,7 +771,7 @@ mod tests {
         }
         let md = md("hotfix", "planificada", &["a"])
             .replace("complejidad: null", "complejidad: \"critica\"");
-        let e = estado(&[("TASK-001/tarea.md", md)]);
+        let e = EnMemoria::de_rutas(&[("TASK-001/tarea.md", md)]);
         let op = Planificar::nueva("TASK-001", &ana(), None, &c, AHORA);
         assert!(op.aplicar(&e).is_ok());
         assert_eq!(op.resumen().map(|s| s.roles.len()), Some(3));

@@ -12,6 +12,8 @@
 mod diff;
 pub(crate) mod estado;
 mod guardar;
+#[cfg(test)]
+pub(crate) mod prueba;
 mod puerto;
 pub(crate) mod rama;
 pub(crate) mod remoto;

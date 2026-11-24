@@ -315,9 +315,8 @@ fn denegada(f: FalloRemoto, detalle: &str) -> Informe {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::prueba::{R, aislar, sh};
     use std::process::{Command, Stdio};
-
-    type R<T> = Result<T, Box<dyn std::error::Error>>;
 
     fn utf8(p: &Path) -> R<&str> {
         Ok(p.to_str().ok_or("ruta no UTF-8")?)
@@ -332,35 +331,12 @@ mod tests {
         d
     }
 
-    /// git de sistema para preparar el escenario; devuelve stdout recortado.
-    fn sh(dir: &Path, args: &[&str]) -> R<String> {
-        let s = Command::new("git")
-            .current_dir(dir)
-            .args([
-                "-c",
-                "user.name=Prueba",
-                "-c",
-                "user.email=prueba@example.com",
-                "-c",
-                "commit.gpgsign=false",
-                "-c",
-                "init.defaultBranch=main",
-            ])
-            .args(args)
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()?;
-        if !s.status.success() {
-            return Err(format!("git {args:?}: {}", String::from_utf8_lossy(&s.stderr)).into());
-        }
-        Ok(String::from_utf8_lossy(&s.stdout).trim().to_owned())
-    }
-
     /// Commit en el bare con un fichero `f` de contenido `texto` y los padres
     /// dados (ninguno: huerfano).
-    fn commit_en_bare(bare: &Path, texto: &str, padres: &[&str]) -> R<String> {
+    fn commit_en_bare(raiz: &Path, bare: &Path, texto: &str, padres: &[&str]) -> R<String> {
         let tmp = bare.join("blob-temporal");
         std::fs::write(&tmp, texto)?;
-        let blob = sh(bare, &["hash-object", "-w", utf8(&tmp)?])?;
+        let blob = sh(raiz, bare, &["hash-object", "-w", utf8(&tmp)?])?;
         std::fs::remove_file(&tmp)?;
         let mut c = Command::new("git")
             .current_dir(bare)
@@ -383,7 +359,7 @@ mod tests {
             args.push("-p");
             args.push(p);
         }
-        sh(bare, &args)
+        sh(raiz, bare, &args)
     }
 
     /// Un bare con `main` y la rama de estado, y un clon que solo tiene
@@ -394,18 +370,21 @@ mod tests {
         let bare = raiz.join("remoto.git");
         let clon = raiz.join("clon");
         std::fs::create_dir_all(&bare)?;
-        sh(&bare, &["init", "-q", "--bare"])?;
-        let c_main = commit_en_bare(&bare, "main", &[])?;
-        sh(&bare, &["update-ref", "refs/heads/main", &c_main])?;
-        sh(&bare, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
-        let c_estado = commit_en_bare(&bare, "estado", &[])?;
+        aislar(&raiz)?;
+        sh(&raiz, &bare, &["init", "-q", "--bare"])?;
+        let c_main = commit_en_bare(&raiz, &bare, "main", &[])?;
+        sh(&raiz, &bare, &["update-ref", "refs/heads/main", &c_main])?;
+        sh(&raiz, &bare, &["symbolic-ref", "HEAD", "refs/heads/main"])?;
+        let c_estado = commit_en_bare(&raiz, &bare, "estado", &[])?;
         sh(
+            &raiz,
             &bare,
             &["update-ref", &format!("refs/heads/{RAMA}"), &c_estado],
         )?;
-        sh(&raiz, &["clone", "-q", utf8(&bare)?, utf8(&clon)?])?;
+        sh(&raiz, &raiz, &["clone", "-q", utf8(&bare)?, utf8(&clon)?])?;
         assert_eq!(
             sh(
+                &raiz,
                 &clon,
                 &["rev-parse", &format!("refs/remotes/{REMOTO}/{RAMA}")]
             )?,
@@ -468,8 +447,9 @@ mod tests {
     #[test]
     fn montar_con_rama_reescrita_es_error() -> R<()> {
         let (raiz, bare, clon, _) = escenario("reescrita")?;
-        let huerfano = commit_en_bare(&bare, "reescrita", &[])?;
+        let huerfano = commit_en_bare(&raiz, &bare, "reescrita", &[])?;
         sh(
+            &raiz,
             &bare,
             &["update-ref", &format!("refs/heads/{RAMA}"), &huerfano],
         )?;
@@ -477,7 +457,7 @@ mod tests {
         montar_falla(&clon, "rama-reescrita")?;
         // El bare sigue con el huerfano: no se ha publicado nada.
         assert_eq!(
-            sh(&bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
+            sh(&raiz, &bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
             huerfano
         );
         let _ = std::fs::remove_dir_all(&raiz);
@@ -491,8 +471,9 @@ mod tests {
         let (raiz, bare, clon, c_estado) = escenario("bloqueada")?;
         // El remoto avanza (fast-forward) para que el `fetch` tenga que
         // escribir la ref remota.
-        let siguiente = commit_en_bare(&bare, "siguiente", &[&c_estado])?;
+        let siguiente = commit_en_bare(&raiz, &bare, "siguiente", &[&c_estado])?;
         sh(
+            &raiz,
             &bare,
             &["update-ref", &format!("refs/heads/{RAMA}"), &siguiente],
         )?;
@@ -508,7 +489,7 @@ mod tests {
         montar_falla(&clon, "error-local")?;
         assert!(lock.exists(), "el lock ajeno no se toca");
         assert_eq!(
-            sh(&bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
+            sh(&raiz, &bare, &["rev-parse", &format!("refs/heads/{RAMA}")])?,
             siguiente
         );
         let _ = std::fs::remove_dir_all(&raiz);

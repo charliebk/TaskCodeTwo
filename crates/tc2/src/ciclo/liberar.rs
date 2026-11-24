@@ -387,11 +387,10 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::{EnMemoria, estado, motivo, texto};
     use crate::grafo::DESCARTADA;
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
-    use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.
     const AHORA: u64 = 1_794_910_830;
@@ -434,29 +433,6 @@ mod tests {
             crate::toma::instante(AHORA - hace)
         );
         t.escribir(&Cuerpo::plantilla()) + &fila
-    }
-
-    fn estado(tareas: &[(&str, String)]) -> EnMemoria {
-        EnMemoria(
-            tareas
-                .iter()
-                .map(|(id, t)| (format!("{id}/tarea.md"), t.clone()))
-                .collect::<BTreeMap<_, _>>(),
-        )
-    }
-
-    fn motivo(r: &Result<Vec<Cambio>, Fallo>) -> Option<&str> {
-        match r {
-            Err(Fallo::Rechazada { motivo, .. }) => Some(motivo),
-            _ => None,
-        }
-    }
-
-    fn texto(r: &Result<Vec<Cambio>, Fallo>) -> String {
-        match r.as_deref() {
-            Ok([c]) => c.contenido.clone(),
-            otro => format!("{otro:?}"),
-        }
     }
 
     fn fila(fase: &str, por: &str) -> String {
