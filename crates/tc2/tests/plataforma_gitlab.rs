@@ -835,11 +835,20 @@ fn protecciones_de_gitlab() {
         &reglas,
         Simulada::json(403, "{\"message\":\"403 Forbidden\"}"),
     );
-    let gl = gitlab(&mock, &[Rol::Agente]);
+    // Con token de revisor (el caso real): lo rechaza el rol, no la falta de
+    // token, y sin llamar.
+    let gl = gitlab(&mock, &[Rol::Agente, Rol::Revisor]);
     let l = gl.leer_puertas(Rol::Agente, "develop").unwrap();
     assert!(!l.plan_da_reglas);
     assert_eq!(l.reglas_rama, ["push=0", "merge=40", "code-owner"]);
-    assert!(gl.leer_puertas(Rol::Revisor, "develop").is_err());
+    let antes = mock.recibidas().len();
+    assert_eq!(
+        gl.leer_puertas(Rol::Revisor, "develop")
+            .unwrap_err()
+            .linea(),
+        "leer-puertas rechazada motivo=identidad rol=revisor"
+    );
+    assert_eq!(mock.recibidas().len(), antes, "el revisor no llama");
 
     // leer-permisos-ci e identidad: persona de la lista, bot como Bot.
     let mock = Mock::nuevo();

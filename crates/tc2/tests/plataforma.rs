@@ -812,9 +812,8 @@ fn protecciones_y_bordes() {
         "/repos/o/r/rules/branches/develop",
         Simulada::json(200, "[{\"type\":\"pull_request\"}]"),
     );
-    let r = adaptador(&mock, &[Rol::Agente])
-        .leer_puertas(Rol::Agente, "develop")
-        .unwrap();
+    let gh = adaptador(&mock, &[Rol::Agente, Rol::Revisor]);
+    let r = gh.leer_puertas(Rol::Agente, "develop").unwrap();
     assert_eq!(
         (r.plan_da_reglas, r.rulesets, r.reglas_rama),
         (
@@ -823,6 +822,16 @@ fn protecciones_y_bordes() {
             vec!["pull_request".to_owned()]
         )
     );
+    // Con token de revisor: lo rechaza el rol, no la falta de token, y sin
+    // llamar.
+    let antes = mock.recibidas().len();
+    assert_eq!(
+        gh.leer_puertas(Rol::Revisor, "develop")
+            .unwrap_err()
+            .linea(),
+        "leer-puertas rechazada motivo=identidad rol=revisor"
+    );
+    assert_eq!(mock.recibidas().len(), antes, "el revisor no llama");
 
     // Limite primario (con reinicio) y secundario (sin cabeceras).
     let reinicio = std::time::SystemTime::now()
