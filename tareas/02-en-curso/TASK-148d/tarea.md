@@ -29,9 +29,25 @@ Parte d del troceo de TASK-148 (Auditoria 4D: soporte de tests compartido en tes
 Crea `comun/instantanea.rs` (recursiva, anota carpetas, `"<len> <sha256>"`, con lista de exclusión) y migra init, desinstalar, importar, tablero, frescura y doctor.
 
 ## Criterios de aceptacion
-- [ ] Ninguno de `tests/init.rs`, `tests/desinstalar.rs`, `tests/importar.rs`, `tests/tablero.rs`, `tests/frescura.rs` y `tests/doctor.rs` recorre carpetas por su cuenta: usan `comun::instantanea`.
-- [ ] Un test de `tests/soporte.rs` comprueba que una carpeta vacía nueva y un fichero en una subcarpeta cambian la foto, y que un nombre excluido no la cambia.
-- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-12 y A7-06 con su commit.
+- [x] Ninguno de `tests/init.rs`, `tests/desinstalar.rs`, `tests/importar.rs`, `tests/tablero.rs`, `tests/frescura.rs` y `tests/doctor.rs` recorre carpetas por su cuenta: usan `comun::instantanea`.
+- [x] Un test de `tests/soporte.rs` comprueba que una carpeta vacía nueva y un fichero en una subcarpeta cambian la foto, y que un nombre excluido no la cambia.
+- [x] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-12 y A7-06 con su commit.
+
+## Resultado
+
+Una sola instantanea de carpeta en `crates/tc2/tests/comun/instantanea.rs` (`instantanea(dir, excluir)`: recursiva, claves relativas, carpetas como `"dir"`, ficheros como `"<len> <sha256>"`, `excluir` por nombre a cualquier profundidad), usada por los seis tests que tenian la suya.
+
+- **A8-12**: 9cbdb86 (instantanea comun y sus tests), 2499a38 (importar), bb9fcfa (tablero, frescura y doctor; cierra A8-12).
+- **A7-06**: c321db0 (init y desinstalar).
+- Criterio 1: `git grep -n -e read_dir -e "fn instantanea" -e "fn recorrer"` sobre los seis ficheros, vacio.
+- Tests nuevos en `soporte.rs`: `instantanea_ve_carpetas_vacias_y_subcarpetas` e `instantanea_ignora_los_nombres_excluidos`, en rojo con cuatro mutantes (sin carpetas, sin recursion, sin exclusion, hash solo por tamano).
+- Fotos mas fuertes (frescura recursiva; importar, tablero y frescura ven carpetas): ningun test en rojo, sin hallazgo de produccion.
+- Recuento `cargo test -p tc2 --no-fail-fast` (target propio): antes 777 (cierre de TASK-148c); despues 48 binarios, 779 ok, 0 fallos, 13 ignorados (777 + 2).
+- `cargo xtask verificar` lo ejecuta `finish`.
+
+## Divergencias
+
+- frescura leia los ficheros con `.ok()`; ahora un fichero ilegible hace fallar el test (la forma mas fuerte fijada en el plan).
 
 ## Transiciones
 
@@ -46,3 +62,8 @@ Crea `comun/instantanea.rs` (recursiva, anota carpetas, `"<len> <sha256>"`, con 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-24T05:58:24Z | diseno | agente:aa5704f48c80de0c1 | 16 | 56118 | 250824 | 9895 | 20 | 316853 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — bb9fcfa
+- 4D — bb9fcfa: helper buscado, criterios citados, 2 tests mutados
