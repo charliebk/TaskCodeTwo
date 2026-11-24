@@ -4,6 +4,7 @@ Registro de tareas terminadas. Lo actualiza taskctl finish; una linea
 por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
+- TASK-148c (fix) — servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) (2026-11-24)
 - TASK-148b (fix) — escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148) (2026-11-24)
 
 - TASK-148a (fix) — lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148) (2026-11-23)

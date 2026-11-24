@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -56,6 +56,7 @@ Un solo doble HTTP en los tests: `comun::http_mock::Mock`, extendido con cuerpos
 | 2026-11-24T04:06:40Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T04:06:41Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T05:18:46Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T05:55:17Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -74,3 +75,10 @@ Un solo doble HTTP en los tests: `comun::http_mock::Mock`, extendido con cuerpos
 ## Verificacion ligera
 
 - 2026-11-24T05:35:07Z: ronda 1; commit revisado 56223308c105aa55a88b7d10ae2cb92dd1133ef7; commit verificado dbab2340f042ecf5513347d0be57b636d5fafc89; ficheros: ninguno; corregidos: ninguno; pendientes: MEN-1
+
+## Duracion
+
+- Estimada: 55 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 109 min
+- Paso de la hora: 109 min reales frente a 55 estimados
+- Cierre (finish): 1201 s, de 2026-11-24T05:35:16Z a 2026-11-24T05:55:17Z

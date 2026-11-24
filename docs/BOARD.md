@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-24. No editar a mano.
 
-## Planificadas (00-planificadas) — 60
+## Planificadas (00-planificadas) — 59
 
 ```text
 ID         Titulo                                                                                            Asignado
@@ -61,7 +61,6 @@ TASK-144   Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANT
 TASK-145   Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE)                (sin asignar)
 TASK-146   Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE)  (sin asignar)
 TASK-147   Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE)                                     (sin asignar)
-TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148)                     (sin asignar)
 TASK-148d  instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148)                         (sin asignar)
 TASK-148e  soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148)               (sin asignar)
 TASK-148f  dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148)             (sin asignar)
@@ -77,7 +76,7 @@ ID        Titulo                                Asignado
 TASK-039  F4-4 Orquestador del modo automatico  charlie.bk@gmail.com
 ```
 
-## Terminadas (04-terminadas) — 77
+## Terminadas (04-terminadas) — 78
 
 ```text
 ID         Titulo                                                                                                                     Asignado
@@ -159,4 +158,5 @@ TASK-137   F6-3 seguimiento: revision-ia cita el informe del run de origen cuand
 TASK-138   Auditoria 4D de todo el codigo de TaskCodeTwo                                                                              charlie.bk@gmail.com
 TASK-148a  lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148)                                           charlie.bk@gmail.com
 TASK-148b  escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148)  charlie.bk@gmail.com
+TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148)                                              charlie.bk@gmail.com
 ```
