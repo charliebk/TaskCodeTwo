@@ -13,7 +13,7 @@ mod comun;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use comun::{Fixture, escribir, ops::sin_catalogo, remoto::ORIGIN, valor};
+use comun::{Fixture, escribir, ops::sin_catalogo, remoto::ORIGIN, texto, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::i18n::Idioma;
@@ -33,30 +33,26 @@ fn entorno_denegado(f: &Fixture) -> Vec<(OsString, OsString)> {
     e
 }
 
-/// (codigo, stdout, stderr) de `tc2 <args>` en `dir` con `entorno`.
-fn lanzar(
+/// (codigo, stdout, stderr) de `tc2 <args>` en `dir` con `entorno` y el
+/// idioma `idioma`.
+fn correr(
     dir: &Path,
-    entorno: Vec<(OsString, OsString)>,
+    mut entorno: Vec<(OsString, OsString)>,
     idioma: &str,
     args: &[&str],
 ) -> (i32, String, String) {
-    let o = comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .env("TC2_IDIOMA", idioma)
-        .output()
-        .expect("lanzar tc2");
+    entorno.push((tc2::i18n::VARIABLE.into(), idioma.into()));
+    let o = comun::lanzar(dir, entorno, args);
     (
         o.status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
+        texto(&o.stdout),
+        texto(&o.stderr),
     )
 }
 
 /// `tc2 <args>` con el remoto de la fixture (ruta local o ssh servido).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
-    lanzar(dir, f.entorno_ssh(), "es", args)
+    correr(dir, f.entorno_ssh(), "es", args)
 }
 
 /// Las claves del JSON de una orden.
@@ -155,7 +151,7 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
         } else {
             &["status"]
         };
-        let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", args);
+        let (c, out, err) = correr(&a, f.entorno_sin_red(), "es", args);
         assert_eq!(c, 0, "{out} {err}");
         if json {
             let k = claves(&out);
@@ -176,14 +172,14 @@ fn c2_sin_red_la_ultima_foto_con_su_hora() {
             "{err}"
         );
     }
-    let (_, _, en) = lanzar(&a, f.entorno_sin_red(), "en", &["status"]);
+    let (_, _, en) = correr(&a, f.entorno_sin_red(), "en", &["status"]);
     assert!(
         en.starts_with("warning: no network") && en.contains(" ago)"),
         "{en}"
     );
     // Un clon que nunca sincronizo con `tc2`.
     let nuevo = f.clon_github(&bare, "nuevo");
-    let (c, out, err) = lanzar(&nuevo, f.entorno_sin_red(), "es", &["status", "--json"]);
+    let (c, out, err) = correr(&nuevo, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     let k = claves(&out);
     assert_eq!(
@@ -255,7 +251,7 @@ fn c3_la_hora_en_texto_y_en_json() {
             && err.trim_end().ends_with("(hace menos de 1 min)"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&a, f.entorno_ssh(), "en", &["roadmap"]);
+    let (_, _, en) = correr(&a, f.entorno_ssh(), "en", &["roadmap"]);
     assert!(en.starts_with("state synchronised with origin at "), "{en}");
 }
 
@@ -370,7 +366,7 @@ fn c5_tras_new_la_hora_es_la_de_ese_new() {
         .unwrap();
     let antes = estado::sincronizado_texto(Some(tc2::identidad::ahora()));
     nueva(&f, &a, "Segunda");
-    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
+    let (c, out, err) = correr(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     let k = claves(&out);
     assert_eq!(k["remoto"], "sin-red", "{out}");
@@ -405,7 +401,7 @@ fn c6_denegado_y_sin_remoto() {
     let f = Fixture::nueva("frescura-c6");
     let (_bare, a) = con_tarea(&f);
     for orden in ["status", "next", "roadmap"] {
-        let (c, out, err) = lanzar(&a, entorno_denegado(&f), "es", &[orden, "--json"]);
+        let (c, out, err) = correr(&a, entorno_denegado(&f), "es", &[orden, "--json"]);
         assert_eq!(c, 0, "{orden}: {out} {err}");
         assert_eq!(claves(&out)["remoto"], "denegado", "{orden}: {out}");
         assert!(
@@ -413,7 +409,7 @@ fn c6_denegado_y_sin_remoto() {
             "{orden}: {err}"
         );
     }
-    let (c, out, err) = lanzar(
+    let (c, out, err) = correr(
         &a,
         entorno_denegado(&f),
         "es",
@@ -427,7 +423,7 @@ fn c6_denegado_y_sin_remoto() {
     escribir(&solo, "README.md", "x\n");
     f.crudo(&solo, &["add", "README.md"]);
     f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
-    let (c, out, err) = lanzar(&solo, f.entorno(), "es", &["new", "Sola"]);
+    let (c, out, err) = correr(&solo, f.entorno(), "es", &["new", "Sola"]);
     assert_eq!(c, 0, "{out} {err}");
     let g = f.git();
     let conectar = sin_plataforma;
@@ -473,14 +469,14 @@ fn c7_pendientes_y_avisos_de_tareas() {
     let i = estado::transaccion(&Contexto::nuevo(&g, &a, &sin_catalogo, None), &Nota);
     assert_eq!(i.resultado, Resultado::Sinred, "{}", i.linea());
     assert_eq!(i.valor("pendiente"), Some("si"));
-    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
+    let (c, out, err) = correr(&a, f.entorno_sin_red(), "es", &["status", "--json"]);
     assert_eq!(c, 0, "{out} {err}");
     assert_eq!(claves(&out)["pendientes"], "1", "{out}");
     let refs = f.crudo(&a, &["for-each-ref", "refs/taskcodetwo/pendientes/"]);
     assert_eq!(refs.lines().count(), 1, "{refs}");
     // En texto tambien, al final, solo con alguna (M2 de la revision 1; con
     // cero no sale, lo comprueba C2). `status` solo lee: no la publica.
-    let (c, out, _) = lanzar(&a, f.entorno_sin_red(), "es", &["status"]);
+    let (c, out, _) = correr(&a, f.entorno_sin_red(), "es", &["status"]);
     assert_eq!(c, 0, "{out}");
     let linea = out.trim_end();
     assert!(
@@ -523,7 +519,7 @@ fn c7_pendientes_y_avisos_de_tareas() {
         err.starts_with("aviso: la rama local taskcodetwo/tareas tiene commits"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&b, f.entorno_ssh(), "en", &["status"]);
+    let (_, _, en) = correr(&b, f.entorno_ssh(), "en", &["status"]);
     assert!(en.starts_with("warning: the local branch"), "{en}");
 }
 
@@ -589,7 +585,7 @@ fn c9_el_stdout_de_roadmap_es_lo_que_publicaria_escribir() {
     // `--comparar` tambien dice la frescura (M1 de la revision 1).
     assert_eq!(valor(&out, "remoto"), Some("consultado"), "{out}");
     assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
-    let (c, out, err) = lanzar(&a, f.entorno_sin_red(), "es", &["roadmap", "--comparar"]);
+    let (c, out, err) = correr(&a, f.entorno_sin_red(), "es", &["roadmap", "--comparar"]);
     assert_eq!(c, 3, "{out} {err}");
     assert_eq!(valor(&out, "remoto"), Some("sin-red"), "{out}");
     assert!(valor(&out, "sincronizado").is_some_and(es_hora), "{out}");
@@ -647,7 +643,7 @@ fn c10_rama_reescrita_en_origin_no_es_sin_red() {
         err.starts_with("aviso: origin tiene la rama de estado reescrita"),
         "{err}"
     );
-    let (_, _, en) = lanzar(&a, f.entorno_ssh(), "en", &["status"]);
+    let (_, _, en) = correr(&a, f.entorno_ssh(), "en", &["status"]);
     assert!(
         en.starts_with("warning: origin has the state branch rewritten"),
         "{en}"

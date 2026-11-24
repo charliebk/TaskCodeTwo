@@ -20,7 +20,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use comun::{
-    Fixture, escribir, lanzar,
+    Fixture, escribir,
+    git::git_salida,
+    lanzar,
     remoto::{CONFIG_AUTOMATICO, PERSONAS, Preparar, como_persona, cuenta, identificar},
     texto, valor,
 };
@@ -104,6 +106,18 @@ fn guardar_plan(f: &Fixture, a: &Path, entorno: Vec<(OsString, OsString)>, conte
     assert_eq!(c, Some(0), "{out} {err}");
 }
 
+/// `sha` verifica en `bare` con `allowed_signers` y la clave publica de
+/// `clave` (firma SSH buena de `prueba@example.com`).
+fn verificar_firma(f: &Fixture, bare: &Path, clave: &Path, sha: &str) {
+    let publica = std::fs::read_to_string(format!("{}.pub", clave.display())).unwrap();
+    let permitidos = f.raiz.join("allowed_signers");
+    std::fs::write(&permitidos, format!("prueba@example.com {publica}")).unwrap();
+    let permitidos = permitidos.to_string_lossy().replace('\\', "/");
+    let opcion = format!("gpg.ssh.allowedSignersFile={permitidos}");
+    let v = git_salida(bare, &f.entorno(), &["-c", &opcion, "verify-commit", sha]);
+    assert!(texto(&v.stderr).contains("Good \"git\" signature"));
+}
+
 /// Clave SSH desechable sin frase en la carpeta de la fixture.
 fn clave(f: &Fixture) -> PathBuf {
     let c = f.raiz.join("clave");
@@ -182,23 +196,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
     assert!(out.starts_with("approve ok id=TASK-001 commit="), "{out}");
     let sha = f.punta(&bare);
     assert_eq!(valor(&out, "commit"), sha.get(..12), "{out}");
-    let publica = std::fs::read_to_string(format!("{}.pub", clave.display())).unwrap();
-    let permitidos = f.raiz.join("allowed_signers");
-    std::fs::write(&permitidos, format!("prueba@example.com {publica}")).unwrap();
-    let permitidos = permitidos.to_string_lossy().replace('\\', "/");
-    let v = Command::new("git")
-        .current_dir(&bare)
-        .envs(f.entorno())
-        .args([
-            "-c",
-            &format!("gpg.ssh.allowedSignersFile={permitidos}"),
-            "verify-commit",
-            &sha,
-        ])
-        .output()
-        .unwrap();
-    assert!(v.status.success(), "{}", texto(&v.stderr));
-    assert!(texto(&v.stderr).contains("Good \"git\" signature"));
+    verificar_firma(&f, &bare, &clave, &sha);
     let trailer = f.crudo(
         &bare,
         &[
@@ -387,23 +385,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
     // Un unico commit nuevo sobre el de antes.
     let padre = f.crudo(&bare, &["rev-parse", &format!("{sha}^")]);
     assert_eq!(padre.trim(), antes);
-
-    let publica = std::fs::read_to_string(format!("{}.pub", clave.display())).unwrap();
-    let permitidos = f.raiz.join("allowed_signers");
-    std::fs::write(&permitidos, format!("prueba@example.com {publica}")).unwrap();
-    let permitidos = permitidos.to_string_lossy().replace('\\', "/");
-    let v = Command::new("git")
-        .current_dir(&bare)
-        .envs(f.entorno())
-        .args([
-            "-c",
-            &format!("gpg.ssh.allowedSignersFile={permitidos}"),
-            "verify-commit",
-            &sha,
-        ])
-        .output()
-        .unwrap();
-    assert!(v.status.success(), "{}", texto(&v.stderr));
+    verificar_firma(&f, &bare, &clave, &sha);
 
     let trailers = f.crudo(
         &bare,

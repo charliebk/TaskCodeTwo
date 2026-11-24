@@ -7,9 +7,8 @@ mod comun;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
-use comun::{Fixture, escribir, valor};
+use comun::{Fixture, escribir, texto, valor};
 use tc2::estado::{self, Estado, Fallo};
 use tc2::plataforma::Personas;
 use tc2::roadmap::{self, generar::ids_de_la_linea, mermaid, zona};
@@ -20,16 +19,11 @@ const RAMA: &str = estado::RAMA;
 
 /// (codigo, stdout, stderr) de `tc2 <args>` en `dir`.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (i32, String, String) {
-    let o = comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno())
-        .output()
-        .expect("lanzar tc2");
+    let o = comun::lanzar(dir, f.entorno(), args);
     (
         o.status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
+        texto(&o.stdout),
+        texto(&o.stderr),
     )
 }
 
@@ -40,17 +34,10 @@ fn con_codigo(f: &Fixture, dir: &Path, args: &[&str], codigo: i32) -> String {
     out
 }
 
-/// `ROADMAP.md` publicado en el remoto.
-fn publicado(f: &Fixture, bare: &Path) -> String {
-    let o = Command::new("git")
-        .current_dir(bare)
-        .args(["show", &format!("{RAMA}:{ROADMAP}")])
-        .envs(f.entorno())
-        .output()
-        .unwrap();
-    assert!(o.status.success());
-    // Sin pasar por `String::from_utf8_lossy` de `crudo`: los bytes tal cual.
-    String::from_utf8(o.stdout).unwrap()
+/// `ROADMAP.md` publicado en el remoto, que tiene que ser UTF-8 valido (sin
+/// pasar por `from_utf8_lossy`: los bytes tal cual).
+fn roadmap_publicado(f: &Fixture, bare: &Path) -> String {
+    String::from_utf8(f.publicado_bytes(bare, ROADMAP)).unwrap()
 }
 
 /// Lote de `import` fuera del repo.
@@ -93,7 +80,7 @@ fn zona_manual_editada_sobrevive_a_new_import_y_escribir() {
     let out = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(out.contains(" tareas=al-dia"), "{out}");
     let comprobar = |paso: &str| {
-        let r = publicado(&f, &bare);
+        let r = roadmap_publicado(&f, &bare);
         assert_eq!(zona::extraer(&r), Ok(Some(zona_nueva)), "tras {paso}");
         assert_eq!(
             f.crudo(&clon.join("tareas"), &["status", "--porcelain"]),
@@ -103,7 +90,7 @@ fn zona_manual_editada_sobrevive_a_new_import_y_escribir() {
     };
     comprobar("roadmap --escribir");
     // La zona manda en el orden de los hitos y en los apartados.
-    assert!(publicado(&f, &bare).contains("\n## H0 — Base\n"));
+    assert!(roadmap_publicado(&f, &bare).contains("\n## H0 — Base\n"));
     con_codigo(&f, &clon, &["new", "Segunda"], 0);
     comprobar("new");
     let ruta = lote(&f, "zona");
@@ -112,11 +99,11 @@ fn zona_manual_editada_sobrevive_a_new_import_y_escribir() {
     let out = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(out.starts_with("roadmap sin-cambios"), "{out}");
     comprobar("el segundo --escribir");
-    assert!(publicado(&f, &bare).contains("\n## H2 — Segundo\n"));
+    assert!(roadmap_publicado(&f, &bare).contains("\n## H2 — Segundo\n"));
     // Lo que hay en la carpeta montada es lo publicado.
     assert_eq!(
         std::fs::read_to_string(&fichero).unwrap(),
-        publicado(&f, &bare)
+        roadmap_publicado(&f, &bare)
     );
 }
 
@@ -151,7 +138,7 @@ fn zona_rota_no_bloquea_y_se_avisa() {
     let otro_nuevo = f.otro_clon(&bare, "otro-nuevo");
     let out = con_codigo(&f, &otro_nuevo, &["new", "Pese a todo"], 0);
     assert!(out.starts_with("new ok id=TASK-002"), "{out}");
-    assert_eq!(publicado(&f, &bare), roto, "se deja el anterior");
+    assert_eq!(roadmap_publicado(&f, &bare), roto, "se deja el anterior");
     let out = con_codigo(&f, &otro_nuevo, &["next"], 0);
     assert!(out.contains(" roadmap-roto=sin-fin"), "{out}");
     let out = con_codigo(&f, &otro_nuevo, &["roadmap", "--comparar"], 3);
@@ -188,7 +175,7 @@ fn zona_editada_a_la_vez_por_dos_no_se_pisa() {
     anotar_zona(&a, "NOTA DE A");
     let out = con_codigo(&f, &a, &["roadmap", "--escribir"], 0);
     assert!(out.starts_with("roadmap ok "), "{out}");
-    assert!(publicado(&f, &bare).contains("NOTA DE A"));
+    assert!(roadmap_publicado(&f, &bare).contains("NOTA DE A"));
 
     anotar_zona(&b, "NOTA DE B");
     let fichero_b = b.join("tareas").join(ROADMAP);
@@ -204,7 +191,7 @@ fn zona_editada_a_la_vez_por_dos_no_se_pisa() {
         err.contains("tareas/ROADMAP.md") && err.contains("a mano"),
         "{err}"
     );
-    let r = publicado(&f, &bare);
+    let r = roadmap_publicado(&f, &bare);
     assert!(r.contains("NOTA DE A") && !r.contains("NOTA DE B"), "{r}");
     assert_eq!(std::fs::read_to_string(&fichero_b).unwrap(), editado_b);
     // Solo se movio la ref remota que trajo el fetch; el indice, igual.
@@ -292,7 +279,7 @@ fn zona_editada_sin_remoto() {
 fn cambio_fuera_de_la_zona_se_avisa() {
     let f = Fixture::nueva("roadmap-fuera");
     let (bare, clon) = con_estado_montado(&f);
-    let antes = publicado(&f, &bare);
+    let antes = roadmap_publicado(&f, &bare);
     let fichero = clon.join("tareas").join(ROADMAP);
     let t = std::fs::read_to_string(&fichero).unwrap();
     std::fs::write(
@@ -307,7 +294,7 @@ fn cambio_fuera_de_la_zona_se_avisa() {
         err.starts_with("aviso: tareas/ROADMAP.md tiene cambios fuera de la zona manual"),
         "{err}"
     );
-    assert_eq!(publicado(&f, &bare), antes);
+    assert_eq!(roadmap_publicado(&f, &bare), antes);
 }
 
 /// MEN-6 de calidad de la revision 1: una lista de personas ilegible en la
@@ -526,8 +513,11 @@ fn roadmap_y_next_coinciden_y_escribir_es_idempotente() {
     let segunda = con_codigo(&f, &clon, &["roadmap", "--escribir"], 0);
     assert!(segunda.starts_with("roadmap sin-cambios"), "{segunda}");
     con_codigo(&f, &clon, &["roadmap", "--comparar"], 0);
-    assert_eq!(con_codigo(&f, &clon, &["roadmap"], 0), publicado(&f, &bare));
-    assert_eq!(impreso, publicado(&f, &bare));
+    assert_eq!(
+        con_codigo(&f, &clon, &["roadmap"], 0),
+        roadmap_publicado(&f, &bare)
+    );
+    assert_eq!(impreso, roadmap_publicado(&f, &bare));
     // `--json` lleva el texto y el commit.
     let j = con_codigo(&f, &clon, &["roadmap", "--json"], 0);
     let v: serde_json::Value = serde_json::from_str(&j).unwrap();

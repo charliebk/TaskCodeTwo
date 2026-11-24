@@ -3,13 +3,14 @@
 
 use std::ffi::OsString;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
 /// `git <args>` en `dir` con `entorno`, que tiene que traer su
 /// `GIT_CONFIG_GLOBAL` (si no, la configuracion global de quien corre los
 /// tests entraria en el escenario). Fija `GIT_CONFIG_NOSYSTEM`, `LC_ALL=C` y
-/// `GIT_TERMINAL_PROMPT=0`; exige exito y devuelve stdout.
-pub fn git_en(dir: &Path, entorno: &[(OsString, OsString)], args: &[&str]) -> String {
+/// `GIT_TERMINAL_PROMPT=0`; exige exito y devuelve la salida entera (para
+/// quien necesita los bytes de stdout o el stderr de un exito).
+pub fn git_salida(dir: &Path, entorno: &[(OsString, OsString)], args: &[&str]) -> Output {
     assert!(
         entorno.iter().any(|(k, _)| k == "GIT_CONFIG_GLOBAL"),
         "git_en sin GIT_CONFIG_GLOBAL: git {args:?} en {}",
@@ -30,5 +31,10 @@ pub fn git_en(dir: &Path, entorno: &[(OsString, OsString)], args: &[&str]) -> St
         dir.display(),
         String::from_utf8_lossy(&o.stderr)
     );
-    String::from_utf8_lossy(&o.stdout).into_owned()
+    o
+}
+
+/// Como [`git_salida`], y devuelve stdout como texto.
+pub fn git_en(dir: &Path, entorno: &[(OsString, OsString)], args: &[&str]) -> String {
+    String::from_utf8_lossy(&git_salida(dir, entorno, args).stdout).into_owned()
 }

@@ -195,13 +195,6 @@ fn review(g: &Git, dir: &Path, doble: &Rc<Doble>, esperas: &[Duration]) -> Infor
     i
 }
 
-fn publicado(f: &Fixture, bare: &Path) -> String {
-    f.crudo(
-        bare,
-        &["show", &format!("{}:TASK-001/tarea.md", estado::RAMA)],
-    )
-}
-
 /// Criterio «PR enlazado a la tarea» (integracion).
 #[test]
 fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
@@ -240,7 +233,7 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
         "{cuerpo}"
     );
     // La tarea, en revision en la rama de estado, con su fila.
-    let t = publicado(&f, &bare);
+    let t = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(t.contains("estado: \"en-revision\""), "{t}");
     assert!(t.contains("| review | manual | agente |"), "{t}");
     // F6-3: la seleccion, anotada en `roles.revision`.
@@ -297,7 +290,10 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
     assert!(!i.resultado.es_exito(), "{}", i.linea());
     assert_eq!(i.comando, "review");
     assert!(doble.prs.borrow().is_empty(), "PR abierto sin push");
-    assert!(publicado(&f, &bare).contains("estado: \"en-curso\""));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"en-curso\"")
+    );
 
     let basica = STANDARD.encode(format!("x-access-token:{TOKEN}"));
     let recibidas = mock.recibidas();

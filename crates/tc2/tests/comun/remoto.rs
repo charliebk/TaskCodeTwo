@@ -16,7 +16,7 @@ use tc2::identidad::{Cache, Cuenta, Quien};
 use tc2::plataforma::Proveedor;
 use tc2::toma::Entorno;
 
-use super::git::git_en;
+use super::git::{git_en, git_salida};
 use super::ops::{Escribir, sin_catalogo};
 use super::{Fixture, escribir, lanzar, volcado};
 
@@ -129,7 +129,13 @@ impl Fixture {
 
     /// `ruta` publicada en la rama de estado de `bare`.
     pub fn publicado(&self, bare: &Path, ruta: &str) -> String {
-        self.crudo(bare, &["show", &format!("{}:{ruta}", estado::RAMA)])
+        String::from_utf8_lossy(&self.publicado_bytes(bare, ruta)).into_owned()
+    }
+
+    /// Como [`Fixture::publicado`], con los bytes tal cual.
+    pub fn publicado_bytes(&self, bare: &Path, ruta: &str) -> Vec<u8> {
+        let show = format!("{}:{ruta}", estado::RAMA);
+        git_salida(bare, &self.entorno(), &["show", &show]).stdout
     }
 
     /// Otro clon del remoto con `origin` en GitHub.
