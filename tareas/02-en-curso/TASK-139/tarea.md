@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-139-auditoria-4d-a1-plataforma-e-identidad-1
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Corregir los 11 casos IMPORTANTE del grupo A1 de `docs/auditoria-4d.md` (commit 
 |---|---|---|---|---|
 | 2026-11-24T13:55:55Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T14:02:51Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T14:02:52Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
