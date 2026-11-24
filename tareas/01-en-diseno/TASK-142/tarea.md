@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-142-auditoria-4d-a4-git-rama-de-estado-y-tom
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-24
 dependencias: []
 ---
 ## Objetivo
@@ -35,3 +35,9 @@ Corregir los 9 casos IMPORTANTE del grupo A4 de `docs/auditoria-4d.md` (commit a
 - [ ] A4-08: los ayudantes `rapida`, `escribir_estado` y `rama_en` y el repo sin remoto (`tests/estado_bordes.rs:19-53` ~ `tests/estado_casos.rs:19-44`, `:124-129` ~ `tests/estado_concurrencia.rs:216-220`) quedan en un módulo común de tests.
 - [ ] A4-10: `es_prohibido` (`git/puerto.rs:613-646`) rechaza las opciones cortas agrupadas que contienen una prohibida, o pasa a una lista permitida como pide F1-4 (decisión 3). `rechaza_cada_argumento_prohibido_sin_lanzar_git` (`puerto.rs:759-846`) incluye `(Push, ["-qf", "origin", "r"])`, `(Branch, ["-qD", "x"])` y `(Worktree, ["remove", "-ff", "w"])`, y sale en rojo con el código de d82ea9d.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 9 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-24T22:28:15Z | plan | automatico | persona | 0.17.1 |
