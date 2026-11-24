@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-139-auditoria-4d-a1-plataforma-e-identidad-1
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-24
 dependencias: []
 ---
 ## Objetivo
@@ -35,3 +35,9 @@ Corregir los 11 casos IMPORTANTE del grupo A1 de `docs/auditoria-4d.md` (commit 
 - [ ] A1-08 y A1-11: con el diff del mutante de cada ficha aplicado, el test nombrado sale en rojo. A1-08 es la regla de host que empieza por `.` o `-` en `http.rs:100`, con `cargo test -p tc2 --lib plataforma::http::tests::bases_validas_e_invalidas`. A1-11 es el 403 con `retry-after` y sin `x-ratelimit-remaining` de `errores.rs:57`, con `cargo test -p tc2 --test plataforma errores_dirigidos_a_la_persona`. Hoy los dos salen en verde.
 - [ ] A1-09 y A1-10: con los mutantes de las fichas aplicados, los tests nombrados salen en rojo. A1-09 son las reglas de GitLab de `gitlab.rs:546`, con `cargo test -p tc2 --test prs_abiertos`. A1-10 es la comprobación de rol de `gitlab.rs:1251` con un token de revisor configurado, con `cargo test -p tc2 --test plataforma_gitlab protecciones_de_gitlab`.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 11 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-24T13:55:55Z | plan | automatico | persona | 0.17.1 |
