@@ -315,10 +315,8 @@ fn denegada(f: FalloRemoto, detalle: &str) -> Informe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::git::prueba::{aislar, sh};
+    use crate::git::prueba::{R, aislar, sh};
     use std::process::{Command, Stdio};
-
-    type R<T> = Result<T, Box<dyn std::error::Error>>;
 
     fn utf8(p: &Path) -> R<&str> {
         Ok(p.to_str().ok_or("ruta no UTF-8")?)

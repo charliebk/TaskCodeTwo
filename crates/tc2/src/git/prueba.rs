@@ -62,4 +62,20 @@ mod tests {
         assert_eq!(email?, "prueba@example.com");
         Ok(())
     }
+
+    /// Un git que falla da `Err` con la orden en el mensaje, no un `Ok` vacio.
+    #[test]
+    fn sh_con_un_git_que_falla_da_error() -> R<()> {
+        let raiz = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("git-prueba-falla-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(&raiz)?;
+        aislar(&raiz)?;
+        let r = sh(&raiz, &raiz, &["orden-que-no-existe"]);
+        let _ = std::fs::remove_dir_all(&raiz);
+        let e = r.err().ok_or("sh tenia que fallar")?;
+        assert!(e.to_string().contains("orden-que-no-existe"), "{e}");
+        Ok(())
+    }
 }
