@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 739874
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -38,3 +38,10 @@ Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs` con `panic!`
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-24T08:18:58Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-24T08:22:54Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24T08:22:53Z | diseno | agente:a8e723e43eb235164 | 30 | 69947 | 657013 | 12884 | 29 | 739874 | - | - |
