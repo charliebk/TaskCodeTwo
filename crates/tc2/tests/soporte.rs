@@ -61,6 +61,68 @@ fn git_en_sin_gitconfig_propio_no_lanza_git() {
     comun::git::git_en(std::path::Path::new("."), &[], &["--version"]);
 }
 
+/// A8-20 (MEN-1 de la revision 1): un git de escenario que falla para el
+/// test, con los argumentos en el mensaje.
+#[test]
+#[should_panic(expected = "no-existe")]
+fn git_en_con_un_git_que_falla_hace_panic() {
+    let f = comun::Fixture::nueva("soporte-git-falla");
+    comun::git::git_en(&f.raiz, &f.entorno(), &["rev-parse", "no-existe"]);
+}
+
+/// A8-20 (MEN-1 de la revision 1): git se lanza con `LC_ALL=C`,
+/// `GIT_TERMINAL_PROMPT=0` y `GIT_CONFIG_NOSYSTEM=1`, aunque el entorno que
+/// se le pasa diga otra cosa.
+#[test]
+fn git_en_fija_locale_y_prompt() {
+    let f = comun::Fixture::nueva("soporte-git-entorno");
+    // Solo el gitconfig de la fixture: `GIT_CONFIG_NOSYSTEM` lo pone git_en.
+    let mut e: Vec<_> = f
+        .entorno()
+        .into_iter()
+        .filter(|(k, _)| k != "GIT_CONFIG_NOSYSTEM")
+        .collect();
+    e.push(("LC_ALL".into(), "es_ES.UTF-8".into()));
+    e.push(("GIT_TERMINAL_PROMPT".into(), "1".into()));
+    let visto = comun::git::git_en(
+        &f.raiz,
+        &e,
+        &[
+            "-c",
+            "alias.entorno=!printenv LC_ALL GIT_TERMINAL_PROMPT GIT_CONFIG_NOSYSTEM",
+            "entorno",
+        ],
+    );
+    assert_eq!(visto, "C\n0\n1\n");
+}
+
+/// A8-16 (MEN-2 de la revision 1): `salida` no da por bueno un exito que
+/// escribe en stderr.
+#[test]
+#[should_panic(expected = "stderr en un exito")]
+fn salida_rechaza_stderr_en_un_exito() {
+    let o = std::process::Command::new("sh")
+        .args(["-c", "echo ok; echo aviso >&2"])
+        .output()
+        .unwrap();
+    comun::salida(&o);
+}
+
+/// A8-16 (MEN-3 de la revision 1): `con_fila` exige que la fila escrita sea
+/// la de la fase, el modo, el autor y la version esperados.
+#[test]
+#[should_panic(expected = "| start | manual | agente |")]
+fn con_fila_rechaza_una_fila_de_otra_fase() {
+    let hoy = tc2::toma::instante(tc2::identidad::ahora());
+    let antes = "actualizado: \"2020-01-01\"\n";
+    let despues = format!(
+        "actualizado: \"{}\"\n| {hoy} | start | manual | agente | {} |\n",
+        &hoy[..10],
+        tc2::VERSION
+    );
+    comun::remoto::con_fila(antes, &despues, "liberar", "agente");
+}
+
 /// A3-06: una sola `valor`, sobre la linea de contrato (la primera) y sin el
 /// final de linea; no confunde una clave con otra que empieza igual.
 #[test]
