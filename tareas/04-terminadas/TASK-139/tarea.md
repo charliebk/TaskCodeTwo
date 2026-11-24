@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-139-auditoria-4d-a1-plataforma-e-identidad-1
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2055168
 tokens_implementacion: 39929703
-tokens_revision: null
+tokens_revision: 14343589
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: []
@@ -76,6 +76,7 @@ La logica neutral de `abrir-pr`, `merge-pr`, `prs-abiertos` y `leer-puertas` sal
 | 2026-11-24T14:02:51Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T14:02:52Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T15:31:59Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T16:45:05Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -84,8 +85,16 @@ La logica neutral de `abrir-pr`, `merge-pr`, `prs-abiertos` y `leer-puertas` sal
 | 2026-11-24T14:02:50Z | diseno | agente:a27838b01603442e1 | 52 | 117461 | 1918047 | 19608 | 41 | 2055168 | - | - |
 | 2026-11-24T15:31:59Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 30 | 18360 | 8035632 | 7180 | 0 | 8061202 | - | - |
 | 2026-11-24T15:31:59Z | implementacion | agente:a0c1bdab776cc2d07 | 236 | 737978 | 31033740 | 96547 | 33 | 31868501 | - | - |
+| 2026-11-24T16:22:32Z | revision | agente:af446b0a5e3170f99 | 176 | 202149 | 14104363 | 36901 | 26 | 14343589 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — c65d986
 - 4D — c65d986: helper buscado, criterios citados, 11 mutantes vistos en rojo
+
+## Duracion
+
+- Estimada: 300 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 162 min
+- Paso de la hora: 162 min reales frente a 300 estimados
+- Cierre (finish): 1338 s, de 2026-11-24T16:22:47Z a 2026-11-24T16:45:05Z
