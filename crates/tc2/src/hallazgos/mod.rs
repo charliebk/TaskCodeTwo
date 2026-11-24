@@ -629,6 +629,32 @@ struct Fallo {
     detalle: String,
 }
 
+impl Fallo {
+    /// El rechazo de la entrada `indice` de la respuesta.
+    fn rechazo(self, indice: usize) -> Rechazo {
+        Rechazo {
+            indice: Some(indice),
+            id: self.id,
+            motivo: self.motivo,
+            detalle: self.detalle,
+        }
+    }
+}
+
+/// Las `TOPE_HALLAZGOS` primeras entradas de `lista` y, si sobran, un unico
+/// rechazo `fuera-de-tope` con el indice de la primera que sobra (las de
+/// `lista` se numeran desde `primero`); `que` las nombra en el detalle.
+fn cortar<'a>(lista: &'a [Value], primero: usize, que: &str) -> (&'a [Value], Option<Rechazo>) {
+    let (dentro, fuera) = lista.split_at(lista.len().min(TOPE_HALLAZGOS));
+    let rechazo = (!fuera.is_empty()).then(|| Rechazo {
+        indice: Some(primero + TOPE_HALLAZGOS),
+        id: None,
+        motivo: motivo::FUERA_DE_TOPE,
+        detalle: format!("{} {que} pasan del tope de {TOPE_HALLAZGOS}", fuera.len()),
+    });
+    (dentro, rechazo)
+}
+
 /// El constructor de los `Fallo` de un hallazgo o un cierre: con su `id` si
 /// lo trae y es valido, para que el rechazo lo nombre.
 fn fallo_de(v: &Value) -> impl Fn(&'static str, String) -> Fallo + use<> {
@@ -950,44 +976,17 @@ pub fn validar_con(
     };
     // Los ids de los abiertos no se reutilizan: un cierre los nombra.
     let mut vistos: BTreeSet<String> = abiertos.iter().map(|a| a.hallazgo.id.clone()).collect();
-    for (i, h) in lista.iter().enumerate() {
-        if i >= TOPE_HALLAZGOS {
-            v.rechazados.push(Rechazo {
-                indice: Some(i),
-                id: None,
-                motivo: motivo::FUERA_DE_TOPE,
-                detalle: format!(
-                    "{} hallazgos pasan del tope de {TOPE_HALLAZGOS}",
-                    lista.len() - TOPE_HALLAZGOS
-                ),
-            });
-            break;
-        }
+    let (dentro, sobran) = cortar(&lista, 0, "hallazgos");
+    for (i, h) in dentro.iter().enumerate() {
         match validar_uno(h, diff, informe, &mut vistos) {
             Ok(a) => v.aceptados.push(a),
-            Err(f) => v.rechazados.push(Rechazo {
-                indice: Some(i),
-                id: f.id,
-                motivo: f.motivo,
-                detalle: f.detalle,
-            }),
+            Err(f) => v.rechazados.push(f.rechazo(i)),
         }
     }
+    v.rechazados.extend(sobran);
     let mut cerrados_vistos = BTreeSet::new();
-    for (j, c) in cierres.iter().enumerate() {
-        let indice = lista.len() + j;
-        if j >= TOPE_HALLAZGOS {
-            v.rechazados.push(Rechazo {
-                indice: Some(indice),
-                id: None,
-                motivo: motivo::FUERA_DE_TOPE,
-                detalle: format!(
-                    "{} cierres pasan del tope de {TOPE_HALLAZGOS}",
-                    cierres.len() - TOPE_HALLAZGOS
-                ),
-            });
-            break;
-        }
+    let (dentro, sobran) = cortar(&cierres, lista.len(), "cierres");
+    for (j, c) in dentro.iter().enumerate() {
         match validar_cierre(c, diff, informe, abiertos, &mut cerrados_vistos) {
             Ok((c, cerrados)) => {
                 for a in cerrados {
@@ -1001,14 +1000,10 @@ pub fn validar_con(
                     });
                 }
             }
-            Err(f) => v.rechazados.push(Rechazo {
-                indice: Some(indice),
-                id: f.id,
-                motivo: f.motivo,
-                detalle: f.detalle,
-            }),
+            Err(f) => v.rechazados.push(f.rechazo(lista.len() + j)),
         }
     }
+    v.rechazados.extend(sobran);
     v
 }
 
