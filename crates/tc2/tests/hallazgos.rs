@@ -942,3 +942,100 @@ fn el_diff_incremental_no_arrastra_lo_que_trae_la_base() {
     ]);
     assert_eq!(codigo, Some(2), "{stderr}");
 }
+
+/// A2-05: las siete subordenes analizan sus opciones igual. Por suborden,
+/// una opcion desconocida, una unica repetida, una sin valor al final, una
+/// obligatoria ausente y un valor que no vale: la linea de uso con un solo
+/// error por entrada no cambia.
+#[test]
+fn las_subordenes_analizan_sus_opciones_igual() {
+    let casos: &[(&[&str], &str)] = &[
+        (&["validar", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["validar", "--diff", "a", "--diff", "b"],
+            "argumento-desconocido",
+        ),
+        (&["validar", "--diff"], "falta-valor"),
+        (
+            &["validar", "--diff", "a", "--revisora", "r"],
+            "sin-respuesta",
+        ),
+        (
+            &["validar", "--respuesta", "a", "--revisora", "r"],
+            "sin-diff",
+        ),
+        (&["validar", "--revisora", "no vale"], "revisora-invalida"),
+        (&["veredicto", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["veredicto", "--salida", "a", "--salida", "b"],
+            "argumento-desconocido",
+        ),
+        (&["veredicto", "--hallazgos"], "falta-valor"),
+        (
+            &["veredicto", "--hallazgos", "a", "--hallazgos", "b"],
+            "sin-salida",
+        ),
+        (&["anterior", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["anterior", "--origen", "1", "--origen", "2"],
+            "argumento-desconocido",
+        ),
+        (&["anterior", "--check-runs"], "falta-valor"),
+        (&["anterior", "--origen", "0"], "origen-invalido"),
+        (&["ronda", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["ronda", "--rutas", "a", "--rutas", "b"],
+            "argumento-desconocido",
+        ),
+        (&["ronda", "--anotaciones"], "falta-valor"),
+        (&["ronda", "--salida", "d"], "sin-rutas"),
+        (&["ronda", "--rutas", "r"], "sin-salida"),
+        (&["ronda", "--tarea", "no vale"], "id-invalido"),
+        (&["ronda", "--origen", "x"], "origen-invalido"),
+        (&["desde", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["desde", "--head", "a", "--head", "b"],
+            "argumento-desconocido",
+        ),
+        (&["desde", "--base"], "falta-valor"),
+        (
+            &["desde", "--anterior", "a", "--head", "b"],
+            "faltan-argumentos",
+        ),
+        (&["abiertos", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["abiertos", "--ronda", "a", "--ronda", "b"],
+            "argumento-desconocido",
+        ),
+        (&["abiertos", "--salida"], "falta-valor"),
+        (
+            &["abiertos", "--ronda", "a", "--detalle", "b"],
+            "faltan-argumentos",
+        ),
+        (&["prompt", "--raro", "x"], "argumento-desconocido"),
+        (
+            &["prompt", "--diff", "a", "--diff", "b"],
+            "argumento-desconocido",
+        ),
+        (
+            &["prompt", "--bytes", "1", "--bytes", "2"],
+            "argumento-desconocido",
+        ),
+        (&["prompt", "--skill"], "falta-valor"),
+        (
+            &["prompt", "--revisora", "r", "--diff", "d"],
+            "faltan-argumentos",
+        ),
+        (&["prompt", "--bytes", "x"], "numero-invalido"),
+        (&["prompt", "--revisora", "no vale"], "revisora-invalida"),
+    ];
+    for (args, motivo) in casos {
+        let (codigo, linea, err) = hallazgos(args);
+        assert_eq!(
+            (codigo, linea.trim_end()),
+            (Some(2), format!("hallazgos uso motivo={motivo}").as_str()),
+            "{args:?}: {err}"
+        );
+        assert!(err.contains("uso: hallazgos"), "{args:?}: {err}");
+    }
+}
