@@ -437,6 +437,14 @@ fn errores_dirigidos_a_la_persona() {
             5,
             "relanza",
         ),
+        // Limite secundario: 403 con `retry-after` y sin
+        // `x-ratelimit-remaining` ni «rate limit» en el mensaje.
+        (
+            Simulada::json(403, "{}").con("retry-after", "30"),
+            "identidad agotada motivo=limite-peticiones reintenta-en=30",
+            5,
+            "espera 30",
+        ),
         (
             Simulada::json(
                 403,
