@@ -974,21 +974,11 @@ fn foto(f: &Fixture, clon: &Path) -> String {
     for fichero in ["index", "config", "info/exclude"] {
         s += &format!("{fichero}:{:?}\n", std::fs::read(git.join(fichero)).ok());
     }
-    let mut pila = vec![git.join("taskcodetwo")];
-    let mut ficheros = Vec::new();
-    while let Some(d) = pila.pop() {
-        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
-            if e.path().is_dir() {
-                pila.push(e.path());
-            } else {
-                ficheros.push(e.path());
-            }
-        }
-    }
-    ficheros.sort();
-    for p in ficheros {
-        s += &format!("{}:{:?}\n", p.display(), std::fs::read(&p).unwrap());
-    }
+    s += &format!(
+        "{:?}
+",
+        comun::instantanea(&git.join("taskcodetwo"), &[])
+    );
     s
 }
 

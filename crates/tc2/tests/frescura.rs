@@ -273,20 +273,14 @@ fn foto(f: &Fixture, bare: &Path, clon: &Path) -> String {
         &clon.join("tareas"),
         &["status", "--porcelain", "--ignored"],
     );
-    let propia = clon.join(".git").join("taskcodetwo");
-    let mut ficheros: Vec<PathBuf> = std::fs::read_dir(&propia)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name().and_then(|n| n.to_str()) != Some(tc2::huella::FICHERO_SINCRONIZACION)
-        })
-        .collect();
-    ficheros.sort();
-    for p in ficheros {
-        s += &format!("{}:{:?}\n", p.display(), std::fs::read(&p).ok());
-    }
+    s += &format!(
+        "{:?}
+",
+        comun::instantanea(
+            &clon.join(".git").join("taskcodetwo"),
+            &[tc2::huella::FICHERO_SINCRONIZACION]
+        )
+    );
     s
 }
 

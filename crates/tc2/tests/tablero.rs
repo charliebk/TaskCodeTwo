@@ -302,24 +302,14 @@ fn foto(f: &Fixture, clon: &Path) -> String {
     );
     s += &f.crudo(clon, &["for-each-ref", "--format=%(refname) %(objectname)"]);
     s += &f.crudo(clon, &["rev-parse", "develop^{tree}"]);
-    let mut pila = vec![clon.join(".git").join("taskcodetwo")];
-    let mut ficheros = Vec::new();
-    while let Some(d) = pila.pop() {
-        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                pila.push(p);
-            } else if p.file_name().and_then(|n| n.to_str())
-                != Some(tc2::huella::FICHERO_SINCRONIZACION)
-            {
-                ficheros.push(p);
-            }
-        }
-    }
-    ficheros.sort();
-    for p in ficheros {
-        s += &format!("{}:{:?}\n", p.display(), std::fs::read(&p).unwrap());
-    }
+    s += &format!(
+        "{:?}
+",
+        comun::instantanea(
+            &clon.join(".git").join("taskcodetwo"),
+            &[tc2::huella::FICHERO_SINCRONIZACION]
+        )
+    );
     s
 }
 

@@ -127,30 +127,6 @@ fn de_clase(h: &Hecho, clase: &str) -> Vec<(String, &'static str, Option<String>
         .collect()
 }
 
-/// Instantanea de una carpeta (con `.git`): ruta relativa → contenido.
-fn instantanea(dir: &Path) -> BTreeMap<String, Vec<u8>> {
-    fn recorrer(base: &Path, d: &Path, m: &mut BTreeMap<String, Vec<u8>>) {
-        let Ok(it) = std::fs::read_dir(d) else { return };
-        for e in it.flatten() {
-            let p = e.path();
-            let rel = p
-                .strip_prefix(base)
-                .unwrap()
-                .to_string_lossy()
-                .replace('\\', "/");
-            if p.is_dir() {
-                m.insert(format!("{rel}/"), Vec::new());
-                recorrer(base, &p, m);
-            } else {
-                m.insert(rel, std::fs::read(&p).unwrap());
-            }
-        }
-    }
-    let mut m = BTreeMap::new();
-    recorrer(dir, dir, &mut m);
-    m
-}
-
 /// Lo que no debe cambiar en una segunda ejecucion: refs, worktrees,
 /// `exclude` y el arbol (hashes) de cada worktree.
 fn huella_repo(f: &Fixture, dir: &Path) -> String {
@@ -245,7 +221,7 @@ fn init_dos_veces_sin_cambios() {
         stdout(&primera)
     );
     let antes = huella_repo(&f, &repo);
-    let ficheros = instantanea(&repo);
+    let ficheros = comun::instantanea(&repo, &[]);
     let segunda = correr(&repo, &g, false, &sin_token);
     assert_eq!(
         segunda.informe.resultado,
@@ -280,7 +256,7 @@ fn init_dos_veces_sin_cambios() {
         stdout(&segunda)
     );
     assert_eq!(antes, huella_repo(&f, &repo));
-    assert_eq!(ficheros, instantanea(&repo));
+    assert_eq!(ficheros, comun::instantanea(&repo, &[]));
 }
 
 /// C3: `--simular` (y `--simular --json`) imprime el plan y `simular=si`
@@ -291,7 +267,7 @@ fn simular_no_toca_nada_y_coincide() {
     let f = Fixture::nueva("init-c3");
     let repo = repo_vacio(&f);
     let g = f.git();
-    let antes = instantanea(&repo);
+    let antes = comun::instantanea(&repo, &[]);
     let sim = correr(&repo, &g, true, &sin_token);
     let texto = stdout(&sim);
     let fin = texto.lines().last().unwrap();
@@ -302,7 +278,11 @@ fn simular_no_toca_nada_y_coincide() {
         assert!(v.get("accion").is_some() || v["comando"] == "init", "{l}");
     }
     assert!(json.contains("\"simular\":\"si\""), "{json}");
-    assert_eq!(antes, instantanea(&repo), "--simular cambio algo");
+    assert_eq!(
+        antes,
+        comun::instantanea(&repo, &[]),
+        "--simular cambio algo"
+    );
     assert!(!repo.join(".git").join("taskcodetwo").exists());
     let real = correr(&repo, &g, false, &sin_token);
     assert_eq!(real.informe.resultado, Resultado::Ok, "{}", stdout(&real));
@@ -323,7 +303,7 @@ fn init_en_repo_016_rechaza() {
         } else {
             escribir(&repo, "tareas/00-planificadas/TASK-001/tarea.md", "x\n");
         }
-        let antes = instantanea(&repo);
+        let antes = comun::instantanea(&repo, &[]);
         let h = correr(&repo, &f.git(), false, &sin_token);
         let s = h.salida_en(false, Idioma::Es);
         assert_eq!(s.codigo, 3, "{caso}: {}", s.stdout);
@@ -344,7 +324,11 @@ fn init_en_repo_016_rechaza() {
             "{caso}: {}",
             s.stdout
         );
-        assert_eq!(antes, instantanea(&repo), "{caso}: escribio algo");
+        assert_eq!(
+            antes,
+            comun::instantanea(&repo, &[]),
+            "{caso}: escribio algo"
+        );
         let en = h.salida_en(false, Idioma::En);
         assert_eq!(en.stdout, s.stdout);
         assert_ne!(en.stderr, s.stderr);
@@ -362,11 +346,11 @@ fn init_con_config_invalida_no_la_pisa() {
         let f = Fixture::nueva("init-c4-invalida");
         let repo = repo_vacio(&f);
         escribir(&repo, ".taskcode/config.yml", texto);
-        let antes = instantanea(&repo);
+        let antes = comun::instantanea(&repo, &[]);
         let h = correr(&repo, &f.git(), false, &sin_token);
         assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", stdout(&h));
         assert_eq!(h.informe.valor("motivo"), Some(motivo));
-        assert_eq!(antes, instantanea(&repo));
+        assert_eq!(antes, comun::instantanea(&repo, &[]));
         assert_eq!(
             std::fs::read_to_string(repo.join(".taskcode").join("config.yml")).unwrap(),
             texto
@@ -494,14 +478,14 @@ fn sin_red_no_escribe() {
     let f = Fixture::nueva("init-sinred");
     let repo = repo_vacio(&f);
     f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
-    let antes = instantanea(&repo);
+    let antes = comun::instantanea(&repo, &[]);
     for simular in [false, true] {
         let h = correr(&repo, &git_sin_red(&f), simular, &con_token);
         let s = h.salida_en(false, Idioma::Es);
         assert_eq!(s.codigo, 4, "{}", s.stdout);
         assert_eq!(s.stdout, "init sinred pendiente=no\n");
         assert!(s.stderr.contains("Connection refused"), "{}", s.stderr);
-        assert_eq!(antes, instantanea(&repo));
+        assert_eq!(antes, comun::instantanea(&repo, &[]));
     }
 }
 
@@ -1577,7 +1561,7 @@ fn aplicar_puertas_sin_origen_se_rechaza_sin_escribir() {
         let f = Fixture::nueva("init-puertas-sin-origen");
         let (repo, g) = repo_listo(&f, &config_puertas("github", &m.base(), revisor));
         let antes = m.recibidas().len();
-        let disco = instantanea(&repo);
+        let disco = comun::instantanea(&repo, &[]);
         for simular in [true, false] {
             let h = aplicar(&repo, &g, simular);
             let s = h.salida_en(false, Idioma::Es);
@@ -1608,7 +1592,7 @@ fn aplicar_puertas_sin_origen_se_rechaza_sin_escribir() {
             "{:?}",
             escrituras(&m, antes)
         );
-        assert_eq!(disco, instantanea(&repo));
+        assert_eq!(disco, comun::instantanea(&repo, &[]));
     }
 }
 

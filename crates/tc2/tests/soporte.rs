@@ -197,3 +197,62 @@ fn http_mock_corta_una_vez_y_sirve_bytes_exactos() {
     lector.read_exact(&mut leido).expect("cuerpo");
     assert_eq!(leido, cuerpo);
 }
+
+/// A8-12: la instantanea comun ve una carpeta vacia nueva, un fichero en una
+/// subcarpeta y un contenido cambiado con el mismo tamano.
+#[test]
+fn instantanea_ve_carpetas_vacias_y_subcarpetas() {
+    let f = comun::Fixture::nueva("soporte-instantanea");
+    let dir = f.raiz.join("foto");
+    comun::escribir(&dir, "raiz.txt", "abc");
+    let antes = comun::instantanea(&dir, &[]);
+    assert!(antes["raiz.txt"].starts_with("3 "), "{antes:?}");
+
+    std::fs::create_dir(dir.join("vacia")).unwrap();
+    let con_vacia = comun::instantanea(&dir, &[]);
+    assert_ne!(
+        antes, con_vacia,
+        "una carpeta vacia nueva no cambio la foto"
+    );
+    assert_eq!(con_vacia.get("vacia").map(String::as_str), Some("dir"));
+
+    comun::escribir(&dir, "a/b/f.txt", "x");
+    let con_sub = comun::instantanea(&dir, &[]);
+    assert_ne!(
+        con_vacia, con_sub,
+        "un fichero en una subcarpeta no cambio la foto"
+    );
+    assert!(con_sub.contains_key("a/b/f.txt"), "{con_sub:?}");
+
+    comun::escribir(&dir, "raiz.txt", "abd");
+    assert_ne!(
+        con_sub,
+        comun::instantanea(&dir, &[]),
+        "un contenido distinto del mismo tamano no cambio la foto"
+    );
+}
+
+/// A8-12: los nombres excluidos no cambian la foto, en la raiz ni en una
+/// subcarpeta, y una carpeta excluida se salta entera; una carpeta que no
+/// existe da la foto vacia.
+#[test]
+fn instantanea_ignora_los_nombres_excluidos() {
+    let f = comun::Fixture::nueva("soporte-instantanea-excluir");
+    let dir = f.raiz.join("foto");
+    comun::escribir(&dir, "sub/f.txt", "1");
+    let excluir = ["marca", "cache"];
+    let antes = comun::instantanea(&dir, &excluir);
+
+    comun::escribir(&dir, "marca", "1");
+    comun::escribir(&dir, "sub/marca", "2");
+    comun::escribir(&dir, "cache/dentro.txt", "3");
+    comun::escribir(&dir, "sub/cache/otra/dentro.txt", "4");
+    assert_eq!(antes, comun::instantanea(&dir, &excluir));
+    assert_ne!(
+        antes,
+        comun::instantanea(&dir, &[]),
+        "sin excluir, lo nuevo tiene que verse"
+    );
+
+    assert!(comun::instantanea(&f.raiz.join("no-existe"), &[]).is_empty());
+}

@@ -11,7 +11,6 @@
 
 mod comun;
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use comun::{Fixture, escribir};
@@ -30,35 +29,6 @@ fn bloque(dir: &str) -> String {
         distribucion::LINEA_PERFIL,
         distribucion::MARCA_FIN_PERFIL
     )
-}
-
-/// Instantanea de una carpeta: ruta relativa → (tamano, sha256), y las
-/// carpetas con su marca.
-fn instantanea(dir: &Path) -> BTreeMap<String, String> {
-    fn recorrer(base: &Path, d: &Path, m: &mut BTreeMap<String, String>) {
-        let Ok(it) = std::fs::read_dir(d) else { return };
-        for e in it.flatten() {
-            let p = e.path();
-            let rel = p
-                .strip_prefix(base)
-                .unwrap()
-                .to_string_lossy()
-                .replace('\\', "/");
-            if p.is_dir() {
-                m.insert(rel, "dir".to_owned());
-                recorrer(base, &p, m);
-            } else {
-                let b = std::fs::read(&p).unwrap();
-                m.insert(
-                    rel,
-                    format!("{} {}", b.len(), distribucion::sha256::hex(&b)),
-                );
-            }
-        }
-    }
-    let mut m = BTreeMap::new();
-    recorrer(dir, dir, &mut m);
-    m
 }
 
 fn entorno(sistema: Sistema, home: &Path, exe: PathBuf) -> Entorno {
@@ -179,7 +149,11 @@ fn simular_no_toca_nada() {
         "{\"statusLine\": {\"type\": \"command\", \"command\": \"tc2 estado --stdin\"}}\n",
     );
     let g = f.git();
-    let antes = [instantanea(&home), instantanea(&clon), instantanea(&bare)];
+    let antes = [
+        comun::instantanea(&home, &[]),
+        comun::instantanea(&clon, &[]),
+        comun::instantanea(&bare, &[]),
+    ];
     for sistema in [Sistema::Linux, Sistema::Windows] {
         let exe = if sistema == Sistema::Windows {
             home.join("AppData/Local/taskcodetwo/bin/tc2.exe")
@@ -233,7 +207,11 @@ fn simular_no_toca_nada() {
         }
         assert!(m.path.borrow().as_deref().unwrap().contains("taskcodetwo"));
     }
-    let despues = [instantanea(&home), instantanea(&clon), instantanea(&bare)];
+    let despues = [
+        comun::instantanea(&home, &[]),
+        comun::instantanea(&clon, &[]),
+        comun::instantanea(&bare, &[]),
+    ];
     assert_eq!(antes, despues);
 }
 
@@ -328,7 +306,7 @@ fn binario_en_uso_por_otro_queda_pendiente_sin_nada_a_medias() {
         en_uso: vec![exe.clone()],
         ..MaquinaEnMemoria::default()
     };
-    let antes = instantanea(&bin);
+    let antes = comun::instantanea(&bin, &[]);
     let h = correr(&e, &f.raiz, &f.git(), &m, &["--maquina"]);
     let s = h.salida_en(false, Idioma::Es);
     assert_eq!(s.codigo, 3, "{}", s.stdout);
@@ -346,7 +324,7 @@ fn binario_en_uso_por_otro_queda_pendiente_sin_nada_a_medias() {
         s.stderr
     );
     assert!(s.stdout.contains("decision=pendiente motivo=en-uso"));
-    assert_eq!(instantanea(&bin), antes);
+    assert_eq!(comun::instantanea(&bin, &[]), antes);
     assert_eq!(m.path.borrow().as_deref(), Some(path.as_str()));
     assert!(m.borrados.borrow().is_empty());
     // Lo demas si se quito.
@@ -521,11 +499,8 @@ fn proyecto_quita_worktrees_comun_y_exclude_sin_tocar_el_remoto() {
     assert!(!clon.join(".taskcodetwo").exists());
     assert!(!clon.join(".git").join("taskcodetwo").exists());
     let wt_reg = clon.join(".git").join("worktrees");
-    assert!(
-        std::fs::read_dir(&wt_reg)
-            .map(|mut d| d.next().is_none())
-            .unwrap_or(true)
-    );
+    // Vacia o inexistente.
+    assert!(comun::instantanea(&wt_reg, &[]).is_empty());
     let ex = std::fs::read_to_string(clon.join(".git").join("info").join("exclude")).unwrap();
     assert!(
         !ex.contains("/.taskcodetwo/worktrees/") && !ex.contains("/tareas/"),
@@ -555,7 +530,10 @@ fn worktree_de_tarea_sin_publicar_rechaza_sin_tocar_nada() {
     escribir(&wt, "nuevo.txt", "x\n");
     f.crudo(&wt, &["add", "nuevo.txt"]);
     f.crudo(&wt, &["commit", "-q", "-m", "sin publicar"]);
-    let antes = [instantanea(&clon), instantanea(&bare)];
+    let antes = [
+        comun::instantanea(&clon, &[]),
+        comun::instantanea(&bare, &[]),
+    ];
     let e = entorno(Sistema::Linux, &f.raiz.join("home"), f.raiz.join("tc2"));
     let h = correr(
         &e,
@@ -573,7 +551,13 @@ fn worktree_de_tarea_sin_publicar_rechaza_sin_tocar_nada() {
             .unwrap()
             .contains("motivo=sin-publicar")
     );
-    assert_eq!([instantanea(&clon), instantanea(&bare)], antes);
+    assert_eq!(
+        [
+            comun::instantanea(&clon, &[]),
+            comun::instantanea(&bare, &[])
+        ],
+        antes
+    );
     // Con cambios sin guardar, igual.
     escribir(&wt, "otro.txt", "y\n");
     f.crudo(&wt, &["push", "-q", "origin", "feature/task-001-x"]);
@@ -636,17 +620,35 @@ fn worktree_bloqueado_o_carpeta_actual_dentro_rechaza() {
     let e = entorno(Sistema::Linux, &f.raiz.join("home"), f.raiz.join("tc2"));
     let g = f.git();
     let m = MaquinaEnMemoria::default();
-    let antes = [instantanea(&clon), instantanea(&bare)];
+    let antes = [
+        comun::instantanea(&clon, &[]),
+        comun::instantanea(&bare, &[]),
+    ];
     let h = correr(&e, &wt, &g, &m, &["--proyecto"]);
     assert_eq!(h.informe.resultado, Resultado::Rechazada, "{}", stdout(&h));
     assert_eq!(h.informe.valor("motivo"), Some("carpeta-actual-dentro"));
     assert!(h.acciones.iter().all(|a| a.decision.texto() != "borra"));
-    assert_eq!([instantanea(&clon), instantanea(&bare)], antes);
+    assert_eq!(
+        [
+            comun::instantanea(&clon, &[]),
+            comun::instantanea(&bare, &[])
+        ],
+        antes
+    );
     f.crudo(&clon, &["worktree", "lock", wt.to_str().unwrap()]);
-    let antes = [instantanea(&clon), instantanea(&bare)];
+    let antes = [
+        comun::instantanea(&clon, &[]),
+        comun::instantanea(&bare, &[]),
+    ];
     let h = correr(&e, &clon, &g, &m, &["--proyecto"]);
     assert_eq!(h.informe.valor("motivo"), Some("worktree-bloqueado"));
-    assert_eq!([instantanea(&clon), instantanea(&bare)], antes);
+    assert_eq!(
+        [
+            comun::instantanea(&clon, &[]),
+            comun::instantanea(&bare, &[])
+        ],
+        antes
+    );
     f.crudo(&clon, &["worktree", "unlock", wt.to_str().unwrap()]);
 }
 
@@ -854,10 +856,10 @@ fn huella_de_la_016_intacta() {
     let (exe, _) = instalacion_unix(&home);
     let huella = || {
         [
-            instantanea(&c016),
-            instantanea(&clon.join(".taskcode")),
-            instantanea(&clon.join("tareas")),
-            instantanea(&claude),
+            comun::instantanea(&c016, &[]),
+            comun::instantanea(&clon.join(".taskcode"), &[]),
+            comun::instantanea(&clon.join("tareas"), &[]),
+            comun::instantanea(&claude, &[]),
         ]
     };
     let antes = huella();
