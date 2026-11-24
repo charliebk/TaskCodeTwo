@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-142-auditoria-4d-a4-git-rama-de-estado-y-tom
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Corregir los 9 casos IMPORTANTE del grupo A4 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-24T22:28:15Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T22:39:34Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T22:39:38Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
