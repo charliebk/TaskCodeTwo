@@ -548,6 +548,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests_stdin {
     use super::*;
+    use crate::git::prueba::{aislar, entorno, sh};
     use crate::i18n::Idioma;
 
     /// Repo vacio de verdad en una carpeta temporal propia.
@@ -555,13 +556,8 @@ mod tests_stdin {
         let d = std::env::temp_dir().join(format!("tc2-estado-{nombre}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
-        let ok = std::process::Command::new("git")
-            .current_dir(&d)
-            .args(["init", "-q"])
-            .status()
-            .unwrap()
-            .success();
-        assert!(ok);
+        aislar(&d).unwrap();
+        sh(&d, &d, &["init", "-q"]).unwrap();
         d
     }
 
@@ -673,10 +669,7 @@ mod tests_stdin {
             ),
         )
         .unwrap();
-        let git = Git::nuevo().con_entorno(vec![
-            ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
-            ("GIT_CONFIG_GLOBAL".into(), config.into_os_string()),
-        ]);
+        let git = Git::nuevo().con_entorno(entorno(&d));
         let base = construir_commit(
             &git,
             &d,
