@@ -133,6 +133,22 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
     contrato(&i);
     assert_eq!(i.resultado, Resultado::Denegada, "{}", i.linea());
     assert_eq!(i.valor("intentos"), Some("1"));
+    // A4-01: `ls-remote` clasifica el fallo como `fetch`; reintentar con red
+    // no arregla un remoto que no existe.
+    let i = git::comprobar_id(&g, &clon, "TASK-099");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "comprobar-id denegada remoto=origin motivo=remoto-no-existe"
+    );
+    assert_eq!(i.salida(false).codigo, 8);
+    let i = git::tag_anotado(&g, &clon, "v9.0.0", rama, &SIN_ESPERA);
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "tag-anotado denegada remoto=origin motivo=remoto-no-existe"
+    );
+    assert_eq!(i.salida(false).codigo, 8);
 
     // Sin remoto alcanzable (nadie escucha en el puerto): `sinred`, con
     // reintentos.
@@ -150,4 +166,27 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
     assert_eq!(i.valor("intentos"), Some("3"));
 
     registro_permitido(&g.registro());
+}
+
+/// A4-01 (decision 1 del plan de TASK-142): sin `origin`, `comprobar-id`
+/// mira solo las ramas locales, como `ids_con_rama`.
+#[test]
+fn comprobar_id_sin_origin_mira_lo_local() {
+    let f = Fixture::nueva("sin-origin");
+    let repo = f.raiz.join("repo");
+    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "repo"]);
+    escribir(&repo, "README.md", "x\n");
+    f.crudo(&repo, &["add", "README.md"]);
+    f.crudo(&repo, &["commit", "-q", "-m", "inicial"]);
+    let g = f.git();
+    let i = git::comprobar_id(&g, &repo, "TASK-007");
+    contrato(&i);
+    assert_eq!(i.linea(), "comprobar-id ok id=TASK-007");
+    f.crudo(&repo, &["branch", "feature/task-007-x"]);
+    let i = git::comprobar_id(&g, &repo, "TASK-007");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "comprobar-id rechazada id=TASK-007 motivo=ocupada ramas=feature/task-007-x"
+    );
 }

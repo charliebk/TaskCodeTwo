@@ -37,7 +37,7 @@ fn sinred(op: &str) -> Informe {
 }
 
 /// «`op`: no se pudo leer origin; reintenta con red».
-pub(crate) fn sin_red_remoto(op: &str) -> Mensaje {
+fn sin_red_remoto(op: &str) -> Mensaje {
     Mensaje::nuevo(&txt::SIN_RED_REMOTO)
         .con("op", op)
         .con("remoto", REMOTO)
@@ -171,12 +171,24 @@ pub fn fetch(git: &Git, dir: &Path) -> Informe {
     traer(git, dir, "fetch").unwrap_or_else(|i| i)
 }
 
-/// Informe de un `fetch` que fallo: sin red, fallo local o denegado.
-fn fallo_fetch(op: &str, s: &SalidaGit) -> Informe {
+/// Informe de una llamada al remoto (`fetch`, `ls-remote`) que fallo: sin
+/// red, fallo local o denegado.
+pub(crate) fn fallo_del_remoto(op: &str, s: &SalidaGit) -> Informe {
     match clasificar_fallo_remoto(&s.stderr) {
         FalloRemoto::SinRed | FalloRemoto::RamaInexistente => sinred(op),
         FalloRemoto::Local => error_local(op, &s.primera_linea_error()),
         otro => denegada(op, otro, &s.primera_linea_error()),
+    }
+}
+
+/// `ls-remote <args>` y su stdout; un fallo se clasifica con
+/// [`fallo_del_remoto`].
+pub(crate) fn consultar_remoto(git: &Git, dir: &Path, op: &str, args: &[&str]) -> Paso<String> {
+    let s = correr(git, dir, op, Subcomando::LsRemote, args)?;
+    if s.exito() {
+        Ok(s.stdout)
+    } else {
+        Err(fallo_del_remoto(op, &s))
     }
 }
 
@@ -205,14 +217,14 @@ pub(crate) fn traer_rama(git: &Git, dir: &Path, op: &str, rama: &str) -> Paso<()
                     .con("remoto", REMOTO),
             ));
     }
-    Err(fallo_fetch(op, &s))
+    Err(fallo_del_remoto(op, &s))
 }
 
 fn traer(git: &Git, dir: &Path, op: &str) -> Paso<Informe> {
     let antes = refs_remotas(git, dir, op)?;
     let s = correr(git, dir, op, Subcomando::Fetch, &["-q", REMOTO])?;
     if !s.exito() {
-        return Err(fallo_fetch(op, &s));
+        return Err(fallo_del_remoto(op, &s));
     }
     let despues = refs_remotas(git, dir, op)?;
     let r = if antes == despues {

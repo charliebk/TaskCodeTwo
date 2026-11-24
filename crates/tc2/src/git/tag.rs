@@ -3,8 +3,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use super::remoto::publicar;
-use super::{Git, Paso, REMOTO, Subcomando, commit_de, correr, exigir};
+use super::remoto::{consultar_remoto, publicar};
+use super::{Git, Paso, REMOTO, Subcomando, commit_de, exigir};
 use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -100,20 +100,9 @@ fn tag_paso(
 fn commit_remoto(git: &Git, dir: &Path, op: &str, tag: &str) -> Paso<Option<String>> {
     let r = format!("refs/tags/{tag}");
     let pelado = format!("{r}^{{}}");
-    let s = correr(
-        git,
-        dir,
-        op,
-        Subcomando::LsRemote,
-        &["--tags", REMOTO, &r, &pelado],
-    )?;
-    if !s.exito() {
-        return Err(Informe::nuevo(op, Resultado::Sinred)
-            .con("remoto", REMOTO)
-            .diagnostico(super::remoto::sin_red_remoto(op)));
-    }
+    let salida = consultar_remoto(git, dir, op, &["--tags", REMOTO, &r, &pelado])?;
     let mut directo = None;
-    for l in s.stdout.lines() {
+    for l in salida.lines() {
         let mut c = l.split('\t');
         let (Some(sha), Some(nombre)) = (c.next(), c.next()) else {
             continue;

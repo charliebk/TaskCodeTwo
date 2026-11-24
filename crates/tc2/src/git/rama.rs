@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use super::estado::hay_remoto;
-use super::remoto::{FalloRemoto, clasificar_fallo_remoto};
+use super::remoto::consultar_remoto;
 use super::{
     CARPETA_WORKTREES, Git, Paso, REMOTO, Subcomando, commit_de, correr, es_id, exigir, misma_ruta,
     nombre_de_rama, worktree_relativo, worktrees,
@@ -51,8 +51,8 @@ pub fn validar_base(git: &Git, dir: &Path, base: &str) -> Informe {
     }
 }
 
-/// Mira si el ID ya tiene rama, en local o en el remoto (patron
-/// `*/task-nnn-*`). Ocupado → `rechazada motivo=ocupada`.
+/// Mira si el ID ya tiene rama, en local o, si hay `origin`, en el remoto
+/// (patron `*/task-nnn-*`). Ocupado → `rechazada motivo=ocupada`.
 pub fn comprobar_id(git: &Git, dir: &Path, id: &str) -> Informe {
     comprobar_id_salvo(git, dir, id, None)
 }
@@ -86,27 +86,26 @@ fn ramas_ajenas(mut ramas: Vec<String>, propia: Option<&str>) -> Vec<String> {
 }
 
 fn ramas_del_id(git: &Git, dir: &Path, op: &str, id: &str) -> Paso<Vec<String>> {
-    let patron = format!("*/{}-*", id.to_lowercase());
-    let remoto = correr(
-        git,
-        dir,
-        op,
-        Subcomando::LsRemote,
-        &["--heads", REMOTO, &patron],
-    )?;
-    if !remoto.exito() {
-        return Err(Informe::nuevo(op, Resultado::Sinred)
-            .con("remoto", REMOTO)
-            .diagnostico(super::remoto::sin_red_remoto(op)));
-    }
+    ramas_de_tarea(git, dir, op, &format!("*/{}-*", id.to_lowercase()))
+}
+
+/// Ramas que casan con `patron` en local y, si hay `origin`, en el remoto,
+/// ordenadas y sin repetir. Un fallo del remoto se clasifica como en
+/// `fetch`: `sinred` (4), `denegada` (8) o `error` local.
+fn ramas_de_tarea(git: &Git, dir: &Path, op: &str, patron: &str) -> Paso<Vec<String>> {
+    let remoto = if hay_remoto(git, dir, op)? {
+        consultar_remoto(git, dir, op, &["--heads", REMOTO, patron])?
+    } else {
+        String::new()
+    };
     let local = exigir(
         git,
         dir,
         op,
         Subcomando::Branch,
-        &["--list", "--format=%(refname:short)", &patron],
+        &["--list", "--format=%(refname:short)", patron],
     )?;
-    Ok(nombres(&remoto.stdout, &local))
+    Ok(nombres(&remoto, &local))
 }
 
 /// Nombres de rama de la salida de `ls-remote --heads` y de `branch --list
@@ -159,37 +158,7 @@ fn id_de_rama(rama: &str) -> Option<u32> {
 /// `denegada` (8) o `error` local.
 pub fn ids_con_rama(git: &Git, dir: &Path, op: &str) -> Paso<BTreeSet<u32>> {
     let principal = localizar_principal(git, dir)?;
-    let remoto = if hay_remoto(git, &principal, op)? {
-        let s = correr(
-            git,
-            &principal,
-            op,
-            Subcomando::LsRemote,
-            &["--heads", REMOTO, PATRON_TAREAS],
-        )?;
-        if !s.exito() {
-            return Err(match clasificar_fallo_remoto(&s.stderr) {
-                FalloRemoto::SinRed | FalloRemoto::RamaInexistente => {
-                    Informe::nuevo(op, Resultado::Sinred)
-                        .con("remoto", REMOTO)
-                        .diagnostico(super::remoto::sin_red_remoto(op))
-                }
-                FalloRemoto::Local => super::remoto::error_local(op, &s.primera_linea_error()),
-                otro => super::remoto::denegada(op, otro, &s.primera_linea_error()),
-            });
-        }
-        s.stdout
-    } else {
-        String::new()
-    };
-    let local = exigir(
-        git,
-        &principal,
-        op,
-        Subcomando::Branch,
-        &["--list", "--format=%(refname:short)", PATRON_TAREAS],
-    )?;
-    Ok(nombres(&remoto, &local)
+    Ok(ramas_de_tarea(git, &principal, op, PATRON_TAREAS)?
         .iter()
         .filter_map(|r| id_de_rama(r))
         .collect())
