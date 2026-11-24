@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-140-auditoria-4d-a2-hallazgos-y-revision-7-i
 asignado_a: charlie.bk@gmail.com
@@ -69,6 +69,7 @@ Corregidos los 7 IMPORTANTE del grupo A2 en `crates/tc2/src/hallazgos/`, todo co
 | 2026-11-24T16:52:08Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T16:52:09Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T17:48:36Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T19:37:50Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -87,3 +88,10 @@ Corregidos los 7 IMPORTANTE del grupo A2 en `crates/tc2/src/hallazgos/`, todo co
 ## Verificacion ligera
 
 - 2026-11-24T18:22:48Z: ronda 1; commit revisado 468ef2f20633db8d12b6b4b92a44665c0eefd3f7; commit verificado f90f7b6f45d0f3f4a44e95e95f328ec8cfdc1a62; ficheros: crates/tc2/src/hallazgos/mod.rs; corregidos: MEN-1, MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 180 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 166 min
+- Paso de la hora: 166 min reales frente a 180 estimados
+- Cierre (finish): 3619 s, de 2026-11-24T18:37:31Z a 2026-11-24T19:37:50Z
