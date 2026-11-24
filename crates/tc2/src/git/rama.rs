@@ -284,67 +284,105 @@ pub fn crear_rama_y_worktree(
     crear(git, dir, id, tipo, slug, base).unwrap_or_else(|i| i)
 }
 
+/// Rama y worktree de una tarea: lo que comparten [`crear_rama_y_worktree`]
+/// y [`reanudar`] (casos b y c de F1-3).
+struct DestinoWt {
+    op: &'static str,
+    rama: String,
+    principal: PathBuf,
+    wt: PathBuf,
+    rel: String,
+}
+
+impl DestinoWt {
+    /// El worktree principal y la carpeta del worktree de la tarea `id`,
+    /// con `rama` ya validada.
+    fn preparar(git: &Git, dir: &Path, op: &'static str, id: &str, rama: String) -> Paso<Self> {
+        let principal = localizar_principal(git, dir).map_err(|i| renombrar(i, op))?;
+        Ok(Self {
+            op,
+            rama,
+            wt: principal.join(CARPETA_WORKTREES).join(id),
+            principal,
+            rel: worktree_relativo(id),
+        })
+    }
+
+    /// `rechazada rama=<rama> motivo=<motivo>`.
+    fn rechazo(&self, motivo: &str) -> Informe {
+        Informe::nuevo(self.op, Resultado::Rechazada)
+            .con("rama", self.rama.as_str())
+            .con("motivo", motivo)
+    }
+
+    /// El worktree registrado en la rama, si lo hay.
+    fn registrado(&self, git: &Git) -> Paso<Option<super::Worktree>> {
+        Ok(worktrees(git, &self.principal, self.op)?
+            .into_iter()
+            .find(|w| w.rama.as_deref() == Some(self.rama.as_str())))
+    }
+
+    /// `rechazada motivo=carpeta-ocupada` si la carpeta ya existe.
+    fn carpeta_ocupada(&self) -> Option<Informe> {
+        self.wt.exists().then(|| {
+            self.rechazo("carpeta-ocupada")
+                .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("ruta", self.rel.as_str()))
+        })
+    }
+
+    /// `worktree add -q <antes> <carpeta> <despues>`, con la carpeta de los
+    /// worktrees excluida del `status` del principal.
+    fn anadir(&self, git: &Git, antes: &[&str], despues: &[&str]) -> Paso<()> {
+        excluir_worktrees(git, &self.principal, self.op)?;
+        let wt_txt = ruta_texto(self.op, &self.wt)?;
+        let mut args = vec!["add", "-q"];
+        args.extend_from_slice(antes);
+        args.push(&wt_txt);
+        args.extend_from_slice(despues);
+        exigir(git, &self.principal, self.op, Subcomando::Worktree, &args)?;
+        Ok(())
+    }
+}
+
 fn crear(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str, base: &str) -> Paso<Informe> {
     const OP: &str = "crear-rama-y-worktree";
     let rama = rama_valida(OP, id, tipo, slug)?;
     if base.is_empty() || base.starts_with('-') {
         return Err(Informe::nuevo(OP, Resultado::Uso).con("motivo", "base-invalida"));
     }
-    let principal = localizar_principal(git, dir).map_err(|i| renombrar(i, OP))?;
-    let wt = principal.join(CARPETA_WORKTREES).join(id);
-    let rel = worktree_relativo(id);
-    let rechazo = |motivo: &str| {
-        Informe::nuevo(OP, Resultado::Rechazada)
-            .con("rama", rama.as_str())
-            .con("motivo", motivo)
-    };
-    if let Some(w) = worktrees(git, &principal, OP)?
-        .into_iter()
-        .find(|w| w.rama.as_deref() == Some(rama.as_str()))
-    {
-        return Ok(if misma_ruta(&w.ruta, &wt) {
+    let d = DestinoWt::preparar(git, dir, OP, id, rama)?;
+    let (rama, principal) = (d.rama.as_str(), d.principal.as_path());
+    if let Some(w) = d.registrado(git)? {
+        return Ok(if misma_ruta(&w.ruta, &d.wt) {
             Informe::nuevo(OP, Resultado::SinCambios)
-                .con("rama", rama.as_str())
-                .con("worktree", rel)
+                .con("rama", rama)
+                .con("worktree", d.rel.as_str())
         } else {
-            rechazo("rama-en-otro-worktree").diagnostico(&txt::RAMA_EN_OTRO_WORKTREE)
+            d.rechazo("rama-en-otro-worktree")
+                .diagnostico(&txt::RAMA_EN_OTRO_WORKTREE)
         });
     }
-    if commit_de(git, &principal, OP, &format!("refs/heads/{rama}"))?.is_some() {
-        return Ok(rechazo("rama-existe").diagnostico(&txt::RAMA_YA_EXISTE));
+    if commit_de(git, principal, OP, &format!("refs/heads/{rama}"))?.is_some() {
+        return Ok(d.rechazo("rama-existe").diagnostico(&txt::RAMA_YA_EXISTE));
     }
-    if commit_de(
-        git,
-        &principal,
-        OP,
-        &format!("refs/remotes/{REMOTO}/{rama}"),
-    )?
-    .is_some()
-    {
-        return Ok(rechazo("rama-en-remoto").diagnostico(&txt::RAMA_YA_PUBLICADA));
+    if commit_de(git, principal, OP, &format!("refs/remotes/{REMOTO}/{rama}"))?.is_some() {
+        return Ok(d
+            .rechazo("rama-en-remoto")
+            .diagnostico(&txt::RAMA_YA_PUBLICADA));
     }
-    if wt.exists() {
-        return Ok(rechazo("carpeta-ocupada")
-            .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("ruta", rel.as_str())));
+    if let Some(i) = d.carpeta_ocupada() {
+        return Ok(i);
     }
-    let Some(commit) = commit_de(git, &principal, OP, base)? else {
+    let Some(commit) = commit_de(git, principal, OP, base)? else {
         return Ok(Informe::nuevo(OP, Resultado::Rechazada)
             .con("base", base)
             .con("motivo", "base-no-existe")
             .diagnostico(Mensaje::nuevo(&txt::BASE_NO_EXISTE).con("base", base)));
     };
-    excluir_worktrees(git, &principal, OP)?;
-    let wt_txt = ruta_texto(OP, &wt)?;
-    exigir(
-        git,
-        &principal,
-        OP,
-        Subcomando::Worktree,
-        &["add", "-q", "--no-track", "-b", &rama, &wt_txt, &commit],
-    )?;
+    d.anadir(git, &["--no-track", "-b", rama], &[&commit])?;
     Ok(Informe::nuevo(OP, Resultado::Ok)
-        .con("rama", rama.as_str())
-        .con("worktree", rel)
+        .con("rama", rama)
+        .con("worktree", d.rel.as_str())
         .con("base", corto(&commit)))
 }
 
@@ -356,54 +394,39 @@ pub fn reanudar(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str) -> Info
 
 fn reanudar_paso(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str) -> Paso<Informe> {
     const OP: &str = "reanudar";
-    let rama = rama_valida(OP, id, tipo, slug)?;
-    let principal = localizar_principal(git, dir).map_err(|i| renombrar(i, OP))?;
-    let wt = principal.join(CARPETA_WORKTREES).join(id);
-    let rel = worktree_relativo(id);
-    let rechazo = |motivo: &str| {
-        Informe::nuevo(OP, Resultado::Rechazada)
-            .con("rama", rama.as_str())
-            .con("motivo", motivo)
-    };
+    let d = DestinoWt::preparar(git, dir, OP, id, rama_valida(OP, id, tipo, slug)?)?;
+    let (rama, principal) = (d.rama.as_str(), d.principal.as_path());
     // Un worktree borrado a mano sigue registrado hasta que se poda.
-    exigir(git, &principal, OP, Subcomando::Worktree, &["prune"])?;
+    exigir(git, principal, OP, Subcomando::Worktree, &["prune"])?;
     let mut creado = Vec::new();
-    if commit_de(git, &principal, OP, &format!("refs/heads/{rama}"))?.is_none() {
+    if commit_de(git, principal, OP, &format!("refs/heads/{rama}"))?.is_none() {
         let remota = format!("refs/remotes/{REMOTO}/{rama}");
-        if commit_de(git, &principal, OP, &remota)?.is_none() {
-            return Ok(rechazo("rama-no-existe").diagnostico(&txt::TAREA_SIN_RAMA));
+        if commit_de(git, principal, OP, &remota)?.is_none() {
+            return Ok(d
+                .rechazo("rama-no-existe")
+                .diagnostico(&txt::TAREA_SIN_RAMA));
         }
         exigir(
             git,
-            &principal,
+            principal,
             OP,
             Subcomando::Branch,
-            &["-q", "--no-track", &rama, &remota],
+            &["-q", "--no-track", rama, &remota],
         )?;
         creado.push("rama".to_owned());
     }
-    match worktrees(git, &principal, OP)?
-        .into_iter()
-        .find(|w| w.rama.as_deref() == Some(rama.as_str()))
-    {
-        Some(w) if misma_ruta(&w.ruta, &wt) => {}
+    match d.registrado(git)? {
+        Some(w) if misma_ruta(&w.ruta, &d.wt) => {}
         Some(_) => {
-            return Ok(rechazo("rama-en-otro-worktree").diagnostico(&txt::RAMA_EN_OTRO_WORKTREE));
+            return Ok(d
+                .rechazo("rama-en-otro-worktree")
+                .diagnostico(&txt::RAMA_EN_OTRO_WORKTREE));
         }
         None => {
-            if wt.exists() {
-                return Ok(rechazo("carpeta-ocupada")
-                    .diagnostico(Mensaje::nuevo(&txt::CARPETA_OCUPADA).con("ruta", rel.as_str())));
+            if let Some(i) = d.carpeta_ocupada() {
+                return Ok(i);
             }
-            excluir_worktrees(git, &principal, OP)?;
-            let wt_txt = ruta_texto(OP, &wt)?;
-            exigir(
-                git,
-                &principal,
-                OP,
-                Subcomando::Worktree,
-                &["add", "-q", &wt_txt, &rama],
-            )?;
+            d.anadir(git, &[], &[rama])?;
             creado.push("worktree".to_owned());
         }
     }
@@ -415,8 +438,8 @@ fn reanudar_paso(git: &Git, dir: &Path, id: &str, tipo: &str, slug: &str) -> Pas
             Resultado::Ok
         },
     )
-    .con("rama", rama.as_str())
-    .con("worktree", rel);
+    .con("rama", rama)
+    .con("worktree", d.rel.as_str());
     Ok(if creado.is_empty() {
         i
     } else {

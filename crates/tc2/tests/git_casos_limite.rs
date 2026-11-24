@@ -204,3 +204,42 @@ fn actualizar_rama_trae_lo_publicado_en_la_rama_por_fast_forward() {
         f.crudo(&otro, &["rev-parse", "HEAD"])
     );
 }
+
+/// TASK-142 (A4-06): `crear-rama-y-worktree` y `reanudar` rechazan una
+/// carpeta de worktree ya ocupada sin crear nada, con la ruta relativa en el
+/// diagnostico.
+#[test]
+fn carpeta_de_worktree_ocupada_en_crear_y_reanudar() {
+    let f = Fixture::nueva("limite-carpeta");
+    let (bare, clon) = f.remoto_y_clon();
+    let g = f.git();
+    escribir(&clon, ".taskcodetwo/worktrees/TASK-009/a.txt", "a\n");
+    escribir(&clon, ".taskcodetwo/worktrees/TASK-008/a.txt", "a\n");
+    f.crudo(&clon, &["branch", "feature/task-008-x"]);
+    let antes = f.huella(&bare, &clon);
+
+    let i = git::crear_rama_y_worktree(&g, &clon, "TASK-009", "feature", "y", "origin/develop");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "crear-rama-y-worktree rechazada rama=feature/task-009-y motivo=carpeta-ocupada"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.contains(".taskcodetwo/worktrees/TASK-009"),
+        "{stderr}"
+    );
+
+    let i = git::reanudar(&g, &clon, "TASK-008", "feature", "x");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "reanudar rechazada rama=feature/task-008-x motivo=carpeta-ocupada"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.contains(".taskcodetwo/worktrees/TASK-008"),
+        "{stderr}"
+    );
+    assert_eq!(antes, f.huella(&bare, &clon), "no se creo nada");
+}
