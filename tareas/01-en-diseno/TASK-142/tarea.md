@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-142-auditoria-4d-a4-git-rama-de-estado-y-tom
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 3349940
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -41,3 +41,10 @@ Corregir los 9 casos IMPORTANTE del grupo A4 de `docs/auditoria-4d.md` (commit a
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-24T22:28:15Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-24T22:39:34Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24T22:39:33Z | diseno | agente:a0b46b8c08da6c566 | 80 | 129835 | 3192842 | 27183 | 51 | 3349940 | - | - |
