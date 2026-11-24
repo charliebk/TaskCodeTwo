@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 316853
-tokens_implementacion: null
+tokens_implementacion: 6372184
 tokens_revision: null
 creado: 2026-11-23
 actualizado: 2026-11-24
@@ -56,12 +56,15 @@ Una sola instantanea de carpeta en `crates/tc2/tests/comun/instantanea.rs` (`ins
 | 2026-11-24T05:55:38Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T05:58:24Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T05:58:25Z | start | automatico | persona | 0.17.1 |
+| 2026-11-24T06:36:52Z | review | automatico | persona | 0.17.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-24T05:58:24Z | diseno | agente:aa5704f48c80de0c1 | 16 | 56118 | 250824 | 9895 | 20 | 316853 | - | - |
+| 2026-11-24T06:36:52Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 14 | 10709 | 2892188 | 3563 | 0 | 2906474 | - | - |
+| 2026-11-24T06:36:52Z | implementacion | agente:a96e8b1a8f7a90623 | 70 | 123050 | 3329500 | 13090 | 2 | 3465710 | - | - |
 
 ## Autorrevision
 
