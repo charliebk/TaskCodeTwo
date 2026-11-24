@@ -21,6 +21,8 @@ pub mod github;
 pub mod gitlab;
 pub mod http;
 pub mod personas;
+#[cfg(test)]
+pub(crate) mod prueba;
 pub mod puertas;
 
 pub use app_github::CredencialesApp;
@@ -425,7 +427,7 @@ pub trait Plataforma {
     /// entorno para que `git` empuje a `url_remoto` con el token del agente
     /// ([`entorno_git::entorno_push`]: cabecera limitada a esa URL, sin
     /// autor). El token no sale del adaptador mas que en esa cabecera. Por
-    /// defecto (adaptadores de prueba), `rechazada motivo=no-soportada`.
+    /// defecto, `rechazada motivo=no-soportada`.
     fn entorno_push(
         &self,
         url_remoto: &str,
@@ -443,8 +445,7 @@ pub trait Plataforma {
     /// check `revision-ia` que publico `origen` en la cabeza del PR `pr`, ya
     /// terminado, con los aceptados de sus anotaciones. Si aun no esta,
     /// `esperando motivo=sin-check`. Por defecto (GitLab, donde la revision
-    /// en CI no existe, y los adaptadores de prueba), `rechazada
-    /// motivo=no-soportada`.
+    /// en CI no existe), `rechazada motivo=no-soportada`.
     fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
         let _ = (rol, pr, origen);
         Err(

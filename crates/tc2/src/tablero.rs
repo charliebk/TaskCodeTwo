@@ -826,7 +826,8 @@ pub fn carpeta_actual(op: &str) -> Result<std::path::PathBuf, Informe> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plataforma::{Firma, ModeloPuertas, Paso, Plataforma, ReglasLeidas, Rol, Usuario};
+    use crate::plataforma::prueba::{Doble, Parcial};
+    use crate::plataforma::{Paso, Plataforma, Rol};
     use crate::roadmap::tests::{estado_de_referencia, personas};
 
     const COMMIT: &str = "0123456789ab";
@@ -997,30 +998,9 @@ mod tests {
     /// Plataforma falsa: solo `prs-abiertos`, con la respuesta dada.
     struct Falsa(Paso<Vec<PrAbierto>>);
 
-    impl Plataforma for Falsa {
+    impl Parcial for Falsa {
         fn prs_abiertos(&self, _: Rol) -> Paso<Vec<PrAbierto>> {
             self.0.clone()
-        }
-        fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
-            Informe::nuevo("abrir-pr", Resultado::Error)
-        }
-        fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
-            Informe::nuevo("estado-puertas", Resultado::Error)
-        }
-        fn merge_pr(&self, _: u64, _: &str) -> Informe {
-            Informe::nuevo("merge-pr", Resultado::Error)
-        }
-        fn leer_puertas(&self, _: Rol, _: &str) -> Paso<ReglasLeidas> {
-            Err(Informe::nuevo("leer-puertas", Resultado::Error))
-        }
-        fn leer_permisos_ci(&self) -> Informe {
-            Informe::nuevo("leer-permisos-ci", Resultado::Error)
-        }
-        fn firma_commit(&self, _: &str) -> Paso<Firma> {
-            Err(Informe::nuevo("firma-commit", Resultado::Error))
-        }
-        fn identidad(&self, _: Rol) -> Paso<Usuario> {
-            Err(Informe::nuevo("identidad", Resultado::Error))
         }
     }
 
@@ -1156,14 +1136,14 @@ mod tests {
     /// `pr-sin-revision=` (PR listo de una tarea que no esta en revision).
     #[test]
     fn board_cruza_los_pr_y_avisa() {
-        let falsa = Falsa(Ok(vec![
+        let falsa = Doble(Falsa(Ok(vec![
             pr(3, "feature/c", false),
             pr(5, "feature/b", true),
             pr(7, "feature/a", false),
             pr(9, "feature/e", true),
             pr(11, "feature/c", false),
             pr(12, "feature/otra", false),
-        ]));
+        ])));
         let consulta = match falsa.prs_abiertos(Rol::Agente) {
             Ok(v) => Consulta::Hecha(v),
             Err(i) => Consulta::de_fallo(&i),
@@ -1226,7 +1206,7 @@ mod tests {
                 "error",
             ),
         ] {
-            let falsa = Falsa(Err(fallo));
+            let falsa = Doble(Falsa(Err(fallo)));
             let consulta = match falsa.prs_abiertos(Rol::Agente) {
                 Ok(v) => Consulta::Hecha(v),
                 Err(i) => Consulta::de_fallo(&i),

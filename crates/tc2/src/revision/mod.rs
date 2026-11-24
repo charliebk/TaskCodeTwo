@@ -524,7 +524,7 @@ pub fn seleccion_de(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plataforma::{Firma, PrAbierto, ReglasLeidas, Usuario};
+    use crate::plataforma::prueba::{Doble, Parcial};
     use std::cell::RefCell;
 
     /// Plataforma de prueba: solo `estado-puertas`, con el informe fijo y
@@ -534,44 +534,19 @@ mod tests {
         modelo: RefCell<Option<ModeloPuertas>>,
     }
 
-    fn sin_uso(op: &str) -> Informe {
-        Informe::nuevo(op, Resultado::Error)
-    }
-
-    impl Plataforma for Puertas {
-        fn prs_abiertos(&self, _: Rol) -> Paso<Vec<PrAbierto>> {
-            Err(sin_uso("prs-abiertos"))
-        }
-        fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
-            sin_uso("abrir-pr")
-        }
+    impl Parcial for Puertas {
         fn estado_puertas(&self, rol: Rol, _: u64, modelo: &ModeloPuertas) -> Informe {
             assert_eq!(rol, Rol::Agente);
             *self.modelo.borrow_mut() = Some(modelo.clone());
             self.informe.clone()
         }
-        fn merge_pr(&self, _: u64, _: &str) -> Informe {
-            sin_uso("merge-pr")
-        }
-        fn leer_puertas(&self, _: Rol, _: &str) -> Paso<ReglasLeidas> {
-            Err(sin_uso("leer-puertas"))
-        }
-        fn leer_permisos_ci(&self) -> Informe {
-            sin_uso("leer-permisos-ci")
-        }
-        fn firma_commit(&self, _: &str) -> Paso<Firma> {
-            Err(sin_uso("firma-commit"))
-        }
-        fn identidad(&self, _: Rol) -> Paso<Usuario> {
-            Err(sin_uso("identidad"))
-        }
     }
 
-    fn con(informe: Informe) -> Puertas {
-        Puertas {
+    fn con(informe: Informe) -> Doble<Puertas> {
+        Doble(Puertas {
             informe,
             modelo: RefCell::new(None),
-        }
+        })
     }
 
     /// Criterio «check `revision-ia`» (unitario): sin `revisor_id` no se
@@ -582,10 +557,10 @@ mod tests {
         let p = con(Informe::nuevo("estado-puertas", Resultado::Ok));
         assert_eq!(revision_ia(&p, 7, None), "sin-revisor");
         assert_eq!(revision_ia(&p, 7, Some(0)), "sin-revisor");
-        assert!(p.modelo.borrow().is_none());
+        assert!(p.0.modelo.borrow().is_none());
         assert_eq!(revision_ia(&p, 7, Some(99)), "ok");
         assert_eq!(
-            p.modelo.borrow().as_ref().map(|m| m.checks.clone()),
+            p.0.modelo.borrow().as_ref().map(|m| m.checks.clone()),
             Some(vec![("revision-ia".to_owned(), 99)])
         );
         let esperando = |falta: &[&str]| {

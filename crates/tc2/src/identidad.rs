@@ -624,7 +624,7 @@ pub fn resolver(e: Entorno<'_>) -> Paso<Quien> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plataforma::{Firma, ModeloPuertas, ReglasLeidas};
+    use crate::plataforma::prueba::{Doble, Parcial};
     use std::cell::Cell;
 
     /// Plataforma de prueba: solo `identidad`, contando las llamadas.
@@ -634,44 +634,19 @@ mod tests {
     }
 
     impl Falsa {
-        fn de(login: &str, id: u64, tipo: &str) -> Self {
-            Self {
+        fn de(login: &str, id: u64, tipo: &str) -> Doble<Self> {
+            Doble(Self {
                 usuario: Usuario {
                     login: login.to_owned(),
                     id,
                     tipo: tipo.to_owned(),
                 },
                 llamadas: Cell::new(0),
-            }
+            })
         }
     }
 
-    fn sin_uso(op: &str) -> Informe {
-        Informe::nuevo(op, Resultado::Error)
-    }
-
-    impl Plataforma for Falsa {
-        fn prs_abiertos(&self, _: Rol) -> Paso<Vec<crate::plataforma::PrAbierto>> {
-            Err(sin_uso("prs-abiertos"))
-        }
-        fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
-            sin_uso("abrir-pr")
-        }
-        fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
-            sin_uso("estado-puertas")
-        }
-        fn merge_pr(&self, _: u64, _: &str) -> Informe {
-            sin_uso("merge-pr")
-        }
-        fn leer_puertas(&self, _: Rol, _: &str) -> Paso<ReglasLeidas> {
-            Err(sin_uso("leer-puertas"))
-        }
-        fn leer_permisos_ci(&self) -> Informe {
-            sin_uso("leer-permisos-ci")
-        }
-        fn firma_commit(&self, _: &str) -> Paso<Firma> {
-            Err(sin_uso("firma-commit"))
-        }
+    impl Parcial for Falsa {
         fn identidad(&self, _: Rol) -> Paso<Usuario> {
             self.llamadas.set(self.llamadas.get() + 1);
             Ok(self.usuario.clone())
@@ -766,11 +741,11 @@ mod tests {
             login: "ana".to_owned(),
         };
         assert_eq!(cache.guardar(&cuenta, AHORA), Ok(()));
-        let antes = ana.llamadas.get();
+        let antes = ana.0.llamadas.get();
         let q = quien_ejecuta(&ana, gh, &personas, &cache, false, AHORA + 60);
         assert_eq!(q.as_ref().map(Quien::decidido_por), Ok("agente"));
         assert_eq!(q.map(|q| q.cuenta().clone()), Ok(cuenta));
-        assert_eq!(ana.llamadas.get(), antes, "sin terminal no hay llamadas");
+        assert_eq!(ana.0.llamadas.get(), antes, "sin terminal no hay llamadas");
         let _ = std::fs::remove_dir_all(carpeta("bot"));
     }
 
