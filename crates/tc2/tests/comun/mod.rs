@@ -11,6 +11,7 @@ pub mod http_mock;
 pub mod instantanea;
 pub mod lanzador;
 pub mod ops;
+pub mod plataforma;
 pub mod remoto;
 
 #[allow(unused_imports)] // cada fichero de tests usa una parte

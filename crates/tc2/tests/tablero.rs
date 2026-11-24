@@ -11,13 +11,12 @@ use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use comun::http_mock::{Mock, Simulada, serie};
+use comun::plataforma::{Doble, Parcial};
 use comun::{Fixture, escribir};
 use tc2::contrato::{Informe, Resultado};
 use tc2::estado;
 use tc2::i18n::Idioma;
-use tc2::plataforma::{
-    Firma, ModeloPuertas, Paso, Personas, Plataforma, PrAbierto, ReglasLeidas, Rol, Usuario,
-};
+use tc2::plataforma::{Paso, Personas, PrAbierto, Rol};
 use tc2::tablero::{self, Conectada, Consulta, Entorno};
 use tc2::tarea::{Asignado, Cuerpo, Tarea};
 
@@ -112,30 +111,9 @@ fn con_estado(f: &Fixture) -> (PathBuf, PathBuf, String) {
 /// Plataforma falsa: solo `prs-abiertos`, con la respuesta dada.
 struct Falsa(Paso<Vec<PrAbierto>>);
 
-impl Plataforma for Falsa {
+impl Parcial for Falsa {
     fn prs_abiertos(&self, _: Rol) -> Paso<Vec<PrAbierto>> {
         self.0.clone()
-    }
-    fn abrir_pr(&self, _: &str, _: &str, _: &str, _: &str) -> Informe {
-        panic!("board no abre PR")
-    }
-    fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
-        panic!("board no lee puertas")
-    }
-    fn merge_pr(&self, _: u64, _: &str) -> Informe {
-        panic!("board no mergea")
-    }
-    fn leer_puertas(&self, _: Rol, _: &str) -> Paso<ReglasLeidas> {
-        panic!("board no lee puertas")
-    }
-    fn leer_permisos_ci(&self) -> Informe {
-        panic!("board no lee permisos")
-    }
-    fn firma_commit(&self, _: &str) -> Paso<Firma> {
-        panic!("board no lee firmas")
-    }
-    fn identidad(&self, _: Rol) -> Paso<Usuario> {
-        panic!("board no pide identidad")
     }
 }
 
@@ -214,7 +192,7 @@ fn dos_clones_dan_lo_mismo() {
     let gb = f.git();
     let conectar = |_: &Personas| {
         Ok(Conectada {
-            plataforma: Box::new(Falsa(Ok(prs()))),
+            plataforma: Box::new(Doble(Falsa(Ok(prs())))),
             rol: Rol::Agente,
         })
     };
@@ -381,7 +359,7 @@ fn status_no_construye_adaptador_y_board_aguanta_los_fallos() {
         llamadas.set(llamadas.get() + 1);
         match respuesta.take().expect("respuesta preparada") {
             Ok(r) => Ok(Conectada {
-                plataforma: Box::new(Falsa(r)),
+                plataforma: Box::new(Doble(Falsa(r))),
                 rol: Rol::Agente,
             }),
             Err(c) => Err(c),
