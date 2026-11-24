@@ -17,8 +17,8 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::operaciones::{
-    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge, merge_fallido,
-    segun_estado,
+    self, ABRIR_PR, AbrePr, Creado, LEER_PUERTAS, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge,
+    merge_fallido, segun_estado,
 };
 use super::puertas::{self, EstadoCheck, Lecturas, Objetivo, Origenes, Puerta};
 use super::{
@@ -30,7 +30,6 @@ use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::catalogo::plataforma as t;
 use crate::i18n::{Mensaje, Texto};
 
-const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
@@ -829,9 +828,12 @@ impl Plataforma for GitLab {
     }
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
-        validar_puertas(rol, rama)?;
-        let comun = self.puertas_comunes(rol)?;
-        Ok(self.puertas_de_rama(rol, rama, &comun, true))
+        operaciones::leer_puertas(
+            rol,
+            rama,
+            || self.puertas_comunes(rol),
+            |c, rama, checks| Ok(self.puertas_de_rama(rol, rama, c, checks)),
+        )
     }
 
     fn leer_puertas_de(
@@ -841,25 +843,14 @@ impl Plataforma for GitLab {
         checks_de: &str,
     ) -> Vec<Paso<ReglasLeidas>> {
         // Ramas protegidas, reglas de aprobacion y proyecto son del
-        // proyecto: se leen una vez (R1-06 de TASK-035).
-        let validas: Vec<Paso<()>> = ramas.iter().map(|r| validar_puertas(rol, r)).collect();
-        let comun = if validas.iter().any(Result::is_ok) {
-            Some(self.puertas_comunes(rol))
-        } else {
-            None
-        };
-        ramas
-            .iter()
-            .zip(validas)
-            .map(|(rama, v)| {
-                v?;
-                match comun.as_ref() {
-                    Some(Ok(c)) => Ok(self.puertas_de_rama(rol, rama, c, *rama == checks_de)),
-                    Some(Err(i)) => Err(i.clone()),
-                    None => Err(rol_no_valido(LEER_PUERTAS, rol)),
-                }
-            })
-            .collect()
+        // proyecto: valen para todas las ramas.
+        operaciones::leer_en_lote(
+            rol,
+            ramas,
+            checks_de,
+            || self.puertas_comunes(rol),
+            |c, rama, checks| Ok(self.puertas_de_rama(rol, rama, c, checks)),
+        )
     }
 
     fn leer_permisos_ci(&self) -> Informe {
@@ -1214,17 +1205,6 @@ impl GitLab {
             },
         ))
     }
-}
-
-/// Rama y rol de `leer-puertas`.
-fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
-    if !rama_valida(rama) {
-        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
-    }
-    if rol == Rol::Revisor {
-        return Err(rol_no_valido(LEER_PUERTAS, rol));
-    }
-    Ok(())
 }
 
 /// Lo que `leer-puertas` lee del proyecto, comun a todas las ramas.

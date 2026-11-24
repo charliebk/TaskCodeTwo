@@ -6,9 +6,11 @@
 //! byte (RR-15). El transporte es de [`super::conexion`] y la evaluacion de
 //! las puertas, de [`super::puertas`].
 
+use std::cell::OnceCell;
+
 use super::conexion::{rama_valida, rol_no_valido, sha_valido, uso};
 use super::credenciales::Rol;
-use super::{Paso, PrAbierto, puertas};
+use super::{Paso, PrAbierto, ReglasLeidas, puertas};
 use crate::contrato::{Informe, Resultado, Valor};
 use crate::i18n::catalogo::plataforma as t;
 use crate::i18n::{Mensaje, Texto};
@@ -21,6 +23,9 @@ pub(crate) const MERGE_PR: &str = "merge-pr";
 
 /// Nombre de la operacion `prs-abiertos`.
 pub(crate) const PRS_ABIERTOS: &str = "prs-abiertos";
+
+/// Nombre de la operacion `leer-puertas`.
+pub(crate) const LEER_PUERTAS: &str = "leer-puertas";
 
 /// Lo que dio la escritura que crea el PR.
 pub(crate) enum Creado {
@@ -164,6 +169,62 @@ pub(crate) fn prs_abiertos(
     }
     v.sort_by_key(|p| p.numero);
     Ok(v)
+}
+
+/// `leer-puertas` de una rama: valida la rama y el rol, lee lo comun al
+/// repo con `comun` y las reglas de la rama, con sus checks publicados,
+/// con `por_rama(comun, rama, con_checks)`.
+pub(crate) fn leer_puertas<C>(
+    rol: Rol,
+    rama: &str,
+    comun: impl Fn() -> Paso<C>,
+    por_rama: impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Paso<ReglasLeidas> {
+    leer_rama(rol, rama, true, &OnceCell::new(), &comun, &por_rama)
+}
+
+/// `leer-puertas` de varias `ramas` (R1-06 de TASK-035): lo comun al repo
+/// se lee una sola vez, al llegar a la primera rama valida (si ninguna lo
+/// es, no se lee), y los checks publicados solo en `checks_de`. Un
+/// resultado por rama, en el mismo orden.
+pub(crate) fn leer_en_lote<C>(
+    rol: Rol,
+    ramas: &[&str],
+    checks_de: &str,
+    comun: impl Fn() -> Paso<C>,
+    por_rama: impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Vec<Paso<ReglasLeidas>> {
+    let leido = OnceCell::new();
+    ramas
+        .iter()
+        .map(|rama| leer_rama(rol, rama, *rama == checks_de, &leido, &comun, &por_rama))
+        .collect()
+}
+
+fn leer_rama<C>(
+    rol: Rol,
+    rama: &str,
+    con_checks: bool,
+    leido: &OnceCell<Paso<C>>,
+    comun: &impl Fn() -> Paso<C>,
+    por_rama: &impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Paso<ReglasLeidas> {
+    validar_puertas(rol, rama)?;
+    match leido.get_or_init(comun) {
+        Ok(c) => por_rama(c, rama, con_checks),
+        Err(i) => Err(i.clone()),
+    }
+}
+
+/// Rama y rol de `leer-puertas` (agente o persona).
+fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
+    if !rama_valida(rama) {
+        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
+    }
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(LEER_PUERTAS, rol));
+    }
+    Ok(())
 }
 
 /// Un fallo de la escritura del merge, con `pr=` delante.

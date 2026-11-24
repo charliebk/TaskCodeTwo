@@ -16,8 +16,8 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::operaciones::{
-    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge, merge_fallido,
-    segun_estado,
+    self, ABRIR_PR, AbrePr, Creado, LEER_PUERTAS, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge,
+    merge_fallido, segun_estado,
 };
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
@@ -30,7 +30,6 @@ use crate::hallazgos::ronda;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
-const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
@@ -698,11 +697,12 @@ impl Plataforma for GitHub {
     }
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
-        validar_puertas(rol, rama)?;
-        match self.rulesets(rol)? {
-            Some(rulesets) => self.puertas_de_rama(rol, rama, &rulesets, true),
-            None => Ok(sin_reglas_por_plan()),
-        }
+        operaciones::leer_puertas(
+            rol,
+            rama,
+            || self.rulesets(rol),
+            |rs, rama, checks| self.puertas_de_rama(rol, rama, rs.as_deref(), checks),
+        )
     }
 
     fn leer_puertas_de(
@@ -711,27 +711,14 @@ impl Plataforma for GitHub {
         ramas: &[&str],
         checks_de: &str,
     ) -> Vec<Paso<ReglasLeidas>> {
-        // Los rulesets son del repo: se leen una vez (solo si alguna rama
-        // es valida) y valen para todas.
-        let validas: Vec<Paso<()>> = ramas.iter().map(|r| validar_puertas(rol, r)).collect();
-        let comun = if validas.iter().any(Result::is_ok) {
-            Some(self.rulesets(rol))
-        } else {
-            None
-        };
-        ramas
-            .iter()
-            .zip(validas)
-            .map(|(rama, v)| {
-                v?;
-                match comun.as_ref() {
-                    Some(Ok(Some(rs))) => self.puertas_de_rama(rol, rama, rs, *rama == checks_de),
-                    Some(Ok(None)) => Ok(sin_reglas_por_plan()),
-                    Some(Err(i)) => Err(i.clone()),
-                    None => Err(rol_no_valido(LEER_PUERTAS, rol)),
-                }
-            })
-            .collect()
+        // Los rulesets son del repo: valen para todas las ramas.
+        operaciones::leer_en_lote(
+            rol,
+            ramas,
+            checks_de,
+            || self.rulesets(rol),
+            |rs, rama, checks| self.puertas_de_rama(rol, rama, rs.as_deref(), checks),
+        )
     }
 
     fn leer_permisos_ci(&self) -> Informe {
@@ -902,25 +889,6 @@ impl Plataforma for GitHub {
     }
 }
 
-/// Rama y rol de `leer-puertas`.
-fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
-    if !rama_valida(rama) {
-        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
-    }
-    if rol == Rol::Revisor {
-        return Err(rol_no_valido(LEER_PUERTAS, rol));
-    }
-    Ok(())
-}
-
-/// Lo leido cuando el plan no da los rulesets (403 con aviso de plan).
-fn sin_reglas_por_plan() -> ReglasLeidas {
-    ReglasLeidas {
-        plan_da_reglas: false,
-        ..ReglasLeidas::default()
-    }
-}
-
 impl GitHub {
     /// Los nombres de los rulesets del repo; `None` si el plan no los da.
     fn rulesets(&self, rol: Rol) -> Paso<Option<Vec<String>>> {
@@ -949,15 +917,22 @@ impl GitHub {
         Ok(rulesets.into_iter().map(|r| r.name).collect())
     }
 
-    /// Las reglas de `rama` con los `rulesets` ya leidos; los check-runs de
-    /// su cabeza solo `con_checks`.
+    /// Las reglas de `rama` con los `rulesets` ya leidos (`None`: el plan no
+    /// los da, 403 con aviso, y no se sigue leyendo); los check-runs de su
+    /// cabeza solo `con_checks`.
     fn puertas_de_rama(
         &self,
         rol: Rol,
         rama: &str,
-        rulesets: &[String],
+        rulesets: Option<&[String]>,
         con_checks: bool,
     ) -> Paso<ReglasLeidas> {
+        let Some(rulesets) = rulesets else {
+            return Ok(ReglasLeidas {
+                plan_da_reglas: false,
+                ..ReglasLeidas::default()
+            });
+        };
         let reglas: Vec<ReglaApi> = self.con.leer(
             LEER_PUERTAS,
             rol,
