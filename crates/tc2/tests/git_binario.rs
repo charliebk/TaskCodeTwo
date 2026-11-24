@@ -8,7 +8,7 @@ mod comun;
 use std::path::Path;
 use std::process::Output;
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto};
 use tc2::contrato::Resultado;
 use tc2::git;
 
@@ -24,10 +24,6 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str], locale: Option<&str>) -> Output {
         c.env("LANG", l).env("LC_ALL", l);
     }
     c.output().expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
 }
 
 #[test]

@@ -17,14 +17,14 @@
 mod comun;
 
 use std::collections::BTreeSet;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Output;
 
-use comun::{Fixture, escribir};
+use comun::{
+    Fixture, escribir, lanzar,
+    remoto::{CONFIG_AUTOMATICO, Preparar},
+    volcado,
+};
 use serde_json::Value;
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 
 /// Casos de `el_prompt_encierra_todo_dato_del_pr`.
 const CASOS_PROMPT: [&str; 8] = [
@@ -133,75 +133,6 @@ fn sin_fuera(md: &str, hostil: &str) {
 
 // --- Remoto y binario ---------------------------------------------------------
 
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-const CONFIG: &str = "---\nformato: 2\nmodo_flujo: automatico\n";
-
-/// `origin` en GitHub servido por el remoto bare de la fixture (como en
-/// `tests/plan.rs`).
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
-
-fn salida(o: &Output) -> String {
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&o.stdout),
-        String::from_utf8_lossy(&o.stderr)
-    )
-}
-
-/// Remoto con personas, configuracion y la tarea de `alta` (`tc2 new`); el
-/// clon `a` tiene `origin` en GitHub y la identidad de ana.
-fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG);
-    f.crudo(&prep, &["add", ".taskcode"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let mut v = vec!["new"];
-    v.extend_from_slice(alta);
-    let o = lanzar(&prep, f.entorno(), &v);
-    assert_eq!(o.status.code(), Some(0), "{}", salida(&o));
-    f.crudo(&f.raiz, &["clone", "-q", bare.to_str().unwrap(), "a"]);
-    let a = f.raiz.join("a");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id: 1001,
-        login: "ana".to_owned(),
-    };
-    Cache::en(&a.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-    (bare, a)
-}
-
 /// INY-15 (`tc2 plan` en local): titulo con Markdown, HTML, mencion y bidi,
 /// y objetivo y criterio con cercas que intentan cerrar la del enunciado.
 #[test]
@@ -266,9 +197,13 @@ fn la_carpeta_de_la_tarea_y_la_peticion_de_plan_quedan_inertes() {
         "--criterio",
         criterio,
     ];
-    let (bare, a) = remoto_con_tarea(&f, &alta);
-    let o = lanzar(&a, entorno_ssh(&f), &["plan", "TASK-001"]);
-    assert_eq!(o.status.code(), Some(0), "{}", salida(&o));
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[&alta],
+        ..Default::default()
+    });
+    let o = lanzar(&a, f.entorno_ssh(), &["plan", "TASK-001"]);
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     let p = f.crudo(
         &bare,
         &[
@@ -307,7 +242,7 @@ fn ok(f: &Fixture, dir: &Path, args: &[&str]) -> String {
     let mut e = f.entorno();
     e.push(("CLAUDE_CONFIG_DIR".into(), vacia.into_os_string()));
     let o = lanzar(dir, e, args);
-    assert_eq!(o.status.code(), Some(0), "tc2 {args:?}: {}", salida(&o));
+    assert_eq!(o.status.code(), Some(0), "tc2 {args:?}: {}", volcado(&o));
     String::from_utf8_lossy(&o.stdout).into_owned()
 }
 
@@ -379,10 +314,11 @@ fn el_prompt_encierra_todo_dato_del_pr() {
     let f = Fixture::nueva("inyeccion-prompt");
     // INY-06: la tarea hostil en la rama de estado.
     let (titulo, objetivo) = (texto_de(iny6, "titulo"), texto_de(iny6, "objetivo"));
-    let (_bare, a) = remoto_con_tarea(
-        &f,
-        &[titulo, "--objetivo", objetivo, "--criterio", "hace algo"],
-    );
+    let (_bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[&[titulo, "--objetivo", objetivo, "--criterio", "hace algo"]],
+        ..Default::default()
+    });
     // La base: el fichero del comentario y la guia con cercas.
     let lib = texto_de(iny1, "fichero");
     let guia = texto_de(iny2, "fichero");
@@ -659,7 +595,7 @@ fn hallazgos(dir: &Path, args: &[&str]) -> String {
         o.status.code(),
         Some(0),
         "hallazgos {args:?}: {}",
-        salida(&o)
+        volcado(&o)
     );
     String::from_utf8_lossy(&o.stdout).into_owned()
 }

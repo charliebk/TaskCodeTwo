@@ -151,7 +151,7 @@ const SELECCION: &str = "revisoras= modelo=sonnet reglas=M04,S09,S12,S14 \
 
 /// Remoto bare y clon con TASK-001 dada de alta, empezada por ana (rama y
 /// worktree de `start`) y con un commit en su worktree.
-fn preparar(f: &Fixture, g: &Git) -> (PathBuf, PathBuf, PathBuf) {
+fn empezada(f: &Fixture, g: &Git) -> (PathBuf, PathBuf, PathBuf) {
     let (bare, clon) = f.remoto_y_clon();
     let entrada = tc2::alta::entrada_de_args(&["Uno".to_owned()]).unwrap();
     let alta = tc2::alta::Alta::con_entrada(entrada);
@@ -195,19 +195,12 @@ fn review(g: &Git, dir: &Path, doble: &Rc<Doble>, esperas: &[Duration]) -> Infor
     i
 }
 
-fn publicado(f: &Fixture, bare: &Path) -> String {
-    f.crudo(
-        bare,
-        &["show", &format!("{}:TASK-001/tarea.md", estado::RAMA)],
-    )
-}
-
 /// Criterio «PR enlazado a la tarea» (integracion).
 #[test]
 fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
     let f = Fixture::nueva("review");
     let g = f.git();
-    let (bare, clon, wt) = preparar(&f, &g);
+    let (bare, clon, wt) = empezada(&f, &g);
     let doble = Rc::new(Doble::default());
 
     let i = review(&g, &clon, &doble, &[]);
@@ -240,7 +233,7 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
         "{cuerpo}"
     );
     // La tarea, en revision en la rama de estado, con su fila.
-    let t = publicado(&f, &bare);
+    let t = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(t.contains("estado: \"en-revision\""), "{t}");
     assert!(t.contains("| review | manual | agente |"), "{t}");
     // F6-3: la seleccion, anotada en `roles.revision`.
@@ -273,7 +266,7 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
     let _serie = serie();
     let f = Fixture::nueva("review-cabecera");
     let g = f.git();
-    let (bare, clon, _wt) = preparar(&f, &g);
+    let (bare, clon, _wt) = empezada(&f, &g);
     let mock = Mock::nuevo();
     f.crudo(
         &clon,
@@ -297,7 +290,10 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
     assert!(!i.resultado.es_exito(), "{}", i.linea());
     assert_eq!(i.comando, "review");
     assert!(doble.prs.borrow().is_empty(), "PR abierto sin push");
-    assert!(publicado(&f, &bare).contains("estado: \"en-curso\""));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"en-curso\"")
+    );
 
     let basica = STANDARD.encode(format!("x-access-token:{TOKEN}"));
     let recibidas = mock.recibidas();
@@ -320,7 +316,7 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
 fn review_guarda_el_informe_de_la_revision_ia() {
     let f = Fixture::nueva("review-informe");
     let g = f.git();
-    let (bare, clon, wt) = preparar(&f, &g);
+    let (bare, clon, wt) = empezada(&f, &g);
     // El origen del check en la configuracion de la base.
     escribir(
         &clon,
@@ -471,7 +467,7 @@ fn aceptado(id: &str, severidad: &str, ronda: u32, estado: &str) -> tc2::hallazg
 fn review_guarda_el_informe_del_head_anterior_antes_del_push() {
     let f = Fixture::nueva("review-rondas");
     let g = f.git();
-    let (bare, clon, wt) = preparar(&f, &g);
+    let (bare, clon, wt) = empezada(&f, &g);
     escribir(
         &clon,
         ".taskcode/config.yml",

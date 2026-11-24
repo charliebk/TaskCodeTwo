@@ -6,81 +6,20 @@
 
 mod comun;
 
-use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
-use comun::{Fixture, escribir};
-use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
+use comun::{Fixture, remoto::Preparar, remoto::worktree, texto};
+use tc2::estado::{Cambio, Estado, Fallo, Operacion};
 use tc2::progreso::{self, Refresco};
 use tc2::tarea::{Cuerpo, Tarea};
-
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
 
 /// `tc2 <args>` en `dir` con el remoto de la fixture: (codigo, stdout,
 /// stderr).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
-    let o = comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .output()
-        .expect("lanzar tc2");
+    let o = comun::lanzar(dir, f.entorno_ssh(), args);
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
-}
-
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-/// Remoto con `personas.yml` en `develop` y el clon `a` de ana (`origin` en
-/// GitHub, servido por el «ssh» de la fixture).
-fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let a = f.otro_clon(&bare, "a");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
-    identificar(&a, 1001, "ana");
-    (bare, a)
 }
 
 /// Escribe ficheros en la rama de estado por la transaccion.
@@ -105,17 +44,8 @@ impl Operacion for Poner {
     }
 }
 
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
 fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
-    let i = estado::transaccion(
-        &Contexto::nuevo(&g, dir, &sin_catalogo, None),
-        &Poner(ficheros.to_vec()),
-    );
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    f.transaccion(dir, &Poner(ficheros.to_vec()));
 }
 
 /// 2026-10-01T09:00:00Z.
@@ -168,7 +98,7 @@ fn carpeta(dir: &Path) -> PathBuf {
 #[test]
 fn sin_anterior_en_start_y_en_una_transicion() {
     let f = Fixture::nueva("progreso-sin-anterior");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
     assert_eq!(c, Some(0), "{out} {err}");
@@ -191,10 +121,6 @@ fn sin_anterior_en_start_y_en_una_transicion() {
         "{out}"
     );
     assert!(err.is_empty(), "{err}");
-}
-
-fn worktree(dir: &Path, id: &str) -> PathBuf {
-    dir.join(".taskcodetwo").join("worktrees").join(id)
 }
 
 /// La linea de `tc2 estado --stdin` para la carpeta `dir` (codigo 0 y
@@ -226,7 +152,7 @@ fn rotado(out: &str, anterior: &Path, previo: &[u8]) {
 #[test]
 fn c3_transiciones_reales_reescriben_el_progreso() {
     let f = Fixture::nueva("progreso-c3");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     for t in ["Siete", "Ocho"] {
         let (c, out, err) = tc2(&f, &a, &["new", t, "--criterio", "uno"]);
@@ -316,14 +242,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
         "{l}"
     );
     // liberar (con la rama publicada): sin tarea en curso.
-    let o = Command::new("git")
-        .current_dir(&a)
-        .args(["push", "-q", "origin", "feature/task-008-ocho"])
-        .envs(entorno_ssh(&f))
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "{}", texto(&o.stderr));
+    f.git_ssh(&a, &["push", "-q", "origin", "feature/task-008-ocho"]);
     let (c, out, err) = tc2(&f, &a, &["liberar", "TASK-008"]);
     assert_eq!(c, Some(0), "{out} {err}");
     assert!(!ocho.exists());
@@ -336,7 +255,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
 #[test]
 fn m4_reasignar_borra_el_progreso() {
     let f = Fixture::nueva("progreso-reasignar");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
     assert_eq!(c, Some(0), "{out} {err}");
@@ -346,14 +265,7 @@ fn m4_reasignar_borra_el_progreso() {
     assert!(actual.is_file());
     assert!(linea(&a).starts_with("TASK-007 · "));
     // Con la rama publicada (si no, `reasignar` se niega).
-    let o = Command::new("git")
-        .current_dir(&a)
-        .args(["push", "-q", "origin", "feature/task-007-siete"])
-        .envs(entorno_ssh(&f))
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "{}", texto(&o.stderr));
+    f.git_ssh(&a, &["push", "-q", "origin", "feature/task-007-siete"]);
     let (c, out, err) = tc2(&f, &a, &["reasignar", "TASK-007", "beto"]);
     assert_eq!(c, Some(0), "{out} {err}");
     assert!(out.starts_with("reasignar ok id=TASK-007 "), "{out}");
@@ -367,7 +279,7 @@ fn m4_reasignar_borra_el_progreso() {
 /// `TASK-007` en curso desde `inicio` y el resto planificadas. Devuelve el
 /// clon.
 fn repo_con(f: &Fixture, n: usize, inicio: u64) -> PathBuf {
-    let (_bare, a) = preparar(f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     let mut ficheros = seis();
     let mut t = Tarea::nueva("TASK-007", "En curso", "2026-11-17");
     "en-curso".clone_into(&mut t.estado);
@@ -406,7 +318,7 @@ fn c1_misma_salida_con_10_y_1000_tareas_sin_procesos_y_rapida() {
     for n in [10, 1000] {
         let f = Fixture::nueva(&format!("progreso-c1-{n}"));
         let a = repo_con(&f, n, inicio);
-        let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+        let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
         assert_eq!(
             progreso::refrescar(&g, &a, "TASK-007", ahora),
             Ok(Refresco::Escrito)
@@ -707,7 +619,7 @@ fn c8_fichero_a_medias_da_el_ultimo_bueno() {
     let f = Fixture::nueva("progreso-c8");
     let ahora = tc2::identidad::ahora();
     let a = repo_con(&f, 8, ahora - 600);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     // Dos calculos: el primero hace 10 min (queda de anterior).
     assert_eq!(
         progreso::refrescar(&g, &a, "TASK-007", ahora - 600),

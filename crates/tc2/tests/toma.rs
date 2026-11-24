@@ -12,139 +12,24 @@
 
 mod comun;
 
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
+use std::process::Output;
 use std::sync::{Arc, Barrier};
 
-use comun::{Fixture, escribir};
-use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use comun::{
+    Fixture, escribir, lanzar,
+    remoto::{Preparar, editar, identificar, worktree},
+    salida, texto, valor,
+};
+use tc2::estado::{self};
 use tc2::identidad::{Cache, Cuenta};
 use tc2::plataforma::Proveedor;
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture
-/// (`upload-pack` para leer, `receive-pack` para publicar).
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-/// Entorno de git cuyo «ssh» no llega al host, como sin red.
-fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'"
-            .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
 
 /// `tc2 <args>` en `dir` con el remoto de la fixture.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    lanzar(dir, entorno_ssh(f), args)
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
-/// `git <args>` en `dir` con el remoto de la fixture.
-fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .expect("lanzar git");
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-    texto(&o.stdout)
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
-}
-
-/// Identifica el clon `dir` como la persona `id`/`login` (cache vigente).
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-/// Remoto con `personas.yml` en `develop` y las tareas de `altas` (cada una,
-/// los argumentos de `tc2 new`) creadas desde un clon de preparacion; el
-/// clon `a` que devuelve tiene `origin` en GitHub y la identidad de ana.
-fn preparar(f: &Fixture, altas: &[&[&str]]) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    for a in altas {
-        let mut args = vec!["new"];
-        args.extend_from_slice(a);
-        let o = lanzar(&prep, f.entorno(), &args);
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    }
-    let a = otro_clon(f, &bare, "a");
-    identificar(&a, 1001, "ana");
-    (bare, a)
-}
-
-/// Otro clon con `origin` en GitHub.
-fn otro_clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
-}
-
-/// `tarea.md` publicado de `id`.
-fn publicado(f: &Fixture, bare: &Path, id: &str) -> String {
-    f.crudo(bare, &["show", &format!("{RAMA_ESTADO}:{id}/tarea.md")])
-}
-
-fn punta_estado(f: &Fixture, bare: &Path) -> String {
-    f.crudo(bare, &["rev-parse", RAMA_ESTADO])
+    lanzar(dir, f.entorno_ssh(), args)
 }
 
 /// Ramas `*/task-nnn-*` del clon.
@@ -160,73 +45,9 @@ fn ramas_del_id(f: &Fixture, dir: &Path, id: &str) -> String {
     )
 }
 
-fn worktree(dir: &Path, id: &str) -> PathBuf {
-    dir.join(".taskcodetwo").join("worktrees").join(id)
-}
-
-/// Comprueba la salida de `start`: codigo, primera linea y una sola linea.
+/// `tc2 start <id>` con el contrato de salida: codigo y la unica linea.
 fn start(f: &Fixture, dir: &Path, id: &str) -> (Option<i32>, String) {
-    let o = tc2(f, dir, &["start", id]);
-    let out = texto(&o.stdout);
-    assert_eq!(out.lines().count(), 1, "{out}");
-    let err = texto(&o.stderr);
-    if o.status.code() == Some(0) {
-        assert!(err.is_empty(), "stderr en un exito: {err}");
-    } else {
-        assert_eq!(err.lines().count(), 1, "{err}");
-    }
-    (o.status.code(), out.trim_end().to_owned())
-}
-
-/// Escribe en la rama de estado por la transaccion (como lo haria otra
-/// fase): `cambiar` recibe el texto de `ruta` (si existe) y da el nuevo.
-struct Escribir {
-    ruta: String,
-    cambiar: Box<dyn Fn(Option<String>) -> String>,
-}
-
-impl Operacion for Escribir {
-    fn nombre(&self) -> &str {
-        "escribir"
-    }
-    fn anotacion(&self) -> String {
-        format!("escribir|{}", self.ruta)
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let t = e.leer(&self.ruta)?;
-        Ok(vec![Cambio::nuevo(self.ruta.clone(), (self.cambiar)(t))])
-    }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
-fn escribir_estado(
-    f: &Fixture,
-    dir: &Path,
-    ruta: &str,
-    cambiar: impl Fn(Option<String>) -> String + 'static,
-) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
-    let op = Escribir {
-        ruta: ruta.to_owned(),
-        cambiar: Box::new(cambiar),
-    };
-    let i = estado::transaccion(&Contexto::nuevo(&g, dir, &sin_catalogo, None), &op);
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-}
-
-/// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
-fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    escribir_estado(f, dir, &format!("{id}/tarea.md"), move |t| {
-        let t = t.unwrap_or_default();
-        assert!(t.contains(de), "{t}");
-        t.replacen(de, a, 1)
-    });
+    salida(&tc2(f, dir, &["start", id]))
 }
 
 /// C1: dos clones lanzan `start TASK-001` a la vez: uno sale `ok` y el otro
@@ -236,8 +57,11 @@ fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) 
 #[test]
 fn c1_dos_clones_a_la_vez_solo_uno_la_toma() {
     let f = Arc::new(Fixture::nueva("toma-c1"));
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
-    let b = otro_clon(&f, &bare, "b");
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let barrera = Arc::new(Barrier::new(2));
     let hilos: Vec<_> = [("ana", a.clone()), ("beto", b.clone())]
@@ -267,7 +91,7 @@ fn c1_dos_clones_a_la_vez_solo_uno_la_toma() {
     assert!(out_p.starts_with("start rechazada id=TASK-001 "), "{out_p}");
     assert_eq!(valor(out_p, "motivo"), Some("tomada"), "{out_p}");
     assert_eq!(valor(out_p, "asignado"), Some(*ganador), "{out_p}");
-    let md = publicado(&f, &bare, "TASK-001");
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     let id = if *ganador == "ana" { 1001 } else { 1002 };
     assert!(
         md.contains(&format!(
@@ -299,11 +123,14 @@ fn c1_dos_clones_a_la_vez_solo_uno_la_toma() {
 #[test]
 fn c2_repetir_y_reanudar_siendo_el_dueno() {
     let f = Fixture::nueva("toma-c2");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
     let rama = "feature/task-001-primera";
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
-    let punta = punta_estado(&f, &bare);
+    let punta = f.punta(&bare);
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(
         (c, out.as_str()),
@@ -315,7 +142,7 @@ fn c2_repetir_y_reanudar_siendo_el_dueno() {
             .as_str()
         )
     );
-    assert_eq!(punta_estado(&f, &bare), punta, "sin-cambios publico algo");
+    assert_eq!(f.punta(&bare), punta, "sin-cambios publico algo");
     // Sin el worktree (borrado a mano): solo el worktree.
     std::fs::remove_dir_all(worktree(&a, "TASK-001")).unwrap();
     let (c, out) = start(&f, &a, "TASK-001");
@@ -330,14 +157,14 @@ fn c2_repetir_y_reanudar_siendo_el_dueno() {
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "creado"), Some("rama,worktree"), "{out}");
-    assert_eq!(punta_estado(&f, &bare), punta);
+    assert_eq!(f.punta(&bare), punta);
     // En revision, con la rama publicada y perdidos rama local y worktree:
     // se reanuda desde `origin/<rama>` sin tocar el estado.
     escribir(&worktree(&a, "TASK-001"), "hecho.txt", "hecho\n");
     let wt = worktree(&a, "TASK-001");
     f.crudo(&wt, &["add", "hecho.txt"]);
     f.crudo(&wt, &["commit", "-q", "-m", "trabajo"]);
-    git(&f, &wt, &["push", "-q", "origin", rama]);
+    f.git_ssh(&wt, &["push", "-q", "origin", rama]);
     let publicada = f.crudo(&a, &["rev-parse", rama]);
     editar(
         &f,
@@ -346,19 +173,18 @@ fn c2_repetir_y_reanudar_siendo_el_dueno() {
         "estado: \"en-curso\"",
         "estado: \"en-revision\"",
     );
-    let punta = punta_estado(&f, &bare);
+    let punta = f.punta(&bare);
     std::fs::remove_dir_all(&wt).unwrap();
     f.crudo(&a, &["worktree", "prune"]);
     f.crudo(&a, &["branch", "-D", rama]);
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "creado"), Some("rama,worktree"), "{out}");
-    assert_eq!(
-        punta_estado(&f, &bare),
-        punta,
-        "en revision reescribio el estado"
+    assert_eq!(f.punta(&bare), punta, "en revision reescribio el estado");
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"en-revision\"")
     );
-    assert!(publicado(&f, &bare, "TASK-001").contains("estado: \"en-revision\""));
     assert_eq!(f.crudo(&wt, &["rev-parse", "HEAD"]), publicada);
     assert!(wt.join("hecho.txt").is_file());
 }
@@ -368,10 +194,12 @@ fn c2_repetir_y_reanudar_siendo_el_dueno() {
 #[test]
 fn c3_sin_red_no_deja_nada() {
     let f = Fixture::nueva("toma-c3");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
     // Con la rama de estado local, como tras cualquier escritura.
-    git(
-        &f,
+    f.git_ssh(
         &a,
         &[
             "branch",
@@ -381,11 +209,11 @@ fn c3_sin_red_no_deja_nada() {
         ],
     );
     let antes = f.huella(&bare, &a);
-    let o = lanzar(&a, entorno_sin_red(&f), &["start", "TASK-001"]);
+    let o = lanzar(&a, f.entorno_sin_red(), &["start", "TASK-001"]);
     let out = texto(&o.stdout);
     assert_eq!(o.status.code(), Some(4), "{out}");
     assert!(out.starts_with("start sinred id=TASK-001 "), "{out}");
-    assert_eq!(valor(out.trim_end(), "pendiente"), Some("no"), "{out}");
+    assert_eq!(valor(&out, "pendiente"), Some("no"), "{out}");
     assert_eq!(f.huella(&bare, &a), antes);
     let pendientes = f.crudo(&a, &["for-each-ref", "refs/taskcodetwo/"]);
     assert!(pendientes.trim().is_empty(), "{pendientes}");
@@ -399,9 +227,8 @@ fn c3_sin_red_no_deja_nada() {
 #[test]
 fn c4_dependencias_sin_terminar_no_dejan_empezar() {
     let f = Fixture::nueva("toma-c4");
-    let (bare, a) = preparar(
-        &f,
-        &[
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[
             &["Base"],
             &["Otra base"],
             &[
@@ -412,7 +239,8 @@ fn c4_dependencias_sin_terminar_no_dejan_empezar() {
                 "TASK-002",
             ],
         ],
-    );
+        ..Default::default()
+    });
     editar(
         &f,
         &a,
@@ -457,7 +285,10 @@ fn c4_dependencias_sin_terminar_no_dejan_empezar() {
 #[test]
 fn c5_tareas_que_no_se_empiezan() {
     let f = Fixture::nueva("toma-c5");
-    let (bare, a) = preparar(&f, &[&["Hecha"], &["Tirada"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Hecha"], &["Tirada"]],
+        ..Default::default()
+    });
     editar(
         &f,
         &a,
@@ -472,7 +303,7 @@ fn c5_tareas_que_no_se_empiezan() {
         "estado: \"planificada\"\nmotivo: null",
         "estado: \"descartada\"\nmotivo: \"no hace falta\"",
     );
-    escribir_estado(&f, &a, "TASK-003/tarea.md", |_| {
+    f.cambiar_estado(&a, "TASK-003/tarea.md", |_| {
         "---\nid: TASK-003\ntitulo: \"Vieja\"\ntipo: feature\nsprint: 0\netiquetas: []\n\
          complejidad: null\nmodelo_sugerido: sonnet\nestado: planificada\nplan_aprobado: false\n\
          rama: feature/task-003-vieja\nasignado_a: null\nagente_revisor: general-purpose\n\
@@ -507,9 +338,11 @@ fn c5_tareas_que_no_se_empiezan() {
 #[test]
 fn c6_rama_del_id_en_el_remoto_sin_dueno_es_ocupada() {
     let f = Fixture::nueva("toma-c6");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
-    git(
-        &f,
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
+    f.git_ssh(
         &a,
         &[
             "push",
@@ -533,18 +366,21 @@ fn c6_rama_del_id_en_el_remoto_sin_dueno_es_ocupada() {
 #[test]
 fn carpeta_del_worktree_ocupada_no_publica_la_toma() {
     let f = Fixture::nueva("toma-carpeta");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
     escribir(&worktree(&a, "TASK-001"), "basura.txt", "basura\n");
     let antes = f.huella(&bare, &a);
-    let punta = punta_estado(&f, &bare);
+    let punta = f.punta(&bare);
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(3), "{out}");
     assert!(out.starts_with("start rechazada id=TASK-001 "), "{out}");
     assert_eq!(valor(&out, "motivo"), Some("carpeta-ocupada"), "{out}");
     assert_eq!(valor(&out, "estado"), None, "{out}");
     assert_eq!(f.huella(&bare, &a), antes);
-    assert_eq!(punta_estado(&f, &bare), punta);
-    let md = publicado(&f, &bare, "TASK-001");
+    assert_eq!(f.punta(&bare), punta);
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(md.contains("\nasignado_a: null\n"), "{md}");
     assert!(md.contains("\nestado: \"planificada\"\n"), "{md}");
     assert_eq!(ramas_del_id(&f, &a, "TASK-001").trim(), "");
@@ -560,7 +396,10 @@ fn carpeta_del_worktree_ocupada_no_publica_la_toma() {
 #[test]
 fn rama_mal_formada_es_rama_invalida() {
     let f = Fixture::nueva("toma-rama");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
     editar(
         &f,
         &a,
@@ -574,7 +413,10 @@ fn rama_mal_formada_es_rama_invalida() {
     assert_eq!(valor(&out, "motivo"), Some("rama-invalida"), "{out}");
     assert_eq!(valor(&out, "estado"), None, "{out}");
     assert_eq!(f.huella(&bare, &a), antes);
-    assert!(publicado(&f, &bare, "TASK-001").contains("\nasignado_a: null\n"));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("\nasignado_a: null\n")
+    );
     assert_eq!(ramas_del_id(&f, &a, "TASK-001").trim(), "");
     assert!(!worktree(&a, "TASK-001").exists());
 }
@@ -586,15 +428,18 @@ fn rama_mal_formada_es_rama_invalida() {
 #[test]
 fn c7_lo_publicado_la_rama_y_el_worktree() {
     let f = Fixture::nueva("toma-c7");
-    let (bare, a) = preparar(&f, &[&["Primera", "--criterio", "uno"]]);
-    let antes = publicado(&f, &bare, "TASK-001");
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera", "--criterio", "uno"]],
+        ..Default::default()
+    });
+    let antes = f.publicado(&bare, "TASK-001/tarea.md");
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
     // La primera toma crea rama y worktree, pero no lo dice con `creado=`
     // (eso es de reanudar).
     assert!(valor(&out, "creado").is_none(), "{out}");
     let rama = "feature/task-001-primera";
-    let despues = publicado(&f, &bare, "TASK-001");
+    let despues = f.publicado(&bare, "TASK-001/tarea.md");
     let hoy = tc2::toma::instante(tc2::identidad::ahora());
     let creado = antes
         .lines()
@@ -670,7 +515,10 @@ fn estimacion(md: &str) -> String {
 #[test]
 fn c8_sin_identidad_no_se_toma() {
     let f = Fixture::nueva("toma-c8");
-    let (bare, a) = preparar(&f, &[&["Primera"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"]],
+        ..Default::default()
+    });
     let cache = Cache::en(&a.join(".git"));
     std::fs::remove_file(cache.ruta()).unwrap();
     let antes = f.huella(&bare, &a);
@@ -712,7 +560,10 @@ fn c8_sin_identidad_no_se_toma() {
 #[test]
 fn c9_desde_un_worktree_de_tarea_y_en_json() {
     let f = Fixture::nueva("toma-c9");
-    let (bare, a) = preparar(&f, &[&["Primera"], &["Segunda"]]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Primera"], &["Segunda"]],
+        ..Default::default()
+    });
     let (c, out) = start(&f, &a, "TASK-001");
     assert_eq!(c, Some(0), "{out}");
     let wt1 = worktree(&a, "TASK-001");
@@ -729,7 +580,10 @@ fn c9_desde_un_worktree_de_tarea_y_en_json() {
     assert_eq!(claves["rama"], "feature/task-002-segunda");
     assert_eq!(claves["worktree"], ".taskcodetwo/worktrees/TASK-002");
     assert_eq!(claves["asignado"], "ana");
-    assert!(publicado(&f, &bare, "TASK-002").contains("estado: \"en-curso\""));
+    assert!(
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("estado: \"en-curso\"")
+    );
     assert!(worktree(&a, "TASK-002").is_dir());
     assert!(!worktree(&wt1, "TASK-002").exists());
     assert!(!wt1.join("tareas").exists());
@@ -751,14 +605,14 @@ fn c9_desde_un_worktree_de_tarea_y_en_json() {
 #[test]
 fn d4_hotfix_desde_el_ultimo_tag_y_release_rechazada() {
     let f = Fixture::nueva("toma-d4");
-    let (bare, a) = preparar(
-        &f,
-        &[
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[
             &["Parche", "--tipo", "hotfix"],
             &["Version", "--tipo", "release"],
             &["Sin tags", "--tipo", "hotfix"],
         ],
-    );
+        ..Default::default()
+    });
     // Sin tags: la punta de origin/main.
     let (c, out) = start(&f, &a, "TASK-003");
     assert_eq!(c, Some(0), "{out}");

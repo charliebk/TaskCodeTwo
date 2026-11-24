@@ -11,10 +11,10 @@ use std::path::Path;
 use std::process::Output;
 use std::sync::{Arc, Barrier};
 
-use comun::Fixture;
+use comun::{Fixture, ops::sin_catalogo, texto, valor};
 use tc2::alta::Alta;
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use tc2::estado::{self, Contexto};
 use tc2::tarea::texto::Parecido;
 
 /// La rama de estado sale de `huella.rs` (C1 de TASK-116).
@@ -27,16 +27,7 @@ fn la_rama_de_estado_es_la_de_la_2_0() {
 }
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno())
-        .output()
-        .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+    comun::lanzar(dir, f.entorno(), args)
 }
 
 /// Carpetas `TASK-*` publicadas en el remoto y el titulo de cada una.
@@ -171,13 +162,6 @@ fn el_segundo_clon_recibe_el_siguiente_id_sin_fetch_previo() {
             ),
         ]
     );
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
 /// TASK-076 C2: una rama de tarea que solo esta en el remoto (sin carpeta)
@@ -388,7 +372,7 @@ fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
         let out = texto(&o.stdout);
         let err = texto(&o.stderr);
         assert_eq!(o.status.code(), Some(2), "{args:?}: {out} {err}");
-        assert_eq!(valor(out.trim_end(), "motivo"), Some(motivo), "{out}");
+        assert_eq!(valor(&out, "motivo"), Some(motivo), "{out}");
         assert_eq!(err.lines().count(), 1, "{err}");
     }
     let despues = f.crudo(
@@ -402,33 +386,6 @@ fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
         "{}",
         texto(&o.stderr)
     );
-}
-
-/// Pasa una tarea a `terminada` en la rama de estado (por la transaccion,
-/// como lo haria `finish`).
-struct Terminar(&'static str);
-
-impl Operacion for Terminar {
-    fn nombre(&self) -> &str {
-        "terminar"
-    }
-    fn anotacion(&self) -> String {
-        format!("terminar|{}", self.0)
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let ruta = format!("{}/tarea.md", self.0);
-        let md = e.leer(&ruta)?.unwrap_or_default();
-        let nuevo = md.replacen("estado: \"planificada\"", "estado: \"terminada\"", 1);
-        assert_ne!(md, nuevo, "{md}");
-        Ok(vec![Cambio::nuevo(ruta, nuevo)])
-    }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
 }
 
 fn nueva(f: &Fixture, dir: &Path, titulo: &str) -> (String, String) {
@@ -472,12 +429,15 @@ fn titulo_duplicado_de_una_abierta_avisa_y_de_una_terminada_no() {
         "{j}"
     );
 
-    // Terminadas TASK-001..004, nada abierto con ese titulo: no avisa.
-    let g = f.git();
-    let c = Contexto::nuevo(&g, &a, &sin_catalogo, None);
+    // Terminadas TASK-001..004 (por la transaccion, como lo haria
+    // `finish`), nada abierto con ese titulo: no avisa.
     for id in ["TASK-001", "TASK-002", "TASK-003", "TASK-004"] {
-        let i = estado::transaccion(&c, &Terminar(id));
-        assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+        f.cambiar_estado(&a, &format!("{id}/tarea.md"), |md| {
+            let md = md.unwrap_or_default();
+            let nuevo = md.replacen("estado: \"planificada\"", "estado: \"terminada\"", 1);
+            assert_ne!(md, nuevo, "{md}");
+            nuevo
+        });
     }
     let (out, err) = nueva(&f, &a, "Exportar informes");
     assert_eq!(valor(&out, "id"), Some("TASK-005"), "{out}");

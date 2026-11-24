@@ -8,25 +8,24 @@
 
 mod comun;
 
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
+use std::process::Output;
 
-use comun::{Fixture, escribir};
+use comun::{
+    Fixture,
+    ops::sin_catalogo,
+    remoto::{Preparar, identificar},
+    texto, valor,
+};
 use tc2::carril::Carril;
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Leida, Operacion};
+use tc2::estado::{self, Cambio, Estado, Fallo, Leida, Operacion};
 use tc2::estimacion::{
     self, Commits, Estimacion, Objetivo, PorFase, Rango, eventos, historico, real::real,
 };
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
 use tc2::tarea::{self, Cuerpo, Tarea};
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
 
 // ---------------------------------------------------------------- paridad (C1, C2)
 
@@ -193,80 +192,14 @@ fn c1_real_del_enunciado_igual_que_la_poc() {
 
 // ---------------------------------------------------------------- E2E
 
-/// Entorno de git con el «ssh» que sirve el remoto bare de la fixture.
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .output()
-        .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+    comun::lanzar(dir, f.entorno_ssh(), args)
 }
 
 /// (codigo, stdout, stderr) de `tc2 <args>`.
 fn correr(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
     let o = tc2(f, dir, args);
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .lines()
-        .next()?
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
-}
-
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-/// Otro clon con `origin` en GitHub.
-fn clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
-}
-
-/// Remoto con `personas.yml` en `develop` y el clon `a` de ana.
-fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let a = clon(f, &bare, "a");
-    identificar(&a, 1001, "ana");
-    (bare, a)
 }
 
 /// Escribe ficheros en la rama de estado por la transaccion.
@@ -291,21 +224,8 @@ impl Operacion for Poner {
     }
 }
 
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
 fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
-    let i = estado::transaccion(
-        &Contexto::nuevo(&g, dir, &sin_catalogo, None),
-        &Poner(ficheros.to_vec()),
-    );
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-}
-
-fn publicado(f: &Fixture, bare: &Path, id: &str) -> String {
-    f.crudo(bare, &["show", &format!("{RAMA_ESTADO}:{id}/tarea.md")])
+    f.transaccion(dir, &Poner(ficheros.to_vec()));
 }
 
 /// 2026-10-01T09:00:00Z.
@@ -360,7 +280,7 @@ fn leer2(md: &str) -> (Tarea, Cuerpo) {
 #[test]
 fn c3_sin_datos_nunca_un_numero_inventado() {
     let f = Fixture::nueva("estimacion-c3");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = f.preparar(&Preparar::default());
     let tres: Vec<(String, String)> = (1..=3)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 10 * i))
         .collect();
@@ -371,7 +291,7 @@ fn c3_sin_datos_nunca_un_numero_inventado() {
     assert_eq!(valor(&out, "estimacion"), Some("sin-datos"), "{out}");
     assert_eq!(valor(&out, "estimacion-n"), Some("3"), "{out}");
     assert_eq!(valor(&out, "estimacion-p80"), None, "{out}");
-    let md = publicado(&f, &bare, "TASK-004");
+    let md = f.publicado(&bare, "TASK-004/tarea.md");
     let b = bloque(&md);
     assert!(
         b.contains("\n  nivel: \"sin-datos\"\n  n: 3\n  por_fase: null\n  total: null\n"),
@@ -402,7 +322,7 @@ fn c3_sin_datos_nunca_un_numero_inventado() {
 #[test]
 fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
     let f = Fixture::nueva("estimacion-c4");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = f.preparar(&Preparar::default());
     let mut ficheros: Vec<(String, String)> = (1..=6)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
@@ -429,7 +349,7 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
     assert_eq!(c, Some(0), "{out} {err}");
     assert_eq!(valor(&out, "estimacion-nivel"), Some("repo"), "{out}");
     assert_eq!(valor(&out, "estimacion-n"), Some("6"), "{out}");
-    let md = publicado(&f, &bare, "TASK-010");
+    let md = f.publicado(&bare, "TASK-010/tarea.md");
     let (t, _) = leer2(&md);
     let e = Estimacion::leer(t.estimacion().unwrap()).unwrap();
     assert_eq!((e.nivel.as_str(), e.n), ("repo", 6));
@@ -444,12 +364,12 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
     let (c, out, err) = correr(&f, &a, &["import", ruta.to_str().unwrap()]);
     assert_eq!(c, Some(0), "{out} {err}");
     for id in ["TASK-011", "TASK-012", "TASK-013"] {
-        let (t, _) = leer2(&publicado(&f, &bare, id));
+        let (t, _) = leer2(&f.publicado(&bare, &format!("{id}/tarea.md")));
         let e = Estimacion::leer(t.estimacion().unwrap()).unwrap();
         assert_eq!((e.nivel.as_str(), e.n), ("repo", 6), "{id}");
     }
     let antes: Vec<String> = (1..=13)
-        .map(|i| publicado(&f, &bare, &format!("TASK-{i:03}")))
+        .map(|i| f.publicado(&bare, &format!("TASK-{i:03}/tarea.md")))
         .collect();
     // estimar
     let (c, out, err) = correr(&f, &a, &["estimar"]);
@@ -461,7 +381,7 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
     assert_eq!(out.lines().count(), 1, "{out}");
     for i in 1..=13 {
         let id = format!("TASK-{i:03}");
-        let md = publicado(&f, &bare, &id);
+        let md = f.publicado(&bare, &format!("{id}/tarea.md"));
         let (t, _) = leer2(&md);
         if ["TASK-007", "TASK-008"].contains(&id.as_str()) {
             assert!(t.estimacion().is_some(), "{id}");
@@ -495,7 +415,7 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
 #[test]
 fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     let f = Fixture::nueva("estimacion-c5");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = f.preparar(&Preparar::default());
     let cinco: Vec<(String, String)> = (1..=5)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
@@ -506,7 +426,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     // Termina una mas.
     let sexta = terminada("TASK-007", 7, 40);
     poner(&f, &a, std::slice::from_ref(&sexta));
-    let antes = publicado(&f, &bare, "TASK-006");
+    let antes = f.publicado(&bare, "TASK-006/tarea.md");
     let t0 = tc2::identidad::ahora();
     let (c, out, err) = correr(&f, &a, &["start", "TASK-006"]);
     let t1 = tc2::identidad::ahora();
@@ -515,7 +435,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     assert_eq!(out.lines().count(), 1, "{out}");
     assert_eq!(valor(&out, "estimacion-n"), Some("6"), "{out}");
     assert_eq!(valor(&out, "estimacion-nivel"), Some("repo"), "{out}");
-    let despues = publicado(&f, &bare, "TASK-006");
+    let despues = f.publicado(&bare, "TASK-006/tarea.md");
     let nuevo = bloque(&despues);
     let e = Estimacion::leer(&nuevo).unwrap();
     assert_eq!(e.n, Estimacion::leer(&bloque(&antes)).unwrap().n + 1);
@@ -552,18 +472,11 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     // Las terminadas, byte a byte.
     for (ruta, md) in cinco.iter().chain(std::iter::once(&sexta)) {
         let id = ruta.trim_end_matches("/tarea.md");
-        assert_eq!(&publicado(&f, &bare, id), md, "{id}");
+        assert_eq!(&f.publicado(&bare, &format!("{id}/tarea.md")), md, "{id}");
     }
     // El ciclo no toca la estimacion (la rama, publicada: si no, `reasignar`
     // no deja la tarea).
-    let o = Command::new("git")
-        .current_dir(&a)
-        .args(["push", "-q", "origin", "feature/task-006-abierta"])
-        .envs(entorno_ssh(&f))
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "{}", texto(&o.stderr));
+    f.git_ssh(&a, &["push", "-q", "origin", "feature/task-006-abierta"]);
     for args in [
         vec!["pausa", "TASK-006"],
         vec!["reanudar", "TASK-006"],
@@ -572,13 +485,17 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
         let (c, out, err) = correr(&f, &a, &args);
         assert_eq!(c, Some(0), "{args:?}: {out} {err}");
         assert_eq!(valor(&out, "estimacion"), None, "{out}");
-        assert_eq!(bloque(&publicado(&f, &bare, "TASK-006")), nuevo, "{args:?}");
+        assert_eq!(
+            bloque(&f.publicado(&bare, "TASK-006/tarea.md")),
+            nuevo,
+            "{args:?}"
+        );
     }
-    let b = clon(&f, &bare, "b");
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let (c, out, err) = correr(&f, &b, &["liberar", "TASK-006"]);
     assert_eq!(c, Some(0), "{out} {err}");
-    let md = publicado(&f, &bare, "TASK-006");
+    let md = f.publicado(&bare, "TASK-006/tarea.md");
     assert!(md.contains("\nasignado_a: null\n"), "{md}");
     assert_eq!(bloque(&md), nuevo, "liberar");
 }
@@ -640,7 +557,7 @@ fn tarea_c6(id: &str, con_estimacion: bool) -> (String, String) {
 #[test]
 fn c6_error_por_fase_y_total() {
     let f = Fixture::nueva("estimacion-c6");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = f.preparar(&Preparar::default());
     poner(
         &f,
         &a,
@@ -701,12 +618,12 @@ fn c6_error_por_fase_y_total() {
 #[test]
 fn c7_un_git_log_y_nunca_ella_misma() {
     let f = Fixture::nueva("estimacion-c7");
-    let (_, a) = preparar(&f);
+    let (_, a) = f.preparar(&Preparar::default());
     let seis: Vec<(String, String)> = (1..=6)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
     poner(&f, &a, &seis);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let e = estimacion::Entorno {
         dir: &a,
         git: &g,
@@ -741,20 +658,6 @@ fn c7_un_git_log_y_nunca_ella_misma() {
     }
 }
 
-/// `git` directo con el «ssh» del remoto y variables de mas.
-fn git_ssh(f: &Fixture, dir: &Path, args: &[&str], vars: &[(&str, &str)]) {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .envs(vars.iter().copied())
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .unwrap();
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-}
-
 /// R1-01: `git::historia` con commits reales. Un commit `TASK-001` en el
 /// `develop` del remoto a las 11:40 parte la pausa de C1: el real de
 /// implementacion pasa de 75 a 85 y el error frente a los 30 guardados, de
@@ -762,7 +665,7 @@ fn git_ssh(f: &Fixture, dir: &Path, args: &[&str], vars: &[(&str, &str)]) {
 #[test]
 fn r1_01_un_commit_de_develop_cambia_el_real() {
     let f = Fixture::nueva("estimacion-r1-01");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &[tarea_c6("TASK-001", true)]);
     let error = |f: &Fixture| {
         let (c, out, err) = correr(f, &a, &["estimar", "--error", "TASK-001"]);
@@ -772,10 +675,9 @@ fn r1_01_un_commit_de_develop_cambia_el_real() {
     };
     assert_eq!(error(&f).as_deref(), Some("45"));
     // El commit, en el `develop` del remoto desde otro clon.
-    let p = clon(&f, &bare, "p");
+    let p = f.clon_github(&bare, "p");
     let fecha = "2026-11-17T11:40:00Z";
-    git_ssh(
-        &f,
+    f.git_ssh_con(
         &p,
         &[
             "commit",
@@ -786,10 +688,10 @@ fn r1_01_un_commit_de_develop_cambia_el_real() {
         ],
         &[("GIT_COMMITTER_DATE", fecha), ("GIT_AUTHOR_DATE", fecha)],
     );
-    git_ssh(&f, &p, &["push", "-q", "origin", "develop"], &[]);
+    f.git_ssh(&p, &["push", "-q", "origin", "develop"]);
     // Sin `fetch`, `estimar` no lo ve; tras el `fetch`, si.
     assert_eq!(error(&f).as_deref(), Some("45"));
-    git_ssh(&f, &a, &["fetch", "-q", "origin"], &[]);
+    f.git_ssh(&a, &["fetch", "-q", "origin"]);
     assert_eq!(error(&f).as_deref(), Some("55"));
 }
 
@@ -801,7 +703,7 @@ fn llamadas(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Vec
     let o = comun::orden_tc2()
         .current_dir(dir)
         .args(args)
-        .envs(entorno_ssh(f))
+        .envs(f.entorno_ssh())
         .env("GIT_TRACE", &traza)
         .output()
         .unwrap();
@@ -831,7 +733,7 @@ fn cuantas(subs: &[String], prefijo: &str) -> usize {
 #[test]
 fn r1_05_un_git_log_en_new_import_y_start() {
     let f = Fixture::nueva("estimacion-r1-05");
-    let (_, a) = preparar(&f);
+    let (_, a) = f.preparar(&Preparar::default());
     let seis: Vec<(String, String)> = (1..=6)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
@@ -862,7 +764,7 @@ fn r1_05_un_git_log_en_new_import_y_start() {
 #[test]
 fn doctor_cuenta_el_historico() {
     let f = Fixture::nueva("estimacion-doctor");
-    let (_, a) = preparar(&f);
+    let (_, a) = f.preparar(&Preparar::default());
     let mut fs: Vec<(String, String)> = (1..=3)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 10))
         .collect();
@@ -874,7 +776,7 @@ fn doctor_cuenta_el_historico() {
     let mal = mal.replacen("| review-x |", "| review |", 1);
     fs.push((r, mal));
     poner(&f, &a, &fs);
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(&f));
+    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let sin =
         |_: &tc2::plataforma::Personas| -> Result<tc2::tablero::Conectada, tc2::tablero::Consulta> {
             Err(tc2::tablero::Consulta::NoConfigurada)

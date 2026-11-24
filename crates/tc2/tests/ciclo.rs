@@ -11,98 +11,21 @@
 
 mod comun;
 
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
 
-use comun::{Fixture, escribir};
-use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
-use tc2::identidad::{Cache, Cuenta};
-use tc2::plataforma::Proveedor;
+use comun::{
+    Fixture, escribir, lanzar,
+    remoto::{Preparar, con_fila, editar, identificar, worktree},
+    salida, valor,
+};
+use tc2::estado::{self};
 
 const RAMA_ESTADO: &str = estado::RAMA;
-const ORIGIN: &str = "ssh://git@github.com/o/r.git";
-const PERSONAS: &str =
-    "---\npersonas:\n  - {id: 1001, login: \"ana\"}\n  - {id: 1002, login: \"beto\"}\n";
-
-fn entorno_ssh(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let bare = f
-        .raiz
-        .join("remoto.git")
-        .to_string_lossy()
-        .replace('\\', "/");
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        format!(
-            "sh -c 'case \"$2\" in *receive-pack*) exec git receive-pack \"$0\";; *) exec git upload-pack \"$0\";; esac' '{bare}'"
-        )
-        .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn entorno_sin_red(f: &Fixture) -> Vec<(OsString, OsString)> {
-    let mut e = f.entorno();
-    e.push((
-        "GIT_SSH_COMMAND".into(),
-        "sh -c 'echo \"ssh: connect to host github.com port 22: Connection refused\" >&2; exit 255'"
-            .into(),
-    ));
-    e.push(("GIT_SSH_VARIANT".into(), "simple".into()));
-    e
-}
-
-fn lanzar(dir: &Path, entorno: Vec<(OsString, OsString)>, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno)
-        .output()
-        .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
 
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 /// Un exito no escribe en stderr; un fallo, una linea.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
-    salida(&lanzar(dir, entorno_ssh(f), args))
-}
-
-fn salida(o: &Output) -> (Option<i32>, String) {
-    let out = texto(&o.stdout);
-    assert_eq!(out.lines().count(), 1, "{out}");
-    let err = texto(&o.stderr);
-    if o.status.code() == Some(0) {
-        assert!(err.is_empty(), "stderr en un exito: {err}");
-    } else {
-        assert_eq!(err.lines().count(), 1, "{err}");
-    }
-    (o.status.code(), out.trim_end().to_owned())
-}
-
-fn git(f: &Fixture, dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .envs(entorno_ssh(f))
-        .env("LC_ALL", "C")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .expect("lanzar git");
-    assert!(o.status.success(), "git {args:?}: {}", texto(&o.stderr));
-    texto(&o.stdout)
-}
-
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+    salida(&lanzar(dir, f.entorno_ssh(), args))
 }
 
 /// Las claves de una linea de contrato, en orden (sin comando ni
@@ -115,131 +38,16 @@ fn claves(linea: &str) -> Vec<&str> {
         .collect()
 }
 
-fn identificar(dir: &Path, id: u64, login: &str) {
-    let cuenta = Cuenta {
-        proveedor: Proveedor::GitHub,
-        id,
-        login: login.to_owned(),
-    };
-    Cache::en(&dir.join(".git"))
-        .guardar(&cuenta, tc2::identidad::ahora())
-        .unwrap();
-}
-
-/// Remoto con `personas.yml` y las tareas de `titulos` (`tc2 new`); el clon
-/// `a` que devuelve tiene `origin` en GitHub y la identidad de ana.
-fn preparar(f: &Fixture, titulos: &[&str]) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    for t in titulos {
-        let o = lanzar(&prep, f.entorno(), &["new", t]);
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    }
-    let a = otro_clon(f, &bare, "a");
-    identificar(&a, 1001, "ana");
-    (bare, a)
-}
-
-fn otro_clon(f: &Fixture, bare: &Path, nombre: &str) -> PathBuf {
-    let d = f.otro_clon(bare, nombre);
-    f.crudo(&d, &["remote", "set-url", "origin", ORIGIN]);
-    d
-}
-
-fn publicado(f: &Fixture, bare: &Path, ruta: &str) -> String {
-    f.crudo(bare, &["show", &format!("{RAMA_ESTADO}:{ruta}")])
-}
-
-fn tarea(f: &Fixture, bare: &Path, id: &str) -> String {
-    publicado(f, bare, &format!("{id}/tarea.md"))
-}
-
-fn punta(f: &Fixture, bare: &Path) -> String {
-    f.crudo(bare, &["rev-parse", RAMA_ESTADO])
-}
-
-fn worktree(dir: &Path, id: &str) -> PathBuf {
-    dir.join(".taskcodetwo").join("worktrees").join(id)
-}
-
-/// Lo que `tarea.md` gana con una fila: `antes` con `actualizado` de hoy y
-/// la fila `fase` de la transicion (la ultima linea de `despues`).
-fn con_fila(antes: &str, despues: &str, fase: &str) -> String {
-    let hoy = tc2::toma::instante(tc2::identidad::ahora());
-    let actualizado = antes
-        .lines()
-        .find_map(|l| l.strip_prefix("actualizado: "))
-        .unwrap()
-        .to_owned();
-    let fila = despues.lines().last().unwrap();
-    assert!(fila.starts_with(&format!("| {}T", &hoy[..10])), "{fila}");
-    assert!(
-        fila.ends_with(&format!(" | {fase} | manual | agente | {} |", tc2::VERSION)),
-        "{fila}"
-    );
-    format!(
-        "{}{fila}\n",
-        antes.replacen(
-            &format!("actualizado: {actualizado}"),
-            &format!("actualizado: \"{}\"", &hoy[..10]),
-            1
-        )
-    )
-}
-
-/// Escribe en la rama de estado por la transaccion (como otra fase).
-struct Escribir {
-    ruta: String,
-    de: &'static str,
-    a: &'static str,
-}
-
-impl Operacion for Escribir {
-    fn nombre(&self) -> &str {
-        "escribir"
-    }
-    fn anotacion(&self) -> String {
-        format!("escribir|{}", self.ruta)
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let t = e.leer(&self.ruta)?.unwrap_or_default();
-        assert!(t.contains(self.de), "{t}");
-        Ok(vec![Cambio::nuevo(
-            self.ruta.clone(),
-            t.replacen(self.de, self.a, 1),
-        )])
-    }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
-/// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
-fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(entorno_ssh(f));
-    let op = Escribir {
-        ruta: format!("{id}/tarea.md"),
-        de,
-        a,
-    };
-    let i = estado::transaccion(&Contexto::nuevo(&g, dir, &sin_catalogo, None), &op);
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-}
-
 /// C1: desde planificada, en diseno, en curso y en revision sale 0
 /// `descartar ok`; el `tarea.md` publicado cambia solo en estado, motivo,
 /// actualizado y una fila `descartar` (asignado y rama se conservan).
 #[test]
 fn c1_descarta_desde_cada_estado_y_el_resto_byte_a_byte() {
     let f = Fixture::nueva("ciclo-c1");
-    let (bare, a) = preparar(&f, &["Uno", "Dos", "Tres", "Cuatro"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"], &["Tres"], &["Cuatro"]],
+        ..Default::default()
+    });
     editar(
         &f,
         &a,
@@ -264,14 +72,14 @@ fn c1_descarta_desde_cada_estado_y_el_resto_byte_a_byte() {
         ("TASK-003", "en-curso"),
         ("TASK-004", "en-revision"),
     ] {
-        let antes = tarea(&f, &bare, id);
+        let antes = f.publicado(&bare, &format!("{id}/tarea.md"));
         let (c, out) = tc2(&f, &a, &["descartar", id, "ya no hace falta: «x» | y"]);
         assert_eq!(c, Some(0), "{out}");
         assert!(
             out.starts_with(&format!("descartar ok id={id} commit=")),
             "{out}"
         );
-        let despues = tarea(&f, &bare, id);
+        let despues = f.publicado(&bare, &format!("{id}/tarea.md"));
         let esperado = con_fila(
             &antes.replacen(
                 &format!("estado: \"{de}\"\nmotivo: null"),
@@ -280,11 +88,12 @@ fn c1_descarta_desde_cada_estado_y_el_resto_byte_a_byte() {
             ),
             &despues,
             "descartar",
+            "agente",
         );
         assert_eq!(despues, esperado, "{id}");
     }
     // Asignado y rama siguen (D7) en las que se habian empezado.
-    let md = tarea(&f, &bare, "TASK-003");
+    let md = f.publicado(&bare, "TASK-003/tarea.md");
     assert!(
         md.contains("\nasignado_a: {id: 1001, login: \"ana\"}\n"),
         "{md}"
@@ -297,7 +106,10 @@ fn c1_descarta_desde_cada_estado_y_el_resto_byte_a_byte() {
 #[test]
 fn c2_motivo_que_no_vale_es_uso_sin_tocar_nada() {
     let f = Fixture::nueva("ciclo-c2");
-    let (bare, a) = preparar(&f, &["Uno"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"]],
+        ..Default::default()
+    });
     let antes = f.huella(&bare, &a);
     for (args, motivo) in [
         (vec!["descartar", "TASK-001"], "sin-motivo"),
@@ -311,7 +123,10 @@ fn c2_motivo_que_no_vale_es_uso_sin_tocar_nada() {
         assert_eq!(out, format!("descartar uso motivo={motivo}"));
         assert_eq!(f.huella(&bare, &a), antes, "{args:?}");
     }
-    assert!(tarea(&f, &bare, "TASK-001").contains("estado: \"planificada\""));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"planificada\"")
+    );
 }
 
 /// C3: el `ROADMAP.md` del mismo commit lista la descartada con su motivo
@@ -319,7 +134,10 @@ fn c2_motivo_que_no_vale_es_uso_sin_tocar_nada() {
 #[test]
 fn c3_roadmap_del_mismo_commit_y_next_sin_ella() {
     let f = Fixture::nueva("ciclo-c3");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     let (_, out) = tc2(&f, &a, &["next"]);
     assert_eq!(valor(&out, "listas"), Some("TASK-001,TASK-002"), "{out}");
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-002", "ya no hace falta"]);
@@ -328,7 +146,7 @@ fn c3_roadmap_del_mismo_commit_y_next_sin_ella() {
     let mut cambiados: Vec<&str> = cambiados.lines().collect();
     cambiados.sort_unstable();
     assert_eq!(cambiados, ["ROADMAP.md", "TASK-002/tarea.md"]);
-    let roadmap = publicado(&f, &bare, "ROADMAP.md");
+    let roadmap = f.publicado(&bare, "ROADMAP.md");
     let descartadas = roadmap.split("\n## Descartadas\n").nth(1).unwrap();
     assert!(
         descartadas.contains("- TASK-002 — Dos (H")
@@ -348,7 +166,10 @@ fn c3_roadmap_del_mismo_commit_y_next_sin_ella() {
 #[test]
 fn c4_el_id_de_la_descartada_no_se_reutiliza() {
     let f = Fixture::nueva("ciclo-c4");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-002", "duplicada"]);
     assert_eq!(c, Some(0), "{out}");
     let (c, out) = tc2(&f, &a, &["new", "Tres"]);
@@ -367,9 +188,12 @@ fn c4_el_id_de_la_descartada_no_se_reutiliza() {
         .filter(|l| l.starts_with("TASK-"))
         .collect();
     assert_eq!(carpetas, ["TASK-001", "TASK-002", "TASK-003", "TASK-004"]);
-    assert!(tarea(&f, &bare, "TASK-002").contains("estado: \"descartada\""));
+    assert!(
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("estado: \"descartada\"")
+    );
     // La del import es la TASK-004 (lleva su lote).
-    let md = tarea(&f, &bare, "TASK-004");
+    let md = f.publicado(&bare, "TASK-004/tarea.md");
     assert!(md.contains("\nlote: \"ciclo/"), "{md}");
 }
 
@@ -380,17 +204,16 @@ fn c4_el_id_de_la_descartada_no_se_reutiliza() {
 #[test]
 fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
     let f = Fixture::nueva("ciclo-c5");
-    let (bare, a) = preparar(&f, &["Uno", "Dos", "Tres"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"], &["Tres"]],
+        ..Default::default()
+    });
     for id in ["TASK-001", "TASK-002", "TASK-003"] {
         let (c, out) = tc2(&f, &a, &["start", id]);
         assert_eq!(c, Some(0), "{out}");
     }
     let rama = "feature/task-001-uno";
-    git(
-        &f,
-        &worktree(&a, "TASK-001"),
-        &["push", "-q", "origin", rama],
-    );
+    f.git_ssh(&worktree(&a, "TASK-001"), &["push", "-q", "origin", rama]);
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "worktree"), Some("quitado"), "{out}");
@@ -419,11 +242,14 @@ fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
         std::fs::read_to_string(wt2.join("a-medias.txt")).unwrap(),
         "sin guardar\n"
     );
-    assert!(tarea(&f, &bare, "TASK-002").contains("estado: \"descartada\""));
+    assert!(
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("estado: \"descartada\"")
+    );
     // Desde dentro del worktree de la tarea (publicado y limpio): se
     // conserva, no se quita la carpeta en la que se esta.
     let wt3 = worktree(&a, "TASK-003");
-    git(&f, &wt3, &["push", "-q", "origin", "feature/task-003-tres"]);
+    f.git_ssh(&wt3, &["push", "-q", "origin", "feature/task-003-tres"]);
     let (c, out) = tc2(&f, &wt3, &["descartar", "TASK-003", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "worktree"), Some("conservado"), "{out}");
@@ -445,20 +271,23 @@ fn c5_worktree_quitado_o_conservado_y_la_rama_sigue() {
 #[test]
 fn c5_rama_publicada_desde_otro_clon_quita_el_worktree() {
     let f = Fixture::nueva("ciclo-c5-otro-clon");
-    let (bare, a) = preparar(&f, &["Uno"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"]],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     let rama = "feature/task-001-uno";
     // La persona sigue la tarea en otro clon y publica la rama desde alli.
-    let b = otro_clon(&f, &bare, "b");
-    git(&f, &b, &["switch", "-q", "-c", rama, "origin/develop"]);
+    let b = f.clon_github(&bare, "b");
+    f.git_ssh(&b, &["switch", "-q", "-c", rama, "origin/develop"]);
     escribir(&b, "seguido.txt", "desde el otro clon\n");
-    git(&f, &b, &["add", "seguido.txt"]);
-    git(&f, &b, &["commit", "-q", "-m", "seguido"]);
-    git(&f, &b, &["push", "-q", "origin", rama]);
+    f.git_ssh(&b, &["add", "seguido.txt"]);
+    f.git_ssh(&b, &["commit", "-q", "-m", "seguido"]);
+    f.git_ssh(&b, &["push", "-q", "origin", rama]);
     // El primero no la ha visto.
     let remota = format!("refs/remotes/origin/{rama}");
-    assert!(git(&f, &a, &["for-each-ref", &remota]).trim().is_empty());
+    assert!(f.git_ssh(&a, &["for-each-ref", &remota]).trim().is_empty());
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("descartar ok id=TASK-001 "), "{out}");
@@ -478,13 +307,16 @@ fn c5_rama_publicada_desde_otro_clon_quita_el_worktree() {
 #[test]
 fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
     let f = Fixture::nueva("ciclo-c5-sin-publicar");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     for id in ["TASK-001", "TASK-002"] {
         let (c, out) = tc2(&f, &a, &["start", id]);
         assert_eq!(c, Some(0), "{out}");
     }
     let wt2 = worktree(&a, "TASK-002");
-    git(&f, &wt2, &["checkout", "-q", "--detach"]);
+    f.git_ssh(&wt2, &["checkout", "-q", "--detach"]);
     for (id, motivo) in [("TASK-001", "sin-publicar"), ("TASK-002", "sin-rama")] {
         let wt = worktree(&a, id);
         let antes = std::fs::read_to_string(wt.join("README.md")).unwrap();
@@ -497,7 +329,10 @@ fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
             std::fs::read_to_string(wt.join("README.md")).unwrap(),
             antes
         );
-        assert!(tarea(&f, &bare, id).contains("estado: \"descartada\""));
+        assert!(
+            f.publicado(&bare, &format!("{id}/tarea.md"))
+                .contains("estado: \"descartada\"")
+        );
     }
 }
 
@@ -507,7 +342,10 @@ fn c5_sin_publicar_o_con_head_suelto_conserva_el_worktree() {
 #[test]
 fn desde_una_subcarpeta_del_clon_o_del_worktree() {
     let f = Fixture::nueva("ciclo-subcarpeta");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     let sub = a.join("docs").join("dentro");
     std::fs::create_dir_all(&sub).unwrap();
     let (c, out) = tc2(&f, &sub, &["pausa", "TASK-001"]);
@@ -525,7 +363,10 @@ fn desde_una_subcarpeta_del_clon_o_del_worktree() {
     let (c, out) = tc2(&f, &sub, &["descartar", "TASK-001", "no"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("descartar ok id=TASK-001 "), "{out}");
-    assert!(tarea(&f, &bare, "TASK-001").contains("estado: \"descartada\""));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"descartada\"")
+    );
 }
 
 /// C6: la tarea de otra persona da 3 `motivo=de-otra-persona asignado=` sin
@@ -533,12 +374,15 @@ fn desde_una_subcarpeta_del_clon_o_del_worktree() {
 #[test]
 fn c6_de_otra_persona_se_rechaza_sin_asignado_o_propia_no() {
     let f = Fixture::nueva("ciclo-c6");
-    let (bare, a) = preparar(&f, &["Uno", "Dos", "Tres"]);
-    let b = otro_clon(&f, &bare, "b");
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"], &["Tres"]],
+        ..Default::default()
+    });
+    let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "beto");
     let (c, out) = tc2(&f, &b, &["start", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
-    git(&f, &a, &["fetch", "-q", "origin"]);
+    f.git_ssh(&a, &["fetch", "-q", "origin"]);
     let antes = f.huella(&bare, &a);
     for args in [
         vec!["descartar", "TASK-001", "no"],
@@ -591,18 +435,24 @@ fn c6_de_otra_persona_se_rechaza_sin_asignado_o_propia_no() {
 #[test]
 fn c7_descartada_terminada_y_sus_rechazos() {
     let f = Fixture::nueva("ciclo-c7");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "el primero"]);
     assert_eq!(c, Some(0), "{out}");
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["descartar", "TASK-001", "otro distinto"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(
         out.starts_with("descartar sin-cambios id=TASK-001"),
         "{out}"
     );
-    assert_eq!(punta(&f, &bare), p);
-    assert!(tarea(&f, &bare, "TASK-001").contains("\nmotivo: \"el primero\"\n"));
+    assert_eq!(f.punta(&bare), p);
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("\nmotivo: \"el primero\"\n")
+    );
     editar(
         &f,
         &a,
@@ -630,11 +480,14 @@ fn c7_descartada_terminada_y_sus_rechazos() {
 #[test]
 fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
     let f = Fixture::nueva("ciclo-c8");
-    let (bare, a) = preparar(&f, &["Uno"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"]],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     let antes = f.huella(&bare, &a);
-    let o = lanzar(&a, entorno_sin_red(&f), &["descartar", "TASK-001", "no"]);
+    let o = lanzar(&a, f.entorno_sin_red(), &["descartar", "TASK-001", "no"]);
     let (c, out) = salida(&o);
     assert_eq!(c, Some(4), "{out}");
     assert!(out.starts_with("descartar sinred id=TASK-001"), "{out}");
@@ -643,20 +496,20 @@ fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
     let pendientes = || f.crudo(&a, &["for-each-ref", estado::REFS_PENDIENTES]);
     assert!(pendientes().trim().is_empty());
     // La pausa queda pendiente.
-    let p = punta(&f, &bare);
-    let o = lanzar(&a, entorno_sin_red(&f), &["pausa", "TASK-001"]);
+    let p = f.punta(&bare);
+    let o = lanzar(&a, f.entorno_sin_red(), &["pausa", "TASK-001"]);
     let (c, out) = salida(&o);
     assert_eq!(c, Some(4), "{out}");
     assert!(out.starts_with("pausa sinred id=TASK-001"), "{out}");
     assert_eq!(valor(&out, "pendiente"), Some("si"), "{out}");
     assert_eq!(pendientes().lines().count(), 1);
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
     // La siguiente transaccion con red la publica.
     let (c, out) = tc2(&f, &a, &["new", "Otra"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "pendientes"), Some("1"), "{out}");
     assert!(pendientes().trim().is_empty());
-    let md = tarea(&f, &bare, "TASK-001");
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     let fila = md.lines().last().unwrap();
     assert!(
         fila.ends_with(&format!(" | pausa | manual | agente | {} |", tc2::VERSION)),
@@ -664,7 +517,8 @@ fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
     );
     assert!(md.contains("estado: \"en-curso\""), "{md}");
     assert!(
-        publicado(&f, &bare, "ROADMAP.md").contains("TASK-001 (en curso · en pausa)"),
+        f.publicado(&bare, "ROADMAP.md")
+            .contains("TASK-001 (en curso · en pausa)"),
         "el ROADMAP no ve la pausa publicada"
     );
 }
@@ -675,10 +529,13 @@ fn c8_sin_red_descartar_falla_y_la_pausa_queda_pendiente() {
 #[test]
 fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
     let f = Fixture::nueva("ciclo-c9");
-    let (bare, a) = preparar(&f, &["Uno", "Dos"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"], &["Dos"]],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["start", "TASK-002"]);
     assert_eq!(c, Some(0), "{out}");
-    let antes = tarea(&f, &bare, "TASK-001");
+    let antes = f.publicado(&bare, "TASK-001/tarea.md");
     let (c, out) = tc2(&f, &a, &["pausa", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     // La linea completa, como la fija la adenda de TASK-034 en F1-4.
@@ -690,11 +547,11 @@ fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
     );
     assert_eq!(valor(&out, "intentos"), Some("1"), "{out}");
     assert_eq!(valor(&out, "tareas"), Some("sin-montar"), "{out}");
-    let despues = tarea(&f, &bare, "TASK-001");
-    assert_eq!(despues, con_fila(&antes, &despues, "pausa"));
+    let despues = f.publicado(&bare, "TASK-001/tarea.md");
+    assert_eq!(despues, con_fila(&antes, &despues, "pausa", "agente"));
     let (_, out) = tc2(&f, &a, &["next"]);
     assert_eq!(valor(&out, "listas").unwrap_or_default(), "", "{out}");
-    let roadmap = publicado(&f, &bare, "ROADMAP.md");
+    let roadmap = f.publicado(&bare, "ROADMAP.md");
     assert!(
         roadmap.contains("| TASK-001 | Uno | — | en pausa |"),
         "{roadmap}"
@@ -703,7 +560,7 @@ fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
         roadmap.contains("- **Listas para empezar:** ninguna\n"),
         "{roadmap}"
     );
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
     assert_eq!(
         (c, valor(&out, "motivo")),
@@ -714,15 +571,15 @@ fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
     let (c, out) = tc2(&f, &a, &["pausa", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("pausa sin-cambios id=TASK-001"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
     // Una en curso: estado, asignado, rama y worktree, igual.
-    let antes = tarea(&f, &bare, "TASK-002");
+    let antes = f.publicado(&bare, "TASK-002/tarea.md");
     let (c, out) = tc2(&f, &a, &["pausa", "TASK-002"]);
     assert_eq!(c, Some(0), "{out}");
-    let despues = tarea(&f, &bare, "TASK-002");
-    assert_eq!(despues, con_fila(&antes, &despues, "pausa"));
+    let despues = f.publicado(&bare, "TASK-002/tarea.md");
+    assert_eq!(despues, con_fila(&antes, &despues, "pausa", "agente"));
     assert!(worktree(&a, "TASK-002").join("README.md").is_file());
-    let roadmap = publicado(&f, &bare, "ROADMAP.md");
+    let roadmap = f.publicado(&bare, "ROADMAP.md");
     assert!(
         roadmap.contains("TASK-002 (en curso · en pausa)"),
         "{roadmap}"
@@ -734,15 +591,18 @@ fn c9_pausa_sin_cambiar_estado_fuera_de_next_y_start_la_rechaza() {
 #[test]
 fn c10_reanudar_la_devuelve_a_next() {
     let f = Fixture::nueva("ciclo-c10");
-    let (bare, a) = preparar(&f, &["Uno"]);
-    let p = punta(&f, &bare);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"]],
+        ..Default::default()
+    });
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["reanudar", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("reanudar sin-cambios id=TASK-001"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
     let (c, out) = tc2(&f, &a, &["pausa", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
-    let antes = tarea(&f, &bare, "TASK-001");
+    let antes = f.publicado(&bare, "TASK-001/tarea.md");
     let (c, out) = tc2(&f, &a, &["reanudar", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("reanudar ok id=TASK-001 commit="), "{out}");
@@ -751,8 +611,8 @@ fn c10_reanudar_la_devuelve_a_next() {
         ["id", "commit", "intentos", "tareas"],
         "{out}"
     );
-    let despues = tarea(&f, &bare, "TASK-001");
-    assert_eq!(despues, con_fila(&antes, &despues, "reanudar"));
+    let despues = f.publicado(&bare, "TASK-001/tarea.md");
+    assert_eq!(despues, con_fila(&antes, &despues, "reanudar", "agente"));
     let (_, out) = tc2(&f, &a, &["next"]);
     assert_eq!(valor(&out, "listas"), Some("TASK-001"), "{out}");
     let (c, out) = tc2(&f, &a, &["start", "TASK-001"]);
@@ -764,7 +624,10 @@ fn c10_reanudar_la_devuelve_a_next() {
 #[test]
 fn c11_uso_y_json_en_una_linea() {
     let f = Fixture::nueva("ciclo-c11");
-    let (bare, a) = preparar(&f, &["Uno"]);
+    let (bare, a) = f.preparar(&Preparar {
+        altas: &[&["Uno"]],
+        ..Default::default()
+    });
     let antes = f.huella(&bare, &a);
     for (args, linea) in [
         (
@@ -793,7 +656,10 @@ fn c11_uso_y_json_en_una_linea() {
     assert_eq!(v["comando"], "descartar");
     assert_eq!(v["claves"]["id"], "TASK-001");
     assert_eq!(v["claves"]["worktree"], "ninguno");
-    assert!(tarea(&f, &bare, "TASK-001").contains("\nmotivo: \"por json\"\n"));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("\nmotivo: \"por json\"\n")
+    );
     let (c, out) = tc2(&f, &a, &["reanudar", "--json", "TASK-050"]);
     assert_eq!(c, Some(3), "{out}");
     assert!(out.contains("\"motivo\":\"no-existe\""), "{out}");

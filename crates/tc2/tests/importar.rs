@@ -12,30 +12,13 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::sync::{Arc, Barrier};
 
-use comun::Fixture;
+use comun::{Fixture, texto, valor};
 use tc2::estado;
 
 const RAMA: &str = estado::RAMA;
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno())
-        .output()
-        .expect("lanzar tc2")
-}
-
-fn texto(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
-}
-
-/// Valor de `clave=` en una linea de contrato.
-fn valor<'a>(linea: &'a str, clave: &str) -> Option<&'a str> {
-    linea
-        .trim_end()
-        .split(' ')
-        .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
+    comun::lanzar(dir, f.entorno(), args)
 }
 
 /// Escribe el fichero de import en la carpeta temporal de la fixture.
@@ -73,11 +56,6 @@ fn lote(nombre: &str, sprint: u32, n: usize, deps: impl Fn(usize) -> Option<Stri
         t.push('\n');
     }
     t
-}
-
-/// `tarea.md` publicado en el remoto.
-fn publicado(f: &Fixture, bare: &Path, id: &str) -> String {
-    f.crudo(bare, &["show", &format!("{RAMA}:{id}/tarea.md")])
 }
 
 /// Carpetas `TASK-*` publicadas.
@@ -129,7 +107,7 @@ fn c1_c3_importa_37_en_un_commit_y_repetir_no_crea_nada() {
     let esperadas: Vec<String> = (1..=37).map(|n| format!("TASK-{n:03}")).collect();
     assert_eq!(carpetas(&f, &bare), esperadas);
     for i in 1..=37usize {
-        let md = publicado(&f, &bare, &format!("TASK-{i:03}"));
+        let md = f.publicado(&bare, &format!("TASK-{i:03}/tarea.md"));
         assert!(
             md.contains(&format!("\ntitulo: \"H{i} Tarea hito37 numero {i}\"\n")),
             "{md}"
@@ -154,11 +132,18 @@ fn c1_c3_importa_37_en_un_commit_y_repetir_no_crea_nada() {
         assert!(matches!(leida, tc2::tarea::Documento::Formato2(..)));
     }
     // C2: las claves locales quedan resueltas a TASK-NNN.
-    assert!(publicado(&f, &bare, "TASK-002").contains("\ndependencias: [\"TASK-001\"]\n"));
     assert!(
-        publicado(&f, &bare, "TASK-037").contains("\ndependencias: [\"TASK-036\", \"TASK-001\"]\n")
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("\ndependencias: [\"TASK-001\"]\n")
     );
-    assert!(publicado(&f, &bare, "TASK-003").contains("\ndependencias: []\n"));
+    assert!(
+        f.publicado(&bare, "TASK-037/tarea.md")
+            .contains("\ndependencias: [\"TASK-036\", \"TASK-001\"]\n")
+    );
+    assert!(
+        f.publicado(&bare, "TASK-003/tarea.md")
+            .contains("\ndependencias: []\n")
+    );
 
     // C3: repetirlo no crea nada ni publica nada.
     let antes = f.huella(&bare, &a);
@@ -189,13 +174,23 @@ fn c2_dependencias_externas_validadas_y_errores_sin_commit() {
     let (codigo, out, err) = importar(&f, &a, &ruta, &["--sprint", "2"]);
     assert_eq!(codigo, 0, "{out} {err}");
     assert_eq!(valor(&out, "ids"), Some("TASK-002,TASK-003"), "{out}");
-    assert!(publicado(&f, &bare, "TASK-002").contains("\ndependencias: [\"TASK-001\"]\n"));
     assert!(
-        publicado(&f, &bare, "TASK-003").contains("\ndependencias: [\"TASK-002\", \"TASK-001\"]\n")
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("\ndependencias: [\"TASK-001\"]\n")
     );
-    assert!(publicado(&f, &bare, "TASK-003").contains("\nsprint: 2\n"));
+    assert!(
+        f.publicado(&bare, "TASK-003/tarea.md")
+            .contains("\ndependencias: [\"TASK-002\", \"TASK-001\"]\n")
+    );
+    assert!(
+        f.publicado(&bare, "TASK-003/tarea.md")
+            .contains("\nsprint: 2\n")
+    );
     // Sin cabecera, el lote es el nombre del fichero.
-    assert!(publicado(&f, &bare, "TASK-002").contains("\nlote: \"externas/E1\"\n"));
+    assert!(
+        f.publicado(&bare, "TASK-002/tarea.md")
+            .contains("\nlote: \"externas/E1\"\n")
+    );
 
     let sha = refs(&f, &bare);
     for (nombre, contenido, motivo) in [
@@ -248,12 +243,17 @@ fn c4_dos_entradas_mas_crean_solo_esas_dos() {
         "{out}"
     );
     assert!(
-        publicado(&f, &bare, "TASK-007").contains("\ndependencias: [\"TASK-005\", \"TASK-006\"]\n")
+        f.publicado(&bare, "TASK-007/tarea.md")
+            .contains("\ndependencias: [\"TASK-005\", \"TASK-006\"]\n")
     );
     assert!(
-        publicado(&f, &bare, "TASK-008").contains("\ndependencias: [\"TASK-001\", \"TASK-007\"]\n")
+        f.publicado(&bare, "TASK-008/tarea.md")
+            .contains("\ndependencias: [\"TASK-001\", \"TASK-007\"]\n")
     );
-    assert!(publicado(&f, &bare, "TASK-008").contains("\nlote: \"hito/H7\"\n"));
+    assert!(
+        f.publicado(&bare, "TASK-008/tarea.md")
+            .contains("\nlote: \"hito/H7\"\n")
+    );
     assert_eq!(carpetas(&f, &bare).len(), 8);
 }
 
@@ -483,7 +483,7 @@ fn c8_fichero_016_de_la_ampliacion_se_importa_sin_tocarlo() {
         texto,
         "se toco el fichero"
     );
-    let md = publicado(&f, &bare, "TASK-001");
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(
         md.contains("\ntitulo: \"F1-19 ADR memoria del proyecto: indice de contexto, etiquetas y busqueda\"\n"),
         "{md}"

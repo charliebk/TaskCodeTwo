@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::time::{Duration, Instant, SystemTime};
 
-use comun::{Fixture, escribir};
+use comun::{Fixture, escribir, texto, valor, volcado};
 
 const CLAVE: &str = "verificacion.comando";
 
@@ -185,8 +185,8 @@ impl Caso {
 
     fn confiar(&self) {
         let o = self.tc2(&self.repo, &["confiar", CLAVE], None);
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
-        assert!(salida(&o).starts_with("confiar ok clave=verificacion.comando"));
+        assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
+        assert!(texto(&o.stdout).starts_with("confiar ok clave=verificacion.comando"));
     }
 
     /// Si se ejecuto el comando del proyecto (y lo deja listo para la
@@ -198,30 +198,9 @@ impl Caso {
     }
 }
 
-fn salida(o: &Output) -> String {
-    String::from_utf8_lossy(&o.stdout).into_owned()
-}
-
-fn error(o: &Output) -> String {
-    String::from_utf8_lossy(&o.stderr).into_owned()
-}
-
-fn texto(o: &Output) -> String {
-    format!(
-        "codigo {:?}\nstdout: {}\nstderr: {}",
-        o.status.code(),
-        salida(o),
-        error(o)
-    )
-}
-
 /// Valor de una clave de la linea de contrato.
 fn clave(o: &Output, k: &str) -> Option<String> {
-    salida(o).split_whitespace().find_map(|kv| {
-        kv.split_once('=')
-            .filter(|(c, _)| *c == k)
-            .map(|(_, v)| v.to_owned())
-    })
+    valor(&texto(&o.stdout), k).map(str::to_owned)
 }
 
 /// Cambia el `mtime` sin tocar el contenido.
@@ -238,19 +217,19 @@ fn sin_confianza_no_se_ejecuta_nada_y_tras_confiar_si() {
     let c = Caso::nuevo("verificar-p3");
     c.proyecto(Paso::Verde);
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "{}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("sin-confianza"));
     assert_eq!(clave(&o, "confianza").as_deref(), Some("nunca"));
     assert!(
-        error(&o).contains("`tc2 confiar verificacion.comando`"),
+        texto(&o.stderr).contains("`tc2 confiar verificacion.comando`"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto(), "se ejecuto la orden sin confianza");
 
     c.confiar();
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     assert_eq!(clave(&o, "resultado").as_deref(), Some("verde"));
     assert_eq!(clave(&o, "confianza").as_deref(), Some("confiado"));
     assert_eq!(
@@ -264,7 +243,7 @@ fn sin_confianza_no_se_ejecuta_nada_y_tras_confiar_si() {
     escribir(&c.repo, ruta_paso(), &cuerpo_paso(Paso::Rojo(3)));
     c.confiar();
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "{}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("rojo"));
     assert_eq!(clave(&o, "codigo").as_deref(), Some("3"));
 }
@@ -302,19 +281,19 @@ fn cambiar_cierre_globs_u_orden_da_cambiado_y_volver_da_confiado() {
     for (ruta, original, cambiado) in &cambios {
         escribir(&c.repo, ruta, cambiado);
         let o = c.verificar("rapida");
-        assert_eq!(o.status.code(), Some(3), "{ruta}: {}", texto(&o));
+        assert_eq!(o.status.code(), Some(3), "{ruta}: {}", volcado(&o));
         assert_eq!(
             clave(&o, "confianza").as_deref(),
             Some("cambiado"),
             "{ruta}: {}",
-            texto(&o)
+            volcado(&o)
         );
-        assert!(error(&o).contains("`tc2 confiar verificacion.comando`"));
+        assert!(texto(&o.stderr).contains("`tc2 confiar verificacion.comando`"));
         assert!(!c.se_ejecuto(), "{ruta}: se ejecuto con el cierre cambiado");
 
         escribir(&c.repo, ruta, original);
         let o = c.verificar("rapida");
-        assert_eq!(o.status.code(), Some(0), "{ruta}: {}", texto(&o));
+        assert_eq!(o.status.code(), Some(0), "{ruta}: {}", volcado(&o));
         assert_eq!(clave(&o, "confianza").as_deref(), Some("confiado"));
         assert!(c.se_ejecuto());
     }
@@ -355,7 +334,7 @@ fn la_confianza_es_del_repo_comun_y_vive_fuera_del_arbol() {
         &["worktree", "add", "-q", "-b", "otra", wt.to_str().unwrap()],
     );
     let o = c.tc2(&wt, &["verificar", "--perfil", "rapida"], None);
-    assert_eq!(o.status.code(), Some(0), "worktree: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "worktree: {}", volcado(&o));
     assert_eq!(clave(&o, "confianza").as_deref(), Some("confiado"));
     assert!(c.se_ejecuto());
 
@@ -365,7 +344,7 @@ fn la_confianza_es_del_repo_comun_y_vive_fuera_del_arbol() {
         &["verificar", "--perfil", "rapida"],
         None,
     );
-    assert_eq!(o.status.code(), Some(3), "otro clon: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "otro clon: {}", volcado(&o));
     assert_eq!(clave(&o, "confianza").as_deref(), Some("nunca"));
     assert!(!c.se_ejecuto(), "otro clon heredo la confianza");
 }
@@ -379,28 +358,28 @@ fn en_caliente_no_se_rehashea_y_un_script_tocado_si() {
     c.proyecto(Paso::Verde);
     c.confiar();
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     assert_eq!(
         clave(&o, "hasheados").as_deref(),
         Some("0"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
 
     let paso = c.repo.join(ruta_paso());
     tocar(&paso, 10);
     let tamano = std::fs::metadata(&paso).unwrap().len().to_string();
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     assert_eq!(clave(&o, "confianza").as_deref(), Some("confiado"));
-    assert_eq!(clave(&o, "hasheados"), Some(tamano), "{}", texto(&o));
+    assert_eq!(clave(&o, "hasheados"), Some(tamano), "{}", volcado(&o));
 
     let o = c.verificar("rapida");
     assert_eq!(
         clave(&o, "hasheados").as_deref(),
         Some("0"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
 }
 
@@ -413,39 +392,43 @@ fn hook_no_bloquea_sin_confianza_y_bloquea_en_rojo() {
     c.proyecto(Paso::Rojo(4));
 
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(0), "sin confianza: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "sin confianza: {}", volcado(&o));
     assert!(
-        error(&o).contains("`tc2 confiar verificacion.comando`"),
+        texto(&o.stderr).contains("`tc2 confiar verificacion.comando`"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto());
 
     c.confiar();
     let o = c.hook(true);
-    assert_eq!(o.status.code(), Some(0), "activo: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "activo: {}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("stop-hook-activo"));
     assert!(!c.se_ejecuto(), "con stop_hook_active se ejecuto");
 
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(2), "rojo: {}", texto(&o));
-    assert!(error(&o).contains("FALLO-DEL-PASO"), "{}", texto(&o));
-    assert!(error(&o).lines().count() <= 16, "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(2), "rojo: {}", volcado(&o));
+    assert!(
+        texto(&o.stderr).contains("FALLO-DEL-PASO"),
+        "{}",
+        volcado(&o)
+    );
+    assert!(texto(&o.stderr).lines().count() <= 16, "{}", volcado(&o));
     assert!(c.se_ejecuto());
 
     // Sin perfil `rapida`: 0 con aviso, sin ejecutar.
     escribir(&c.repo, ".taskcode/config.yml", &config("", None, 600));
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(0), "sin rapida: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "sin rapida: {}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("sin-perfil"));
-    assert!(error(&o).contains("rapida"), "{}", texto(&o));
+    assert!(texto(&o.stderr).contains("rapida"), "{}", volcado(&o));
     assert!(!c.se_ejecuto());
 
     // Config invalida (la de la 0.16, sin `formato: 2`): 0 con aviso.
     escribir(&c.repo, ".taskcode/config.yml", "modo_flujo: automatico\n");
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(0), "config 0.16: {}", texto(&o));
-    assert!(!error(&o).is_empty());
+    assert_eq!(o.status.code(), Some(0), "config 0.16: {}", volcado(&o));
+    assert!(!texto(&o.stderr).is_empty());
     assert!(!c.se_ejecuto());
 
     // YAML mal formado: el diagnostico del parser trae varias lineas; el
@@ -456,14 +439,14 @@ fn hook_no_bloquea_sin_confianza_y_bloquea_en_rojo() {
         "---\nformato: 2\nverificacion: [\n  - a: {\n",
     );
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(0), "yaml: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "yaml: {}", volcado(&o));
     assert_eq!(
         clave(&o, "motivo").as_deref(),
         Some("yaml"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
-    assert_eq!(error(&o).lines().count(), 1, "{}", texto(&o));
+    assert_eq!(texto(&o.stderr).lines().count(), 1, "{}", volcado(&o));
     assert!(!c.se_ejecuto());
 }
 
@@ -488,10 +471,19 @@ fn hook_mal_escrito_no_bloquea_la_parada() {
         (&["verificar", "--perfil", "rapid", "--hook"][..], activo),
     ] {
         let o = c.tc2(&c.repo, args, Some(stdin));
-        assert_eq!(o.status.code(), Some(0), "{args:?} {stdin}: {}", texto(&o));
-        assert!(error(&o).lines().count() <= 1, "{}", texto(&o));
+        assert_eq!(
+            o.status.code(),
+            Some(0),
+            "{args:?} {stdin}: {}",
+            volcado(&o)
+        );
+        assert!(texto(&o.stderr).lines().count() <= 1, "{}", volcado(&o));
         if stdin == falso {
-            assert!(error(&o).contains("settings.json"), "{}", texto(&o));
+            assert!(
+                texto(&o.stderr).contains("settings.json"),
+                "{}",
+                volcado(&o)
+            );
         } else {
             assert_eq!(clave(&o, "motivo").as_deref(), Some("stop-hook-activo"));
         }
@@ -499,7 +491,7 @@ fn hook_mal_escrito_no_bloquea_la_parada() {
     }
     // Sin `--hook` el error de uso sigue siendo uso (2).
     let o = c.tc2(&c.repo, &["verificar", "--perfil", "rapid"], None);
-    assert_eq!(o.status.code(), Some(2), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(2), "{}", volcado(&o));
 }
 
 /// Ronda 1, MEN-1 (calidad): con `--hook` y un perfil que no es `rapida`,
@@ -511,8 +503,8 @@ fn hook_bloquea_con_timeout_fuera_de_rapida_y_resume_15_lineas() {
     c.proyecto(Paso::Lineas);
     c.confiar();
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(2), "{}", texto(&o));
-    let err = error(&o);
+    assert_eq!(o.status.code(), Some(2), "{}", volcado(&o));
+    let err = texto(&o.stderr);
     let lineas: Vec<&str> = err.lines().map(str::trim).collect();
     assert!(lineas.contains(&"LINEA-30"), "{err}");
     assert!(lineas.contains(&"LINEA-16"), "{err}");
@@ -528,7 +520,7 @@ fn hook_bloquea_con_timeout_fuera_de_rapida_y_resume_15_lineas() {
         &["verificar", "--perfil", "completa", "--hook"],
         Some("{\"stop_hook_active\":false}"),
     );
-    assert_eq!(o.status.code(), Some(2), "completa: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(2), "completa: {}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("timeout"));
 }
 
@@ -564,7 +556,7 @@ fn el_cierre_sigue_nombres_con_espacios_y_no_ascii() {
             clave(&o, "confianza").as_deref(),
             Some("confiado"),
             "{}",
-            texto(&o)
+            volcado(&o)
         );
         assert!(c.se_ejecuto());
         escribir(&c.repo, ruta, &cuerpo_paso(Paso::Rojo(0)));
@@ -573,7 +565,7 @@ fn el_cierre_sigue_nombres_con_espacios_y_no_ascii() {
             clave(&o, "confianza").as_deref(),
             Some("cambiado"),
             "{ruta}: {}",
-            texto(&o)
+            volcado(&o)
         );
         assert!(!c.se_ejecuto(), "{ruta}: se ejecuto cambiado");
         escribir(&c.repo, ruta, &cuerpo_paso(Paso::Verde));
@@ -610,7 +602,7 @@ fn raro_entra_en_el_cierre(nombre: &str, linea: &str, raro: &str) {
         clave(&o, "hasheados").as_deref(),
         Some("0"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     let _ = c.se_ejecuto();
     escribir(&c.repo, raro, "echo bueno\n");
@@ -621,29 +613,34 @@ fn raro_entra_en_el_cierre(nombre: &str, linea: &str, raro: &str) {
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto(), "se ejecuto con {raro} nuevo sin confiar");
     let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     // principal, paso, `incluido/a.cfg` (glob) y el raro.
-    assert_eq!(clave(&o, "ficheros").as_deref(), Some("4"), "{}", texto(&o));
+    assert_eq!(
+        clave(&o, "ficheros").as_deref(),
+        Some("4"),
+        "{}",
+        volcado(&o)
+    );
     let o = c.verificar("rapida");
     assert_eq!(
         clave(&o, "confianza").as_deref(),
         Some("confiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(c.se_ejecuto());
     escribir(&c.repo, raro, "echo malo\n");
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "{}", volcado(&o));
     assert_eq!(
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto(), "se ejecuto con {raro} cambiado");
 }
@@ -694,7 +691,7 @@ fn globs_de_confianza_incluye_normalizados_invalidos_y_vacios() {
             clave(&o, "confianza").as_deref(),
             Some("cambiado"),
             "{g}: {}",
-            texto(&o)
+            volcado(&o)
         );
         assert!(!c.se_ejecuto(), "{g}: se ejecuto");
         escribir(&c.repo, "incluido/a.cfg", "valor=1\n");
@@ -706,10 +703,10 @@ fn globs_de_confianza_incluye_normalizados_invalidos_y_vacios() {
         &config_con("", Some(60), 600, None, "'incluido/['"),
     );
     let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
-    assert_eq!(o.status.code(), Some(3), "confiar: {}", texto(&o));
-    assert!(error(&o).contains("incluido/["), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "confiar: {}", volcado(&o));
+    assert!(texto(&o.stderr).contains("incluido/["), "{}", volcado(&o));
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(3), "verificar: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "verificar: {}", volcado(&o));
     assert!(!c.se_ejecuto());
 
     escribir(
@@ -718,12 +715,12 @@ fn globs_de_confianza_incluye_normalizados_invalidos_y_vacios() {
         &config_con("", Some(60), 600, None, "'incluido/*.cfg', 'nada/*.cfg'"),
     );
     let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     assert_eq!(
         clave(&o, "globs-sin-ficheros").as_deref(),
         Some("nada/*.cfg")
     );
-    assert!(error(&o).contains("nada/*.cfg"), "{}", texto(&o));
+    assert!(texto(&o.stderr).contains("nada/*.cfg"), "{}", volcado(&o));
 }
 
 /// Ronda 1, MENOR-1 (rust): en Windows y macOS un script nombrado con otras
@@ -763,7 +760,7 @@ fn el_cierre_no_distingue_mayusculas_en_windows_y_macos() {
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto());
 
@@ -773,7 +770,7 @@ fn el_cierre_no_distingue_mayusculas_en_windows_y_macos() {
         clave(&o, "confianza").as_deref(),
         Some("confiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     let _ = c.se_ejecuto();
     escribir(&c.repo, raro, "echo malo\n");
@@ -782,7 +779,7 @@ fn el_cierre_no_distingue_mayusculas_en_windows_y_macos() {
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
         "raro con otras mayusculas: {}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto());
 }
@@ -813,17 +810,22 @@ fn script_raro_nombrado_solo_en_la_orden_entra_en_el_cierre() {
     c.fx.crudo(&c.repo, &["add", "-A"]);
     c.fx.crudo(&c.repo, &["commit", "-q", "-m", "raro en la orden"]);
     let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     // principal, paso, `incluido/a.cfg` y el raro.
-    assert_eq!(clave(&o, "ficheros").as_deref(), Some("4"), "{}", texto(&o));
+    assert_eq!(
+        clave(&o, "ficheros").as_deref(),
+        Some("4"),
+        "{}",
+        volcado(&o)
+    );
     escribir(&c.repo, raro, "echo malo\n");
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(3), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "{}", volcado(&o));
     assert_eq!(
         clave(&o, "confianza").as_deref(),
         Some("cambiado"),
         "{}",
-        texto(&o)
+        volcado(&o)
     );
     assert!(!c.se_ejecuto());
 }
@@ -849,8 +851,8 @@ fn hook_y_orden_deciden_igual_y_timeout_en_rapida_no_es_rojo() {
             decision(&sin),
             decision(&con),
             "{que}\n{}\n{}",
-            texto(&sin),
-            texto(&con)
+            volcado(&sin),
+            volcado(&con)
         );
         assert_eq!(
             sin.stdout.split(|b| *b == b' ').next(),
@@ -869,7 +871,7 @@ fn hook_y_orden_deciden_igual_y_timeout_en_rapida_no_es_rojo() {
     c.confiar();
     let t = Instant::now();
     let o = c.verificar("rapida");
-    assert_eq!(o.status.code(), Some(0), "rapida: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "rapida: {}", volcado(&o));
     assert_eq!(clave(&o, "resultado").as_deref(), Some("excedido"));
     assert!(
         t.elapsed() < Duration::from_secs(6),
@@ -877,10 +879,10 @@ fn hook_y_orden_deciden_igual_y_timeout_en_rapida_no_es_rojo() {
         t.elapsed()
     );
     let o = c.hook(false);
-    assert_eq!(o.status.code(), Some(0), "hook: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "hook: {}", volcado(&o));
     assert_eq!(clave(&o, "resultado").as_deref(), Some("excedido"));
     let o = c.verificar("completa");
-    assert_eq!(o.status.code(), Some(3), "completa: {}", texto(&o));
+    assert_eq!(o.status.code(), Some(3), "completa: {}", volcado(&o));
     assert_eq!(clave(&o, "motivo").as_deref(), Some("timeout"));
     assert_eq!(clave(&o, "resultado").as_deref(), Some("rojo"));
 }
@@ -929,14 +931,18 @@ fn presupuesto_de_un_segundo_con_un_cierre_como_el_de_toolsaweb() {
         let t = Instant::now();
         let o = c.verificar("rapida");
         let e = t.elapsed();
-        println!("P1 {que}: {} ms; {}", e.as_millis(), salida(&o).trim());
+        println!(
+            "P1 {que}: {} ms; {}",
+            e.as_millis(),
+            texto(&o.stdout).trim()
+        );
         (o, e)
     };
     let (o, sin) = medir("sin confiar");
     assert_eq!(clave(&o, "confianza").as_deref(), Some("nunca"));
     c.confiar();
     let o = c.tc2(&c.repo, &["confiar", CLAVE], None);
-    println!("P1 confiar: {}", salida(&o).trim());
+    println!("P1 confiar: {}", texto(&o.stdout).trim());
     assert_eq!(clave(&o, "ficheros").as_deref(), Some("51"));
     let bytes: u64 = clave(&o, "hasheados").unwrap().parse().unwrap();
     assert!(bytes > 1_000_000, "cierre de {bytes} bytes");
@@ -946,7 +952,7 @@ fn presupuesto_de_un_segundo_con_un_cierre_como_el_de_toolsaweb() {
     tocar(&c.repo.join(ruta), 30);
     let (o, frio) = medir("en frio");
     assert_eq!(clave(&o, "hasheados"), Some(bytes.to_string()));
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o));
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     let (o, caliente) = medir("en caliente");
     assert_eq!(clave(&o, "hasheados").as_deref(), Some("0"));
     let limite = Duration::from_secs(1);

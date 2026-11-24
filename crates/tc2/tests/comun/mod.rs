@@ -6,16 +6,17 @@
 #![allow(dead_code)] // cada fichero de tests usa una parte
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+pub mod git;
 pub mod http_mock;
 pub mod lanzador;
 pub mod ops;
+pub mod remoto;
 
 #[allow(unused_imports)] // cada fichero de tests usa una parte
-pub use lanzador::{BINARIO, orden_tc2};
+pub use lanzador::{BINARIO, lanzar, orden_tc2, salida, texto, valor, volcado};
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tc2::contrato::{Informe, Resultado};
@@ -62,21 +63,7 @@ impl Fixture {
 
     /// `git` directo para preparar la fixture (no pasa por la capa).
     pub fn crudo(&self, dir: &Path, args: &[&str]) -> String {
-        let o = Command::new("git")
-            .current_dir(dir)
-            .args(args)
-            .envs(self.entorno())
-            .env("LC_ALL", "C")
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()
-            .expect("lanzar git");
-        assert!(
-            o.status.success(),
-            "git {args:?} en {}: {}",
-            dir.display(),
-            String::from_utf8_lossy(&o.stderr)
-        );
-        String::from_utf8_lossy(&o.stdout).into_owned()
+        git::git_en(dir, &self.entorno(), args)
     }
 
     /// Remoto bare (`develop` y `main` en el mismo commit, sin force) y un

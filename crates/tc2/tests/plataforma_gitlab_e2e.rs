@@ -41,6 +41,7 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 mod agente_git;
+mod comun;
 
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
