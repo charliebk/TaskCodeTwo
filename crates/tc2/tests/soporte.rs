@@ -101,10 +101,17 @@ fn git_en_fija_locale_y_prompt() {
 #[test]
 #[should_panic(expected = "stderr en un exito")]
 fn salida_rechaza_stderr_en_un_exito() {
-    let o = std::process::Command::new("sh")
-        .args(["-c", "echo ok; echo aviso >&2"])
+    // El stderr lo escribe un alias de git, que trae su propio `sh`: el test
+    // no depende de que haya un `sh` en el PATH (IMP-2 de la revision 2).
+    let o = std::process::Command::new("git")
+        .args([
+            "-c",
+            "alias.dos-salidas=!echo ok; echo aviso >&2",
+            "dos-salidas",
+        ])
         .output()
         .unwrap();
+    assert!(o.status.success(), "{}", comun::volcado(&o));
     comun::salida(&o);
 }
 
