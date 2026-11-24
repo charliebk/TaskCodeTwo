@@ -42,7 +42,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-039 (en diseño), TASK-148c (en diseño)
+- **En marcha:** TASK-039 (en diseño), TASK-148d (en diseño)
 - **Listas para empezar:** TASK-054, TASK-056, TASK-058, TASK-061, TASK-063, TASK-067, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126, TASK-139, TASK-140, TASK-141, TASK-142, TASK-143, TASK-144, TASK-145, TASK-146, TASK-147, TASK-149, TASK-150
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
@@ -222,7 +222,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H0 — H0
 
-9 de 33 terminadas.
+10 de 33 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
@@ -255,7 +255,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | 57 | TASK-150 | Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE) | — | — | lista para empezar |
 | — | TASK-148a | lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148) | — | — | ✅ terminada |
 | — | TASK-148b | escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148) | — | TASK-148a | ✅ terminada |
-| 58 | TASK-148c | servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) | — | TASK-148b | ▶ en diseño |
-| 59 | TASK-148d | instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148) | — | TASK-148c | espera a TASK-148c |
-| 60 | TASK-148e | soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148) | — | TASK-148d | espera a TASK-148d |
-| 61 | TASK-148f | dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148) | — | TASK-148e | espera a TASK-148e |
+| — | TASK-148c | servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) | — | TASK-148b | ✅ terminada |
+| 58 | TASK-148d | instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148) | — | TASK-148c | ▶ en diseño |
+| 59 | TASK-148e | soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148) | — | TASK-148d | espera a TASK-148d |
+| 60 | TASK-148f | dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148) | — | TASK-148e | espera a TASK-148e |
