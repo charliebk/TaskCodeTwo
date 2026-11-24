@@ -4,6 +4,7 @@ Registro de tareas terminadas. Lo actualiza taskctl finish; una linea
 por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
+- TASK-148f (fix) — dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148) (2026-11-24)
 - TASK-148e (fix) — soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148) (2026-11-24)
 - TASK-148d (fix) — instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148) (2026-11-24)
 - TASK-148c (fix) — servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) (2026-11-24)

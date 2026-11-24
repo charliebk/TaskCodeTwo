@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -58,6 +58,7 @@ Dobles de `Plataforma` sobre `Parcial` y `Doble<P>` (por defecto `panic!` ante u
 | 2026-11-24T08:22:54Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T08:22:55Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T08:51:47Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T13:55:06Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -76,3 +77,14 @@ Dobles de `Plataforma` sobre `Parcial` y `Doble<P>` (por defecto `panic!` ante u
 ## Verificacion ligera
 
 - 2026-11-24T09:10:25Z: ronda 1; commit revisado fd776e6274ef35d6a465d6b19761918159920678; commit verificado 3b4cb728afca894c1087fdda118b2251d2361769; ficheros: crates/tc2/src/identidad.rs; corregidos: MEN-1; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 50 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 332 min
+- Paso de la hora: 332 min reales frente a 50 estimados
+- Cierre (finish): 3039 s, de 2026-11-24T13:04:27Z a 2026-11-24T13:55:06Z
+
+## Codigo integrado sin revisar
+
+- 2026-11-24T13:04:27Z: taskctl finish --aceptar-sin-revisar; integrado sin revisar ni verificacion ligera el codigo de fd776e6..fix/task-148-auditoria-4d-soporte-de-tests-compartido (ronda 1): .taskcode/config.yml, crates/tc2/src/identidad.rs
