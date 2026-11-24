@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-140-auditoria-4d-a2-hallazgos-y-revision-7-i
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1263206
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -40,3 +40,10 @@ Corregir los 7 casos IMPORTANTE del grupo A2 de `docs/auditoria-4d.md` (commit a
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-24T16:45:38Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-24T16:52:08Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24T16:52:07Z | diseno | agente:ac89536960f8a860a | 46 | 77424 | 1168108 | 17628 | 31 | 1263206 | - | - |
