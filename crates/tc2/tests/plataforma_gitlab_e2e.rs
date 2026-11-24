@@ -41,11 +41,13 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 mod agente_git;
+mod arnes_e2e;
 mod comun;
 
 use std::cell::{Cell, RefCell};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
+use arnes_e2e::{Cliente, sufijo, ver};
 use serde_json::{Value, json};
 use tc2::contrato::{Informe, Resultado};
 use tc2::plataforma::credenciales::de_entorno_con;
@@ -76,23 +78,14 @@ fn cod(s: &str) -> String {
 /// Cliente del arnes: llamadas que el puerto no tiene (ramas, commits,
 /// estados, proteccion, aprobar, cerrar), solo para preparar y limpiar.
 struct Arnes {
-    agente: ureq::Agent,
+    cliente: Cliente,
     e: Entorno,
 }
 
 impl Arnes {
     fn nuevo() -> Self {
-        let agente: ureq::Agent = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                    .build(),
-            )
-            .build()
-            .into();
         Self {
-            agente,
+            cliente: Cliente::nuevo("application/json"),
             e: entorno(),
         }
     }
@@ -104,24 +97,8 @@ impl Arnes {
     /// Como `api`, sin entrar en panico: para limpiar desde `Drop`.
     fn intentar(&self, metodo: &str, ruta: &str, cuerpo: Option<Value>) -> Option<(u16, Value)> {
         let url = format!("{API}/projects/{}{ruta}", cod(&self.e.proyecto));
-        let auth = format!("Bearer {}", self.e.token);
-        fn cab<B>(p: ureq::RequestBuilder<B>, auth: &str) -> ureq::RequestBuilder<B> {
-            p.header("Authorization", auth)
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .header("User-Agent", "taskcodetwo-e2e")
-        }
-        let r = match (metodo, cuerpo) {
-            ("GET", _) => cab(self.agente.get(&url), &auth).call(),
-            ("DELETE", _) => cab(self.agente.delete(&url), &auth).call(),
-            ("POST", Some(c)) => cab(self.agente.post(&url), &auth).send(c.to_string()),
-            ("PUT", Some(c)) => cab(self.agente.put(&url), &auth).send(c.to_string()),
-            _ => return None,
-        };
-        let mut r = r.ok()?;
-        let estado = r.status().as_u16();
-        let texto = r.body_mut().read_to_string().unwrap_or_default();
-        Some((estado, serde_json::from_str(&texto).unwrap_or(Value::Null)))
+        self.cliente
+            .intentar_con(&self.e.token, metodo, &url, cuerpo)
     }
 
     /// Commit en `rama` (creandola desde `desde` si se da) que escribe
@@ -207,7 +184,8 @@ impl Arnes {
         );
     }
 
-    /// Llamada con otro token (el del agente en F6-1) a una ruta de la API.
+    /// Llamada con otro token (el del agente en F6-1) a una ruta de la API;
+    /// un `POST` sin cuerpo manda `{}`.
     fn intentar_con(
         &self,
         token: &str,
@@ -215,33 +193,15 @@ impl Arnes {
         ruta: &str,
         cuerpo: Option<Value>,
     ) -> Option<(u16, Value)> {
-        let url = format!("{API}{ruta}");
-        let auth = format!("Bearer {token}");
-        let p = match metodo {
-            "GET" => self.agente.get(&url).header("Authorization", &auth).call(),
-            "POST" => self
-                .agente
-                .post(&url)
-                .header("Authorization", &auth)
-                .header("Content-Type", "application/json")
-                .send(cuerpo.unwrap_or_else(|| json!({})).to_string()),
-            _ => return None,
-        };
-        let mut r = p.ok()?;
-        let estado = r.status().as_u16();
-        let texto = r.body_mut().read_to_string().unwrap_or_default();
-        Some((estado, serde_json::from_str(&texto).unwrap_or(Value::Null)))
+        let cuerpo = cuerpo.or_else(|| (metodo == "POST").then(|| json!({})));
+        self.cliente
+            .intentar_con(token, metodo, &format!("{API}{ruta}"), cuerpo)
     }
 
     fn usuario(&self) -> u64 {
-        let auth = format!("Bearer {}", self.e.token);
-        let mut r = self
-            .agente
-            .get(format!("{API}/user"))
-            .header("Authorization", &auth)
-            .call()
+        let (_, v) = self
+            .intentar_con(&self.e.token, "GET", "/user", None)
             .unwrap();
-        let v: Value = serde_json::from_str(&r.body_mut().read_to_string().unwrap()).unwrap();
         v["id"].as_u64().unwrap()
     }
 }
@@ -299,17 +259,6 @@ fn adaptador(proyecto: &str, token: &str, personas: Personas) -> GitLab {
         .con(Rol::Agente, s.clone())
         .con(Rol::Persona, s);
     GitLab::nuevo(Base::nueva(API).unwrap(), proyecto, Box::new(c), personas).unwrap()
-}
-
-fn sufijo() -> String {
-    let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    format!("{}-{}", t.as_secs(), std::process::id())
-}
-
-fn ver(i: &Informe) -> String {
-    let l = i.linea();
-    eprintln!("  {l}");
-    l
 }
 
 fn modelo(checks: &[(&str, u64)]) -> ModeloPuertas {
