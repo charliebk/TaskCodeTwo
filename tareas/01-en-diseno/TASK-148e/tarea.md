@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 730463
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -38,3 +38,10 @@ Crea `estado::prueba` (con `EnMemoria` traído de `roadmap::tests`, `estado` y `
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-24T07:10:49Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-24T07:14:31Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24T07:14:30Z | diseno | agente:abefd1a86ce63717f | 30 | 64746 | 652198 | 13489 | 24 | 730463 | - | - |
