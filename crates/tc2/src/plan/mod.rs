@@ -58,6 +58,7 @@ use crate::estado::{self, Operacion};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
+use crate::identidad::Quien;
 use crate::plataforma::errores::sanear;
 use crate::toma::Entorno;
 
@@ -162,7 +163,7 @@ pub fn plan_en(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Informe {
     let i = match paso_plan(e, id, carril) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(NOMBRE, i, id)
+    de_la_orden(NOMBRE, i, "id", id)
 }
 
 fn uso_approve(motivo: &str) -> Informe {
@@ -254,32 +255,15 @@ fn orden_approve_hito(args: &[String], e: &Entorno<'_>) -> Informe {
 /// `hito=` primero, `aprobadas=` con el lote y, si alguna tarea no esta
 /// lista, `tareas=ID:motivo,...`.
 pub fn aprobar_hito_en(e: &Entorno<'_>, hito: u32) -> Informe {
-    let mut i = match paso_aprobar_hito(e, hito) {
+    let i = match paso_aprobar_hito(e, hito) {
         Ok(i) | Err(i) => i,
     };
-    aprobar::NOMBRE.clone_into(&mut i.comando);
-    i.claves
-        .retain(|(k, _)| k != "operacion" && k != "id" && k != "hito");
-    i.claves
-        .insert(0, ("hito".to_owned(), Valor::Texto(hito.to_string())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
+    de_la_orden(aprobar::NOMBRE, i, "hito", &hito.to_string())
 }
 
 fn paso_aprobar_hito(e: &Entorno<'_>, hito: u32) -> Result<Informe, Informe> {
-    // Como `approve`: quien, lo primero.
-    let quien = match (e.quien)() {
-        Ok(q) => q,
-        Err(i) if i.resultado == Resultado::Rechazada => return Err(sin_persona(Some(i))),
-        Err(i) => return Err(i),
-    };
-    let Some(op) = aprobar::AprobarHito::nueva(hito, &quien, e.ahora) else {
-        return Err(sin_persona(None));
-    };
-    traer(e.git, e.dir)?;
-    let op = op.con_config(&config_de_base(e.git, e.dir)?);
+    let (op, config) = persona_y_config(e, |q| aprobar::AprobarHito::nueva(hito, q, e.ahora))?;
+    let op = op.con_config(&config);
     let t = escribir(e, &op);
     match t.resultado {
         Resultado::Ok => Ok(t.con_lista("aprobadas", op.aprobadas())),
@@ -307,7 +291,7 @@ pub fn aprobar_en(e: &Entorno<'_>, id: &str) -> Informe {
     let i = match paso_aprobar(e, id) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(aprobar::NOMBRE, i, id)
+    de_la_orden(aprobar::NOMBRE, i, "id", id)
 }
 
 /// `approve --pedir-cambios` de `contenido` en la tarea `id` del repo de
@@ -316,7 +300,7 @@ pub fn pedir_cambios_en(e: &Entorno<'_>, id: &str, contenido: &str) -> Informe {
     let i = match paso_pedir_cambios(e, id, contenido) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(aprobar::NOMBRE, i, id)
+    de_la_orden(aprobar::NOMBRE, i, "id", id)
 }
 
 /// `rechazada motivo=identidad rol=persona` (RR-04), con lo que diga el
@@ -334,19 +318,29 @@ fn sin_persona(rechazo: Option<Informe>) -> Informe {
     i
 }
 
-fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
-    // Lo primero, quien: el agente (o sin identidad) no llega a leer ni a
-    // escribir nada.
+/// El arranque comun de `approve` y `approve --hito`: lo primero, quien (el
+/// agente, o sin identidad, no llega a leer ni a escribir nada:
+/// `rechazada motivo=identidad rol=persona`); con la operacion que da
+/// `nueva` para esa persona, `fetch` y la configuracion de la base.
+fn persona_y_config<O>(
+    e: &Entorno<'_>,
+    nueva: impl FnOnce(&Quien) -> Option<O>,
+) -> Result<(O, Config), Informe> {
     let quien = match (e.quien)() {
         Ok(q) => q,
         Err(i) if i.resultado == Resultado::Rechazada => return Err(sin_persona(Some(i))),
         Err(i) => return Err(i),
     };
-    let Some(op) = Aprobar::nueva(id, &quien, e.ahora) else {
+    let Some(op) = nueva(&quien) else {
         return Err(sin_persona(None));
     };
     traer(e.git, e.dir)?;
-    let op = op.con_config(&config_de_base(e.git, e.dir)?);
+    Ok((op, config_de_base(e.git, e.dir)?))
+}
+
+fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
+    let (op, config) = persona_y_config(e, |q| Aprobar::nueva(id, q, e.ahora))?;
+    let op = op.con_config(&config);
     let t = escribir(e, &op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_seleccion(t, op.roles())),
@@ -401,7 +395,7 @@ pub fn guardar_en(e: &Entorno<'_>, id: &str, destino: &str, contenido: &str) -> 
     let i = match paso_guardar(e, id, destino, contenido) {
         Ok(i) | Err(i) => i,
     };
-    let mut i = de_la_orden(NOMBRE, i, id);
+    let mut i = de_la_orden(NOMBRE, i, "id", id);
     i.claves
         .insert(1, ("destino".to_owned(), Valor::Texto(destino.to_owned())));
     i
@@ -524,14 +518,16 @@ fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
     i
 }
 
-/// El informe como de la orden `nombre`: el comando, `id=` el primero y sin
-/// la clave `operacion` de la transaccion. Un `sinred` sin `pendiente` dice
-/// `pendiente=no` (exige red).
-fn de_la_orden(nombre: &str, mut i: Informe, id: &str) -> Informe {
+/// El informe como de la orden `nombre`: el comando, `clave=valor` el
+/// primero (`id=` de una tarea o `hito=` de `approve --hito`) y sin la
+/// clave `operacion` ni el `id=` de la transaccion. Un `sinred` sin
+/// `pendiente` dice `pendiente=no` (exige red).
+fn de_la_orden(nombre: &str, mut i: Informe, clave: &str, valor: &str) -> Informe {
     nombre.clone_into(&mut i.comando);
-    i.claves.retain(|(k, _)| k != "operacion" && k != "id");
     i.claves
-        .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
+        .retain(|(k, _)| k != "operacion" && k != "id" && k != clave);
+    i.claves
+        .insert(0, (clave.to_owned(), Valor::Texto(valor.to_owned())));
     if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
         i = i.con("pendiente", "no");
     }
@@ -542,7 +538,6 @@ fn de_la_orden(nombre: &str, mut i: Informe, id: &str) -> Informe {
 mod tests {
     use super::*;
     use crate::i18n::Idioma;
-    use crate::identidad::Quien;
 
     /// Carpeta temporal propia del test: se borra al acabar.
     struct Carpeta(std::path::PathBuf);
