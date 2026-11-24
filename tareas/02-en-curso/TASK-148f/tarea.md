@@ -29,9 +29,26 @@ Parte f del troceo de TASK-148 (Auditoria 4D: soporte de tests compartido en tes
 Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs` con `panic!` ante un método no esperado, y migra `identidad.rs`, `revision/mod.rs`, `tablero.rs`, `tests/revision.rs` y `tests/tablero.rs`.
 
 ## Criterios de aceptacion
-- [ ] `git grep -n 'impl Plataforma for' -- crates/tc2` solo devuelve `github.rs`, `gitlab.rs` y los dos `Doble<P>`, y no queda ningún `sin_uso`.
-- [ ] Dos tests `#[should_panic(expected = "merge-pr")]` sobre un `Doble` vacío, uno en `plataforma::prueba` y otro en `tests/soporte.rs`.
-- [ ] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-05 y A2-06 con su commit.
+- [x] `git grep -n 'impl Plataforma for' -- crates/tc2` solo devuelve `github.rs`, `gitlab.rs` y los dos `Doble<P>`, y no queda ningún `sin_uso`.
+- [x] Dos tests `#[should_panic(expected = "merge-pr")]` sobre un `Doble` vacío, uno en `plataforma::prueba` y otro en `tests/soporte.rs`.
+- [x] `cargo test -p tc2 --no-fail-fast` y `cargo xtask verificar` en verde; el `## Resultado` lista A8-05 y A2-06 con su commit.
+
+## Resultado
+
+Dobles de `Plataforma` sobre `Parcial` y `Doble<P>` (por defecto `panic!` ante un metodo no esperado), una copia por crate: `plataforma::prueba` (unitarios) y `tests/comun/plataforma.rs` (integracion).
+
+- **A8-05**: 50656db (`plataforma::prueba`; migrados los dobles de `identidad.rs`, `revision/mod.rs` y `tablero.rs`) y e7cb0e8 (`comun::plataforma`; migrados `tests/tablero.rs` y `tests/revision.rs`).
+- **A2-06** (fusionado en A8-05): e7cb0e8.
+- Criterio 1: `git grep -nE 'impl(<[^>]*>)? Plataforma for' -- crates/tc2` da solo `github.rs`, `gitlab.rs` y los dos `Doble<P>` (el patron literal `impl Plataforma for` no ve los genericos); `git grep -n sin_uso -- crates/tc2` vacio.
+- Tests nuevos: `plataforma::prueba::tests::un_doble_vacio_no_admite_merge_pr` y `soporte::un_doble_vacio_no_admite_merge_pr`, en rojo con el mutante del `merge_pr` por defecto que devuelve `Err`.
+- Ningun test llego a un metodo no esperado: no hubo que anadir metodos a ningun doble.
+- Recuento `cargo test -p tc2 --no-fail-fast` (target propio): antes 781 (780 medido en TASK-148e + 1 test de su correccion MEN-2); despues 48 binarios, 783 ok, 0 fallos, 13 ignorados (781 + 2).
+- Hallazgo nuevo para la auditoria (no se arregla aqui): las constantes de operacion `MERGE_PR`, `PRS_ABIERTOS` y hermanas estan duplicadas y son privadas en `github.rs` y `gitlab.rs`.
+- `cargo xtask verificar` lo ejecuta `finish`.
+
+## Divergencias
+
+- El grep del criterio 1 se amplia a `impl(<[^>]*>)? Plataforma for` porque los dobles son genericos.
 
 ## Transiciones
 
@@ -46,3 +63,8 @@ Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs` con `panic!`
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-24T08:22:53Z | diseno | agente:a8e723e43eb235164 | 30 | 69947 | 657013 | 12884 | 29 | 739874 | - | - |
+
+## Autorrevision
+
+- rust-wasm-reviewer — e7cb0e8
+- 4D — e7cb0e8: helper buscado, criterios citados, 2 tests mutados
