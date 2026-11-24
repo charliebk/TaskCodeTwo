@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 3544116
 tokens_implementacion: 40771690
-tokens_revision: 17841616
+tokens_revision: 18728890
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: [TASK-148a]
@@ -70,6 +70,7 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 | 2026-11-24T00:48:15Z | review | automatico | persona | 0.17.1 |
 | 2026-11-24T03:07:42Z | review | automatico | persona | 0.17.1 |
 | 2026-11-24T03:27:18Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T04:01:11Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -80,6 +81,7 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 | 2026-11-24T00:48:15Z | implementacion | agente:ac199e4502e7dfc94 | 306 | 1108902 | 32539848 | 74789 | 35 | 33723845 | - | - |
 | 2026-11-24T02:00:17Z | revision | agente:ad7d672ce353439e9 | 128 | 504865 | 7971666 | 30838 | 9 | 8507497 | 1 | rust-wasm-reviewer |
 | 2026-11-24T03:26:08Z | revision | agente:adf16bddc2b1ec7e9 | 130 | 187634 | 9103471 | 42884 | 3 | 9334119 | 2 | rust-wasm-reviewer |
+| 2026-11-24T03:30:49Z | revision | agente:a4b5b0f55de797ff5 | 18 | 69571 | 807281 | 10404 | 3 | 887274 | 3 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -89,3 +91,10 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 - 4D — be874cb: helper buscado, criterios citados, 4 tests mutados
 - rust-wasm-reviewer — 759c0ca
 - 4D — 759c0ca: helper buscado, criterios citados, 1 test mutado
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 296 min
+- Paso de la hora: 296 min reales frente a 120 estimados
+- Cierre (finish): 1813 s, de 2026-11-24T03:30:58Z a 2026-11-24T04:01:11Z
