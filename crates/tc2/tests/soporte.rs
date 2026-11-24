@@ -138,3 +138,62 @@ fn valor_recorta_y_lee_la_linea_de_contrato() {
     assert_eq!(comun::valor("a k=1\nb k=2\n", "k"), Some("1"));
     assert_eq!(comun::valor("x kk=1 k=2", "k"), Some("2"));
 }
+
+/// A8-11: `http_mock` corta la primera respuesta de una ruta (cabeceras y la
+/// mitad del cuerpo, y FIN) y despues sirve la entera, con los bytes exactos
+/// aunque no sean UTF-8.
+#[test]
+fn http_mock_corta_una_vez_y_sirve_bytes_exactos() {
+    use comun::http_mock::{Corte, Mock, Simulada, serie};
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let _serie = serie();
+    let cuerpo = [0xff, 0x00, 0x80, 0x01];
+    let m = Mock::nuevo();
+    m.responder(
+        "GET",
+        "/b",
+        Simulada::bytes(200, &cuerpo).cortada(Corte::AMitadDelCuerpo),
+    );
+    m.responder("GET", "/b", Simulada::bytes(200, &cuerpo));
+    let pedir = || {
+        let mut c = TcpStream::connect(("127.0.0.1", m.puerto)).expect("conectar");
+        c.set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("plazo");
+        c.write_all(b"GET /b HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            .expect("enviar");
+        c
+    };
+    // La cortada: el mock cierra (la lectura hasta el final no agota el
+    // plazo) tras anunciar 4 bytes y mandar 2.
+    let mut cortada = Vec::new();
+    pedir()
+        .read_to_end(&mut cortada)
+        .expect("FIN tras el corte");
+    let fin = cortada
+        .windows(4)
+        .position(|v| v == b"\r\n\r\n")
+        .expect("cabeceras")
+        + 4;
+    let cabeceras = String::from_utf8_lossy(&cortada[..fin]);
+    assert!(cabeceras.contains("Content-Length: 4"), "{cabeceras}");
+    assert_eq!(&cortada[fin..], &cuerpo[..2]);
+    // La entera, con su `Content-Length`.
+    let c = pedir();
+    let mut lector = BufReader::new(&c);
+    loop {
+        let mut l = String::new();
+        assert!(
+            lector.read_line(&mut l).expect("cabecera") > 0,
+            "fin antes del cuerpo"
+        );
+        if l.trim().is_empty() {
+            break;
+        }
+    }
+    let mut leido = [0u8; 4];
+    lector.read_exact(&mut leido).expect("cuerpo");
+    assert_eq!(leido, cuerpo);
+}

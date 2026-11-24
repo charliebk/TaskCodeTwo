@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
@@ -13,21 +13,46 @@ use std::time::Duration;
 #[derive(Debug, Clone)]
 pub struct Simulada {
     pub estado: u16,
-    pub cuerpo: String,
+    pub cuerpo: Vec<u8>,
     pub cabeceras: Vec<(String, String)>,
+    /// Si es `Some`, la respuesta se corta y se cierra la conexion.
+    pub corte: Option<Corte>,
+}
+
+/// Como se corta una respuesta [`Simulada::cortada`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Corte {
+    /// Se cierra la conexion sin enviar nada: el cliente no ve cabeceras.
+    AntesDeCabeceras,
+    /// Se envian las cabeceras y la mitad del cuerpo, y se cierra.
+    AMitadDelCuerpo,
 }
 
 impl Simulada {
     pub fn json(estado: u16, cuerpo: &str) -> Self {
+        Self::bytes(estado, cuerpo.as_bytes())
+    }
+
+    /// Cuerpo de bytes cualesquiera (no tiene por que ser UTF-8).
+    pub fn bytes(estado: u16, cuerpo: &[u8]) -> Self {
         Self {
             estado,
-            cuerpo: cuerpo.to_owned(),
+            cuerpo: cuerpo.to_vec(),
             cabeceras: Vec::new(),
+            corte: None,
         }
     }
 
     pub fn con(mut self, k: &str, v: &str) -> Self {
         self.cabeceras.push((k.to_owned(), v.to_owned()));
+        self
+    }
+
+    /// La misma respuesta, cortada segun `corte` con un cierre ordenado (FIN,
+    /// no RST). Para cortar solo la primera peticion a una ruta, se registra
+    /// la cortada y detras la entera (la cola de [`Mock::responder`]).
+    pub fn cortada(mut self, corte: Corte) -> Self {
+        self.corte = Some(corte);
         self
     }
 }
@@ -179,15 +204,26 @@ fn atender(s: TcpStream, rutas: &Mutex<Rutas>, recibidas: &Mutex<Vec<Recibida>>)
         respuesta.cuerpo.len()
     );
     let mut s = s;
-    let _ = s.write_all(texto.as_bytes());
-    let _ = s.write_all(respuesta.cuerpo.as_bytes());
+    let enviado = match respuesta.corte {
+        None => &respuesta.cuerpo[..],
+        Some(Corte::AMitadDelCuerpo) => &respuesta.cuerpo[..respuesta.cuerpo.len() / 2],
+        Some(Corte::AntesDeCabeceras) => &[],
+    };
+    if respuesta.corte != Some(Corte::AntesDeCabeceras) {
+        let _ = s.write_all(texto.as_bytes());
+    }
+    let _ = s.write_all(enviado);
     let _ = s.flush();
     // Cierre: el servidor no manda FIN detras de una respuesta completa.
     // Con `Content-Length` y `Connection: close` el cliente sabe cuando
     // acaba y cierra el; aqui se espera a ese cierre (como mucho 30 s) y
     // despues se suelta el socket. En esta maquina (TASK-027, TASK-115) un
     // FIN detras de los datos hacia que la red local perdiera a veces el
-    // final de la respuesta y el cliente viera `sinred`.
+    // final de la respuesta y el cliente viera `sinred`. Una respuesta
+    // cortada si cierra la escritura: es lo que se quiere probar.
+    if respuesta.corte.is_some() {
+        let _ = s.shutdown(Shutdown::Write);
+    }
     let _ = s.set_read_timeout(Some(Duration::from_secs(30)));
     let _ = lector.read_to_end(&mut Vec::new());
 }
