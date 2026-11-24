@@ -2,21 +2,14 @@
 //! en carpetas temporales y GitHub simulado en 127.0.0.1. Nada contra la
 //! red real: `origin` apunta a un host inventado y su transporte ssh se
 //! sustituye con `GIT_SSH_COMMAND` (el remoto bare de la fixture, o un
-//! «ssh» que no conecta).
-//!
-//! El servidor simulado no cierra la conexion tras responder: con
-//! `Content-Length` cierra el cliente (en esta maquina un FIN del servidor
-//! detras de los datos colgaba a veces la conexion, TASK-027).
+//! «ssh» que no conecta). El GitHub simulado es `comun::http_mock`.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 mod comun;
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Write};
-use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 use comun::http_mock::{Mock, Recibida, Simulada, serie};
 use comun::{Fixture, escribir};
@@ -26,94 +19,21 @@ use tc2::i18n::Idioma;
 use tc2::init::{Contexto, Decision, Hecho, Opciones, init};
 use tc2::plataforma::{Credenciales, CredencialesFijas, Rol, Secreto};
 
-/// GitHub simulado: `GET <ruta>` da la respuesta fija o 404, y registra
-/// cada peticion (`METODO ruta`).
-struct Servidor {
-    puerto: u16,
-    peticiones: Arc<Mutex<Vec<String>>>,
-}
-
-impl Servidor {
-    fn nuevo(rutas: &[(&str, &str)]) -> Self {
-        let l = TcpListener::bind("127.0.0.1:0").unwrap();
-        let puerto = l.local_addr().unwrap().port();
-        let peticiones: Arc<Mutex<Vec<String>>> = Arc::default();
-        let rutas: Arc<BTreeMap<String, String>> = Arc::new(
-            rutas
-                .iter()
-                .map(|(r, c)| ((*r).to_owned(), (*c).to_owned()))
-                .collect(),
-        );
-        let p = peticiones.clone();
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                let (p, rutas) = (p.clone(), rutas.clone());
-                std::thread::spawn(move || atender(s, &p, &rutas));
-            }
-        });
-        Self { puerto, peticiones }
-    }
-
-    fn base(&self) -> String {
-        format!("http://127.0.0.1:{}", self.puerto)
-    }
-
-    fn peticiones(&self) -> Vec<String> {
-        self.peticiones.lock().unwrap().clone()
-    }
-}
-
-fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, rutas: &BTreeMap<String, String>) {
-    let mut lector = BufReader::new(s.try_clone().unwrap());
-    let mut primera = String::new();
-    if lector.read_line(&mut primera).is_err() {
-        return;
-    }
-    let mut largo = 0usize;
-    loop {
-        let mut l = String::new();
-        if lector.read_line(&mut l).is_err() || l.trim().is_empty() {
-            break;
-        }
-        if let Some((k, v)) = l.split_once(':')
-            && k.trim().eq_ignore_ascii_case("content-length")
-        {
-            largo = v.trim().parse().unwrap_or(0);
-        }
-    }
-    let mut cuerpo = vec![0u8; largo];
-    let _ = std::io::Read::read_exact(&mut lector, &mut cuerpo);
-    let mut partes = primera.split_whitespace();
-    let metodo = partes.next().unwrap_or_default().to_owned();
-    let ruta = partes.next().unwrap_or_default().to_owned();
-    p.lock().unwrap().push(format!("{metodo} {ruta}"));
-    let sin_consulta = ruta.split('?').next().unwrap_or_default();
-    let (estado, cuerpo) = match rutas.get(sin_consulta).filter(|_| metodo == "GET") {
-        Some(c) => ("200 OK", c.clone()),
-        None => ("404 Not Found", "{\"message\":\"Not Found\"}".to_owned()),
-    };
-    let mut s = s;
-    let _ = write!(
-        s,
-        "HTTP/1.1 {estado}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{cuerpo}",
-        cuerpo.len()
-    );
-    let _ = s.flush();
-    // Sin FIN del servidor: cierra el cliente al leer el `Content-Length`.
-    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
-    let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
-}
-
 /// Rutas de GitHub que lee `init`: la persona y los rulesets (ninguno).
-fn github() -> Servidor {
-    Servidor::nuevo(&[
-        (
-            "/user",
-            "{\"login\":\"carlos\",\"id\":1001,\"type\":\"User\"}",
-        ),
-        ("/repos/o/r/rulesets", "[]"),
-        ("/repos/o/r/rules/branches/develop", "[]"),
-    ])
+fn github() -> Mock {
+    let m = Mock::nuevo();
+    m.responder(
+        "GET",
+        "/user",
+        Simulada::json(200, "{\"login\":\"carlos\",\"id\":1001,\"type\":\"User\"}"),
+    );
+    m.responder("GET", "/repos/o/r/rulesets", Simulada::json(200, "[]"));
+    m.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[]"),
+    );
+    m
 }
 
 /// `origin` en un host que no es github.com: la API sale de la clave
@@ -461,6 +381,7 @@ fn init_con_config_invalida_no_la_pisa() {
 /// aplica) sin ninguna escritura en la plataforma.
 #[test]
 fn sin_remoto_completa_al_anadirlo() {
+    let _serie = serie();
     let s = github();
     let f = Fixture::nueva("init-c5");
     let repo = repo_vacio(&f);
@@ -492,7 +413,7 @@ fn sin_remoto_completa_al_anadirlo() {
         pendientes(&primera, "ruleset"),
         vec![("pendiente", "sin-remoto".to_owned()); 5]
     );
-    assert!(s.peticiones().is_empty(), "{:?}", s.peticiones());
+    assert!(s.recibidas().is_empty(), "{:?}", s.recibidas());
 
     f.crudo(&repo, &["remote", "add", "origin", ORIGIN]);
     let segunda = correr(&repo, &g, false, &con_token);
@@ -541,7 +462,7 @@ fn sin_remoto_completa_al_anadirlo() {
         develop["accion"]["propuesta"]["name"],
         "taskcodetwo-develop"
     );
-    let peticiones = s.peticiones();
+    let peticiones: Vec<String> = s.recibidas().into_iter().map(|r| r.linea).collect();
     assert!(!peticiones.is_empty());
     assert!(
         peticiones.iter().all(|p| p.starts_with("GET ")),
@@ -588,6 +509,7 @@ fn sin_red_no_escribe() {
 /// publican sin force, y la rama de estado queda en el remoto.
 #[test]
 fn repo_vacio_con_remoto_publica() {
+    let _serie = serie();
     let s = github();
     let f = Fixture::nueva("init-remoto");
     let repo = repo_vacio(&f);
