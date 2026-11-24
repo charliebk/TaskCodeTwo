@@ -490,6 +490,9 @@ mod tests {
             "https://host:99999",
             "https://host:8a",
             "http://127.0.0.1:70000",
+            // Host que empieza por `.` o `-`.
+            "https://.evil.example",
+            "https://-x.example",
         ] {
             assert!(Base::nueva(b).is_err(), "{b}");
         }
