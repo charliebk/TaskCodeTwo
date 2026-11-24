@@ -19,10 +19,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use comun::lanzar;
-use comun::remoto::como_persona;
-use comun::remoto::{CONFIG_AUTOMATICO, PERSONAS, cuenta, identificar};
-use comun::{Fixture, escribir, texto, valor};
+use comun::{
+    Fixture, escribir, lanzar,
+    remoto::{CONFIG_AUTOMATICO, PERSONAS, Preparar, como_persona, cuenta, identificar},
+    texto, valor,
+};
 use tc2::estado;
 use tc2::plan::{aprobar_en, aprobar_hito_en};
 
@@ -74,19 +75,12 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
 /// Remoto con personas y configuracion, la tarea de `FUNC` planificada por
 /// el agente y su plan guardado; el clon `a` tiene `origin` en GitHub y la
 /// identidad (cache) de ana.
-fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
-    f.crudo(&prep, &["add", ".taskcode"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let mut v = vec!["new"];
-    v.extend_from_slice(FUNC);
-    let o = lanzar(&prep, f.entorno(), &v);
-    assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    let a = f.clon_github(&bare, "a");
-    identificar(&a, 1001, "ana");
+fn planificada(f: &Fixture) -> (PathBuf, PathBuf) {
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FUNC],
+        ..Default::default()
+    });
     let (c, out) = tc2(f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     (bare, a)
@@ -110,10 +104,6 @@ fn guardar_plan(f: &Fixture, a: &Path, entorno: Vec<(OsString, OsString)>, conte
     assert_eq!(c, Some(0), "{out} {err}");
 }
 
-fn punta(f: &Fixture, bare: &Path) -> String {
-    f.crudo(bare, &["rev-parse", RAMA_ESTADO]).trim().to_owned()
-}
-
 /// Clave SSH desechable sin frase en la carpeta de la fixture.
 fn clave(f: &Fixture) -> PathBuf {
     let c = f.raiz.join("clave");
@@ -132,7 +122,7 @@ fn clave(f: &Fixture) -> PathBuf {
 #[test]
 fn c1_el_agente_no_aprueba_y_el_remoto_queda_intacto() {
     let f = Fixture::nueva("approve-c1");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     guardar_plan(&f, &a, f.entorno_ssh(), "# Plan\n\nhecho\n");
     let antes = f.huella(&bare, &a);
     let (c, out, err) = tc2_con(&a, f.entorno_ssh(), &["approve", "TASK-001"]);
@@ -178,11 +168,11 @@ fn c1_el_agente_no_aprueba_y_el_remoto_queda_intacto() {
 #[test]
 fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
     let f = Fixture::nueva("approve-c3");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     let clave = clave(&f);
     let firma = con_firma(f.entorno_ssh(), &clave);
     guardar_plan(&f, &a, firma.clone(), "# Plan\n\nhecho\n");
-    let guardado = punta(&f, &bare);
+    let guardado = f.punta(&bare);
     let cuerpo = f.crudo(&bare, &["cat-file", "-p", &guardado]);
     assert!(!cuerpo.contains("gpgsig"), "plan guardar firmo: {cuerpo}");
 
@@ -190,7 +180,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
         aprobar_en(e, "TASK-001")
     });
     assert!(out.starts_with("approve ok id=TASK-001 commit="), "{out}");
-    let sha = punta(&f, &bare);
+    let sha = f.punta(&bare);
     assert_eq!(valor(&out, "commit"), sha.get(..12), "{out}");
     let publica = std::fs::read_to_string(format!("{}.pub", clave.display())).unwrap();
     let permitidos = f.raiz.join("allowed_signers");
@@ -238,7 +228,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
         otra.starts_with("approve sin-cambios id=TASK-001"),
         "{otra}"
     );
-    assert_eq!(punta(&f, &bare), sha);
+    assert_eq!(f.punta(&bare), sha);
 }
 
 /// Criterio 3 (E2E): con una clave que no firma (no existe), `approve
@@ -246,7 +236,7 @@ fn c3_la_persona_aprueba_con_su_firma_y_el_plan_blob() {
 #[test]
 fn c3_una_clave_que_no_firma_rechaza_sin_publicar() {
     let f = Fixture::nueva("approve-firma");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     guardar_plan(&f, &a, f.entorno_ssh(), "# Plan\n\nhecho\n");
     let antes = f.huella(&bare, &a);
     let out = como_persona(
@@ -263,7 +253,7 @@ fn c3_una_clave_que_no_firma_rechaza_sin_publicar() {
 #[test]
 fn c3_el_esqueleto_no_se_aprueba() {
     let f = Fixture::nueva("approve-esqueleto");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     let antes = f.huella(&bare, &a);
     let clave = clave(&f);
     let out = como_persona(
@@ -282,7 +272,7 @@ fn c3_el_esqueleto_no_se_aprueba() {
 #[test]
 fn d1a_pedir_cambios_y_plan_abre_la_ronda_2() {
     let f = Fixture::nueva("approve-d1a");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     let cambios = f.raiz.join("cambios.md");
     std::fs::write(&cambios, "Falta el plan de pruebas\n").unwrap();
     let ruta = cambios.to_str().unwrap();
@@ -311,11 +301,11 @@ fn d1a_pedir_cambios_y_plan_abre_la_ronda_2() {
     let (c, out) = tc2(&f, &a, &["approve", "TASK-001", "--pedir-cambios", ruta]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "ronda"), Some("2"), "{out}");
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["approve", "TASK-001", "--pedir-cambios", ruta]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("approve sin-cambios"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
 }
 
 // --- F4-3 (TASK-038): `tc2 approve --hito <n>` ---
@@ -325,33 +315,25 @@ fn d1a_pedir_cambios_y_plan_abre_la_ronda_2() {
 /// guardado; mas `TASK-<n+1>` en el sprint 3, planificada y con plan. El
 /// clon `a` tiene `origin` en GitHub y la identidad (cache) de ana.
 fn preparar_hito(f: &Fixture, n: usize) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
-    f.crudo(&prep, &["add", ".taskcode"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    for i in 1..=n + 1 {
-        let titulo = format!("Funcion {i}");
-        let sprint = if i <= n { "4" } else { "3" };
-        let o = lanzar(
-            &prep,
-            f.entorno(),
-            &[
-                "new",
-                &titulo,
-                "--objetivo",
-                "Una funcion nueva",
-                "--criterio",
-                "hace algo",
-                "--sprint",
-                sprint,
-            ],
-        );
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    }
-    let a = f.clon_github(&bare, "a");
-    identificar(&a, 1001, "ana");
+    let titulos: Vec<String> = (1..=n + 1).map(|i| format!("Funcion {i}")).collect();
+    let altas: Vec<Vec<&str>> = titulos
+        .iter()
+        .enumerate()
+        .map(|(i, titulo)| {
+            let sprint = if i < n { "4" } else { "3" };
+            let objetivo = ["--objetivo", "Una funcion nueva", "--criterio", "hace algo"];
+            let mut v = vec![titulo.as_str()];
+            v.extend(objetivo);
+            v.extend(["--sprint", sprint]);
+            v
+        })
+        .collect();
+    let altas: Vec<&[&str]> = altas.iter().map(Vec::as_slice).collect();
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &altas,
+        ..Default::default()
+    });
     for i in 1..=n + 1 {
         let id = format!("TASK-{i:03}");
         let (c, out) = tc2(f, &a, &["plan", &id]);
@@ -387,7 +369,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
     let (bare, a) = preparar_hito(&f, 10);
     let clave = clave(&f);
     let firma = con_firma(f.entorno_ssh(), &clave);
-    let antes = punta(&f, &bare);
+    let antes = f.punta(&bare);
 
     let out = como_persona(&a, firma.clone(), cuenta(1001, "ana"), |e| {
         aprobar_hito_en(e, 4)
@@ -400,7 +382,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
         Some(ids.join(",").as_str()),
         "{out}"
     );
-    let sha = punta(&f, &bare);
+    let sha = f.punta(&bare);
     assert_eq!(valor(&out, "commit"), sha.get(..12), "{out}");
     // Un unico commit nuevo sobre el de antes.
     let padre = f.crudo(&bare, &["rev-parse", &format!("{sha}^")]);
@@ -487,7 +469,7 @@ fn f4_3_approve_hito_aprueba_diez_en_un_commit_firmado() {
     let otra = como_persona(&a, firma, cuenta(1001, "ana"), |e| aprobar_hito_en(e, 4));
     println!("{otra}");
     assert!(otra.starts_with("approve sin-cambios hito=4"), "{otra}");
-    assert_eq!(punta(&f, &bare), sha);
+    assert_eq!(f.punta(&bare), sha);
 }
 
 /// C1 de TASK-038 (E2E): todo o nada (D2a). Con una tarea del hito aun
@@ -525,7 +507,7 @@ fn f4_3_approve_hito_todo_o_nada() {
 #[test]
 fn f4_3_approve_hito_agente_y_uso() {
     let f = Fixture::nueva("approve-hito-uso");
-    let (bare, a) = preparar(&f);
+    let (bare, a) = planificada(&f);
     let antes = f.huella(&bare, &a);
     let (c, out, err) = tc2_con(&a, f.entorno_ssh(), &["approve", "--hito", "4"]);
     println!("{out}");

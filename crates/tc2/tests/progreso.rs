@@ -10,37 +10,16 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 
-use comun::remoto::{ORIGIN, PERSONAS, identificar};
-use comun::{Fixture, escribir, texto};
-use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use comun::{Fixture, remoto::Preparar, remoto::worktree, texto};
+use tc2::estado::{Cambio, Estado, Fallo, Operacion};
 use tc2::progreso::{self, Refresco};
 use tc2::tarea::{Cuerpo, Tarea};
 
 /// `tc2 <args>` en `dir` con el remoto de la fixture: (codigo, stdout,
 /// stderr).
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
-    let o = comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno_ssh())
-        .output()
-        .expect("lanzar tc2");
+    let o = comun::lanzar(dir, f.entorno_ssh(), args);
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
-}
-
-/// Remoto con `personas.yml` en `develop` y el clon `a` de ana (`origin` en
-/// GitHub, servido por el «ssh» de la fixture).
-fn preparar(f: &Fixture) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let a = f.otro_clon(&bare, "a");
-    f.crudo(&a, &["remote", "set-url", "origin", ORIGIN]);
-    identificar(&a, 1001, "ana");
-    (bare, a)
 }
 
 /// Escribe ficheros en la rama de estado por la transaccion.
@@ -65,17 +44,8 @@ impl Operacion for Poner {
     }
 }
 
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
 fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
-    let i = estado::transaccion(
-        &Contexto::nuevo(&g, dir, &sin_catalogo, None),
-        &Poner(ficheros.to_vec()),
-    );
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
+    f.transaccion(dir, &Poner(ficheros.to_vec()));
 }
 
 /// 2026-10-01T09:00:00Z.
@@ -128,7 +98,7 @@ fn carpeta(dir: &Path) -> PathBuf {
 #[test]
 fn sin_anterior_en_start_y_en_una_transicion() {
     let f = Fixture::nueva("progreso-sin-anterior");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
     assert_eq!(c, Some(0), "{out} {err}");
@@ -151,10 +121,6 @@ fn sin_anterior_en_start_y_en_una_transicion() {
         "{out}"
     );
     assert!(err.is_empty(), "{err}");
-}
-
-fn worktree(dir: &Path, id: &str) -> PathBuf {
-    dir.join(".taskcodetwo").join("worktrees").join(id)
 }
 
 /// La linea de `tc2 estado --stdin` para la carpeta `dir` (codigo 0 y
@@ -186,7 +152,7 @@ fn rotado(out: &str, anterior: &Path, previo: &[u8]) {
 #[test]
 fn c3_transiciones_reales_reescriben_el_progreso() {
     let f = Fixture::nueva("progreso-c3");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     for t in ["Siete", "Ocho"] {
         let (c, out, err) = tc2(&f, &a, &["new", t, "--criterio", "uno"]);
@@ -289,7 +255,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
 #[test]
 fn m4_reasignar_borra_el_progreso() {
     let f = Fixture::nueva("progreso-reasignar");
-    let (_bare, a) = preparar(&f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
     assert_eq!(c, Some(0), "{out} {err}");
@@ -313,7 +279,7 @@ fn m4_reasignar_borra_el_progreso() {
 /// `TASK-007` en curso desde `inicio` y el resto planificadas. Devuelve el
 /// clon.
 fn repo_con(f: &Fixture, n: usize, inicio: u64) -> PathBuf {
-    let (_bare, a) = preparar(f);
+    let (_bare, a) = f.preparar(&Preparar::default());
     let mut ficheros = seis();
     let mut t = Tarea::nueva("TASK-007", "En curso", "2026-11-17");
     "en-curso".clone_into(&mut t.estado);

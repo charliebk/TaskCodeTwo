@@ -19,9 +19,11 @@ mod comun;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use comun::lanzar;
-use comun::remoto::{CONFIG_AUTOMATICO, PERSONAS, identificar};
-use comun::{Fixture, escribir, volcado};
+use comun::{
+    Fixture, escribir, lanzar,
+    remoto::{CONFIG_AUTOMATICO, Preparar},
+    volcado,
+};
 use serde_json::Value;
 
 /// Casos de `el_prompt_encierra_todo_dato_del_pr`.
@@ -131,24 +133,6 @@ fn sin_fuera(md: &str, hostil: &str) {
 
 // --- Remoto y binario ---------------------------------------------------------
 
-/// Remoto con personas, configuracion y la tarea de `alta` (`tc2 new`); el
-/// clon `a` tiene `origin` en GitHub y la identidad de ana.
-fn remoto_con_tarea(f: &Fixture, alta: &[&str]) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
-    f.crudo(&prep, &["add", ".taskcode"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    let mut v = vec!["new"];
-    v.extend_from_slice(alta);
-    let o = lanzar(&prep, f.entorno(), &v);
-    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
-    let a = f.clon_github(&bare, "a");
-    identificar(&a, 1001, "ana");
-    (bare, a)
-}
-
 /// INY-15 (`tc2 plan` en local): titulo con Markdown, HTML, mencion y bidi,
 /// y objetivo y criterio con cercas que intentan cerrar la del enunciado.
 #[test]
@@ -213,7 +197,11 @@ fn la_carpeta_de_la_tarea_y_la_peticion_de_plan_quedan_inertes() {
         "--criterio",
         criterio,
     ];
-    let (bare, a) = remoto_con_tarea(&f, &alta);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[&alta],
+        ..Default::default()
+    });
     let o = lanzar(&a, f.entorno_ssh(), &["plan", "TASK-001"]);
     assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
     let p = f.crudo(
@@ -326,10 +314,11 @@ fn el_prompt_encierra_todo_dato_del_pr() {
     let f = Fixture::nueva("inyeccion-prompt");
     // INY-06: la tarea hostil en la rama de estado.
     let (titulo, objetivo) = (texto_de(iny6, "titulo"), texto_de(iny6, "objetivo"));
-    let (_bare, a) = remoto_con_tarea(
-        &f,
-        &[titulo, "--objetivo", objetivo, "--criterio", "hace algo"],
-    );
+    let (_bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[&[titulo, "--objetivo", objetivo, "--criterio", "hace algo"]],
+        ..Default::default()
+    });
     // La base: el fichero del comentario y la guia con cercas.
     let lib = texto_de(iny1, "fichero");
     let guia = texto_de(iny2, "fichero");

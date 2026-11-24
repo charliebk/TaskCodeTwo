@@ -15,10 +15,14 @@ mod comun;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-use comun::remoto::identificar;
-use comun::{Fixture, escribir, texto, valor};
+use comun::{
+    Fixture, escribir,
+    ops::sin_catalogo,
+    remoto::{Preparar, editar, identificar, worktree},
+    texto, valor,
+};
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use tc2::estado::{self};
 use tc2::identidad::{Cuenta, Quien};
 use tc2::plataforma::Proveedor;
 use tc2::solape::{self, EnCurso};
@@ -31,12 +35,7 @@ const RAMA_2: &str = "feature/task-002-dos";
 const RAMA_3: &str = "feature/task-003-tres";
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno_ssh())
-        .output()
-        .expect("lanzar tc2")
+    comun::lanzar(dir, f.entorno_ssh(), args)
 }
 
 /// Las claves `solape*` y `en-curso-modulos` de una linea.
@@ -54,53 +53,6 @@ fn sin_solape(linea: &str) -> String {
         .filter(|kv| !kv.starts_with("solape") && !kv.starts_with("en-curso-modulos"))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn worktree(dir: &Path, id: &str) -> PathBuf {
-    dir.join(".taskcodetwo").join("worktrees").join(id)
-}
-
-/// Escribe en la rama de estado por la transaccion (como otra fase).
-struct Escribir {
-    ruta: String,
-    de: &'static str,
-    a: &'static str,
-}
-
-impl Operacion for Escribir {
-    fn nombre(&self) -> &str {
-        "escribir"
-    }
-    fn anotacion(&self) -> String {
-        format!("escribir|{}", self.ruta)
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let t = e.leer(&self.ruta)?.unwrap_or_default();
-        assert!(t.contains(self.de), "{t}");
-        Ok(vec![Cambio::nuevo(
-            self.ruta.clone(),
-            t.replacen(self.de, self.a, 1),
-        )])
-    }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
-/// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
-fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
-    let op = Escribir {
-        ruta: format!("{id}/tarea.md"),
-        de,
-        a,
-    };
-    let i = estado::transaccion(&Contexto::nuevo(&g, dir, &sin_catalogo, None), &op);
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
 }
 
 /// `tc2 start id` en `dir`: tiene que salir 0.
@@ -148,22 +100,11 @@ fn escena(
     antes: impl FnOnce(&Fixture, &Path),
 ) -> Escena {
     let f = Fixture::nueva(nombre);
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    f.crudo(&prep, &["add", ".taskcode/personas.yml"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    for t in ["Uno", "Dos", "Tres"] {
-        let o = comun::orden_tc2()
-            .current_dir(&prep)
-            .args(["new", t])
-            .envs(f.entorno())
-            .output()
-            .expect("tc2 new");
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    }
-    let a = f.clon_github(&bare, "a");
-    identificar(&a, 1001, "ana");
+    let (bare, a) = f.preparar(&Preparar {
+        personas: PERSONAS,
+        altas: &[&["Uno"], &["Dos"], &["Tres"]],
+        ..Default::default()
+    });
     let b = f.clon_github(&bare, "b");
     identificar(&b, 1002, "luis");
     start(&f, &a, "TASK-001");

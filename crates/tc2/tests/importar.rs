@@ -18,12 +18,7 @@ use tc2::estado;
 const RAMA: &str = estado::RAMA;
 
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> Output {
-    comun::orden_tc2()
-        .current_dir(dir)
-        .args(args)
-        .envs(f.entorno())
-        .output()
-        .expect("lanzar tc2")
+    comun::lanzar(dir, f.entorno(), args)
 }
 
 /// Escribe el fichero de import en la carpeta temporal de la fixture.

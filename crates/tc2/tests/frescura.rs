@@ -13,8 +13,7 @@ mod comun;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use comun::remoto::ORIGIN;
-use comun::{Fixture, escribir, valor};
+use comun::{Fixture, escribir, ops::sin_catalogo, remoto::ORIGIN, valor};
 use tc2::contrato::Resultado;
 use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
 use tc2::i18n::Idioma;
@@ -397,10 +396,6 @@ impl Operacion for Nota {
     fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         Ok(vec![Cambio::nuevo("TASK-001/nota.md", "nota\n")])
     }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
 }
 
 /// C6: con credenciales denegadas sale 0 con `remoto=denegado` y aviso; sin

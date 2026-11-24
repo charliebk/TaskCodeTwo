@@ -118,6 +118,29 @@ pub fn catalogo(a: &str) -> Option<Box<dyn Operacion>> {
     }
 }
 
+/// Escribe en la rama de estado por la transaccion (como lo haria otra
+/// fase): `cambiar` recibe el texto de `ruta` (si existe) y da el nuevo.
+pub struct Escribir {
+    pub ruta: String,
+    pub cambiar: Box<dyn Fn(Option<String>) -> String>,
+}
+
+impl Operacion for Escribir {
+    fn nombre(&self) -> &str {
+        "escribir"
+    }
+    fn anotacion(&self) -> String {
+        format!("escribir|{}", self.ruta)
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        let t = e.leer(&self.ruta)?;
+        Ok(vec![Cambio::nuevo(self.ruta.clone(), (self.cambiar)(t))])
+    }
+}
+
 /// Catalogo vacio: ninguna pendiente que re-ejecutar.
 pub fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
     None

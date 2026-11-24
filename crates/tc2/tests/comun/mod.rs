@@ -13,7 +13,7 @@ pub mod ops;
 pub mod remoto;
 
 #[allow(unused_imports)] // cada fichero de tests usa una parte
-pub use lanzador::{BINARIO, lanzar, orden_tc2, texto, valor, volcado};
+pub use lanzador::{BINARIO, lanzar, orden_tc2, salida, texto, valor, volcado};
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

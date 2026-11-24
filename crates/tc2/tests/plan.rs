@@ -10,54 +10,21 @@
 
 mod comun;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use comun::lanzar;
-use comun::remoto::{CONFIG_AUTOMATICO, PERSONAS, identificar};
-use comun::{Fixture, escribir, texto, valor};
-use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion};
+use comun::{
+    Fixture, lanzar,
+    remoto::{CONFIG_AUTOMATICO, Preparar, editar},
+    salida, texto, valor,
+};
+use tc2::estado::{self};
 
 const RAMA_ESTADO: &str = estado::RAMA;
 
 /// `tc2 <args>` en `dir` con el remoto: (codigo, la unica linea de stdout).
 /// Un exito no escribe en stderr; un fallo, una linea.
 fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String) {
-    let o = lanzar(dir, f.entorno_ssh(), args);
-    let out = texto(&o.stdout);
-    assert_eq!(out.lines().count(), 1, "{out}");
-    let err = texto(&o.stderr);
-    if o.status.code() == Some(0) {
-        assert!(err.is_empty(), "stderr en un exito: {err}");
-    } else {
-        assert_eq!(err.lines().count(), 1, "{err}");
-    }
-    (o.status.code(), out.trim_end().to_owned())
-}
-
-/// Remoto con `personas.yml`, la configuracion (modo automatico) y las
-/// tareas de `altas` (`tc2 new` con sus argumentos); el clon `a` que
-/// devuelve tiene `origin` en GitHub y la identidad de ana.
-fn preparar(f: &Fixture, altas: &[&[&str]]) -> (PathBuf, PathBuf) {
-    let (bare, prep) = f.remoto_y_clon();
-    escribir(&prep, ".taskcode/personas.yml", PERSONAS);
-    escribir(&prep, ".taskcode/config.yml", CONFIG_AUTOMATICO);
-    f.crudo(&prep, &["add", ".taskcode"]);
-    f.crudo(&prep, &["commit", "-q", "-m", "personas y config"]);
-    f.crudo(&prep, &["push", "-q", "origin", "develop"]);
-    for args in altas {
-        let mut v = vec!["new"];
-        v.extend_from_slice(args);
-        let o = lanzar(&prep, f.entorno(), &v);
-        assert_eq!(o.status.code(), Some(0), "{}", texto(&o.stdout));
-    }
-    let a = f.clon_github(&bare, "a");
-    identificar(&a, 1001, "ana");
-    (bare, a)
-}
-
-fn publicado(f: &Fixture, bare: &Path, ruta: &str) -> String {
-    f.crudo(bare, &["show", &format!("{RAMA_ESTADO}:{ruta}")])
+    salida(&lanzar(dir, f.entorno_ssh(), args))
 }
 
 /// Los ficheros publicados bajo `TASK-NNN/planificacion/`, relativos a ella.
@@ -67,10 +34,6 @@ fn planificacion(f: &Fixture, bare: &Path, id: &str) -> Vec<String> {
         .lines()
         .filter_map(|l| l.strip_prefix(&dentro).map(str::to_owned))
         .collect()
-}
-
-fn punta(f: &Fixture, bare: &Path) -> String {
-    f.crudo(bare, &["rev-parse", RAMA_ESTADO])
 }
 
 const FIX: &[&str] = &[
@@ -99,7 +62,11 @@ const SIN_ENUNCIADO: &[&str] = &["Sin enunciado"];
 #[test]
 fn c2_uno_en_fix_y_cuatro_mas_unificador_en_riesgo_alto() {
     let f = Fixture::nueva("plan-c2");
-    let (bare, a) = preparar(&f, &[FIX, FUNC]);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FIX, FUNC],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("plan ok id=TASK-001 commit="), "{out}");
@@ -115,8 +82,7 @@ fn c2_uno_en_fix_y_cuatro_mas_unificador_en_riesgo_alto() {
         planificacion(&f, &bare, "TASK-001"),
         ["brainstorm/peticion-plan-1.md", "plan-final.md"]
     );
-    let p = publicado(
-        &f,
+    let p = f.publicado(
         &bare,
         "TASK-001/planificacion/brainstorm/peticion-plan-1.md",
     );
@@ -149,8 +115,7 @@ fn c2_uno_en_fix_y_cuatro_mas_unificador_en_riesgo_alto() {
             "plan-final.md".to_owned(),
         ]
     );
-    let u = publicado(
-        &f,
+    let u = f.publicado(
         &bare,
         "TASK-002/planificacion/brainstorm/peticion-unificador-1.md",
     );
@@ -176,7 +141,11 @@ fn tc2_claude(f: &Fixture, dir: &Path, claude: &Path, args: &[&str]) -> (Option<
 fn plan_anota_modelos_distintos() {
     let f = Fixture::nueva("plan-modelos");
     let claude = comun::claude_con_brainstorm(&f.raiz, &[]);
-    let (bare, a) = preparar(&f, &[FIX, FUNC]);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FIX, FUNC],
+        ..Default::default()
+    });
     let (c, out) = tc2_claude(&f, &a, &claude, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "modelo-diseno"), Some("sonnet"), "{out}");
@@ -187,7 +156,7 @@ fn plan_anota_modelos_distintos() {
     );
     assert_eq!(valor(&out, "dominios"), Some("ninguno"), "{out}");
     assert_eq!(valor(&out, "avisos"), Some(""), "{out}");
-    let md = publicado(&f, &bare, "TASK-001/tarea.md");
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(
         md.contains("  diseno: {modelo: \"sonnet\", skills: [], regla: null, agentes: [\"taskcode-plugin:brainstorm-arquitectura\"], reglas: [\"M02\", \"S02\"], inventario: \""),
         "{md}"
@@ -196,8 +165,7 @@ fn plan_anota_modelos_distintos() {
         md.contains("  implementacion: {modelo: \"sonnet\", skills: [], regla: null, reglas: [\"M02\"], inventario: \""),
         "{md}"
     );
-    let p = publicado(
-        &f,
+    let p = f.publicado(
         &bare,
         "TASK-001/planificacion/brainstorm/peticion-plan-1.md",
     );
@@ -215,14 +183,13 @@ fn plan_anota_modelos_distintos() {
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "modelo-diseno"), Some("opus"), "{out}");
     assert_eq!(valor(&out, "modelo-implementacion"), Some("opus"), "{out}");
-    let md = publicado(&f, &bare, "TASK-002/tarea.md");
+    let md = f.publicado(&bare, "TASK-002/tarea.md");
     assert!(
         md.contains("  diseno: {modelo: \"opus\", skills: [], regla: null, agentes: [\"taskcode-plugin:brainstorm-arquitectura\", \"taskcode-plugin:brainstorm-riesgos\", \"taskcode-plugin:brainstorm-testing\", \"taskcode-plugin:brainstorm-dominio\", \"taskcode-plugin:brainstorm-unificador\"], reglas: [\"M07\", \"S02\", \"S05\"]"),
         "{md}"
     );
     assert!(md.contains("  implementacion: {modelo: \"opus\""), "{md}");
-    let u = publicado(
-        &f,
+    let u = f.publicado(
         &bare,
         "TASK-002/planificacion/brainstorm/peticion-unificador-1.md",
     );
@@ -232,8 +199,7 @@ fn plan_anota_modelos_distintos() {
         ),
         "{u}"
     );
-    let r = publicado(
-        &f,
+    let r = f.publicado(
         &bare,
         "TASK-002/planificacion/brainstorm/peticion-brainstorm-dominio-1.md",
     );
@@ -250,13 +216,17 @@ fn plan_anota_modelos_distintos() {
 #[test]
 fn c3_publica_congela_y_repetir_no_cambia_nada() {
     let f = Fixture::nueva("plan-c3");
-    let (bare, a) = preparar(&f, &[FUNC]);
-    let antes = publicado(&f, &bare, "TASK-001/tarea.md");
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FUNC],
+        ..Default::default()
+    });
+    let antes = f.publicado(&bare, "TASK-001/tarea.md");
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "modo"), Some("automatico"), "{out}");
     assert_eq!(valor(&out, "ronda"), Some("1"), "{out}");
-    let md = publicado(&f, &bare, "TASK-001/tarea.md");
+    let md = f.publicado(&bare, "TASK-001/tarea.md");
     assert!(
         md.contains("\ncarril: \"funcionalidad\"\nestado: \"en-diseno\"\n"),
         "{md}"
@@ -270,7 +240,7 @@ fn c3_publica_congela_y_repetir_no_cambia_nada() {
         )),
         "{fila}"
     );
-    let esqueleto = publicado(&f, &bare, "TASK-001/planificacion/plan-final.md");
+    let esqueleto = f.publicado(&bare, "TASK-001/planificacion/plan-final.md");
     assert!(
         esqueleto.starts_with("# Plan — TASK-001: Funcion\n"),
         "{esqueleto}"
@@ -278,12 +248,12 @@ fn c3_publica_congela_y_repetir_no_cambia_nada() {
     assert!(esqueleto.contains("\nDuracion estimada: N min\n"));
 
     // Repetir: sin cambios y la punta del estado igual.
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     assert!(out.starts_with("plan sin-cambios id=TASK-001"), "{out}");
     assert_eq!(valor(&out, "ronda"), Some("1"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
 
     // Un plan guardado no se pisa al volver a planificar con mas roles.
     let fuera = f.raiz.join("plan.md");
@@ -305,21 +275,20 @@ fn c3_publica_congela_y_repetir_no_cambia_nada() {
     assert_eq!(valor(&out, "ronda"), Some("2"), "{out}");
     assert_eq!(valor(&out, "modo"), Some("automatico"), "{out}");
     assert_eq!(
-        publicado(&f, &bare, "TASK-001/planificacion/plan-final.md"),
+        f.publicado(&bare, "TASK-001/planificacion/plan-final.md"),
         "# Mi plan\n"
     );
-    let r2 = publicado(
-        &f,
+    let r2 = f.publicado(
         &bare,
         "TASK-001/planificacion/brainstorm/peticion-unificador-2.md",
     );
     assert!(r2.contains("re-planificacion"), "{r2}");
     // Bajar el carril se rechaza sin escribir.
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001", "--carril", "fix"]);
     assert_eq!(c, Some(3), "{out}");
     assert_eq!(valor(&out, "motivo"), Some("carril-baja"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
 }
 
 /// Criterio 3 (E2E): un enunciado que no vale (el de la plantilla) da
@@ -327,14 +296,21 @@ fn c3_publica_congela_y_repetir_no_cambia_nada() {
 #[test]
 fn c3_enunciado_invalido_rechazada_sin_escribir() {
     let f = Fixture::nueva("plan-enunciado");
-    let (bare, a) = preparar(&f, &[SIN_ENUNCIADO]);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[SIN_ENUNCIADO],
+        ..Default::default()
+    });
     let antes = f.huella(&bare, &a);
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(3), "{out}");
     assert_eq!(out, "plan rechazada id=TASK-001 motivo=objetivo-vacio");
     assert_eq!(f.huella(&bare, &a), antes);
     assert!(planificacion(&f, &bare, "TASK-001").is_empty());
-    assert!(publicado(&f, &bare, "TASK-001/tarea.md").contains("estado: \"planificada\""));
+    assert!(
+        f.publicado(&bare, "TASK-001/tarea.md")
+            .contains("estado: \"planificada\"")
+    );
 }
 
 /// Criterio 3 (E2E): `plan guardar` publica `plan-final.md` y la salida de
@@ -343,7 +319,11 @@ fn c3_enunciado_invalido_rechazada_sin_escribir() {
 #[test]
 fn c3_plan_guardar_publica_y_rechaza_destinos_fuera_de_la_lista() {
     let f = Fixture::nueva("plan-guardar");
-    let (bare, a) = preparar(&f, &[FUNC]);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FUNC],
+        ..Default::default()
+    });
     let fuera = f.raiz.join("salida.md");
     std::fs::write(&fuera, "# Plan\r\n\r\nhecho\r\n").unwrap();
     let ruta = fuera.to_str().unwrap();
@@ -368,7 +348,7 @@ fn c3_plan_guardar_publica_y_rechaza_destinos_fuera_de_la_lista() {
         "{out}"
     );
     assert_eq!(
-        publicado(&f, &bare, "TASK-001/planificacion/plan-final.md"),
+        f.publicado(&bare, "TASK-001/planificacion/plan-final.md"),
         "# Plan\n\nhecho\n"
     );
     let (c, out) = tc2(
@@ -384,7 +364,10 @@ fn c3_plan_guardar_publica_y_rechaza_destinos_fuera_de_la_lista() {
     let salida = "brainstorm/salida-brainstorm-riesgos-1.md";
     let (c, out) = tc2(&f, &a, &["plan", "guardar", "TASK-001", salida, ruta]);
     assert_eq!(c, Some(0), "{out}");
-    assert!(publicado(&f, &bare, &format!("TASK-001/planificacion/{salida}")).contains("hecho"));
+    assert!(
+        f.publicado(&bare, &format!("TASK-001/planificacion/{salida}"))
+            .contains("hecho")
+    );
     // La salida de un rol que no se lanzo en esa ronda.
     let (c, out) = tc2(
         &f,
@@ -413,56 +396,17 @@ fn c3_plan_guardar_publica_y_rechaza_destinos_fuera_de_la_lista() {
     assert_eq!(f.huella(&bare, &a), antes);
 }
 
-/// Escribe en la rama de estado por la transaccion (como otra fase).
-struct Escribir {
-    ruta: String,
-    de: &'static str,
-    a: &'static str,
-}
-
-impl Operacion for Escribir {
-    fn nombre(&self) -> &str {
-        "escribir"
-    }
-    fn anotacion(&self) -> String {
-        format!("escribir|{}", self.ruta)
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, e: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        let t = e.leer(&self.ruta)?.unwrap_or_default();
-        assert!(t.contains(self.de), "{t}");
-        Ok(vec![Cambio::nuevo(
-            self.ruta.clone(),
-            t.replacen(self.de, self.a, 1),
-        )])
-    }
-}
-
-fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
-    None
-}
-
-/// Cambia `de` por `a` en el `tarea.md` publicado de `id`.
-fn editar(f: &Fixture, dir: &Path, id: &str, de: &'static str, a: &'static str) {
-    let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
-    let op = Escribir {
-        ruta: format!("{id}/tarea.md"),
-        de,
-        a,
-    };
-    let i = estado::transaccion(&Contexto::nuevo(&g, dir, &sin_catalogo, None), &op);
-    assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-}
-
 /// MEN-1 y MEN-2 de la revision: la tarea de otra persona no se guarda
 /// (`de-otra-persona` con su login); con el plan aprobado, ni `plan` ni
 /// `plan guardar` cambian nada (`plan-aprobado`).
 #[test]
 fn men_otra_persona_y_plan_aprobado() {
     let f = Fixture::nueva("plan-men");
-    let (bare, a) = preparar(&f, &[FUNC]);
+    let (bare, a) = f.preparar(&Preparar {
+        config: Some(CONFIG_AUTOMATICO),
+        altas: &[FUNC],
+        ..Default::default()
+    });
     let (c, out) = tc2(&f, &a, &["plan", "TASK-001"]);
     assert_eq!(c, Some(0), "{out}");
     let fuera = f.raiz.join("plan.md");
@@ -475,7 +419,7 @@ fn men_otra_persona_y_plan_aprobado() {
         "asignado_a: null",
         "asignado_a: {id: 1002, login: \"beto\"}",
     );
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     let (c, out) = tc2(
         &f,
         &a,
@@ -484,7 +428,7 @@ fn men_otra_persona_y_plan_aprobado() {
     assert_eq!(c, Some(3), "{out}");
     assert_eq!(valor(&out, "motivo"), Some("de-otra-persona"), "{out}");
     assert_eq!(valor(&out, "asignado"), Some("beto"), "{out}");
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
     editar(
         &f,
         &a,
@@ -499,7 +443,7 @@ fn men_otra_persona_y_plan_aprobado() {
         "plan_aprobado: false",
         "plan_aprobado: true",
     );
-    let p = punta(&f, &bare);
+    let p = f.punta(&bare);
     for args in [
         vec!["plan", "guardar", "TASK-001", "plan-final.md", ruta],
         vec!["plan", "TASK-001"],
@@ -509,5 +453,5 @@ fn men_otra_persona_y_plan_aprobado() {
         assert_eq!(c, Some(3), "{args:?}: {out}");
         assert_eq!(valor(&out, "motivo"), Some("plan-aprobado"), "{out}");
     }
-    assert_eq!(punta(&f, &bare), p);
+    assert_eq!(f.punta(&bare), p);
 }

@@ -58,6 +58,20 @@ pub fn valor<'a>(salida: &'a str, clave: &str) -> Option<&'a str> {
         .find_map(|kv| kv.strip_prefix(clave)?.strip_prefix('='))
 }
 
+/// Contrato de una salida de `tc2`: una sola linea en stdout; un exito no
+/// escribe en stderr y un fallo, una linea. Da el codigo y esa linea.
+pub fn salida(o: &Output) -> (Option<i32>, String) {
+    let out = texto(&o.stdout);
+    assert_eq!(out.lines().count(), 1, "{out}");
+    let err = texto(&o.stderr);
+    if o.status.code() == Some(0) {
+        assert!(err.is_empty(), "stderr en un exito: {err}");
+    } else {
+        assert_eq!(err.lines().count(), 1, "{err}");
+    }
+    (o.status.code(), out.trim_end().to_owned())
+}
+
 /// Codigo, stdout y stderr de una salida, para el mensaje de un assert.
 pub fn volcado(o: &Output) -> String {
     format!(
