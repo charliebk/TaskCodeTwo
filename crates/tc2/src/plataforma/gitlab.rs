@@ -16,18 +16,19 @@ use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_v
 use super::credenciales::{Credenciales, Rol};
 use super::errores;
 use super::http::{Base, Metodo, codificar};
+use super::operaciones::{
+    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, entrada_merge, merge_fallido, segun_estado,
+};
 use super::puertas::{self, EstadoCheck, Lecturas, Objetivo, Origenes, Puerta};
 use super::{
     Clave, Creada, EstadoPuerta, FalloLectura, Firma, ModeloPuertas, Paso, Personas, PlanObservado,
     Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas, TierGitLab, Usuario,
     aplicar_en_lote,
 };
-use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::catalogo::plataforma as t;
 use crate::i18n::{Mensaje, Texto};
 
-const ABRIR_PR: &str = "abrir-pr";
-const MERGE_PR: &str = "merge-pr";
 const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
@@ -423,19 +424,6 @@ impl GitLab {
         self.con.exigir_persona(op, self.identidad(Rol::Persona))
     }
 
-    fn mr_abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
-        let (_, ruta) = self.ep(&Endpoint::MrsAbiertos { rama, base });
-        let mrs: Vec<MrApi> =
-            self.con
-                .leer_paginas(ABRIR_PR, Rol::Agente, PERMISO_LECTURA, ruta, |c| {
-                    self.con.parsear(ABRIR_PR, c)
-                })?;
-        Ok(mrs
-            .into_iter()
-            .find(|m| m.source_branch == rama && m.target_branch == base && m.state == "opened")
-            .map(|m| m.iid))
-    }
-
     /// Checks requeridos del proyecto (F3-8): GitLab no exige checks por
     /// nombre; con «Pipelines must succeed» cuenta el pipeline entero
     /// (`todos`). `None` si el proyecto no se pudo leer o no trae el campo
@@ -479,16 +467,70 @@ impl GitLab {
             .map_err(fallo)?;
         Ok(estados.into_iter().map(|e| e.name).collect())
     }
+}
 
-    /// Si `rama` tiene commits que no estan en `base`.
-    fn tiene_commits(&self, rama: &str, base: &str) -> Paso<bool> {
+impl AbrePr for GitLab {
+    fn abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
+        let (_, ruta) = self.ep(&Endpoint::MrsAbiertos { rama, base });
+        let mrs: Vec<MrApi> =
+            self.con
+                .leer_paginas(ABRIR_PR, Rol::Agente, PERMISO_LECTURA, ruta, |c| {
+                    self.con.parsear(ABRIR_PR, c)
+                })?;
+        Ok(mrs
+            .into_iter()
+            .find(|m| m.source_branch == rama && m.target_branch == base && m.state == "opened")
+            .map(|m| m.iid))
+    }
+
+    /// GitLab abre un MR sin commits: se comprueba antes (que `rama` tenga
+    /// commits que no estan en `base`) para dar la misma linea que GitHub.
+    fn antes_de_crear(&self, rama: &str, base: &str) -> Paso<()> {
         let commits: Vec<CommitApi> = self.con.leer(
             ABRIR_PR,
             Rol::Agente,
             PERMISO_LECTURA,
             self.ep(&Endpoint::CommitsEntre { base, rama }),
         )?;
-        Ok(commits.iter().any(|c| !c.id.is_empty()))
+        if commits.iter().any(|c| !c.id.is_empty()) {
+            Ok(())
+        } else {
+            Err(Informe::nuevo(ABRIR_PR, Resultado::Rechazada)
+                .con("motivo", "sin-commits")
+                .diagnostico(Mensaje::nuevo(&t::SIN_COMMITS).con("cita", "")))
+        }
+    }
+
+    fn crear(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Creado {
+        let datos = serde_json::json!({
+            "source_branch": rama, "target_branch": base,
+            "title": titulo, "description": cuerpo,
+        })
+        .to_string();
+        let r = match self.con.pedir(
+            ABRIR_PR,
+            Rol::Agente,
+            self.ep(&Endpoint::CrearMr),
+            Some(&datos),
+        ) {
+            Ok(r) => r,
+            Err(i) => return Creado::Fallo(i),
+        };
+        if r.estado == 409 {
+            return Creado::YaExiste(
+                Mensaje::nuevo(&t::MR_EXISTENTE).con("api", errores::mensaje_api(&r)),
+            );
+        }
+        if !r.exito() {
+            return Creado::Fallo(
+                self.con
+                    .traducir(ABRIR_PR, Rol::Agente, PERMISO_ESCRITURA, &r),
+            );
+        }
+        match self.con.parsear::<MrApi>(ABRIR_PR, &r.cuerpo) {
+            Ok(m) => Creado::Pr(m.iid),
+            Err(i) => Creado::Fallo(i),
+        }
     }
 }
 
@@ -558,67 +600,7 @@ impl Plataforma for GitLab {
     }
 
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
-        if !rama_valida(rama) || !rama_valida(base) {
-            return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
-        }
-        if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
-            return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
-        }
-        match self.mr_abierto(rama, base) {
-            Ok(Some(n)) => {
-                return Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string());
-            }
-            Ok(None) => {}
-            Err(i) => return i,
-        }
-        // GitLab abre un MR sin commits: se comprueba antes para dar la
-        // misma linea que GitHub.
-        match self.tiene_commits(rama, base) {
-            Ok(true) => {}
-            Ok(false) => {
-                return Informe::nuevo(ABRIR_PR, Resultado::Rechazada)
-                    .con("motivo", "sin-commits")
-                    .diagnostico(Mensaje::nuevo(&t::SIN_COMMITS).con("cita", ""));
-            }
-            Err(i) => return i,
-        }
-        let datos = serde_json::json!({
-            "source_branch": rama, "target_branch": base,
-            "title": titulo, "description": cuerpo,
-        })
-        .to_string();
-        let r = match self.con.pedir(
-            ABRIR_PR,
-            Rol::Agente,
-            self.ep(&Endpoint::CrearMr),
-            Some(&datos),
-        ) {
-            Ok(r) => r,
-            Err(i) => return i,
-        };
-        if r.estado == 409 {
-            // Otro proceso lo abrio entre la lectura y la escritura.
-            return match self.mr_abierto(rama, base) {
-                Ok(Some(n)) => {
-                    Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string())
-                }
-                Ok(None) => Informe::nuevo(ABRIR_PR, Resultado::Conflicto)
-                    .con("motivo", "mr-existente")
-                    .diagnostico(
-                        Mensaje::nuevo(&t::MR_EXISTENTE).con("api", errores::mensaje_api(&r)),
-                    ),
-                Err(i) => i,
-            };
-        }
-        if !r.exito() {
-            return self
-                .con
-                .traducir(ABRIR_PR, Rol::Agente, PERMISO_ESCRITURA, &r);
-        }
-        match self.con.parsear::<MrApi>(ABRIR_PR, &r.cuerpo) {
-            Ok(m) => Informe::nuevo(ABRIR_PR, Resultado::Ok).con("pr", m.iid.to_string()),
-            Err(i) => i,
-        }
+        operaciones::abrir_pr(self, rama, base, titulo, cuerpo)
     }
 
     fn estado_puertas(&self, rol: Rol, pr: u64, modelo: &ModeloPuertas) -> Informe {
@@ -640,11 +622,14 @@ impl Plataforma for GitLab {
             Ok(m) => m,
             Err(i) => return i,
         };
-        if m.state == "merged" {
-            return puertas::mergeado(pr);
-        }
-        if m.state != "opened" {
-            return puertas::pr_cerrado(pr);
+        if let Err(i) = segun_estado(
+            op,
+            pr,
+            m.state == "merged",
+            m.state == "opened",
+            &t::PR_CERRADO_REABRE,
+        ) {
+            return i;
         }
         if !rama_valida(&m.target_branch) || !sha_valido(&m.sha) {
             return self.con.invalida_por(op, &t::RAMA_DESTINO_O_SHA);
@@ -774,10 +759,7 @@ impl Plataforma for GitLab {
     }
 
     fn merge_pr(&self, pr: u64, sha: &str) -> Informe {
-        if !sha_valido(sha) {
-            return uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO);
-        }
-        if let Err(i) = self.exigir_persona(MERGE_PR) {
+        if let Err(i) = entrada_merge(sha, || self.exigir_persona(MERGE_PR)) {
             return i;
         }
         let m: MrApi = match self.con.leer(
@@ -789,16 +771,14 @@ impl Plataforma for GitLab {
             Ok(m) => m,
             Err(i) => return i,
         };
-        if m.state == "merged" {
-            return Informe::nuevo(MERGE_PR, Resultado::SinCambios)
-                .con("pr", pr.to_string())
-                .con("estado", "mergeado");
-        }
-        if m.state != "opened" {
-            return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
-                .con("pr", pr.to_string())
-                .con("motivo", "pr-cerrado")
-                .diagnostico(&t::MR_CERRADO);
+        if let Err(i) = segun_estado(
+            MERGE_PR,
+            pr,
+            m.state == "merged",
+            m.state == "opened",
+            &t::MR_CERRADO,
+        ) {
+            return i;
         }
         if !m
             .sha
@@ -834,10 +814,10 @@ impl Plataforma for GitLab {
                 );
         }
         if !r.exito() {
-            let mut i = self.con.traducir(MERGE_PR, Rol::Persona, PERMISO_MERGE, &r);
-            i.claves
-                .insert(0, ("pr".to_owned(), Valor::Texto(pr.to_string())));
-            return i;
+            return merge_fallido(
+                pr,
+                self.con.traducir(MERGE_PR, Rol::Persona, PERMISO_MERGE, &r),
+            );
         }
         match self.con.parsear::<MergeApi>(MERGE_PR, &r.cuerpo) {
             Ok(MergeApi {

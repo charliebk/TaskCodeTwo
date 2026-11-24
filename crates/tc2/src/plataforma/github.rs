@@ -15,19 +15,20 @@ use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_v
 use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
+use super::operaciones::{
+    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, entrada_merge, merge_fallido, segun_estado,
+};
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
     Creada, EstadoPuerta, FalloLectura, Firma, LEER_REVISION, ModeloPuertas, Paso, Personas,
     PlanObservado, Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas,
     RevisionPublicada, Usuario, aplicar_en_lote,
 };
-use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::contrato::{Informe, Resultado, corto};
 use crate::hallazgos::ronda;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
-const ABRIR_PR: &str = "abrir-pr";
-const MERGE_PR: &str = "merge-pr";
 const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
@@ -376,7 +377,13 @@ impl GitHub {
         self.con.exigir_persona(op, self.identidad(Rol::Persona))
     }
 
-    fn pr_abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
+    fn dueno(&self) -> &str {
+        self.repo.split('/').next().unwrap_or_default()
+    }
+}
+
+impl AbrePr for GitHub {
+    fn abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
         let cabeza = format!("{}:{rama}", self.dueno());
         let (_, ruta) = self.ep(&Endpoint::PrsAbiertos {
             cabeza: &cabeza,
@@ -393,8 +400,37 @@ impl GitHub {
             .map(|p| p.number))
     }
 
-    fn dueno(&self) -> &str {
-        self.repo.split('/').next().unwrap_or_default()
+    fn crear(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Creado {
+        let datos = serde_json::json!({
+            "title": titulo, "head": rama, "base": base, "body": cuerpo,
+        })
+        .to_string();
+        let r = match self.con.pedir(
+            ABRIR_PR,
+            Rol::Agente,
+            self.ep(&Endpoint::CrearPr),
+            Some(&datos),
+        ) {
+            Ok(r) => r,
+            Err(i) => return Creado::Fallo(i),
+        };
+        if r.estado == 422 && r.cuerpo.contains("already exists") {
+            return Creado::YaExiste(
+                Mensaje::nuevo(&t::PR_EXISTENTE).con("api", errores::mensaje_api(&r)),
+            );
+        }
+        if !r.exito() {
+            return Creado::Fallo(self.con.traducir(
+                ABRIR_PR,
+                Rol::Agente,
+                "pull_requests:write",
+                &r,
+            ));
+        }
+        match self.con.parsear::<PrApi>(ABRIR_PR, &r.cuerpo) {
+            Ok(p) => Creado::Pr(p.number),
+            Err(i) => Creado::Fallo(i),
+        }
     }
 }
 
@@ -431,53 +467,7 @@ impl Plataforma for GitHub {
     }
 
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
-        if !rama_valida(rama) || !rama_valida(base) {
-            return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
-        }
-        if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
-            return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
-        }
-        match self.pr_abierto(rama, base) {
-            Ok(Some(n)) => {
-                return Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string());
-            }
-            Ok(None) => {}
-            Err(i) => return i,
-        }
-        let datos = serde_json::json!({
-            "title": titulo, "head": rama, "base": base, "body": cuerpo,
-        })
-        .to_string();
-        let r = match self.con.pedir(
-            ABRIR_PR,
-            Rol::Agente,
-            self.ep(&Endpoint::CrearPr),
-            Some(&datos),
-        ) {
-            Ok(r) => r,
-            Err(i) => return i,
-        };
-        if r.estado == 422 && r.cuerpo.contains("already exists") {
-            // Otro proceso lo abrio entre la lectura y la escritura.
-            return match self.pr_abierto(rama, base) {
-                Ok(Some(n)) => {
-                    Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string())
-                }
-                Ok(None) => self
-                    .con
-                    .traducir(ABRIR_PR, Rol::Agente, "pull_requests:write", &r),
-                Err(i) => i,
-            };
-        }
-        if !r.exito() {
-            return self
-                .con
-                .traducir(ABRIR_PR, Rol::Agente, "pull_requests:write", &r);
-        }
-        match self.con.parsear::<PrApi>(ABRIR_PR, &r.cuerpo) {
-            Ok(p) => Informe::nuevo(ABRIR_PR, Resultado::Ok).con("pr", p.number.to_string()),
-            Err(i) => i,
-        }
+        operaciones::abrir_pr(self, rama, base, titulo, cuerpo)
     }
 
     fn estado_puertas(&self, rol: Rol, pr: u64, modelo: &ModeloPuertas) -> Informe {
@@ -496,11 +486,8 @@ impl Plataforma for GitHub {
             Ok(p) => p,
             Err(i) => return i,
         };
-        if p.merged {
-            return puertas::mergeado(pr);
-        }
-        if p.state != "open" {
-            return puertas::pr_cerrado(pr);
+        if let Err(i) = segun_estado(op, pr, p.merged, p.state == "open", &t::PR_CERRADO_REABRE) {
+            return i;
         }
         if !rama_valida(&p.base.nombre) || !sha_valido(&p.head.sha) {
             return self.con.invalida_por(op, &t::RAMA_BASE_O_SHA);
@@ -671,10 +658,7 @@ impl Plataforma for GitHub {
     }
 
     fn merge_pr(&self, pr: u64, sha: &str) -> Informe {
-        if !sha_valido(sha) {
-            return uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO);
-        }
-        if let Err(i) = self.exigir_persona(MERGE_PR) {
+        if let Err(i) = entrada_merge(sha, || self.exigir_persona(MERGE_PR)) {
             return i;
         }
         let permiso = "contents:write";
@@ -686,16 +670,8 @@ impl Plataforma for GitHub {
                 Ok(p) => p,
                 Err(i) => return i,
             };
-        if p.merged {
-            return Informe::nuevo(MERGE_PR, Resultado::SinCambios)
-                .con("pr", pr.to_string())
-                .con("estado", "mergeado");
-        }
-        if p.state != "open" {
-            return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
-                .con("pr", pr.to_string())
-                .con("motivo", "pr-cerrado")
-                .diagnostico(&t::PR_CERRADO);
+        if let Err(i) = segun_estado(MERGE_PR, pr, p.merged, p.state == "open", &t::PR_CERRADO) {
+            return i;
         }
         if !p.head.sha.eq_ignore_ascii_case(sha) {
             return head_cambiado(pr);
@@ -711,10 +687,7 @@ impl Plataforma for GitHub {
             Err(i) => return i,
         };
         if !r.exito() {
-            let mut i = self.con.traducir(MERGE_PR, Rol::Persona, permiso, &r);
-            i.claves
-                .insert(0, ("pr".to_owned(), Valor::Texto(pr.to_string())));
-            return i;
+            return merge_fallido(pr, self.con.traducir(MERGE_PR, Rol::Persona, permiso, &r));
         }
         match self.con.parsear::<MergeApi>(MERGE_PR, &r.cuerpo) {
             Ok(MergeApi {

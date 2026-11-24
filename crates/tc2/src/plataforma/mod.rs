@@ -5,8 +5,9 @@
 //! API HTTP y sin `gh` (F1-14). Sus operaciones forman una lista cerrada y
 //! devuelven el contrato de salida de [`crate::contrato`]; cada una corre con
 //! la identidad que le da F1-6 y falla cerrada sin ella. Los dos adaptadores
-//! comparten el transporte ([`conexion`]) y la evaluacion ([`puertas`]), y
-//! dan la misma linea byte a byte (RR-15).
+//! comparten el transporte ([`conexion`]), el flujo neutral de cada
+//! operacion ([`operaciones`]) y la evaluacion ([`puertas`]), y dan la misma
+//! linea byte a byte (RR-15).
 //!
 //! Se usa desde la biblioteca: el binario no gana subcomandos hasta que los
 //! comandos de fase (F6-2 `review`, F7 `finish`, F3-8 `doctor`) lo llamen.
@@ -20,6 +21,7 @@ pub mod errores;
 pub mod github;
 pub mod gitlab;
 pub mod http;
+pub(crate) mod operaciones;
 pub mod personas;
 #[cfg(test)]
 pub(crate) mod prueba;

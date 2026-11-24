@@ -514,8 +514,28 @@ fn envoltorio_y_errores_de_gitlab() {
         let gl = gitlab(&mock, &[Rol::Persona]);
         assert_eq!(gl.merge_pr(5, SHA).linea(), linea);
     }
+}
 
-    // 409 al crear sin MR abierto que releer: conflicto, no head-cambiado.
+/// A1-02 (RR-15): en la carrera de `abrir-pr` (crear dice «ya existe»: 422
+/// `already exists` en GitHub, 409 en GitLab; y la relectura de abiertos
+/// sigue vacia) los dos adaptadores dan la misma linea y el mismo codigo,
+/// byte a byte; el diagnostico es de cada plataforma y cita a la API.
+#[test]
+fn carrera_de_abrir_pr_da_la_misma_linea() {
+    let _serie = serie();
+    let mock = Mock::nuevo();
+    mock.responder("GET", "/repos/o/r/pulls", Simulada::json(200, "[]"));
+    mock.responder(
+        "POST",
+        "/repos/o/r/pulls",
+        Simulada::json(
+            422,
+            "{\"message\":\"Validation Failed\",\"errors\":[{\"message\":\"A pull request already exists for o:feature/x.\"}]}",
+        ),
+    );
+    let gh = github(&mock)
+        .abrir_pr("feature/x", "develop", "T", "")
+        .salida(false);
     let mock = Mock::nuevo();
     mock.responder(
         "GET",
@@ -535,10 +555,23 @@ fn envoltorio_y_errores_de_gitlab() {
             "{\"message\":[\"Another open merge request already exists\"]}",
         ),
     );
-    let gl = gitlab(&mock, &[Rol::Agente]);
-    let i = gl.abrir_pr("feature/x", "develop", "T", "");
-    assert_eq!(i.linea(), "abrir-pr conflicto motivo=mr-existente");
-    assert_eq!(i.resultado.codigo(), 6);
+    let gl = gitlab(&mock, &[Rol::Agente])
+        .abrir_pr("feature/x", "develop", "T", "")
+        .salida(false);
+    assert_eq!(
+        (gh.stdout.as_str(), gh.codigo),
+        ("abrir-pr conflicto motivo=pr-existente\n", 6)
+    );
+    assert_eq!(
+        (gl.stdout.as_str(), gl.codigo),
+        (gh.stdout.as_str(), gh.codigo)
+    );
+    assert!(gh.stderr.contains("GitHub"), "{}", gh.stderr);
+    assert!(
+        gl.stderr.contains("Another open merge request"),
+        "{}",
+        gl.stderr
+    );
 }
 
 fn verde_con(retoque: impl Fn(&mut serde_json::Value)) -> (GitLab, Mock) {
