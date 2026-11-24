@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-139-auditoria-4d-a1-plataforma-e-identidad-1
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2055168
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -41,3 +41,10 @@ Corregir los 11 casos IMPORTANTE del grupo A1 de `docs/auditoria-4d.md` (commit 
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-24T13:55:55Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-24T14:02:51Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24T14:02:50Z | diseno | agente:a27838b01603442e1 | 52 | 117461 | 1918047 | 19608 | 41 | 2055168 | - | - |
