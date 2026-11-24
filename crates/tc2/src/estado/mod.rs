@@ -29,6 +29,8 @@ mod frescura;
 mod lectura;
 mod montaje;
 mod pendientes;
+#[cfg(test)]
+pub(crate) mod prueba;
 mod tareas;
 mod transaccion;
 

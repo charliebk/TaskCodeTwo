@@ -198,11 +198,10 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::{estado, motivo};
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
     use crate::tarea::{Cuerpo, Tarea};
-    use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.
     const AHORA: u64 = 1_794_910_830;
@@ -223,24 +222,13 @@ mod tests {
         t.escribir(&Cuerpo::plantilla())
     }
 
-    fn estado(t: String) -> EnMemoria {
-        EnMemoria(BTreeMap::from([("TASK-001/tarea.md".to_owned(), t)]))
-    }
-
-    fn motivo(r: &Result<Vec<Cambio>, Fallo>) -> Option<&str> {
-        match r {
-            Err(Fallo::Rechazada { motivo, .. }) => Some(motivo),
-            _ => None,
-        }
-    }
-
     /// `en-curso` pasa a `en-revision` con su fila; ya en revision, nada;
     /// otro estado o de otra persona, rechazada.
     #[test]
     fn de_en_curso_a_en_revision() {
         let antes = md("en-curso", ana().asignado().into());
         let op = Revisar::nueva("TASK-001", &ana(), AHORA);
-        let r = op.aplicar(&estado(antes.clone()));
+        let r = op.aplicar(&estado(&[("TASK-001", antes.clone())]));
         let texto = r
             .as_ref()
             .ok()
@@ -256,10 +244,13 @@ mod tests {
             );
         assert_eq!(texto, esperado, "{r:?}");
         let ya = md("en-revision", ana().asignado().into());
-        assert_eq!(op.aplicar(&estado(ya)), Ok(Vec::new()));
-        let r = op.aplicar(&estado(md("planificada", None)));
+        assert_eq!(op.aplicar(&estado(&[("TASK-001", ya)])), Ok(Vec::new()));
+        let r = op.aplicar(&estado(&[("TASK-001", md("planificada", None))]));
         assert_eq!(motivo(&r), Some("estado-no-valido"));
-        let r = op.aplicar(&estado(md("en-curso", Asignado::persona(9, "beto"))));
+        let r = op.aplicar(&estado(&[(
+            "TASK-001",
+            md("en-curso", Asignado::persona(9, "beto")),
+        )]));
         assert_eq!(motivo(&r), Some("de-otra-persona"));
         assert_eq!(op.dueno().as_deref(), Some("beto"));
         assert!(op.exige_red());
@@ -279,7 +270,7 @@ mod tests {
         };
         let antes = md("en-curso", ana().asignado().into());
         let op = Revisar::nueva("TASK-001", &ana(), AHORA).con_seleccion(sel(&["p:rust"]));
-        let texto = match op.aplicar(&estado(antes)) {
+        let texto = match op.aplicar(&estado(&[("TASK-001", antes)])) {
             Ok(c) => c.first().map(|c| c.contenido.clone()).unwrap_or_default(),
             Err(_) => String::new(),
         };
@@ -288,9 +279,12 @@ mod tests {
             "{texto}"
         );
         let ya = texto.replace("estado: \"en-curso\"", "estado: \"en-revision\"");
-        assert_eq!(op.aplicar(&estado(ya.clone())), Ok(Vec::new()));
+        assert_eq!(
+            op.aplicar(&estado(&[("TASK-001", ya.clone())])),
+            Ok(Vec::new())
+        );
         let otra = Revisar::nueva("TASK-001", &ana(), AHORA).con_seleccion(sel(&["p:vue"]));
-        let r = otra.aplicar(&estado(ya.clone()));
+        let r = otra.aplicar(&estado(&[("TASK-001", ya.clone())]));
         let nuevo = r
             .ok()
             .and_then(|c| c.first().map(|c| c.contenido.clone()))

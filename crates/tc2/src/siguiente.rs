@@ -134,19 +134,8 @@ fn calcular(estado: &dyn Estado) -> Result<Calculo, Fallo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::EnMemoria;
     use std::collections::BTreeMap;
-
-    /// Estado en memoria.
-    struct EnMemoria(BTreeMap<String, String>);
-
-    impl Estado for EnMemoria {
-        fn rutas(&self) -> Vec<String> {
-            self.0.keys().cloned().collect()
-        }
-        fn leer(&self, ruta: &str) -> Result<Option<String>, Fallo> {
-            Ok(self.0.get(ruta).cloned())
-        }
-    }
 
     fn tarea(id: &str, sprint: u32, estado: &str, deps: &[&str]) -> String {
         let mut t = crate::tarea::Tarea::nueva(id, "t", "2026-01-01");

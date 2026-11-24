@@ -571,21 +571,10 @@ fn adelantar_editada(g: &Git, carpeta: &Path, commit: &str) -> bool {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::estado::prueba::EnMemoria;
     use std::collections::BTreeMap;
 
     use crate::tarea::{Asignado, Cuerpo, Tarea};
-
-    /// Estado en memoria.
-    pub(crate) struct EnMemoria(pub(crate) BTreeMap<String, String>);
-
-    impl Estado for EnMemoria {
-        fn rutas(&self) -> Vec<String> {
-            self.0.keys().cloned().collect()
-        }
-        fn leer(&self, ruta: &str) -> Result<Option<String>, Fallo> {
-            Ok(self.0.get(ruta).cloned())
-        }
-    }
 
     fn v2(
         id: &str,

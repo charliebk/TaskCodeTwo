@@ -151,9 +151,9 @@ impl Operacion for Guardar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::EnMemoria;
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
     use crate::tarea::{Cuerpo, Tarea};
     use std::collections::BTreeMap;
 

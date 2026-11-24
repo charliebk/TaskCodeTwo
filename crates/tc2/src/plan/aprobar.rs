@@ -562,9 +562,9 @@ impl Operacion for PedirCambios {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::{EnMemoria, motivo};
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
     use crate::tarea::Cuerpo;
     use std::collections::BTreeMap;
 
@@ -595,13 +595,6 @@ mod tests {
             version: "0.1",
         });
         t.escribir(&c)
-    }
-
-    fn motivo(r: &Result<Vec<Cambio>, Fallo>) -> Option<&str> {
-        match r {
-            Err(Fallo::Rechazada { motivo, .. }) => Some(motivo),
-            _ => None,
-        }
     }
 
     /// Criterio 1: el agente no puede construir un `Aprobar` (RR-04).

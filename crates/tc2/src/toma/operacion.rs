@@ -284,11 +284,10 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::prueba::{estado, motivo};
     use crate::identidad::Cuenta;
     use crate::plataforma::Proveedor;
-    use crate::roadmap::tests::EnMemoria;
     use crate::tarea::{Cuerpo, Documento, Tarea};
-    use std::collections::BTreeMap;
 
     /// 2026-11-17T10:20:30Z.
     const AHORA: u64 = 1_794_910_830;
@@ -315,22 +314,6 @@ mod tests {
         t.asignado_a = asignado;
         t.rama = Some(crate::alta::rama_de(id, &t.tipo, &t.titulo));
         t.escribir(&Cuerpo::plantilla())
-    }
-
-    fn estado(tareas: &[(&str, String)]) -> EnMemoria {
-        EnMemoria(
-            tareas
-                .iter()
-                .map(|(id, t)| (format!("{id}/tarea.md"), t.clone()))
-                .collect::<BTreeMap<_, _>>(),
-        )
-    }
-
-    fn motivo(r: &Result<Vec<Cambio>, Fallo>) -> Option<&str> {
-        match r {
-            Err(Fallo::Rechazada { motivo, .. }) => Some(motivo),
-            _ => None,
-        }
     }
 
     #[test]
