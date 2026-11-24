@@ -13,6 +13,10 @@ crate::i18n::textos! {
         es: "{ruta} no es texto UTF-8. No se ha importado nada",
         en: "{ruta} is not UTF-8 text. Nothing was imported",
     }
+    VACIO {
+        es: "{ruta} esta vacio. No se ha importado nada",
+        en: "{ruta} is empty. Nothing was imported",
+    }
     FICHERO_GRANDE {
         es: "el fichero pasa de {limite} bytes: partelo en varios lotes. No se ha importado nada",
         en: "the file is larger than {limite} bytes: split it into several batches. Nothing was imported",

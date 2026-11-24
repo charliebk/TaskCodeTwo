@@ -29,8 +29,9 @@ use crate::i18n::Mensaje;
 use crate::i18n::catalogo::importar as txt;
 use crate::tarea::{id_valido, titulo_valido};
 
-/// Tamano maximo del fichero (D4 de TASK-029).
-pub const MAX_BYTES: usize = 1 << 20;
+/// Tamano maximo del fichero (D4 de TASK-029): el tope unico de la lectura
+/// acotada (modulo `lectura`), el mismo de `plan guardar`.
+pub use crate::lectura::MAX_BYTES;
 /// Entradas maximas por lote (D4 de TASK-029).
 pub const MAX_ENTRADAS: usize = 200;
 /// Longitud maxima de una clave de entrada o de un nombre de lote.

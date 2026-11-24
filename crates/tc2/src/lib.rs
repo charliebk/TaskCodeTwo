@@ -48,6 +48,7 @@ pub mod importar;
 pub mod init;
 pub mod instalacion;
 pub mod inventario;
+mod lectura;
 pub mod plan;
 pub mod plataforma;
 pub mod progreso;

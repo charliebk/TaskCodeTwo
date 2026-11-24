@@ -347,6 +347,11 @@ fn c7_limites_y_sin_red() {
     let (codigo, out, _) = importar(&f, &a, &muchas, &[]);
     assert_eq!(codigo, 2, "{out}");
     assert_eq!(out, "import uso motivo=demasiadas-entradas limite=200\n");
+    // Vacio o solo espacios: se rechaza al leer, como en `plan` (A3-03).
+    let vacio = fichero(&f, "vacio.md", " \n\t\n");
+    let (codigo, out, _) = importar(&f, &a, &vacio, &[]);
+    assert_eq!(codigo, 2, "{out}");
+    assert_eq!(out, "import uso motivo=vacio\n");
     assert_eq!(antes, f.huella(&bare, &a));
     // 200 justas si valen.
     let justas = fichero(&f, "justas.md", &lote("justas", 1, 200, |_| None));

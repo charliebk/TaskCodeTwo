@@ -133,40 +133,28 @@ fn orden_guardar(args: &[String], e: &Entorno<'_>) -> Informe {
     guardar_en(e, id, destino, &contenido)
 }
 
-/// Lee el fichero a publicar sin cargar mas del tope: UTF-8, no vacio y de
-/// [`guardar::MAX_BYTES`] como mucho. Un fallo es `uso` (como el fichero de
-/// `import`).
+/// Lee el fichero a publicar con [`crate::lectura::fichero`]: UTF-8, no
+/// vacio y de [`crate::lectura::MAX_BYTES`] como mucho. Un fallo es `uso`
+/// (como el fichero de `import`).
 fn leer_fichero(ruta: &Path) -> Result<String, Informe> {
-    use std::io::Read as _;
-    let mal = |motivo: &str, m: Mensaje| {
+    use crate::lectura::{self, Motivo};
+    lectura::fichero(ruta, lectura::MAX_BYTES).map_err(|n| {
+        let (motivo, m) = match n.motivo {
+            Motivo::NoSeLee => (
+                "no-se-lee",
+                Mensaje::nuevo(&txt::NO_SE_LEE).con("error", n.error),
+            ),
+            Motivo::Grande => (
+                "grande",
+                Mensaje::nuevo(&txt::GRANDE).con("max", lectura::MAX_BYTES.to_string()),
+            ),
+            Motivo::NoUtf8 => ("no-utf8", Mensaje::nuevo(&txt::NO_UTF8)),
+            Motivo::Vacio => ("vacio", Mensaje::nuevo(&txt::VACIO)),
+        };
         Informe::nuevo(NOMBRE, Resultado::Uso)
             .con("motivo", motivo)
-            .diagnostico(m.con("ruta", sanear(&ruta.display().to_string())))
-    };
-    let no_se_lee = |e: std::io::Error| {
-        mal(
-            "no-se-lee",
-            Mensaje::nuevo(&txt::NO_SE_LEE).con("error", sanear(&e.to_string())),
-        )
-    };
-    let f = std::fs::File::open(ruta).map_err(no_se_lee)?;
-    let tope = u64::try_from(guardar::MAX_BYTES).unwrap_or(u64::MAX);
-    let mut bytes = Vec::new();
-    f.take(tope.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(no_se_lee)?;
-    if bytes.len() > guardar::MAX_BYTES {
-        return Err(mal(
-            "grande",
-            Mensaje::nuevo(&txt::GRANDE).con("max", guardar::MAX_BYTES.to_string()),
-        ));
-    }
-    let texto =
-        String::from_utf8(bytes).map_err(|_| mal("no-utf8", Mensaje::nuevo(&txt::NO_UTF8)))?;
-    if texto.trim().is_empty() {
-        return Err(mal("vacio", Mensaje::nuevo(&txt::VACIO)));
-    }
-    Ok(texto)
+            .diagnostico(m.con("ruta", n.ruta))
+    })
 }
 
 /// `plan` de la tarea `id` con el carril pedido en el repo de `e`.
@@ -695,7 +683,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&raiz);
         std::fs::create_dir_all(&raiz)?;
         let _borrar = Carpeta(raiz.clone());
-        let tope = guardar::MAX_BYTES;
+        let tope = crate::lectura::MAX_BYTES;
         for (nombre, bytes, motivo) in [
             ("vacio.md", b" \n\t\n".to_vec(), Some("vacio")),
             ("binario.md", vec![b'a', 0xff, 0xfe], Some("no-utf8")),
