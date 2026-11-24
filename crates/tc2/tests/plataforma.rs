@@ -7,12 +7,11 @@
 
 mod comun;
 
+use comun::adaptadores;
 use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
-use tc2::plataforma::{
-    CredencialesFijas, GitHub, GitLab, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
-};
+use tc2::plataforma::{GitHub, ModeloPuertas, Personas, Plataforma, Rol, Secreto};
 
 const TOKEN: &str = "ghp_token_de_prueba_que_no_debe_salir";
 const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -30,17 +29,7 @@ fn modelo(exigir: &[&str]) -> ModeloPuertas {
 }
 
 fn adaptador(mock: &Mock, roles: &[Rol]) -> GitHub {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(c),
-        Personas::nuevas([PERSONA]),
-    )
-    .unwrap()
+    con_personas(mock, roles, &[PERSONA])
 }
 
 fn persona_en(mock: &Mock, id: u64) {
@@ -532,13 +521,12 @@ fn errores_dirigidos_a_la_persona() {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         l.local_addr().unwrap().port()
     };
-    let gh = GitHub::nuevo(
-        Base::nueva(&format!("http://127.0.0.1:{cerrado}")).unwrap(),
-        "o/r",
-        Box::new(CredencialesFijas::nuevas().con(Rol::Agente, Secreto::nuevo(TOKEN))),
+    let gh = adaptadores::github(
+        &format!("http://127.0.0.1:{cerrado}"),
+        TOKEN,
+        &[Rol::Agente],
         Personas::default(),
-    )
-    .unwrap();
+    );
     let s = gh.identidad(Rol::Agente).unwrap_err().salida(false);
     assert_eq!((s.stdout.as_str(), s.codigo), ("identidad sinred\n", 4));
 
@@ -574,17 +562,12 @@ fn errores_dirigidos_a_la_persona() {
 }
 
 fn con_personas(mock: &Mock, roles: &[Rol], personas: &[u64]) -> GitHub {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(c),
+    adaptadores::github(
+        &mock.base(),
+        TOKEN,
+        roles,
         Personas::nuevas(personas.iter().copied()),
     )
-    .unwrap()
 }
 
 fn pr_con_estado(mergeable: &str) -> String {
@@ -1167,13 +1150,7 @@ fn leer_revision_filtra_por_origen_y_pagina() {
     assert_eq!(i.linea(), "leer-revision esperando pr=12 motivo=sin-check");
 
     // GitLab no tiene revision en CI: no soportada.
-    let gl = GitLab::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(CredencialesFijas::nuevas().con(Rol::Agente, Secreto::nuevo(TOKEN))),
-        Personas::default(),
-    )
-    .unwrap();
+    let gl = adaptadores::gitlab(&mock.base(), TOKEN, &[Rol::Agente], Personas::default());
     let i = gl.leer_revision(Rol::Agente, 12, 99001).unwrap_err();
     assert_eq!(i.linea(), "leer-revision rechazada motivo=no-soportada");
 }

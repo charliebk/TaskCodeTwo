@@ -7,6 +7,7 @@
 
 mod comun;
 
+use comun::adaptadores;
 use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
@@ -22,36 +23,26 @@ const PERSONA: u64 = 1001;
 const CLAVE: u64 = 555;
 const P: &str = "/api/v4/projects/7";
 
-fn credenciales(roles: &[Rol]) -> CredencialesFijas {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    c
-}
-
 fn base(mock: &Mock) -> Base {
     Base::nueva(&format!("{}/api/v4", mock.base())).unwrap()
 }
 
 fn gitlab(mock: &Mock, roles: &[Rol]) -> GitLab {
-    GitLab::nuevo(
-        base(mock),
-        "7",
-        Box::new(credenciales(roles)),
+    adaptadores::gitlab(
+        &mock.base(),
+        TOKEN,
+        roles,
         Personas::nuevas([PERSONA]).con_claves([Clave::Ssh(CLAVE)]),
     )
-    .unwrap()
 }
 
 fn github(mock: &Mock) -> GitHub {
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(credenciales(&[Rol::Agente])),
+    adaptadores::github(
+        &mock.base(),
+        TOKEN,
+        &[Rol::Agente],
         Personas::nuevas([PERSONA]),
     )
-    .unwrap()
 }
 
 /// El modelo de cada plataforma: el origen de un check es el
@@ -357,7 +348,7 @@ fn envoltorio_y_errores_de_gitlab() {
     let gl = GitLab::nuevo(
         base(&mock),
         "grupo/sub/proy",
-        Box::new(credenciales(&[Rol::Agente])),
+        adaptadores::credenciales(TOKEN, &[Rol::Agente]),
         Personas::default(),
     )
     .unwrap();

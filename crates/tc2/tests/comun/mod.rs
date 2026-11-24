@@ -6,6 +6,7 @@
 #![allow(dead_code)] // cada fichero de tests usa una parte
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
+pub mod adaptadores;
 pub mod git;
 pub mod http_mock;
 pub mod instantanea;
