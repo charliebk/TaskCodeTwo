@@ -350,24 +350,8 @@ fn intento(
             }
         }
     }
-    match op.aplicar(&vista) {
-        Ok(cambios) => {
-            if let Some(i) = duplicada(&vista.rutas(), &cambios, op) {
-                return Ok(Intento::Hecho(i));
-            }
-            vista.superponer(cambios);
-        }
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => {
-            return Ok(Intento::Hecho(
-                informe(Resultado::Rechazada, op)
-                    .con("motivo", motivo)
-                    .diagnostico(diagnostico),
-            ));
-        }
-        Err(Fallo::Error(d)) => return Err(error(d)),
+    if let Some(i) = aplicar_en(&mut vista, op)? {
+        return Ok(i);
     }
     anotaciones.push(anotacion.to_owned());
     if let Some(generar) = c.roadmap {
@@ -454,6 +438,29 @@ fn choque(rutas: &[String], cambios: &[Cambio]) -> Option<(String, String)> {
     None
 }
 
+/// Aplica `op` sobre `vista` y superpone sus cambios. `Some` si la
+/// operacion termina ahi (no procede, o sus cambios chocan por mayusculas).
+fn aplicar_en(vista: &mut Vista<'_>, op: &dyn Operacion) -> Result<Option<Intento>, Informe> {
+    match op.aplicar(vista) {
+        Ok(cambios) => {
+            if let Some(i) = duplicada(&vista.rutas(), &cambios, op) {
+                return Ok(Some(Intento::Hecho(i)));
+            }
+            vista.superponer(cambios);
+            Ok(None)
+        }
+        Err(Fallo::Rechazada {
+            motivo,
+            diagnostico,
+        }) => Ok(Some(Intento::Hecho(
+            informe(Resultado::Rechazada, op)
+                .con("motivo", motivo)
+                .diagnostico(diagnostico),
+        ))),
+        Err(Fallo::Error(d)) => Err(error(d)),
+    }
+}
+
 /// `rechazada motivo=ruta-duplicada` si los cambios de la operacion chocan.
 fn duplicada(rutas: &[String], cambios: &[Cambio], op: &dyn Operacion) -> Option<Informe> {
     choque(rutas, cambios).map(|(nueva, otra)| {
@@ -530,24 +537,8 @@ fn sin_red(
         None => commit_de(git, principal, OP, &rama_remota())?,
     };
     let mut vista = Vista::nueva(git, principal, conocida.clone())?;
-    match op.aplicar(&vista) {
-        Ok(cambios) => {
-            if let Some(i) = duplicada(&vista.rutas(), &cambios, op) {
-                return Ok(Intento::Hecho(i));
-            }
-            vista.superponer(cambios);
-        }
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => {
-            return Ok(Intento::Hecho(
-                informe(Resultado::Rechazada, op)
-                    .con("motivo", motivo)
-                    .diagnostico(diagnostico),
-            ));
-        }
-        Err(Fallo::Error(d)) => return Err(error(d)),
+    if let Some(i) = aplicar_en(&mut vista, op)? {
+        return Ok(i);
     }
     let mensaje = mensaje(op.nombre(), &[anotacion.to_owned()]);
     let Some(sha) = construir_commit(
