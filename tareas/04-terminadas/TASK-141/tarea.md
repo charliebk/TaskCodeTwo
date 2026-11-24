@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-141-auditoria-4d-a3-plan-importar-y-alta-5-i
 asignado_a: charlie.bk@gmail.com
@@ -67,6 +67,7 @@ Corregidos los 5 IMPORTANTE del grupo A3.
 | 2026-11-24T19:50:50Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T19:50:54Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T21:11:24Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T22:27:32Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -85,3 +86,10 @@ Corregidos los 5 IMPORTANTE del grupo A3.
 ## Verificacion ligera
 
 - 2026-11-24T22:02:10Z: ronda 1; commit revisado 65a9b47af269e1b7ec3bd6ee34daace322bf0d0d; commit verificado 7dc870a79156e7964c31f86977d1c57078d998c2; ficheros: crates/tc2/src/alta.rs, crates/tc2/src/lectura.rs; corregidos: MEN-1, MEN-2, MEN-4; pendientes: MEN-3
+
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 157 min
+- Paso de la hora: 157 min reales frente a 210 estimados
+- Cierre (finish): 1510 s, de 2026-11-24T22:02:22Z a 2026-11-24T22:27:32Z
