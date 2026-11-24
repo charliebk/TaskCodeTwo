@@ -58,6 +58,7 @@
 //!   workflow ya no lo arma. Linea: `hallazgos ok revisora=<id> bytes=<n>
 //!   cortado=<si|no> abiertos=<si|no>`.
 
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -87,7 +88,6 @@ pub const TOPE_VALIDADOS: u64 = 4 * 1024 * 1024;
 /// Bytes que se leen como mucho de `--extra`.
 pub const TOPE_EXTRA: u64 = 64 * 1024;
 
-#[derive(Default)]
 struct Args {
     respuesta: Option<PathBuf>,
     diff: Option<PathBuf>,
@@ -114,29 +114,93 @@ fn es_revisora(t: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '.' | '_' | '-' | '/'))
 }
 
-fn args(a: &[String]) -> Result<Args, Informe> {
-    let mut r = Args::default();
+/// Las opciones de una suborden, por nombre, con sus valores en orden.
+struct Opciones(BTreeMap<&'static str, Vec<String>>);
+
+impl Opciones {
+    /// El valor de una opcion que va como mucho una vez.
+    fn una(&self, nombre: &str) -> Option<String> {
+        self.0.get(nombre).and_then(|v| v.first()).cloned()
+    }
+
+    /// El valor de una opcion unica, como ruta.
+    fn ruta(&self, nombre: &str) -> Option<PathBuf> {
+        self.una(nombre).map(PathBuf::from)
+    }
+
+    /// Los valores de una opcion repetible, como rutas, en el orden dado.
+    fn rutas(&self, nombre: &str) -> Vec<PathBuf> {
+        self.0
+            .get(nombre)
+            .map(|v| v.iter().map(PathBuf::from).collect())
+            .unwrap_or_default()
+    }
+}
+
+/// Analiza `--opcion valor` de una suborden: cada opcion lleva un valor; las
+/// de `unicas` van como mucho una vez y las de `repetibles`, las que se
+/// quiera. Una opcion que no es de ninguna, o una unica repetida (antes de
+/// leer su valor), es `argumento-desconocido`; una sin valor al final,
+/// `falta-valor`. Que el valor valga lo mira cada suborden despues.
+fn opciones(
+    a: &[String],
+    unicas: &[&'static str],
+    repetibles: &[&'static str],
+) -> Result<Opciones, Informe> {
+    let mut o: BTreeMap<&'static str, Vec<String>> = BTreeMap::new();
     let mut it = a.iter();
     while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--respuesta" if r.respuesta.is_none() => r.respuesta = Some(valor()?.into()),
-            "--diff" if r.diff.is_none() => r.diff = Some(valor()?.into()),
-            "--revisora" if r.revisora.is_none() => {
-                let v = valor()?;
-                if !es_revisora(&v) {
-                    return Err(uso("revisora-invalida"));
-                }
-                r.revisora = Some(v);
-            }
-            "--informe" if r.informe.is_none() => r.informe = Some(valor()?.into()),
-            "--salida" if r.salida.is_none() => r.salida = Some(valor()?.into()),
-            "--resumen" if r.resumen.is_none() => r.resumen = Some(valor()?.into()),
-            "--abiertos" if r.abiertos.is_none() => r.abiertos = Some(valor()?.into()),
-            "--prosa" if r.prosa.is_none() => r.prosa = Some(valor()?.into()),
-            _ => return Err(uso("argumento-desconocido")),
+        let Some(nombre) = unicas.iter().chain(repetibles).find(|n| **n == x.as_str()) else {
+            return Err(uso("argumento-desconocido"));
+        };
+        let valores = o.entry(nombre).or_default();
+        if unicas.contains(nombre) && !valores.is_empty() {
+            return Err(uso("argumento-desconocido"));
         }
+        valores.push(it.next().cloned().ok_or_else(|| uso("falta-valor"))?);
     }
+    Ok(Opciones(o))
+}
+
+/// `Err(motivo)` de uso si el valor de `nombre` esta y no cumple `vale`.
+fn comprobar(
+    o: &Opciones,
+    nombre: &str,
+    vale: fn(&str) -> bool,
+    motivo: &str,
+) -> Result<(), Informe> {
+    match o.una(nombre) {
+        Some(v) if !vale(&v) => Err(uso(motivo)),
+        _ => Ok(()),
+    }
+}
+
+fn args(a: &[String]) -> Result<Args, Informe> {
+    let o = opciones(
+        a,
+        &[
+            "--respuesta",
+            "--diff",
+            "--revisora",
+            "--informe",
+            "--salida",
+            "--resumen",
+            "--abiertos",
+            "--prosa",
+        ],
+        &[],
+    )?;
+    comprobar(&o, "--revisora", es_revisora, "revisora-invalida")?;
+    let r = Args {
+        respuesta: o.ruta("--respuesta"),
+        diff: o.ruta("--diff"),
+        revisora: o.una("--revisora"),
+        informe: o.ruta("--informe"),
+        salida: o.ruta("--salida"),
+        resumen: o.ruta("--resumen"),
+        abiertos: o.ruta("--abiertos"),
+        prosa: o.ruta("--prosa"),
+    };
     for (falta, motivo) in [
         (r.respuesta.is_none(), "sin-respuesta"),
         (r.diff.is_none(), "sin-diff"),
@@ -285,22 +349,10 @@ fn escribir_json(p: &Path, v: &serde_json::Value) -> Result<(), Informe> {
 }
 
 fn veredicto(a: &[String]) -> Result<Informe, Informe> {
-    let mut salida: Option<PathBuf> = None;
-    let mut extra: Option<PathBuf> = None;
-    let mut decision: Option<PathBuf> = None;
-    let mut entradas: Vec<PathBuf> = Vec::new();
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--hallazgos" => entradas.push(valor()?.into()),
-            "--salida" if salida.is_none() => salida = Some(valor()?.into()),
-            "--extra" if extra.is_none() => extra = Some(valor()?.into()),
-            "--ronda" if decision.is_none() => decision = Some(valor()?.into()),
-            _ => return Err(uso("argumento-desconocido")),
-        }
-    }
-    let Some(dir) = salida else {
+    let o = opciones(a, &["--salida", "--extra", "--ronda"], &["--hallazgos"])?;
+    let (extra, decision, entradas) =
+        (o.ruta("--extra"), o.ruta("--ronda"), o.rutas("--hallazgos"));
+    let Some(dir) = o.ruta("--salida") else {
         return Err(uso("sin-salida"));
     };
     let extra = match &extra {
@@ -433,17 +485,9 @@ fn leer_checks(ficheros: &[PathBuf]) -> Result<Vec<Vec<super::ronda::CheckRun>>,
 /// ronda anterior ([`super::ronda::elegir`]). Linea: `hallazgos ok
 /// anterior=<id>|ninguno [sha=<sha>] [avisos=...]`.
 fn anterior(a: &[String]) -> Result<Informe, Informe> {
-    let mut checks: Vec<PathBuf> = Vec::new();
-    let mut origen: Option<u64> = None;
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--check-runs" => checks.push(valor()?.into()),
-            "--origen" if origen.is_none() => origen = Some(id_de_app(&valor()?)?),
-            _ => return Err(uso("argumento-desconocido")),
-        }
-    }
+    let o = opciones(a, &["--origen"], &["--check-runs"])?;
+    let origen = o.una("--origen").as_deref().map(id_de_app).transpose()?;
+    let checks = o.rutas("--check-runs");
     let dir = carpeta_actual()?;
     let (origen, _, avisos) = origen_y_config(origen, &crate::git::Git::nuevo(), &dir);
     let commits = leer_checks(&checks)?;
@@ -486,33 +530,22 @@ fn extra_de_tarea(g: &crate::git::Git, dir: &Path, id: &str) -> Result<u32, Stri
 /// tarea. Linea: `hallazgos ok ronda=R modo=<m> anterior=<sha12|ninguno>
 /// abiertos=N tope=T avisos=<...>`.
 fn ronda(a: &[String]) -> Result<Informe, Informe> {
-    let (mut checks, mut anotaciones): (Vec<PathBuf>, Vec<PathBuf>) = (Vec::new(), Vec::new());
-    let (mut rutas, mut tarea, mut salida): (Option<PathBuf>, Option<String>, Option<PathBuf>) =
-        (None, None, None);
-    let mut origen: Option<u64> = None;
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--check-runs" => checks.push(valor()?.into()),
-            "--anotaciones" => anotaciones.push(valor()?.into()),
-            "--rutas" if rutas.is_none() => rutas = Some(valor()?.into()),
-            "--tarea" if tarea.is_none() => {
-                let v = valor()?;
-                if !crate::git::es_id(&v) {
-                    return Err(uso("id-invalido"));
-                }
-                tarea = Some(v);
-            }
-            "--origen" if origen.is_none() => origen = Some(id_de_app(&valor()?)?),
-            "--salida" if salida.is_none() => salida = Some(valor()?.into()),
-            _ => return Err(uso("argumento-desconocido")),
-        }
-    }
-    let Some(rutas) = rutas else {
+    let o = opciones(
+        a,
+        &["--rutas", "--tarea", "--origen", "--salida"],
+        &["--check-runs", "--anotaciones"],
+    )?;
+    comprobar(&o, "--tarea", crate::git::es_id, "id-invalido")?;
+    let origen = o.una("--origen").as_deref().map(id_de_app).transpose()?;
+    let (checks, anotaciones, tarea) = (
+        o.rutas("--check-runs"),
+        o.rutas("--anotaciones"),
+        o.una("--tarea"),
+    );
+    let Some(rutas) = o.ruta("--rutas") else {
         return Err(uso("sin-rutas"));
     };
-    let Some(dir_salida) = salida else {
+    let Some(dir_salida) = o.ruta("--salida") else {
         return Err(uso("sin-salida"));
     };
     let cambiados = rutas_nul(&rutas)?;
@@ -661,19 +694,10 @@ pub fn desde_incremental(
 /// ([`desde_incremental`]). Linea: `hallazgos ok desde=<oid>|base
 /// motivo=<directo|merge|no-ancestro|sin-merge-base|conflicto|git>`.
 fn desde(a: &[String]) -> Result<Informe, Informe> {
-    let (mut anterior, mut head, mut base): (Option<String>, Option<String>, Option<String>) =
-        (None, None, None);
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--anterior" if anterior.is_none() => anterior = Some(valor()?),
-            "--head" if head.is_none() => head = Some(valor()?),
-            "--base" if base.is_none() => base = Some(valor()?),
-            _ => return Err(uso("argumento-desconocido")),
-        }
-    }
-    let (Some(anterior), Some(head), Some(base)) = (anterior, head, base) else {
+    let o = opciones(a, &["--anterior", "--head", "--base"], &[])?;
+    let (Some(anterior), Some(head), Some(base)) =
+        (o.una("--anterior"), o.una("--head"), o.una("--base"))
+    else {
         return Err(uso("faltan-argumentos"));
     };
     if !es_sha(&anterior) || !es_sha(&head) {
@@ -714,19 +738,10 @@ struct Detalle {
 /// ([`super::ronda::repartir`]). Linea: `hallazgos ok revisoras=N
 /// abiertos=M sin-revisora=K`.
 fn abiertos(a: &[String]) -> Result<Informe, Informe> {
-    let (mut r, mut detalle, mut salida): (Option<PathBuf>, Option<PathBuf>, Option<PathBuf>) =
-        (None, None, None);
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        match x.as_str() {
-            "--ronda" if r.is_none() => r = Some(valor()?.into()),
-            "--detalle" if detalle.is_none() => detalle = Some(valor()?.into()),
-            "--salida" if salida.is_none() => salida = Some(valor()?.into()),
-            _ => return Err(uso("argumento-desconocido")),
-        }
-    }
-    let (Some(r), Some(detalle), Some(dir)) = (r, detalle, salida) else {
+    let o = opciones(a, &["--ronda", "--detalle", "--salida"], &[])?;
+    let (Some(r), Some(detalle), Some(dir)) =
+        (o.ruta("--ronda"), o.ruta("--detalle"), o.ruta("--salida"))
+    else {
         return Err(uso("faltan-argumentos"));
     };
     let d = leer_decision(&r)?;
@@ -757,49 +772,37 @@ pub const TOPE_SKILL: u64 = 4 * 1024 * 1024;
 
 /// `prompt ...`: el prompt de una revisora ([`super::prompt::componer`]).
 fn prompt(a: &[String]) -> Result<Informe, Informe> {
-    let mut rutas: [Option<PathBuf>; 6] = Default::default();
-    let (mut revisora, mut bytes, mut tope): (Option<String>, Option<u64>, Option<u64>) =
-        (None, None, None);
-    let numero = |v: String| v.parse::<u64>().map_err(|_| uso("numero-invalido"));
-    let mut it = a.iter();
-    while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
-        let k = match x.as_str() {
-            "--contexto" => 0,
-            "--skill" => 1,
-            "--seccion" => 2,
-            "--abiertos" => 3,
-            "--diff" => 4,
-            "--salida" => 5,
-            "--revisora" if revisora.is_none() => {
-                let v = valor()?;
-                if !es_revisora(&v) {
-                    return Err(uso("revisora-invalida"));
-                }
-                revisora = Some(v);
-                continue;
-            }
-            "--bytes" if bytes.is_none() => {
-                bytes = Some(numero(valor()?)?);
-                continue;
-            }
-            "--tope" if tope.is_none() => {
-                tope = Some(numero(valor()?)?);
-                continue;
-            }
-            _ => return Err(uso("argumento-desconocido")),
-        };
-        if rutas.get(k).is_some_and(Option::is_some) {
-            return Err(uso("argumento-desconocido"));
-        }
-        if let Some(r) = rutas.get_mut(k) {
-            *r = Some(valor()?.into());
-        }
-    }
-    let [contexto, skill, seccion, abiertos, diff, salida] = rutas;
-    let (Some(revisora), Some(contexto), Some(diff), Some(bytes), Some(tope), Some(salida)) =
-        (revisora, contexto, diff, bytes, tope, salida)
-    else {
+    let o = opciones(
+        a,
+        &[
+            "--contexto",
+            "--skill",
+            "--seccion",
+            "--abiertos",
+            "--diff",
+            "--salida",
+            "--revisora",
+            "--bytes",
+            "--tope",
+        ],
+        &[],
+    )?;
+    comprobar(&o, "--revisora", es_revisora, "revisora-invalida")?;
+    let numero = |n: &str| {
+        o.una(n)
+            .map(|v| v.parse::<u64>().map_err(|_| uso("numero-invalido")))
+            .transpose()
+    };
+    let (bytes, tope) = (numero("--bytes")?, numero("--tope")?);
+    let (skill, seccion, abiertos) = (o.ruta("--skill"), o.ruta("--seccion"), o.ruta("--abiertos"));
+    let (Some(revisora), Some(contexto), Some(diff), Some(bytes), Some(tope), Some(salida)) = (
+        o.una("--revisora"),
+        o.ruta("--contexto"),
+        o.ruta("--diff"),
+        bytes,
+        tope,
+        o.ruta("--salida"),
+    ) else {
         return Err(uso("faltan-argumentos"));
     };
     let opcional =

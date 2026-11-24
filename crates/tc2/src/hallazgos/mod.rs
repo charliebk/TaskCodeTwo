@@ -629,6 +629,47 @@ struct Fallo {
     detalle: String,
 }
 
+impl Fallo {
+    /// El rechazo de la entrada `indice` de la respuesta.
+    fn rechazo(self, indice: usize) -> Rechazo {
+        Rechazo {
+            indice: Some(indice),
+            id: self.id,
+            motivo: self.motivo,
+            detalle: self.detalle,
+        }
+    }
+}
+
+/// Las `TOPE_HALLAZGOS` primeras entradas de `lista` y, si sobran, un unico
+/// rechazo `fuera-de-tope` con el indice de la primera que sobra (las de
+/// `lista` se numeran desde `primero`); `que` las nombra en el detalle.
+fn cortar<'a>(lista: &'a [Value], primero: usize, que: &str) -> (&'a [Value], Option<Rechazo>) {
+    let (dentro, fuera) = lista.split_at(lista.len().min(TOPE_HALLAZGOS));
+    let rechazo = (!fuera.is_empty()).then(|| Rechazo {
+        indice: Some(primero + TOPE_HALLAZGOS),
+        id: None,
+        motivo: motivo::FUERA_DE_TOPE,
+        detalle: format!("{} {que} pasan del tope de {TOPE_HALLAZGOS}", fuera.len()),
+    });
+    (dentro, rechazo)
+}
+
+/// El constructor de los `Fallo` de un hallazgo o un cierre: con su `id` si
+/// lo trae y es valido, para que el rechazo lo nombre.
+fn fallo_de(v: &Value) -> impl Fn(&'static str, String) -> Fallo + use<> {
+    let id = v
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| es_id(s))
+        .map(str::to_owned);
+    move |motivo, detalle| Fallo {
+        id: id.clone(),
+        motivo,
+        detalle,
+    }
+}
+
 /// Que la evidencia traiga los campos de su tipo, llenos, y ninguno ajeno.
 fn evidencia_completa(e: &Evidencia) -> Result<(), String> {
     let texto = |o: &Option<String>| o.as_deref().map(no_vacio);
@@ -692,16 +733,7 @@ fn validar_uno(
             detalle: "el hallazgo no es un objeto".to_owned(),
         });
     };
-    let id = obj
-        .get("id")
-        .and_then(Value::as_str)
-        .filter(|s| es_id(s))
-        .map(str::to_owned);
-    let fallo = |motivo: &'static str, detalle: String| Fallo {
-        id: id.clone(),
-        motivo,
-        detalle,
-    };
+    let fallo = fallo_de(h);
     let evidencia = match obj.get("evidencia") {
         None | Some(Value::Null) => {
             return Err(fallo(
@@ -825,16 +857,7 @@ fn validar_cierre<'a>(
     abiertos: &'a [AceptadoDe],
     vistos: &mut BTreeSet<String>,
 ) -> Result<(Cierre, Vec<&'a AceptadoDe>), Fallo> {
-    let id = c
-        .get("id")
-        .and_then(Value::as_str)
-        .filter(|s| es_id(s))
-        .map(str::to_owned);
-    let fallo = |motivo: &'static str, detalle: String| Fallo {
-        id: id.clone(),
-        motivo,
-        detalle,
-    };
+    let fallo = fallo_de(c);
     let c: Cierre = serde_json::from_value(c.clone())
         .map_err(|e| fallo(motivo::HALLAZGO_INVALIDO, format!("cierre: {e}")))?;
     if !es_id(&c.id) || c.linea == 0 || !no_vacio(&c.fichero) || !no_vacio(&c.motivo) {
@@ -953,44 +976,17 @@ pub fn validar_con(
     };
     // Los ids de los abiertos no se reutilizan: un cierre los nombra.
     let mut vistos: BTreeSet<String> = abiertos.iter().map(|a| a.hallazgo.id.clone()).collect();
-    for (i, h) in lista.iter().enumerate() {
-        if i >= TOPE_HALLAZGOS {
-            v.rechazados.push(Rechazo {
-                indice: Some(i),
-                id: None,
-                motivo: motivo::FUERA_DE_TOPE,
-                detalle: format!(
-                    "{} hallazgos pasan del tope de {TOPE_HALLAZGOS}",
-                    lista.len() - TOPE_HALLAZGOS
-                ),
-            });
-            break;
-        }
+    let (dentro, sobran) = cortar(&lista, 0, "hallazgos");
+    for (i, h) in dentro.iter().enumerate() {
         match validar_uno(h, diff, informe, &mut vistos) {
             Ok(a) => v.aceptados.push(a),
-            Err(f) => v.rechazados.push(Rechazo {
-                indice: Some(i),
-                id: f.id,
-                motivo: f.motivo,
-                detalle: f.detalle,
-            }),
+            Err(f) => v.rechazados.push(f.rechazo(i)),
         }
     }
+    v.rechazados.extend(sobran);
     let mut cerrados_vistos = BTreeSet::new();
-    for (j, c) in cierres.iter().enumerate() {
-        let indice = lista.len() + j;
-        if j >= TOPE_HALLAZGOS {
-            v.rechazados.push(Rechazo {
-                indice: Some(indice),
-                id: None,
-                motivo: motivo::FUERA_DE_TOPE,
-                detalle: format!(
-                    "{} cierres pasan del tope de {TOPE_HALLAZGOS}",
-                    cierres.len() - TOPE_HALLAZGOS
-                ),
-            });
-            break;
-        }
+    let (dentro, sobran) = cortar(&cierres, lista.len(), "cierres");
+    for (j, c) in dentro.iter().enumerate() {
         match validar_cierre(c, diff, informe, abiertos, &mut cerrados_vistos) {
             Ok((c, cerrados)) => {
                 for a in cerrados {
@@ -1004,14 +1000,10 @@ pub fn validar_con(
                     });
                 }
             }
-            Err(f) => v.rechazados.push(Rechazo {
-                indice: Some(indice),
-                id: f.id,
-                motivo: f.motivo,
-                detalle: f.detalle,
-            }),
+            Err(f) => v.rechazados.push(f.rechazo(lista.len() + j)),
         }
     }
+    v.rechazados.extend(sobran);
     v
 }
 
@@ -1178,6 +1170,25 @@ pub fn prosa(revisora: &str, respuesta: &str) -> String {
     }
 }
 
+/// Las seis celdas de un hallazgo en una tabla Markdown (id, severidad,
+/// clase, fichero, linea y descripcion), con el texto del modelo por
+/// [`plano`] y sus topes; cada tabla pone sus columnas propias entre ellas.
+fn celdas(h: &Aceptado) -> [String; 6] {
+    [
+        plano(&h.id, 64),
+        h.severidad.texto().to_owned(),
+        h.clase.texto().to_owned(),
+        plano(&h.fichero, 200),
+        h.linea.to_string(),
+        plano(&h.descripcion, 400),
+    ]
+}
+
+/// Una fila de tabla Markdown con esas celdas, ya pasadas por [`plano`].
+fn fila(celdas: &[String]) -> String {
+    format!("| {} |\n", celdas.join(" | "))
+}
+
 /// La seccion del check `revision-ia` para una revisora: las tablas de
 /// aceptados y rechazados, con todo el texto del modelo pasado por
 /// [`plano`].
@@ -1191,16 +1202,17 @@ pub fn resumen_markdown(v: &Validados) -> String {
     if !v.aceptados.is_empty() {
         s.push_str("| id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|\n");
         for a in &v.aceptados {
-            s.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {} | {} |\n",
-                plano(&a.id, 64),
-                a.severidad.texto(),
-                a.clase.texto(),
-                plano(&a.fichero, 200),
-                a.linea,
-                a.evidencia.tipo.texto(),
-                plano(&a.descripcion, 400)
-            ));
+            let [id, severidad, clase, fichero, linea, descripcion] = celdas(a);
+            let evidencia = a.evidencia.tipo.texto().to_owned();
+            s.push_str(&fila(&[
+                id,
+                severidad,
+                clase,
+                fichero,
+                linea,
+                evidencia,
+                descripcion,
+            ]));
         }
         s.push('\n');
     }
@@ -1865,19 +1877,19 @@ impl InformeTarea {
             );
             for a in &self.aceptados {
                 let h = &a.hallazgo;
-                s.push_str(&format!(
-                    "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                let [id, severidad, clase, fichero, linea, descripcion] = celdas(h);
+                s.push_str(&fila(&[
                     plano(&a.revisora, 120),
-                    a.ronda,
-                    a.estado.texto(),
-                    plano(&h.id, 64),
-                    h.severidad.texto(),
-                    h.clase.texto(),
-                    plano(&h.fichero, 200),
-                    h.linea,
-                    h.evidencia.tipo.texto(),
-                    plano(&h.descripcion, 400)
-                ));
+                    a.ronda.to_string(),
+                    a.estado.texto().to_owned(),
+                    id,
+                    severidad,
+                    clase,
+                    fichero,
+                    linea,
+                    h.evidencia.tipo.texto().to_owned(),
+                    descripcion,
+                ]));
             }
         }
         s
@@ -2424,6 +2436,21 @@ mod tests {
         );
         assert_eq!(v.motivos(), ["I1:id-repetido"]);
         assert_eq!(v.cierres.len(), 1);
+        // Mas de TOPE_HALLAZGOS cierres: los que sobran, un rechazo con el
+        // indice del primero que pasa (sin hallazgos, el del cierre 100).
+        let muchos = vec![cierre("I1", 12); TOPE_HALLAZGOS + 1];
+        let v = validar_con("r", &con(&muchos), &d, Some(&informe), &abiertos);
+        let motivos = v.motivos();
+        assert_eq!(
+            motivos.last(),
+            Some(&format!("#{TOPE_HALLAZGOS}:fuera-de-tope"))
+        );
+        assert_eq!(motivos.len(), TOPE_HALLAZGOS, "{motivos:?}");
+        assert_eq!(
+            v.rechazados.last().map(|r| r.detalle.as_str()),
+            Some(format!("1 cierres pasan del tope de {TOPE_HALLAZGOS}").as_str())
+        );
+        assert_eq!(v.cierres.len(), 1);
         // MEN-4 (rust) de la ronda 1: sin `hallazgos` (como sin `cierres`),
         // es una lista vacia y el cierre valido no se pierde.
         let solo_cierres = format!("```json\n{{\"cierres\": [{}]}}\n```", cierre("I1", 12));
@@ -2452,6 +2479,60 @@ mod tests {
         let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
         assert_eq!(v.rechazados[0].indice, Some(1));
         assert_eq!(v.aceptados.len(), 1);
+        // MEN-1 de la revision: con un hallazgo delante, el rechazo del tope
+        // de cierres lleva el indice detras de los hallazgos (1 + 100).
+        let r = format!(
+            "```json\n{{\"hallazgos\": [{BORDE}], \"cierres\": [{}]}}\n```",
+            muchos.join(",")
+        );
+        let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
+        assert_eq!(v.aceptados.len(), 1);
+        assert_eq!(
+            v.motivos().last(),
+            Some(&format!("#{}:fuera-de-tope", 1 + TOPE_HALLAZGOS))
+        );
+    }
+
+    /// A2-04: la fila de un hallazgo sale entera, con el texto por `plano`,
+    /// en la tabla del check y en la de los abiertos del prompt (la del
+    /// informe de la tarea la fija `tests/revision.rs`).
+    #[test]
+    fn la_fila_de_un_hallazgo_sale_entera_en_cada_tabla() {
+        let mut a = abierto("I1", "IMPORTANTE", 12, EV_BORDE);
+        a.ronda = 2;
+        a.hallazgo.descripcion = "falta | algo".to_owned();
+        let v = Validados {
+            version: VERSION,
+            revisora: "r".to_owned(),
+            aceptados: vec![a.hallazgo.clone()],
+            rechazados: Vec::new(),
+            cierres: Vec::new(),
+        };
+        let md = resumen_markdown(&v);
+        assert!(
+            md.contains("\n| I1 | IMPORTANTE | correccion | src/calculo.rs | 12 | borde | falta \\| algo |\n"),
+            "{md}"
+        );
+        let md = ronda::abiertos_markdown(&[a]);
+        assert!(
+            md.ends_with(
+                "\n| I1 | 2 | IMPORTANTE | correccion | src/calculo.rs | 12 | falta \\| algo |\n"
+            ),
+            "{md}"
+        );
+        // MEN-2 de la revision: los topes de las celdas (id 64, fichero 200,
+        // descripcion 400); con uno mas, se recortan con `…`.
+        let mut h = v.aceptados[0].clone();
+        h.id = "a".repeat(65);
+        h.fichero = "b".repeat(201);
+        h.descripcion = "c".repeat(401);
+        let esperado = format!(
+            "| {}… | IMPORTANTE | correccion | {}… | 12 | {}… |\n",
+            "a".repeat(64),
+            "b".repeat(200),
+            "c".repeat(400)
+        );
+        assert_eq!(fila(&celdas(&h)), esperado);
     }
 
     /// MEN-1 (rust) de la ronda 1: el informe de la tarea cuenta nuevos,
@@ -2494,6 +2575,8 @@ mod tests {
         assert_eq!(d.modo, ronda::Modo::Ligera);
         let v = veredicto_ronda(&[], Some(&d));
         assert_eq!((v.nuevos, v.persisten, v.cerrados), (0, 1, 1));
+        // Ligera sin filas: la ronda no sube y sale verde.
+        assert_eq!(v.dictamen, Dictamen::Verde);
         cuenta(&v);
         // Incremental con un nuevo: ese cuenta como nuevo y M2 persiste.
         let d = ronda::decidir(
@@ -2516,7 +2599,10 @@ mod tests {
         rojo.abiertos
             .push(abierto("I1", "IMPORTANTE", 12, EV_BORDE));
         let d = ronda::decidir(Some(&rojo), &[], 2, false);
-        cuenta(&veredicto_ronda(&[], Some(&d)));
+        let v = veredicto_ronda(&[], Some(&d));
+        // Tope con un IMPORTANTE abierto: nunca verde (la puerta no pasa).
+        assert_eq!((v.modo, v.dictamen), (ronda::Modo::Tope, Dictamen::Tope));
+        cuenta(&v);
     }
 
     /// F6-6, criterio 2: lo publicado por F6-5 (v2) se sigue leyendo: un
