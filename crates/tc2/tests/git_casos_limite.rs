@@ -161,9 +161,18 @@ exit 1
     assert_eq!(f.crudo(&bare, &["rev-parse", "develop"]), develop);
     let i = git::actualizar_rama(&g, &wt, &[std::time::Duration::ZERO; 2]);
     contrato(&i);
-    assert_eq!(i.resultado, Resultado::Denegada, "{}", i.linea());
-    assert_eq!(i.valor("motivo"), Some("remoto-rechaza"));
-    assert_eq!(i.valor("intentos"), Some("1"));
+    // La linea y el diagnostico enteros (TASK-142, A4-04: el informe de un
+    // publicar fallido es uno solo para push, tag-anotado y actualizar-rama).
+    assert_eq!(
+        i.linea(),
+        "actualizar-rama denegada rama=feature/task-007-login motivo=remoto-rechaza intentos=1"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.starts_with("push: [remote rejected] ")
+            && stderr.contains("; la rama esta actualizada en local; "),
+        "{stderr}"
+    );
 }
 
 #[test]

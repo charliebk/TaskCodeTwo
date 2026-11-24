@@ -158,11 +158,24 @@ pub(crate) fn que_hacer_al_publicar(r: Resultado) -> &'static Texto {
     }
 }
 
-/// «push: `ultimo`; que hacer».
-fn push_fallo(ultimo: String, r: Resultado) -> Mensaje {
-    Mensaje::nuevo(&txt::PUSH_FALLO)
-        .con("ultimo", ultimo)
-        .con_mensaje("que_hacer", que_hacer_al_publicar(r))
+/// Informe de un [`publicar`] que no salio: su resultado, `clave`, el
+/// `motivo` de una `denegada` o un `error` local, los intentos y el
+/// diagnostico `texto` con el ultimo fallo y que hacer.
+pub(crate) fn informe_publicacion(
+    op: &str,
+    p: Publicacion,
+    clave: (&str, &str),
+    texto: &'static Texto,
+) -> Informe {
+    let mut i = Informe::nuevo(op, p.resultado).con(clave.0, clave.1);
+    if matches!(p.resultado, Resultado::Denegada | Resultado::Error) {
+        i = i.con("motivo", p.motivo);
+    }
+    i.con("intentos", p.intentos.to_string()).diagnostico(
+        Mensaje::nuevo(texto)
+            .con("ultimo", p.ultimo)
+            .con_mensaje("que_hacer", que_hacer_al_publicar(p.resultado)),
+    )
 }
 
 /// Trae el remoto. Nada nuevo → `sin-cambios`; sin red → `sinred`; remoto
@@ -378,23 +391,16 @@ fn push_paso(git: &Git, dir: &Path, op: &str, esperas: &[Duration]) -> Paso<Info
     let head = commit_de(git, dir, op, "HEAD")?.unwrap_or_default();
     let refspec = format!("refs/heads/{rama}:refs/heads/{rama}");
     let p = publicar(git, dir, op, &refspec, esperas)?;
-    let (r, intentos, ultimo) = (p.resultado, p.intentos, p.ultimo);
-    let i = Informe::nuevo(op, r).con("rama", rama.as_str());
-    Ok(match r {
+    let i = Informe::nuevo(op, p.resultado).con("rama", rama.as_str());
+    Ok(match p.resultado {
         Resultado::Ok => i
             .con("commit", corto(&head))
-            .con("intentos", intentos.to_string()),
+            .con("intentos", p.intentos.to_string()),
         Resultado::SinCambios => i.con("commit", corto(&head)),
         Resultado::Rechazada => i
             .con("motivo", "no-fast-forward")
             .diagnostico(&txt::LANZA_ACTUALIZAR_RAMA),
-        Resultado::Denegada | Resultado::Error => i
-            .con("motivo", p.motivo)
-            .con("intentos", intentos.to_string())
-            .diagnostico(push_fallo(ultimo, r)),
-        _ => i
-            .con("intentos", intentos.to_string())
-            .diagnostico(push_fallo(ultimo, r)),
+        _ => informe_publicacion(op, p, ("rama", &rama), &txt::PUSH_FALLO),
     })
 }
 
@@ -516,8 +522,7 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
     if hay_remota && !es_ancestro(git, dir, OP, "HEAD", &remota)? {
         let refspec = format!("refs/heads/{rama}:refs/heads/{rama}");
         let p = publicar(git, dir, OP, &refspec, esperas)?;
-        let (r, intentos, ultimo) = (p.resultado, p.intentos, p.ultimo);
-        match r {
+        match p.resultado {
             Resultado::Ok | Resultado::SinCambios => publicada = true,
             Resultado::Rechazada => {
                 return Ok(Informe::nuevo(OP, Resultado::Rechazada)
@@ -525,16 +530,12 @@ fn actualizar(git: &Git, dir: &Path, esperas: &[Duration]) -> Paso<Informe> {
                     .con("motivo", "no-fast-forward")
                     .diagnostico(&txt::PUBLICARON_ENTRE_MEDIAS));
             }
-            otro => {
-                let que_hacer = que_hacer_al_publicar(otro);
-                let mut i = Informe::nuevo(OP, otro).con("rama", rama.as_str());
-                if matches!(otro, Resultado::Denegada | Resultado::Error) {
-                    i = i.con("motivo", p.motivo);
-                }
-                return Ok(i.con("intentos", intentos.to_string()).diagnostico(
-                    Mensaje::nuevo(&txt::PUSH_FALLO_ACTUALIZADA_EN_LOCAL)
-                        .con("ultimo", ultimo)
-                        .con_mensaje("que_hacer", que_hacer),
+            _ => {
+                return Ok(informe_publicacion(
+                    OP,
+                    p,
+                    ("rama", &rama),
+                    &txt::PUSH_FALLO_ACTUALIZADA_EN_LOCAL,
                 ));
             }
         }
