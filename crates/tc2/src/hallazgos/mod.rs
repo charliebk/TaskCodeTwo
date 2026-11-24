@@ -2509,6 +2509,8 @@ mod tests {
         assert_eq!(d.modo, ronda::Modo::Ligera);
         let v = veredicto_ronda(&[], Some(&d));
         assert_eq!((v.nuevos, v.persisten, v.cerrados), (0, 1, 1));
+        // Ligera sin filas: la ronda no sube y sale verde.
+        assert_eq!(v.dictamen, Dictamen::Verde);
         cuenta(&v);
         // Incremental con un nuevo: ese cuenta como nuevo y M2 persiste.
         let d = ronda::decidir(
@@ -2531,7 +2533,10 @@ mod tests {
         rojo.abiertos
             .push(abierto("I1", "IMPORTANTE", 12, EV_BORDE));
         let d = ronda::decidir(Some(&rojo), &[], 2, false);
-        cuenta(&veredicto_ronda(&[], Some(&d)));
+        let v = veredicto_ronda(&[], Some(&d));
+        // Tope con un IMPORTANTE abierto: nunca verde (la puerta no pasa).
+        assert_eq!((v.modo, v.dictamen), (ronda::Modo::Tope, Dictamen::Tope));
+        cuenta(&v);
     }
 
     /// F6-6, criterio 2: lo publicado por F6-5 (v2) se sigue leyendo: un
