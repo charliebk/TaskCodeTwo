@@ -6,7 +6,7 @@
 use std::path::{Component, Path};
 
 use super::remoto::{merge_abierto, sin_resolver};
-use super::{Git, Paso, Subcomando, commit_de, entradas_status, exigir};
+use super::{Git, Paso, Subcomando, commit_de, entradas_status, exigir, registros_status};
 use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -154,21 +154,13 @@ fn repartir<'a>(
 }
 
 /// Como [`entradas_status`], pero un renombrado tambien aporta su ruta de
-/// origen, como borrada en el indice (`D `).
+/// origen, como borrada en el indice (`D `). La copia (`C`) tambien trae el
+/// origen, pero el origen sigue ahi.
 fn entradas_con_origen(salida: &str) -> Vec<(String, String)> {
     let mut v = Vec::new();
-    let mut campos = salida.split('\0').filter(|c| !c.is_empty());
-    while let Some(c) = campos.next() {
-        let xy = c.get(..2).unwrap_or(c).to_owned();
-        let ruta = c.get(3..).unwrap_or("").to_owned();
-        // La copia (`C`) tambien trae el origen, pero el origen sigue ahi.
-        let origen = if xy.starts_with('R') || xy.starts_with('C') {
-            campos.next()
-        } else {
-            None
-        };
+    for (xy, ruta, origen) in registros_status(salida) {
         if let (Some(o), true) = (origen, xy.starts_with('R')) {
-            v.push(("D ".to_owned(), o.to_owned()));
+            v.push(("D ".to_owned(), o));
         }
         v.push((xy, ruta));
     }
@@ -223,7 +215,23 @@ fn relativa_a_la_raiz(prefijo: &str, ruta: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::relativa_a_la_raiz;
+    use super::{entradas_con_origen, relativa_a_la_raiz};
+
+    /// Un renombrado (`R`) aporta su origen como `D `; una copia (`C`), no.
+    #[test]
+    fn el_origen_cuenta_solo_en_los_renombrados() {
+        let s = "R  nuevo.txt\0viejo.txt\0C  copia.txt\0orig.txt\0 M a.txt\0";
+        let par = |xy: &str, r: &str| (xy.to_owned(), r.to_owned());
+        assert_eq!(
+            entradas_con_origen(s),
+            vec![
+                par("D ", "viejo.txt"),
+                par("R ", "nuevo.txt"),
+                par("C ", "copia.txt"),
+                par(" M", "a.txt"),
+            ]
+        );
+    }
 
     #[test]
     fn rutas_relativas_a_la_raiz() {

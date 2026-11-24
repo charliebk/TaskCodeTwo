@@ -226,20 +226,32 @@ fn normalizar(p: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Entradas de `git status --porcelain -z`: (estado XY, ruta). Las de
-/// renombrado traen un segundo campo (la ruta de origen) que se salta.
-pub(crate) fn entradas_status(salida: &str) -> Vec<(String, String)> {
+/// Registros de `git status --porcelain -z`: (estado XY, ruta, origen). Las
+/// de renombrado (`R`) y copia (`C`) traen un segundo campo, la ruta de
+/// origen.
+pub(crate) fn registros_status(salida: &str) -> Vec<(String, String, Option<String>)> {
     let mut v = Vec::new();
     let mut campos = salida.split('\0').filter(|c| !c.is_empty());
     while let Some(c) = campos.next() {
         let xy = c.get(..2).unwrap_or(c).to_owned();
         let ruta = c.get(3..).unwrap_or("").to_owned();
-        if xy.starts_with('R') || xy.starts_with('C') {
-            campos.next();
-        }
-        v.push((xy, ruta));
+        let origen = if xy.starts_with('R') || xy.starts_with('C') {
+            campos.next().map(str::to_owned)
+        } else {
+            None
+        };
+        v.push((xy, ruta, origen));
     }
     v
+}
+
+/// Entradas de `git status --porcelain -z`: (estado XY, ruta), sin la ruta
+/// de origen de los renombrados y las copias.
+pub(crate) fn entradas_status(salida: &str) -> Vec<(String, String)> {
+    registros_status(salida)
+        .into_iter()
+        .map(|(xy, ruta, _)| (xy, ruta))
+        .collect()
 }
 
 /// `TASK-NNN` con al menos tres cifras.
@@ -264,14 +276,25 @@ mod tests {
 
     #[test]
     fn status_z_con_renombrado_y_espacios() {
-        let s = " M a b.txt\0R  nuevo.txt\0viejo.txt\0?? d/\0";
+        let s = " M a b.txt\0R  nuevo.txt\0viejo.txt\0C  copia.txt\0orig.txt\0?? d/\0";
         let e = entradas_status(s);
         assert_eq!(
             e,
             vec![
                 (" M".to_owned(), "a b.txt".to_owned()),
                 ("R ".to_owned(), "nuevo.txt".to_owned()),
+                ("C ".to_owned(), "copia.txt".to_owned()),
                 ("??".to_owned(), "d/".to_owned()),
+            ]
+        );
+        let origenes: Vec<Option<String>> = registros_status(s).into_iter().map(|r| r.2).collect();
+        assert_eq!(
+            origenes,
+            vec![
+                None,
+                Some("viejo.txt".to_owned()),
+                Some("orig.txt".to_owned()),
+                None
             ]
         );
     }
