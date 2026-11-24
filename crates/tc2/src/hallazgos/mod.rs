@@ -2479,6 +2479,18 @@ mod tests {
         let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
         assert_eq!(v.rechazados[0].indice, Some(1));
         assert_eq!(v.aceptados.len(), 1);
+        // MEN-1 de la revision: con un hallazgo delante, el rechazo del tope
+        // de cierres lleva el indice detras de los hallazgos (1 + 100).
+        let r = format!(
+            "```json\n{{\"hallazgos\": [{BORDE}], \"cierres\": [{}]}}\n```",
+            muchos.join(",")
+        );
+        let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
+        assert_eq!(v.aceptados.len(), 1);
+        assert_eq!(
+            v.motivos().last(),
+            Some(&format!("#{}:fuera-de-tope", 1 + TOPE_HALLAZGOS))
+        );
     }
 
     /// A2-04: la fila de un hallazgo sale entera, con el texto por `plano`,
@@ -2508,6 +2520,19 @@ mod tests {
             ),
             "{md}"
         );
+        // MEN-2 de la revision: los topes de las celdas (id 64, fichero 200,
+        // descripcion 400); con uno mas, se recortan con `…`.
+        let mut h = v.aceptados[0].clone();
+        h.id = "a".repeat(65);
+        h.fichero = "b".repeat(201);
+        h.descripcion = "c".repeat(401);
+        let esperado = format!(
+            "| {}… | IMPORTANTE | correccion | {}… | 12 | {}… |\n",
+            "a".repeat(64),
+            "b".repeat(200),
+            "c".repeat(400)
+        );
+        assert_eq!(fila(&celdas(&h)), esperado);
     }
 
     /// MEN-1 (rust) de la ronda 1: el informe de la tarea cuenta nuevos,
