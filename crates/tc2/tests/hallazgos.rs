@@ -906,6 +906,19 @@ fn el_diff_incremental_no_arrastra_lo_que_trae_la_base() {
         tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &b, &ajeno),
         (None, "no-ancestro")
     );
+    // La base toca la misma zona de pr.rs que A y la rama la trae con
+    // `-X ours`: el arbol de A con lo de la base tiene conflictos, falla en
+    // cerrado (`None`, se revisa todo el PR).
+    f.crudo(&r, &["checkout", "-q", "develop"]);
+    comun::escribir(&r, "pr.rs", "1\nchoca\n");
+    commit("develop choca con A");
+    f.crudo(&r, &["checkout", "-q", "feat"]);
+    f.crudo(&r, &["merge", "-q", "--no-edit", "-X", "ours", "develop"]);
+    let c = f.crudo(&r, &["rev-parse", "HEAD"]).trim().to_owned();
+    assert_eq!(
+        tc2::hallazgos::orden::desde_incremental(&g, &r, "develop", &a, &c),
+        (None, "conflicto")
+    );
     comun::registro_permitido(&g.registro());
     // La orden: argumentos que no son un SHA o una ref, uso.
     let (codigo, _, stderr) = hallazgos(&[
