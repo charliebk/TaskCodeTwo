@@ -6,50 +6,25 @@
 
 mod comun;
 
+use comun::adaptadores;
 use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::conexion::MAX_PAGINAS;
-use tc2::plataforma::http::Base;
-use tc2::plataforma::{
-    CredencialesFijas, GitHub, GitLab, Personas, Plataforma, PrAbierto, Rol, Secreto,
-};
+use tc2::plataforma::{Personas, Plataforma, PrAbierto, Rol};
 
 const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SHA_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const SHA_C: &str = "cccccccccccccccccccccccccccccccccccccccc";
 const GH: &str = "/repos/o/r/pulls";
 const GL: &str = "/api/v4/projects/7/merge_requests";
-
-fn credenciales(roles: &[Rol]) -> Box<CredencialesFijas> {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo("token-de-prueba"));
-    }
-    Box::new(c)
-}
+const TOKEN: &str = "token-de-prueba";
 
 fn github(base: &str, roles: &[Rol]) -> Box<dyn Plataforma> {
-    Box::new(
-        GitHub::nuevo(
-            Base::nueva(base).unwrap(),
-            "o/r",
-            credenciales(roles),
-            Personas::default(),
-        )
-        .unwrap(),
-    )
+    Box::new(adaptadores::github(base, TOKEN, roles, Personas::default()))
 }
 
 fn gitlab(base: &str, roles: &[Rol]) -> Box<dyn Plataforma> {
-    Box::new(
-        GitLab::nuevo(
-            Base::nueva(&format!("{base}/api/v4")).unwrap(),
-            "7",
-            credenciales(roles),
-            Personas::default(),
-        )
-        .unwrap(),
-    )
+    Box::new(adaptadores::gitlab(base, TOKEN, roles, Personas::default()))
 }
 
 /// Un PR de GitHub; `fork` pone la cabeza en otro repo.
@@ -59,6 +34,9 @@ fn pr_gh(n: u64, rama: &str, sha: &str, draft: bool, fork: bool) -> String {
         r#"{{"number":{n},"draft":{draft},"title":"t","head":{{"ref":"{rama}","sha":"{sha}","repo":{{"id":{cabeza}}}}},"base":{{"ref":"develop","sha":"{SHA_C}","repo":{{"id":1}}}}}}"#
     )
 }
+
+/// Un PR o MR de la lista de abiertos: [`pr_gh`] o [`mr_gl`].
+type Uno = fn(u64, &str, &str, bool, bool) -> String;
 
 /// Un MR de GitLab; `fork` pone el origen en otro proyecto.
 fn mr_gl(n: u64, rama: &str, sha: &str, draft: bool, fork: bool) -> String {
@@ -86,8 +64,9 @@ fn esperados() -> Vec<PrAbierto> {
 }
 
 /// Dos paginas (por `Link rel=next`), un PR de fork con el mismo nombre de
-/// rama que no cuenta, un borrador y orden por numero: la misma lista en
-/// GitHub y en GitLab, con el rol `agente` y una llamada por pagina.
+/// rama que no cuenta, un borrador, un sha en mayusculas que sale en
+/// minusculas y orden por numero: la misma lista en GitHub y en GitLab, con
+/// el rol `agente` y una llamada por pagina.
 #[test]
 fn misma_lista_en_github_y_gitlab_sin_forks_y_paginada() {
     let _serie = serie();
@@ -102,7 +81,16 @@ fn misma_lista_en_github_y_gitlab_sin_forks_y_paginada() {
                     pr_gh(5, "feature/task-002-y", SHA_A, true, false),
                     pr_gh(9, "feature/task-003-x", SHA_C, false, true)
                 ),
-                format!("[{}]", pr_gh(3, "feature/task-003-x", SHA_B, false, false)),
+                format!(
+                    "[{}]",
+                    pr_gh(
+                        3,
+                        "feature/task-003-x",
+                        &SHA_B.to_ascii_uppercase(),
+                        false,
+                        false
+                    )
+                ),
             )
         } else {
             (
@@ -113,7 +101,16 @@ fn misma_lista_en_github_y_gitlab_sin_forks_y_paginada() {
                     mr_gl(5, "feature/task-002-y", SHA_A, true, false),
                     mr_gl(9, "feature/task-003-x", SHA_C, false, true)
                 ),
-                format!("[{}]", mr_gl(3, "feature/task-003-x", SHA_B, false, false)),
+                format!(
+                    "[{}]",
+                    mr_gl(
+                        3,
+                        "feature/task-003-x",
+                        &SHA_B.to_ascii_uppercase(),
+                        false,
+                        false
+                    )
+                ),
             )
         };
         // La segunda pagina, como la pide el cliente (con la consulta).
@@ -201,34 +198,49 @@ fn fallos_tipados() {
 }
 
 /// Un sha que no es de 40 hex en un PR propio es respuesta invalida (falla
-/// cerrado); una rama que tc2 no crearia se salta.
+/// cerrado); una rama que tc2 no crearia se salta. En los dos adaptadores.
 #[test]
 fn sha_invalido_falla_y_rama_rara_se_salta() {
     let _serie = serie();
-    let m = Mock::nuevo();
-    m.responder(
-        "GET",
-        GH,
-        Simulada::json(
-            200,
-            &format!("[{}]", pr_gh(1, "rama con espacio", "x", false, false)),
-        ),
-    );
-    let p = github(&m.base(), &[Rol::Agente]);
-    assert_eq!(p.prs_abiertos(Rol::Agente), Ok(Vec::new()));
-    let m = Mock::nuevo();
-    m.responder(
-        "GET",
-        GH,
-        Simulada::json(
-            200,
-            &format!("[{}]", pr_gh(1, "feature/x", "x", false, false)),
-        ),
-    );
-    let p = github(&m.base(), &[Rol::Agente]);
-    let r = p.prs_abiertos(Rol::Agente);
-    assert_eq!(
-        r.err().map(|i| i.linea()).as_deref(),
-        Some("prs-abiertos error motivo=respuesta-invalida")
-    );
+    for plataforma in ["github", "gitlab"] {
+        let (ruta, uno): (&str, Uno) = if plataforma == "github" {
+            (GH, pr_gh)
+        } else {
+            (GL, mr_gl)
+        };
+        let hacer = |base: &str| {
+            if plataforma == "github" {
+                github(base, &[Rol::Agente])
+            } else {
+                gitlab(base, &[Rol::Agente])
+            }
+        };
+        let m = Mock::nuevo();
+        m.responder(
+            "GET",
+            ruta,
+            Simulada::json(
+                200,
+                &format!("[{}]", uno(1, "rama con espacio", "x", false, false)),
+            ),
+        );
+        let p = hacer(&m.base());
+        assert_eq!(p.prs_abiertos(Rol::Agente), Ok(Vec::new()), "{plataforma}");
+        let m = Mock::nuevo();
+        m.responder(
+            "GET",
+            ruta,
+            Simulada::json(
+                200,
+                &format!("[{}]", uno(1, "feature/x", "x", false, false)),
+            ),
+        );
+        let p = hacer(&m.base());
+        let r = p.prs_abiertos(Rol::Agente);
+        assert_eq!(
+            r.err().map(|i| i.linea()).as_deref(),
+            Some("prs-abiertos error motivo=respuesta-invalida"),
+            "{plataforma}"
+        );
+    }
 }

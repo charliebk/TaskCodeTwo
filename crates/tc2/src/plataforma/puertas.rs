@@ -119,17 +119,27 @@ pub fn evaluar(l: &Lecturas) -> Informe {
 
 /// PR ya mergeado: nada que evaluar.
 pub fn mergeado(pr: u64) -> Informe {
-    Informe::nuevo(ESTADO_PUERTAS, Resultado::SinCambios)
-        .con("pr", pr.to_string())
-        .con("estado", "mergeado")
+    mergeado_en(ESTADO_PUERTAS, pr)
 }
 
 /// PR cerrado sin mergear.
 pub fn pr_cerrado(pr: u64) -> Informe {
-    Informe::nuevo(ESTADO_PUERTAS, Resultado::Rechazada)
+    pr_cerrado_en(ESTADO_PUERTAS, pr, &t::PR_CERRADO_REABRE)
+}
+
+/// `op sin-cambios pr=N estado=mergeado` (`estado-puertas` y `merge-pr`).
+pub(crate) fn mergeado_en(op: &str, pr: u64) -> Informe {
+    Informe::nuevo(op, Resultado::SinCambios)
+        .con("pr", pr.to_string())
+        .con("estado", "mergeado")
+}
+
+/// `op rechazada pr=N motivo=pr-cerrado`, con el diagnostico `diag`.
+pub(crate) fn pr_cerrado_en(op: &str, pr: u64, diag: &'static Texto) -> Informe {
+    Informe::nuevo(op, Resultado::Rechazada)
         .con("pr", pr.to_string())
         .con("motivo", "pr-cerrado")
-        .diagnostico(&t::PR_CERRADO_REABRE)
+        .diagnostico(diag)
 }
 
 /// La politica exige impuesta una garantia que el plan no da.

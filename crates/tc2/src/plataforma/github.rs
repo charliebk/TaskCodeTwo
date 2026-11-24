@@ -15,24 +15,24 @@ use super::conexion::{Conexion, head_cambiado, rama_valida, rol_no_valido, sha_v
 use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
+use super::operaciones::{
+    self, ABRIR_PR, AbrePr, Creado, LEER_PUERTAS, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge,
+    merge_fallido, segun_estado,
+};
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
     Creada, EstadoPuerta, FalloLectura, Firma, LEER_REVISION, ModeloPuertas, Paso, Personas,
     PlanObservado, Plataforma, PrAbierto, Proveedor, PuertasLeidas, ReglasLeidas,
     RevisionPublicada, Usuario, aplicar_en_lote,
 };
-use crate::contrato::{Informe, Resultado, Valor, corto};
+use crate::contrato::{Informe, Resultado, corto};
 use crate::hallazgos::ronda;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plataforma as t;
 
-const ABRIR_PR: &str = "abrir-pr";
-const MERGE_PR: &str = "merge-pr";
-const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
-const PRS_ABIERTOS: &str = "prs-abiertos";
 const LEER_PLAN: &str = "leer-plan";
 
 /// Permiso de `leer-puertas` (lo nombra `doctor` en `permiso=`).
@@ -376,7 +376,13 @@ impl GitHub {
         self.con.exigir_persona(op, self.identidad(Rol::Persona))
     }
 
-    fn pr_abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
+    fn dueno(&self) -> &str {
+        self.repo.split('/').next().unwrap_or_default()
+    }
+}
+
+impl AbrePr for GitHub {
+    fn abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>> {
         let cabeza = format!("{}:{rama}", self.dueno());
         let (_, ruta) = self.ep(&Endpoint::PrsAbiertos {
             cabeza: &cabeza,
@@ -393,57 +399,7 @@ impl GitHub {
             .map(|p| p.number))
     }
 
-    fn dueno(&self) -> &str {
-        self.repo.split('/').next().unwrap_or_default()
-    }
-}
-
-impl Plataforma for GitHub {
-    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
-        if rol == Rol::Revisor {
-            return Err(rol_no_valido(PRS_ABIERTOS, rol));
-        }
-        let (_, ruta) = self.ep(&Endpoint::TodosLosPrsAbiertos);
-        let prs: Vec<PrListaApi> =
-            self.con
-                .leer_paginas(PRS_ABIERTOS, rol, "pull_requests:read", ruta, |c| {
-                    self.con.parsear(PRS_ABIERTOS, c)
-                })?;
-        let mut v = Vec::new();
-        for p in prs {
-            let propio = matches!((&p.head.repo, &p.base.repo), (Some(h), Some(b)) if h.id == b.id);
-            // Una rama que tc2 no habria creado no casa con ninguna tarea.
-            if !propio || !rama_valida(&p.head.nombre) {
-                continue;
-            }
-            if !sha_valido(&p.head.sha) {
-                return Err(self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_BASE_O_SHA));
-            }
-            v.push(PrAbierto {
-                numero: p.number,
-                rama: p.head.nombre,
-                sha: p.head.sha.to_ascii_lowercase(),
-                borrador: p.draft,
-            });
-        }
-        v.sort_by_key(|p| p.numero);
-        Ok(v)
-    }
-
-    fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
-        if !rama_valida(rama) || !rama_valida(base) {
-            return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
-        }
-        if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
-            return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
-        }
-        match self.pr_abierto(rama, base) {
-            Ok(Some(n)) => {
-                return Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string());
-            }
-            Ok(None) => {}
-            Err(i) => return i,
-        }
+    fn crear(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Creado {
         let datos = serde_json::json!({
             "title": titulo, "head": rama, "base": base, "body": cuerpo,
         })
@@ -455,29 +411,55 @@ impl Plataforma for GitHub {
             Some(&datos),
         ) {
             Ok(r) => r,
-            Err(i) => return i,
+            Err(i) => return Creado::Fallo(i),
         };
         if r.estado == 422 && r.cuerpo.contains("already exists") {
-            // Otro proceso lo abrio entre la lectura y la escritura.
-            return match self.pr_abierto(rama, base) {
-                Ok(Some(n)) => {
-                    Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string())
-                }
-                Ok(None) => self
-                    .con
-                    .traducir(ABRIR_PR, Rol::Agente, "pull_requests:write", &r),
-                Err(i) => i,
-            };
+            return Creado::YaExiste(
+                Mensaje::nuevo(&t::PR_EXISTENTE).con("api", errores::mensaje_api(&r)),
+            );
         }
         if !r.exito() {
-            return self
-                .con
-                .traducir(ABRIR_PR, Rol::Agente, "pull_requests:write", &r);
+            return Creado::Fallo(self.con.traducir(
+                ABRIR_PR,
+                Rol::Agente,
+                "pull_requests:write",
+                &r,
+            ));
         }
         match self.con.parsear::<PrApi>(ABRIR_PR, &r.cuerpo) {
-            Ok(p) => Informe::nuevo(ABRIR_PR, Resultado::Ok).con("pr", p.number.to_string()),
-            Err(i) => i,
+            Ok(p) => Creado::Pr(p.number),
+            Err(i) => Creado::Fallo(i),
         }
+    }
+}
+
+impl Plataforma for GitHub {
+    fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
+        let leer = || {
+            let (_, ruta) = self.ep(&Endpoint::TodosLosPrsAbiertos);
+            let prs: Vec<PrListaApi> =
+                self.con
+                    .leer_paginas(PRS_ABIERTOS, rol, "pull_requests:read", ruta, |c| {
+                        self.con.parsear(PRS_ABIERTOS, c)
+                    })?;
+            Ok(prs
+                .into_iter()
+                .map(|p| PrLeido {
+                    propio: matches!((&p.head.repo, &p.base.repo), (Some(h), Some(b)) if h.id == b.id),
+                    numero: p.number,
+                    rama: p.head.nombre,
+                    sha: p.head.sha,
+                    borrador: p.draft,
+                })
+                .collect())
+        };
+        operaciones::prs_abiertos(rol, leer, || {
+            self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_BASE_O_SHA)
+        })
+    }
+
+    fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
+        operaciones::abrir_pr(self, rama, base, titulo, cuerpo)
     }
 
     fn estado_puertas(&self, rol: Rol, pr: u64, modelo: &ModeloPuertas) -> Informe {
@@ -496,11 +478,8 @@ impl Plataforma for GitHub {
             Ok(p) => p,
             Err(i) => return i,
         };
-        if p.merged {
-            return puertas::mergeado(pr);
-        }
-        if p.state != "open" {
-            return puertas::pr_cerrado(pr);
+        if let Err(i) = segun_estado(op, pr, p.merged, p.state == "open", &t::PR_CERRADO_REABRE) {
+            return i;
         }
         if !rama_valida(&p.base.nombre) || !sha_valido(&p.head.sha) {
             return self.con.invalida_por(op, &t::RAMA_BASE_O_SHA);
@@ -671,10 +650,7 @@ impl Plataforma for GitHub {
     }
 
     fn merge_pr(&self, pr: u64, sha: &str) -> Informe {
-        if !sha_valido(sha) {
-            return uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO);
-        }
-        if let Err(i) = self.exigir_persona(MERGE_PR) {
+        if let Err(i) = entrada_merge(sha, || self.exigir_persona(MERGE_PR)) {
             return i;
         }
         let permiso = "contents:write";
@@ -686,16 +662,8 @@ impl Plataforma for GitHub {
                 Ok(p) => p,
                 Err(i) => return i,
             };
-        if p.merged {
-            return Informe::nuevo(MERGE_PR, Resultado::SinCambios)
-                .con("pr", pr.to_string())
-                .con("estado", "mergeado");
-        }
-        if p.state != "open" {
-            return Informe::nuevo(MERGE_PR, Resultado::Rechazada)
-                .con("pr", pr.to_string())
-                .con("motivo", "pr-cerrado")
-                .diagnostico(&t::PR_CERRADO);
+        if let Err(i) = segun_estado(MERGE_PR, pr, p.merged, p.state == "open", &t::PR_CERRADO) {
+            return i;
         }
         if !p.head.sha.eq_ignore_ascii_case(sha) {
             return head_cambiado(pr);
@@ -711,10 +679,7 @@ impl Plataforma for GitHub {
             Err(i) => return i,
         };
         if !r.exito() {
-            let mut i = self.con.traducir(MERGE_PR, Rol::Persona, permiso, &r);
-            i.claves
-                .insert(0, ("pr".to_owned(), Valor::Texto(pr.to_string())));
-            return i;
+            return merge_fallido(pr, self.con.traducir(MERGE_PR, Rol::Persona, permiso, &r));
         }
         match self.con.parsear::<MergeApi>(MERGE_PR, &r.cuerpo) {
             Ok(MergeApi {
@@ -732,11 +697,12 @@ impl Plataforma for GitHub {
     }
 
     fn leer_puertas(&self, rol: Rol, rama: &str) -> Paso<ReglasLeidas> {
-        validar_puertas(rol, rama)?;
-        match self.rulesets(rol)? {
-            Some(rulesets) => self.puertas_de_rama(rol, rama, &rulesets, true),
-            None => Ok(sin_reglas_por_plan()),
-        }
+        operaciones::leer_puertas(
+            rol,
+            rama,
+            || self.rulesets(rol),
+            |rs, rama, checks| self.puertas_de_rama(rol, rama, rs.as_deref(), checks),
+        )
     }
 
     fn leer_puertas_de(
@@ -745,27 +711,14 @@ impl Plataforma for GitHub {
         ramas: &[&str],
         checks_de: &str,
     ) -> Vec<Paso<ReglasLeidas>> {
-        // Los rulesets son del repo: se leen una vez (solo si alguna rama
-        // es valida) y valen para todas.
-        let validas: Vec<Paso<()>> = ramas.iter().map(|r| validar_puertas(rol, r)).collect();
-        let comun = if validas.iter().any(Result::is_ok) {
-            Some(self.rulesets(rol))
-        } else {
-            None
-        };
-        ramas
-            .iter()
-            .zip(validas)
-            .map(|(rama, v)| {
-                v?;
-                match comun.as_ref() {
-                    Some(Ok(Some(rs))) => self.puertas_de_rama(rol, rama, rs, *rama == checks_de),
-                    Some(Ok(None)) => Ok(sin_reglas_por_plan()),
-                    Some(Err(i)) => Err(i.clone()),
-                    None => Err(rol_no_valido(LEER_PUERTAS, rol)),
-                }
-            })
-            .collect()
+        // Los rulesets son del repo: valen para todas las ramas.
+        operaciones::leer_en_lote(
+            rol,
+            ramas,
+            checks_de,
+            || self.rulesets(rol),
+            |rs, rama, checks| self.puertas_de_rama(rol, rama, rs.as_deref(), checks),
+        )
     }
 
     fn leer_permisos_ci(&self) -> Informe {
@@ -936,41 +889,18 @@ impl Plataforma for GitHub {
     }
 }
 
-/// Rama y rol de `leer-puertas`.
-fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
-    if !rama_valida(rama) {
-        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
-    }
-    if rol == Rol::Revisor {
-        return Err(rol_no_valido(LEER_PUERTAS, rol));
-    }
-    Ok(())
-}
-
-/// Lo leido cuando el plan no da los rulesets (403 con aviso de plan).
-fn sin_reglas_por_plan() -> ReglasLeidas {
-    ReglasLeidas {
-        plan_da_reglas: false,
-        ..ReglasLeidas::default()
-    }
-}
-
 impl GitHub {
-    /// Los nombres de los rulesets del repo; `None` si el plan no los da.
+    /// Los nombres de todos los rulesets del repo para `leer-puertas`,
+    /// paginados ([`GitHub::rulesets_de`]); `None` si el plan no los da (el
+    /// 403 de plan, que en `leer-puertas` no es un fallo). Un 403 que ademas
+    /// es limite de peticiones es `agotada`.
     fn rulesets(&self, rol: Rol) -> Paso<Option<Vec<String>>> {
-        let r = self
-            .con
-            .pedir(LEER_PUERTAS, rol, self.ep(&Endpoint::Rulesets), None)?;
-        if es_aviso_de_plan(&r) {
-            return Ok(None);
+        match self.rulesets_de(LEER_PUERTAS, rol, PERMISO_LEER_PUERTAS) {
+            Err(i) if i.resultado == Resultado::Rechazada && i.valor("motivo") == Some("plan") => {
+                Ok(None)
+            }
+            r => r.map(Some),
         }
-        if !r.exito() {
-            return Err(self
-                .con
-                .traducir(LEER_PUERTAS, rol, PERMISO_LEER_PUERTAS, &r));
-        }
-        let rulesets: Vec<RulesetApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
-        Ok(Some(rulesets.into_iter().map(|r| r.name).collect()))
     }
 
     /// Los nombres de todos los rulesets del repo para `op`, paginados; el
@@ -983,15 +913,22 @@ impl GitHub {
         Ok(rulesets.into_iter().map(|r| r.name).collect())
     }
 
-    /// Las reglas de `rama` con los `rulesets` ya leidos; los check-runs de
-    /// su cabeza solo `con_checks`.
+    /// Las reglas de `rama` con los `rulesets` ya leidos (`None`: el plan no
+    /// los da, 403 con aviso, y no se sigue leyendo); los check-runs de su
+    /// cabeza solo `con_checks`.
     fn puertas_de_rama(
         &self,
         rol: Rol,
         rama: &str,
-        rulesets: &[String],
+        rulesets: Option<&[String]>,
         con_checks: bool,
     ) -> Paso<ReglasLeidas> {
+        let Some(rulesets) = rulesets else {
+            return Ok(ReglasLeidas {
+                plan_da_reglas: false,
+                ..ReglasLeidas::default()
+            });
+        };
         let reglas: Vec<ReglaApi> = self.con.leer(
             LEER_PUERTAS,
             rol,

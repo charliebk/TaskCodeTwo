@@ -1,0 +1,235 @@
+//! Flujo neutral de las operaciones del puerto (TASK-139, grupo A1 de la
+//! auditoria 4D): lo que no depende de la API de la plataforma (validar la
+//! entrada, la idempotencia, la carrera de «ya existe» y las lineas de
+//! resultado). Cada adaptador solo lee y escribe su API y traduce lo leido a
+//! los tipos de aqui (F1-13, D1a), y asi los dos dan la misma linea byte a
+//! byte (RR-15). El transporte es de [`super::conexion`] y la evaluacion de
+//! las puertas, de [`super::puertas`].
+
+use std::cell::OnceCell;
+
+use super::conexion::{rama_valida, rol_no_valido, sha_valido, uso};
+use super::credenciales::Rol;
+use super::{Paso, PrAbierto, ReglasLeidas, puertas};
+use crate::contrato::{Informe, Resultado, Valor};
+use crate::i18n::catalogo::plataforma as t;
+use crate::i18n::{Mensaje, Texto};
+
+/// Nombre de la operacion `abrir-pr`.
+pub(crate) const ABRIR_PR: &str = "abrir-pr";
+
+/// Nombre de la operacion `merge-pr`.
+pub(crate) const MERGE_PR: &str = "merge-pr";
+
+/// Nombre de la operacion `prs-abiertos`.
+pub(crate) const PRS_ABIERTOS: &str = "prs-abiertos";
+
+/// Nombre de la operacion `leer-puertas`.
+pub(crate) const LEER_PUERTAS: &str = "leer-puertas";
+
+/// Lo que dio la escritura que crea el PR.
+pub(crate) enum Creado {
+    /// Creado, con su numero.
+    Pr(u64),
+    /// La plataforma dice que ya existe (GitHub: 422 `already exists`;
+    /// GitLab: 409). Lleva el diagnostico de la plataforma por si al releer
+    /// no se encuentra abierto.
+    YaExiste(Mensaje),
+    /// Cualquier otro fallo, ya traducido.
+    Fallo(Informe),
+}
+
+/// Las lecturas y la escritura de `abrir-pr` de un adaptador.
+pub(crate) trait AbrePr {
+    /// El PR abierto de `rama` contra `base`, si lo hay.
+    fn abierto(&self, rama: &str, base: &str) -> Paso<Option<u64>>;
+
+    /// Comprobacion antes de crear (GitLab abre un MR sin commits: lo
+    /// comprueba aqui para dar la misma linea que GitHub). Por defecto,
+    /// ninguna.
+    fn antes_de_crear(&self, _rama: &str, _base: &str) -> Paso<()> {
+        Ok(())
+    }
+
+    /// Crea el PR de `rama` contra `base`.
+    fn crear(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Creado;
+}
+
+/// `abrir-pr`: valida la entrada, devuelve el PR que ya este abierto
+/// (`sin-cambios`) o lo crea. Si al crear la plataforma dice que ya existe
+/// (otro proceso lo abrio entre la lectura y la escritura), se relee: el
+/// abierto es `sin-cambios`; si sigue sin verse, `conflicto
+/// motivo=pr-existente`, la misma linea en las dos plataformas.
+pub(crate) fn abrir_pr(
+    a: &impl AbrePr,
+    rama: &str,
+    base: &str,
+    titulo: &str,
+    cuerpo: &str,
+) -> Informe {
+    if !rama_valida(rama) || !rama_valida(base) {
+        return uso(ABRIR_PR, "rama-invalida", &t::RAMA_NO_VALIDA);
+    }
+    if titulo.trim().is_empty() || titulo.chars().any(char::is_control) {
+        return uso(ABRIR_PR, "titulo-invalido", &t::TITULO_NO_VALIDO);
+    }
+    let sin_cambios =
+        |n: u64| Informe::nuevo(ABRIR_PR, Resultado::SinCambios).con("pr", n.to_string());
+    match a.abierto(rama, base) {
+        Ok(Some(n)) => return sin_cambios(n),
+        Ok(None) => {}
+        Err(i) => return i,
+    }
+    if let Err(i) = a.antes_de_crear(rama, base) {
+        return i;
+    }
+    match a.crear(rama, base, titulo, cuerpo) {
+        Creado::Pr(n) => Informe::nuevo(ABRIR_PR, Resultado::Ok).con("pr", n.to_string()),
+        Creado::YaExiste(diag) => match a.abierto(rama, base) {
+            Ok(Some(n)) => sin_cambios(n),
+            Ok(None) => Informe::nuevo(ABRIR_PR, Resultado::Conflicto)
+                .con("motivo", "pr-existente")
+                .diagnostico(diag),
+            Err(i) => i,
+        },
+        Creado::Fallo(i) => i,
+    }
+}
+
+/// Entrada de `merge-pr`: el sha completo (sin llamar si no vale) y despues
+/// la persona de la lista.
+pub(crate) fn entrada_merge(sha: &str, exigir_persona: impl FnOnce() -> Paso<()>) -> Paso<()> {
+    if !sha_valido(sha) {
+        return Err(uso(MERGE_PR, "sha-invalido", &t::SHA_ESPERADO_COMPLETO));
+    }
+    exigir_persona()
+}
+
+/// El estado del PR leido antes de evaluarlo (`estado-puertas`) o
+/// mergearlo (`merge-pr`): mergeado es `sin-cambios estado=mergeado`, y
+/// cerrado sin mergear, `rechazada motivo=pr-cerrado` con el diagnostico
+/// `cerrado`.
+pub(crate) fn segun_estado(
+    op: &str,
+    pr: u64,
+    mergeado: bool,
+    abierto: bool,
+    cerrado: &'static Texto,
+) -> Paso<()> {
+    if mergeado {
+        return Err(puertas::mergeado_en(op, pr));
+    }
+    if !abierto {
+        return Err(puertas::pr_cerrado_en(op, pr, cerrado));
+    }
+    Ok(())
+}
+
+/// Un PR (o MR) de la lista de abiertos, tal como lo lee un adaptador.
+pub(crate) struct PrLeido {
+    /// Numero del PR (en GitLab, el `iid` del MR).
+    pub(crate) numero: u64,
+    /// Rama de origen.
+    pub(crate) rama: String,
+    /// Sha de la cabeza, sin validar (vacio si la API no lo da).
+    pub(crate) sha: String,
+    /// Si es borrador.
+    pub(crate) borrador: bool,
+    /// Si la rama de origen es del propio repo (no de un fork).
+    pub(crate) propio: bool,
+}
+
+/// `prs-abiertos` (adenda de TASK-032 a F1-4 y F1-13): el revisor no lista
+/// PR; con lo que da `leer`, los de forks y las ramas que tc2 no habria
+/// creado (no casan con ninguna tarea) se saltan, y un sha que no es de 40
+/// hex es `invalida` (falla cerrado). El sha va en minusculas y la lista,
+/// por numero.
+pub(crate) fn prs_abiertos(
+    rol: Rol,
+    leer: impl FnOnce() -> Paso<Vec<PrLeido>>,
+    invalida: impl Fn() -> Informe,
+) -> Paso<Vec<PrAbierto>> {
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(PRS_ABIERTOS, rol));
+    }
+    let mut v = Vec::new();
+    for p in leer()? {
+        if !p.propio || !rama_valida(&p.rama) {
+            continue;
+        }
+        if !sha_valido(&p.sha) {
+            return Err(invalida());
+        }
+        v.push(PrAbierto {
+            numero: p.numero,
+            rama: p.rama,
+            sha: p.sha.to_ascii_lowercase(),
+            borrador: p.borrador,
+        });
+    }
+    v.sort_by_key(|p| p.numero);
+    Ok(v)
+}
+
+/// `leer-puertas` de una rama: valida la rama y el rol, lee lo comun al
+/// repo con `comun` y las reglas de la rama, con sus checks publicados,
+/// con `por_rama(comun, rama, con_checks)`.
+pub(crate) fn leer_puertas<C>(
+    rol: Rol,
+    rama: &str,
+    comun: impl Fn() -> Paso<C>,
+    por_rama: impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Paso<ReglasLeidas> {
+    leer_rama(rol, rama, true, &OnceCell::new(), &comun, &por_rama)
+}
+
+/// `leer-puertas` de varias `ramas` (R1-06 de TASK-035): lo comun al repo
+/// se lee una sola vez, al llegar a la primera rama valida (si ninguna lo
+/// es, no se lee), y los checks publicados solo en `checks_de`. Un
+/// resultado por rama, en el mismo orden.
+pub(crate) fn leer_en_lote<C>(
+    rol: Rol,
+    ramas: &[&str],
+    checks_de: &str,
+    comun: impl Fn() -> Paso<C>,
+    por_rama: impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Vec<Paso<ReglasLeidas>> {
+    let leido = OnceCell::new();
+    ramas
+        .iter()
+        .map(|rama| leer_rama(rol, rama, *rama == checks_de, &leido, &comun, &por_rama))
+        .collect()
+}
+
+fn leer_rama<C>(
+    rol: Rol,
+    rama: &str,
+    con_checks: bool,
+    leido: &OnceCell<Paso<C>>,
+    comun: &impl Fn() -> Paso<C>,
+    por_rama: &impl Fn(&C, &str, bool) -> Paso<ReglasLeidas>,
+) -> Paso<ReglasLeidas> {
+    validar_puertas(rol, rama)?;
+    match leido.get_or_init(comun) {
+        Ok(c) => por_rama(c, rama, con_checks),
+        Err(i) => Err(i.clone()),
+    }
+}
+
+/// Rama y rol de `leer-puertas` (agente o persona).
+fn validar_puertas(rol: Rol, rama: &str) -> Paso<()> {
+    if !rama_valida(rama) {
+        return Err(uso(LEER_PUERTAS, "rama-invalida", &t::RAMA_NO_VALIDA));
+    }
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(LEER_PUERTAS, rol));
+    }
+    Ok(())
+}
+
+/// Un fallo de la escritura del merge, con `pr=` delante.
+pub(crate) fn merge_fallido(pr: u64, mut i: Informe) -> Informe {
+    i.claves
+        .insert(0, ("pr".to_owned(), Valor::Texto(pr.to_string())));
+    i
+}

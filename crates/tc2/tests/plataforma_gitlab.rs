@@ -7,6 +7,7 @@
 
 mod comun;
 
+use comun::adaptadores::{self, servir};
 use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
@@ -22,36 +23,26 @@ const PERSONA: u64 = 1001;
 const CLAVE: u64 = 555;
 const P: &str = "/api/v4/projects/7";
 
-fn credenciales(roles: &[Rol]) -> CredencialesFijas {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    c
-}
-
 fn base(mock: &Mock) -> Base {
     Base::nueva(&format!("{}/api/v4", mock.base())).unwrap()
 }
 
 fn gitlab(mock: &Mock, roles: &[Rol]) -> GitLab {
-    GitLab::nuevo(
-        base(mock),
-        "7",
-        Box::new(credenciales(roles)),
+    adaptadores::gitlab(
+        &mock.base(),
+        TOKEN,
+        roles,
         Personas::nuevas([PERSONA]).con_claves([Clave::Ssh(CLAVE)]),
     )
-    .unwrap()
 }
 
 fn github(mock: &Mock) -> GitHub {
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(credenciales(&[Rol::Agente])),
+    adaptadores::github(
+        &mock.base(),
+        TOKEN,
+        &[Rol::Agente],
         Personas::nuevas([PERSONA]),
     )
-    .unwrap()
 }
 
 /// El modelo de cada plataforma: el origen de un check es el
@@ -77,21 +68,6 @@ fn fixture(plataforma: &str, caso: &str) -> serde_json::Value {
         env!("CARGO_MANIFEST_DIR")
     );
     serde_json::from_str(&std::fs::read_to_string(ruta).unwrap()).unwrap()
-}
-
-fn servir(f: &serde_json::Value) -> Mock {
-    let mock = Mock::nuevo();
-    for (ruta, r) in f["respuestas"].as_object().unwrap() {
-        mock.responder(
-            "GET",
-            ruta,
-            Simulada::json(
-                r["estado"].as_u64().unwrap() as u16,
-                &r["cuerpo"].to_string(),
-            ),
-        );
-    }
-    mock
 }
 
 fn exigidas(f: &serde_json::Value) -> Vec<&str> {
@@ -357,7 +333,7 @@ fn envoltorio_y_errores_de_gitlab() {
     let gl = GitLab::nuevo(
         base(&mock),
         "grupo/sub/proy",
-        Box::new(credenciales(&[Rol::Agente])),
+        adaptadores::credenciales(TOKEN, &[Rol::Agente]),
         Personas::default(),
     )
     .unwrap();
@@ -473,24 +449,9 @@ fn envoltorio_y_errores_de_gitlab() {
             "respuesta de GitLab",
         ),
     ];
-    for (respuesta, linea, codigo, arreglo) in casos {
-        let mock = Mock::nuevo();
-        mock.responder("GET", "/api/v4/user", respuesta);
-        let gl = gitlab(&mock, &[Rol::Agente]);
-        let i = gl.identidad(Rol::Agente).unwrap_err();
-        let s = i.salida(false);
-        assert_eq!((s.stdout.trim_end(), s.codigo), (linea, codigo));
-        assert!(s.stderr.contains(arreglo), "{linea}: {}", s.stderr);
-        assert!(!s.stderr.contains('\u{7}'), "sin controles de la API");
-        for texto in [
-            s.stdout,
-            s.stderr,
-            i.salida(true).stdout,
-            format!("{gl:?} {i:?}"),
-        ] {
-            assert!(!texto.contains(TOKEN), "el token no sale: {texto}");
-        }
-    }
+    adaptadores::tabla_de_errores("/api/v4/user", TOKEN, casos.into(), |m| {
+        gitlab(m, &[Rol::Agente])
+    });
 
     // Merge: 405 y 406 (no mergeable) y 409 (sha distinto en la plataforma).
     for (estado, linea) in [
@@ -514,8 +475,28 @@ fn envoltorio_y_errores_de_gitlab() {
         let gl = gitlab(&mock, &[Rol::Persona]);
         assert_eq!(gl.merge_pr(5, SHA).linea(), linea);
     }
+}
 
-    // 409 al crear sin MR abierto que releer: conflicto, no head-cambiado.
+/// A1-02 (RR-15): en la carrera de `abrir-pr` (crear dice «ya existe»: 422
+/// `already exists` en GitHub, 409 en GitLab; y la relectura de abiertos
+/// sigue vacia) los dos adaptadores dan la misma linea y el mismo codigo,
+/// byte a byte; el diagnostico es de cada plataforma y cita a la API.
+#[test]
+fn carrera_de_abrir_pr_da_la_misma_linea() {
+    let _serie = serie();
+    let mock = Mock::nuevo();
+    mock.responder("GET", "/repos/o/r/pulls", Simulada::json(200, "[]"));
+    mock.responder(
+        "POST",
+        "/repos/o/r/pulls",
+        Simulada::json(
+            422,
+            "{\"message\":\"Validation Failed\",\"errors\":[{\"message\":\"A pull request already exists for o:feature/x.\"}]}",
+        ),
+    );
+    let gh = github(&mock)
+        .abrir_pr("feature/x", "develop", "T", "")
+        .salida(false);
     let mock = Mock::nuevo();
     mock.responder(
         "GET",
@@ -535,10 +516,23 @@ fn envoltorio_y_errores_de_gitlab() {
             "{\"message\":[\"Another open merge request already exists\"]}",
         ),
     );
-    let gl = gitlab(&mock, &[Rol::Agente]);
-    let i = gl.abrir_pr("feature/x", "develop", "T", "");
-    assert_eq!(i.linea(), "abrir-pr conflicto motivo=mr-existente");
-    assert_eq!(i.resultado.codigo(), 6);
+    let gl = gitlab(&mock, &[Rol::Agente])
+        .abrir_pr("feature/x", "develop", "T", "")
+        .salida(false);
+    assert_eq!(
+        (gh.stdout.as_str(), gh.codigo),
+        ("abrir-pr conflicto motivo=pr-existente\n", 6)
+    );
+    assert_eq!(
+        (gl.stdout.as_str(), gl.codigo),
+        (gh.stdout.as_str(), gh.codigo)
+    );
+    assert!(gh.stderr.contains("GitHub"), "{}", gh.stderr);
+    assert!(
+        gl.stderr.contains("Another open merge request"),
+        "{}",
+        gl.stderr
+    );
 }
 
 fn verde_con(retoque: impl Fn(&mut serde_json::Value)) -> (GitLab, Mock) {
@@ -835,11 +829,20 @@ fn protecciones_de_gitlab() {
         &reglas,
         Simulada::json(403, "{\"message\":\"403 Forbidden\"}"),
     );
-    let gl = gitlab(&mock, &[Rol::Agente]);
+    // Con token de revisor (el caso real): lo rechaza el rol, no la falta de
+    // token, y sin llamar.
+    let gl = gitlab(&mock, &[Rol::Agente, Rol::Revisor]);
     let l = gl.leer_puertas(Rol::Agente, "develop").unwrap();
     assert!(!l.plan_da_reglas);
     assert_eq!(l.reglas_rama, ["push=0", "merge=40", "code-owner"]);
-    assert!(gl.leer_puertas(Rol::Revisor, "develop").is_err());
+    let antes = mock.recibidas().len();
+    assert_eq!(
+        gl.leer_puertas(Rol::Revisor, "develop")
+            .unwrap_err()
+            .linea(),
+        "leer-puertas rechazada motivo=identidad rol=revisor"
+    );
+    assert_eq!(mock.recibidas().len(), antes, "el revisor no llama");
 
     // leer-permisos-ci e identidad: persona de la lista, bot como Bot.
     let mock = Mock::nuevo();

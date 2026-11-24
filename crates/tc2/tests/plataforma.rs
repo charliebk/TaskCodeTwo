@@ -7,12 +7,11 @@
 
 mod comun;
 
+use comun::adaptadores;
 use comun::http_mock::{Mock, Simulada, serie};
 use tc2::contrato::Resultado;
 use tc2::plataforma::http::{Base, Cliente, FalloHttp, Metodo};
-use tc2::plataforma::{
-    CredencialesFijas, GitHub, GitLab, ModeloPuertas, Personas, Plataforma, Rol, Secreto,
-};
+use tc2::plataforma::{GitHub, ModeloPuertas, Personas, Plataforma, Rol, Secreto};
 
 const TOKEN: &str = "ghp_token_de_prueba_que_no_debe_salir";
 const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -30,17 +29,7 @@ fn modelo(exigir: &[&str]) -> ModeloPuertas {
 }
 
 fn adaptador(mock: &Mock, roles: &[Rol]) -> GitHub {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(c),
-        Personas::nuevas([PERSONA]),
-    )
-    .unwrap()
+    con_personas(mock, roles, &[PERSONA])
 }
 
 fn persona_en(mock: &Mock, id: u64) {
@@ -112,17 +101,7 @@ fn bateria_de_la_poc_m_e_idempotencia() {
             &std::fs::read_to_string(format!("{carpeta}/{caso}.json")).unwrap(),
         )
         .unwrap();
-        let mock = Mock::nuevo();
-        for (ruta, r) in f["respuestas"].as_object().unwrap() {
-            mock.responder(
-                "GET",
-                ruta,
-                Simulada::json(
-                    r["estado"].as_u64().unwrap() as u16,
-                    &r["cuerpo"].to_string(),
-                ),
-            );
-        }
+        let mock = adaptadores::servir(&f);
         let exigir: Vec<&str> = f["politica"]["exigir_impuestas"]
             .as_array()
             .unwrap()
@@ -437,6 +416,14 @@ fn errores_dirigidos_a_la_persona() {
             5,
             "relanza",
         ),
+        // Limite secundario: 403 con `retry-after` y sin
+        // `x-ratelimit-remaining` ni «rate limit» en el mensaje.
+        (
+            Simulada::json(403, "{}").con("retry-after", "30"),
+            "identidad agotada motivo=limite-peticiones reintenta-en=30",
+            5,
+            "espera 30",
+        ),
         (
             Simulada::json(
                 403,
@@ -465,24 +452,7 @@ fn errores_dirigidos_a_la_persona() {
             "forma esperada",
         ),
     ];
-    for (respuesta, linea, codigo, arreglo) in casos {
-        let mock = Mock::nuevo();
-        mock.responder("GET", "/user", respuesta);
-        let gh = adaptador(&mock, &[Rol::Agente]);
-        let i = gh.identidad(Rol::Agente).unwrap_err();
-        let s = i.salida(false);
-        assert_eq!((s.stdout.trim_end(), s.codigo), (linea, codigo));
-        assert!(s.stderr.contains(arreglo), "{linea}: {}", s.stderr);
-        assert!(!s.stderr.contains('\u{7}'), "sin controles de la API");
-        for texto in [
-            s.stdout,
-            s.stderr,
-            i.salida(true).stdout,
-            format!("{gh:?} {i:?}"),
-        ] {
-            assert!(!texto.contains(TOKEN), "el token no sale: {texto}");
-        }
-    }
+    adaptadores::tabla_de_errores("/user", TOKEN, casos, |m| adaptador(m, &[Rol::Agente]));
 
     // Merge: 405 (no mergeable) y 409 (head cambiado en la plataforma).
     for (estado, linea) in [
@@ -524,13 +494,12 @@ fn errores_dirigidos_a_la_persona() {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         l.local_addr().unwrap().port()
     };
-    let gh = GitHub::nuevo(
-        Base::nueva(&format!("http://127.0.0.1:{cerrado}")).unwrap(),
-        "o/r",
-        Box::new(CredencialesFijas::nuevas().con(Rol::Agente, Secreto::nuevo(TOKEN))),
+    let gh = adaptadores::github(
+        &format!("http://127.0.0.1:{cerrado}"),
+        TOKEN,
+        &[Rol::Agente],
         Personas::default(),
-    )
-    .unwrap();
+    );
     let s = gh.identidad(Rol::Agente).unwrap_err().salida(false);
     assert_eq!((s.stdout.as_str(), s.codigo), ("identidad sinred\n", 4));
 
@@ -566,17 +535,12 @@ fn errores_dirigidos_a_la_persona() {
 }
 
 fn con_personas(mock: &Mock, roles: &[Rol], personas: &[u64]) -> GitHub {
-    let mut c = CredencialesFijas::nuevas();
-    for r in roles {
-        c = c.con(*r, Secreto::nuevo(TOKEN));
-    }
-    GitHub::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(c),
+    adaptadores::github(
+        &mock.base(),
+        TOKEN,
+        roles,
         Personas::nuevas(personas.iter().copied()),
     )
-    .unwrap()
 }
 
 fn pr_con_estado(mergeable: &str) -> String {
@@ -812,9 +776,8 @@ fn protecciones_y_bordes() {
         "/repos/o/r/rules/branches/develop",
         Simulada::json(200, "[{\"type\":\"pull_request\"}]"),
     );
-    let r = adaptador(&mock, &[Rol::Agente])
-        .leer_puertas(Rol::Agente, "develop")
-        .unwrap();
+    let gh = adaptador(&mock, &[Rol::Agente, Rol::Revisor]);
+    let r = gh.leer_puertas(Rol::Agente, "develop").unwrap();
     assert_eq!(
         (r.plan_da_reglas, r.rulesets, r.reglas_rama),
         (
@@ -823,6 +786,16 @@ fn protecciones_y_bordes() {
             vec!["pull_request".to_owned()]
         )
     );
+    // Con token de revisor: lo rechaza el rol, no la falta de token, y sin
+    // llamar.
+    let antes = mock.recibidas().len();
+    assert_eq!(
+        gh.leer_puertas(Rol::Revisor, "develop")
+            .unwrap_err()
+            .linea(),
+        "leer-puertas rechazada motivo=identidad rol=revisor"
+    );
+    assert_eq!(mock.recibidas().len(), antes, "el revisor no llama");
 
     // Limite primario (con reinicio) y secundario (sin cabeceras).
     let reinicio = std::time::SystemTime::now()
@@ -897,6 +870,51 @@ fn protecciones_y_bordes() {
         .filter(|l| l.contains("/reviews"))
         .count();
     assert_eq!(paginas, 10);
+}
+
+/// A1-07: `leer-puertas` sigue `Link rel=next` en los rulesets. Con 100 que
+/// no son de tc2 en la primera pagina y `taskcodetwo-develop` en la
+/// segunda, lo devuelve; y en lote igual.
+#[test]
+fn leer_puertas_pagina_los_rulesets() {
+    let _serie = serie();
+    let mock = Mock::nuevo();
+    let pagina1: Vec<String> = (1..=100)
+        .map(|n| format!("{{\"id\":{n},\"name\":\"otro-{n}\"}}"))
+        .collect();
+    let siguiente = "/repos/o/r/rulesets?per_page=100&page=2";
+    mock.responder(
+        "GET",
+        siguiente,
+        Simulada::json(200, "[{\"id\":101,\"name\":\"taskcodetwo-develop\"}]"),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(200, &format!("[{}]", pagina1.join(","))).con(
+            "link",
+            &format!("<{}{siguiente}>; rel=\"next\"", mock.base()),
+        ),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[{\"type\":\"pull_request\"}]"),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let r = gh.leer_puertas(Rol::Agente, "develop").unwrap();
+    assert_eq!(r.rulesets.len(), 101);
+    assert!(
+        r.rulesets.iter().any(|n| n == "taskcodetwo-develop"),
+        "{:?}",
+        r.rulesets
+    );
+    let lote = gh.leer_puertas_de(Rol::Agente, &["develop"], "");
+    assert!(
+        lote[0]
+            .as_ref()
+            .is_ok_and(|r| r.rulesets.iter().any(|n| n == "taskcodetwo-develop"))
+    );
 }
 
 /// TASK-118: `aplicar-puertas` en el adaptador. Un 422 al crear es «otro
@@ -1105,13 +1123,7 @@ fn leer_revision_filtra_por_origen_y_pagina() {
     assert_eq!(i.linea(), "leer-revision esperando pr=12 motivo=sin-check");
 
     // GitLab no tiene revision en CI: no soportada.
-    let gl = GitLab::nuevo(
-        Base::nueva(&mock.base()).unwrap(),
-        "o/r",
-        Box::new(CredencialesFijas::nuevas().con(Rol::Agente, Secreto::nuevo(TOKEN))),
-        Personas::default(),
-    )
-    .unwrap();
+    let gl = adaptadores::gitlab(&mock.base(), TOKEN, &[Rol::Agente], Personas::default());
     let i = gl.leer_revision(Rol::Agente, 12, 99001).unwrap_err();
     assert_eq!(i.linea(), "leer-revision rechazada motivo=no-soportada");
 }

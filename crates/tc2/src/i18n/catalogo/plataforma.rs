@@ -188,6 +188,10 @@ crate::i18n::textos! {
         es: "el scope api y el rol Maintainer en el proyecto",
         en: "the api scope and the Maintainer role in the project",
     }
+    PR_EXISTENTE {
+        es: "GitHub dice que ya hay un PR para la rama pero no se encuentra abierto: reintenta (GitHub: «{api}»)",
+        en: "GitHub says there is already a PR for the branch but no open one is found: try again (GitHub: «{api}»)",
+    }
     MR_EXISTENTE {
         es: "GitLab dice que ya hay un MR para la rama pero no se encuentra abierto: reintenta (GitLab: «{api}»)",
         en: "GitLab says there is already an MR for the branch but no open one is found: try again (GitLab: «{api}»)",

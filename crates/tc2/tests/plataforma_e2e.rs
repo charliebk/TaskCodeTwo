@@ -39,11 +39,12 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 mod agente_git;
+mod arnes_e2e;
 mod comun;
 
 use std::cell::{Cell, RefCell};
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use arnes_e2e::{sufijo, ver};
 use serde_json::{Value, json};
 use tc2::contrato::Resultado;
 use tc2::plataforma::credenciales::de_entorno_con;
@@ -67,23 +68,14 @@ fn entorno() -> Entorno {
 /// Cliente del arnes: llamadas que el puerto no tiene (crear ramas,
 /// commits, rulesets, reviews; borrar), solo para preparar y limpiar.
 struct Arnes {
-    agente: ureq::Agent,
+    cliente: arnes_e2e::Cliente,
     e: Entorno,
 }
 
 impl Arnes {
     fn nuevo() -> Self {
-        let agente: ureq::Agent = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                    .build(),
-            )
-            .build()
-            .into();
         Self {
-            agente,
+            cliente: arnes_e2e::Cliente::nuevo("application/vnd.github+json"),
             e: entorno(),
         }
     }
@@ -107,25 +99,7 @@ impl Arnes {
         url: &str,
         cuerpo: Option<Value>,
     ) -> Option<(u16, Value)> {
-        let auth = format!("Bearer {token}");
-        fn cab<B>(p: ureq::RequestBuilder<B>, auth: &str) -> ureq::RequestBuilder<B> {
-            p.header("Authorization", auth)
-                .header("Accept", "application/vnd.github+json")
-                .header("Content-Type", "application/json")
-                .header("User-Agent", "taskcodetwo-e2e")
-        }
-        let r = match (metodo, cuerpo) {
-            ("GET", _) => cab(self.agente.get(url), &auth).call(),
-            ("DELETE", _) => cab(self.agente.delete(url), &auth).call(),
-            ("POST", Some(c)) => cab(self.agente.post(url), &auth).send(c.to_string()),
-            ("PUT", Some(c)) => cab(self.agente.put(url), &auth).send(c.to_string()),
-            ("PATCH", Some(c)) => cab(self.agente.patch(url), &auth).send(c.to_string()),
-            _ => return None,
-        };
-        let mut r = r.ok()?;
-        let estado = r.status().as_u16();
-        let texto = r.body_mut().read_to_string().unwrap_or_default();
-        Some((estado, serde_json::from_str(&texto).unwrap_or(Value::Null)))
+        self.cliente.intentar_con(token, metodo, url, cuerpo)
     }
 
     fn sha_de(&self, rama: &str) -> String {
@@ -216,17 +190,6 @@ fn adaptador(repo: &str, token: &str, personas: Personas) -> GitHub {
         .con(Rol::Agente, s.clone())
         .con(Rol::Persona, s);
     GitHub::nuevo(Base::github(), repo, Box::new(c), personas).unwrap()
-}
-
-fn sufijo() -> String {
-    let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    format!("{}-{}", t.as_secs(), std::process::id())
-}
-
-fn ver(i: &tc2::contrato::Informe) -> String {
-    let l = i.linea();
-    eprintln!("  {l}");
-    l
 }
 
 /// (a) Recorrido: abrir-pr idempotente, estado-puertas, merge-pr
