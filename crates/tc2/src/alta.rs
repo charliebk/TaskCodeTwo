@@ -110,13 +110,9 @@ impl Entrada {
             objetivo: objetivo.to_owned(),
             criterios: self.criterios.clone(),
         };
-        match enunciado.validar() {
-            Ok(()) => Ok(()),
-            Err(("objetivo-vacio", _)) => Err(NoListo::SinObjetivo),
-            Err(("demasiados-criterios", _)) => Err(NoListo::DemasiadosCriterios),
-            Err(("sin-criterios", _)) => Err(NoListo::SinCriterios),
-            Err(_) => Err(NoListo::CriterioVacio),
-        }
+        enunciado
+            .validar()
+            .map_err(|(motivo, _)| NoListo::de_plan(motivo))
     }
 }
 
@@ -255,9 +251,24 @@ pub enum NoListo {
     SinObjetivo,
     /// Mas criterios de los que admite `plan`.
     DemasiadosCriterios,
+    /// Otro `motivo=` de la regla de `plan` que el alta no conoce todavia:
+    /// sale tal cual en `causa=`, sin rotularlo como otra causa (el texto
+    /// del diagnostico es el que le da `plan`).
+    Plan(&'static str),
 }
 
 impl NoListo {
+    /// La causa del alta para un `motivo=` de `Enunciado::validar`.
+    fn de_plan(motivo: &'static str) -> Self {
+        match motivo {
+            "objetivo-vacio" => Self::SinObjetivo,
+            "sin-criterios" => Self::SinCriterios,
+            "criterio-vacio" => Self::CriterioVacio,
+            "demasiados-criterios" => Self::DemasiadosCriterios,
+            otro => Self::Plan(otro),
+        }
+    }
+
     /// Valor de `causa=` en la linea de contrato.
     pub fn causa(self) -> &'static str {
         match self {
@@ -268,6 +279,7 @@ impl NoListo {
             Self::Control => "caracter-de-control",
             Self::SinObjetivo => "objetivo-vacio",
             Self::DemasiadosCriterios => "demasiados-criterios",
+            Self::Plan(motivo) => motivo,
         }
     }
 
@@ -281,7 +293,10 @@ impl NoListo {
             Self::Repetido => &t::CAUSA_REPETIDO,
             Self::Control => &t::CAUSA_CONTROL,
             Self::SinObjetivo => &t::CAUSA_SIN_OBJETIVO,
-            Self::DemasiadosCriterios => {
+            // Un motivo de `plan` sin texto propio aqui lleva el mismo que le
+            // da `plan` (`Planificar::enunciado_invalido`); `causa=` dice el
+            // motivo exacto.
+            Self::DemasiadosCriterios | Self::Plan(_) => {
                 return Mensaje::nuevo(&t::CAUSA_DEMASIADOS_CRITERIOS)
                     .con("max", crate::plan::heuristica::MAX_CRITERIOS.to_string());
             }
@@ -1082,6 +1097,44 @@ mod tests {
         assert_eq!(instante_utc(0), "1970-01-01T00:00:00Z");
         assert_eq!(instante_utc(951_868_799), "2000-02-29T23:59:59Z");
         assert_eq!(instante_utc(1_794_931_452), "2026-11-17T16:04:12Z");
+    }
+
+    /// La regla de `plan` en el alta (A3-08): con objetivo, 12 criterios
+    /// valen y 13 no; sin objetivo, tampoco.
+    #[test]
+    fn listo_con_la_regla_de_plan() {
+        let mut e = Entrada::nueva("X");
+        e.objetivo = "o".to_owned();
+        e.criterios = (1..=12).map(|i| format!("criterio {i}")).collect();
+        assert_eq!(e.listo(false), Ok(()));
+        e.criterios.push("criterio 13".to_owned());
+        assert_eq!(e.listo(false), Err(NoListo::DemasiadosCriterios));
+        assert_eq!(e.listo(true), Err(NoListo::DemasiadosCriterios));
+        e.criterios.truncate(1);
+        e.objetivo.clear();
+        assert_eq!(e.listo(false), Err(NoListo::SinObjetivo));
+    }
+
+    /// Cada `motivo=` de `Enunciado::validar` tiene su causa; uno que el
+    /// alta no conoce sale tal cual, no rotulado como otro.
+    #[test]
+    fn causa_de_cada_motivo_de_plan() {
+        for (motivo, causa) in [
+            ("objetivo-vacio", NoListo::SinObjetivo),
+            ("sin-criterios", NoListo::SinCriterios),
+            ("criterio-vacio", NoListo::CriterioVacio),
+            ("demasiados-criterios", NoListo::DemasiadosCriterios),
+        ] {
+            assert_eq!(NoListo::de_plan(motivo), causa);
+            assert_eq!(causa.causa(), motivo);
+        }
+        let otro = NoListo::de_plan("motivo-nuevo");
+        assert_eq!(otro, NoListo::Plan("motivo-nuevo"));
+        assert_eq!(otro.causa(), "motivo-nuevo");
+        assert_eq!(
+            otro.mensaje().texto(Idioma::Es),
+            NoListo::DemasiadosCriterios.mensaje().texto(Idioma::Es)
+        );
     }
 
     #[test]

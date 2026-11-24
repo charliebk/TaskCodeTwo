@@ -63,3 +63,28 @@ pub fn fichero(ruta: &Path, tope: usize) -> Result<String, NoSeLeyo> {
     }
     Ok(texto)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Bytes que no son UTF-8: `NoUtf8`, sin reemplazarlos por `\u{FFFD}`;
+    /// el mismo fichero en UTF-8, se lee.
+    #[test]
+    fn no_utf8_se_rechaza() -> std::io::Result<()> {
+        let dir = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("lectura-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let malo = dir.join("binario.md");
+        std::fs::write(&malo, [b'a', 0xff, 0xfe, b'b'])?;
+        let r = fichero(&malo, MAX_BYTES).map_err(|n| n.motivo);
+        let bueno = dir.join("texto.md");
+        std::fs::write(&bueno, "a\u{f1}b")?;
+        let b = fichero(&bueno, MAX_BYTES).map_err(|n| n.motivo);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r, Err(Motivo::NoUtf8));
+        assert_eq!(b, Ok("a\u{f1}b".to_owned()));
+        Ok(())
+    }
+}
