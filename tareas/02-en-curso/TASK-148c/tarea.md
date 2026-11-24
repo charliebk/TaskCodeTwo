@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -38,6 +38,7 @@ Parte c del troceo de TASK-148 (Auditoria 4D: soporte de tests compartido en tes
 |---|---|---|---|---|
 | 2026-11-24T04:02:16Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T04:06:40Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T04:06:41Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
