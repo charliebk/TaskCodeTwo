@@ -81,6 +81,14 @@ crate::i18n::textos! {
         es: "lleva caracteres de control",
         en: "it contains control characters",
     }
+    CAUSA_SIN_OBJETIVO {
+        es: "tiene criterios pero no objetivo",
+        en: "it has criteria but no goal",
+    }
+    CAUSA_DEMASIADOS_CRITERIOS {
+        es: "tiene mas de {max} criterios de aceptacion: partela en varias tareas",
+        en: "it has more than {max} acceptance criteria: split it into several tasks",
+    }
     CLAVE_DUPLICADA {
         es: "linea {linea}: la clave «{clave}» ya la usa otra entrada; empieza el «###» por una clave distinta (p. ej. «### F3-2 ...»). No se ha importado nada",
         en: "line {linea}: the key «{clave}» is already used by another entry; start the «###» with a different key (e.g. «### F3-2 ...»). Nothing was imported",

@@ -350,22 +350,43 @@ fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
         &bare,
         &["for-each-ref", "--format=%(refname) %(objectname)"],
     );
-    for (args, motivo) in [
+    // 13 criterios distintos: uno mas de los que admite `plan` (A3-08).
+    let trece: Vec<String> = (1..=13).map(|i| format!("criterio {i}")).collect();
+    let mut demasiados = vec!["new", "Demasiados", "--objetivo", "Algo"];
+    for c in &trece {
+        demasiados.extend(["--criterio", c.as_str()]);
+    }
+    for (args, motivo, causa) in [
         (
             vec!["new", "Sin criterios", "--objetivo", "Algo"],
             "enunciado-no-listo",
+            Some("sin-criterios"),
         ),
         (
             vec!["new", "Hueco", "--criterio", "<criterio comprobable>"],
             "enunciado-no-listo",
+            Some("plantilla"),
+        ),
+        // Criterios sin objetivo: lo rechazaria `plan` (A3-08).
+        (
+            vec!["new", "Sin objetivo", "--criterio", "hace algo"],
+            "enunciado-no-listo",
+            Some("objetivo-vacio"),
+        ),
+        (
+            demasiados,
+            "enunciado-no-listo",
+            Some("demasiados-criterios"),
         ),
         (
             vec!["new", "Tipo malo", "--tipo", "epica"],
             "valor-invalido",
+            None,
         ),
         (
             vec!["new", "Dep mala", "--dependencia", "TASK-099"],
             "referencia-inexistente",
+            None,
         ),
     ] {
         let o = tc2(&f, &a, &args);
@@ -373,6 +394,7 @@ fn c9_new_con_los_campos_de_rf_01_y_rechazo_de_un_enunciado_no_listo() {
         let err = texto(&o.stderr);
         assert_eq!(o.status.code(), Some(2), "{args:?}: {out} {err}");
         assert_eq!(valor(&out, "motivo"), Some(motivo), "{out}");
+        assert_eq!(valor(&out, "causa"), causa, "{out}");
         assert_eq!(err.lines().count(), 1, "{err}");
     }
     let despues = f.crudo(

@@ -104,7 +104,19 @@ impl Entrada {
                 return Err(NoListo::Repetido);
             }
         }
-        Ok(())
+        // Y la misma regla que `plan` (A3-08): lo que `plan` rechazaria no
+        // se da de alta.
+        let enunciado = crate::plan::heuristica::Enunciado {
+            objetivo: objetivo.to_owned(),
+            criterios: self.criterios.clone(),
+        };
+        match enunciado.validar() {
+            Ok(()) => Ok(()),
+            Err(("objetivo-vacio", _)) => Err(NoListo::SinObjetivo),
+            Err(("demasiados-criterios", _)) => Err(NoListo::DemasiadosCriterios),
+            Err(("sin-criterios", _)) => Err(NoListo::SinCriterios),
+            Err(_) => Err(NoListo::CriterioVacio),
+        }
     }
 }
 
@@ -239,6 +251,10 @@ pub enum NoListo {
     Repetido,
     /// Caracteres de control.
     Control,
+    /// Hay criterios pero no objetivo (la regla de `plan`).
+    SinObjetivo,
+    /// Mas criterios de los que admite `plan`.
+    DemasiadosCriterios,
 }
 
 impl NoListo {
@@ -250,6 +266,8 @@ impl NoListo {
             Self::Plantilla => "plantilla",
             Self::Repetido => "criterio-repetido",
             Self::Control => "caracter-de-control",
+            Self::SinObjetivo => "objetivo-vacio",
+            Self::DemasiadosCriterios => "demasiados-criterios",
         }
     }
 
@@ -262,6 +280,11 @@ impl NoListo {
             Self::Plantilla => &t::CAUSA_PLANTILLA,
             Self::Repetido => &t::CAUSA_REPETIDO,
             Self::Control => &t::CAUSA_CONTROL,
+            Self::SinObjetivo => &t::CAUSA_SIN_OBJETIVO,
+            Self::DemasiadosCriterios => {
+                return Mensaje::nuevo(&t::CAUSA_DEMASIADOS_CRITERIOS)
+                    .con("max", crate::plan::heuristica::MAX_CRITERIOS.to_string());
+            }
         })
     }
 }
