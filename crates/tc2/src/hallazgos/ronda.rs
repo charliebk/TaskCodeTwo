@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{AceptadoDe, Dictamen, VERSION, dictamen_publicado, plano, ronda_de_titulo};
+use super::{AceptadoDe, Dictamen, VERSION, celdas, dictamen_publicado, fila, ronda_de_titulo};
 
 /// Como se revisa esta ronda.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -314,7 +314,7 @@ pub fn repartir(abiertos: &[AceptadoDe], detalle: &[RevisoraDetalle]) -> Vec<Vec
 }
 
 /// Los abiertos de una revisora para su prompt, en Markdown, con todo el
-/// texto del modelo por [`plano`] (dato, no instrucciones).
+/// texto del modelo por [`super::plano`] (dato, no instrucciones).
 pub fn abiertos_markdown(abiertos: &[AceptadoDe]) -> String {
     if abiertos.is_empty() {
         return "No tienes hallazgos abiertos que cerrar.\n".to_owned();
@@ -323,17 +323,16 @@ pub fn abiertos_markdown(abiertos: &[AceptadoDe]) -> String {
         "| id | ronda | severidad | clase | fichero | linea | descripcion |\n|---|---|---|---|---|---|---|\n",
     );
     for a in abiertos {
-        let h = &a.hallazgo;
-        s.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} |\n",
-            plano(&h.id, 64),
-            a.ronda,
-            h.severidad.texto(),
-            h.clase.texto(),
-            plano(&h.fichero, 200),
-            h.linea,
-            plano(&h.descripcion, 400)
-        ));
+        let [id, severidad, clase, fichero, linea, descripcion] = celdas(&a.hallazgo);
+        s.push_str(&fila(&[
+            id,
+            a.ronda.to_string(),
+            severidad,
+            clase,
+            fichero,
+            linea,
+            descripcion,
+        ]));
     }
     s
 }

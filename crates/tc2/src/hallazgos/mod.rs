@@ -1170,6 +1170,25 @@ pub fn prosa(revisora: &str, respuesta: &str) -> String {
     }
 }
 
+/// Las seis celdas de un hallazgo en una tabla Markdown (id, severidad,
+/// clase, fichero, linea y descripcion), con el texto del modelo por
+/// [`plano`] y sus topes; cada tabla pone sus columnas propias entre ellas.
+fn celdas(h: &Aceptado) -> [String; 6] {
+    [
+        plano(&h.id, 64),
+        h.severidad.texto().to_owned(),
+        h.clase.texto().to_owned(),
+        plano(&h.fichero, 200),
+        h.linea.to_string(),
+        plano(&h.descripcion, 400),
+    ]
+}
+
+/// Una fila de tabla Markdown con esas celdas, ya pasadas por [`plano`].
+fn fila(celdas: &[String]) -> String {
+    format!("| {} |\n", celdas.join(" | "))
+}
+
 /// La seccion del check `revision-ia` para una revisora: las tablas de
 /// aceptados y rechazados, con todo el texto del modelo pasado por
 /// [`plano`].
@@ -1183,16 +1202,17 @@ pub fn resumen_markdown(v: &Validados) -> String {
     if !v.aceptados.is_empty() {
         s.push_str("| id | severidad | clase | fichero | linea | evidencia | descripcion |\n|---|---|---|---|---|---|---|\n");
         for a in &v.aceptados {
-            s.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {} | {} |\n",
-                plano(&a.id, 64),
-                a.severidad.texto(),
-                a.clase.texto(),
-                plano(&a.fichero, 200),
-                a.linea,
-                a.evidencia.tipo.texto(),
-                plano(&a.descripcion, 400)
-            ));
+            let [id, severidad, clase, fichero, linea, descripcion] = celdas(a);
+            let evidencia = a.evidencia.tipo.texto().to_owned();
+            s.push_str(&fila(&[
+                id,
+                severidad,
+                clase,
+                fichero,
+                linea,
+                evidencia,
+                descripcion,
+            ]));
         }
         s.push('\n');
     }
@@ -1857,19 +1877,19 @@ impl InformeTarea {
             );
             for a in &self.aceptados {
                 let h = &a.hallazgo;
-                s.push_str(&format!(
-                    "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                let [id, severidad, clase, fichero, linea, descripcion] = celdas(h);
+                s.push_str(&fila(&[
                     plano(&a.revisora, 120),
-                    a.ronda,
-                    a.estado.texto(),
-                    plano(&h.id, 64),
-                    h.severidad.texto(),
-                    h.clase.texto(),
-                    plano(&h.fichero, 200),
-                    h.linea,
-                    h.evidencia.tipo.texto(),
-                    plano(&h.descripcion, 400)
-                ));
+                    a.ronda.to_string(),
+                    a.estado.texto().to_owned(),
+                    id,
+                    severidad,
+                    clase,
+                    fichero,
+                    linea,
+                    h.evidencia.tipo.texto().to_owned(),
+                    descripcion,
+                ]));
             }
         }
         s
@@ -2459,6 +2479,35 @@ mod tests {
         let v = validar_con("r", &r, &d, Some(&informe), &abiertos);
         assert_eq!(v.rechazados[0].indice, Some(1));
         assert_eq!(v.aceptados.len(), 1);
+    }
+
+    /// A2-04: la fila de un hallazgo sale entera, con el texto por `plano`,
+    /// en la tabla del check y en la de los abiertos del prompt (la del
+    /// informe de la tarea la fija `tests/revision.rs`).
+    #[test]
+    fn la_fila_de_un_hallazgo_sale_entera_en_cada_tabla() {
+        let mut a = abierto("I1", "IMPORTANTE", 12, EV_BORDE);
+        a.ronda = 2;
+        a.hallazgo.descripcion = "falta | algo".to_owned();
+        let v = Validados {
+            version: VERSION,
+            revisora: "r".to_owned(),
+            aceptados: vec![a.hallazgo.clone()],
+            rechazados: Vec::new(),
+            cierres: Vec::new(),
+        };
+        let md = resumen_markdown(&v);
+        assert!(
+            md.contains("\n| I1 | IMPORTANTE | correccion | src/calculo.rs | 12 | borde | falta \\| algo |\n"),
+            "{md}"
+        );
+        let md = ronda::abiertos_markdown(&[a]);
+        assert!(
+            md.ends_with(
+                "\n| I1 | 2 | IMPORTANTE | correccion | src/calculo.rs | 12 | falta \\| algo |\n"
+            ),
+            "{md}"
+        );
     }
 
     /// MEN-1 (rust) de la ronda 1: el informe de la tarea cuenta nuevos,
