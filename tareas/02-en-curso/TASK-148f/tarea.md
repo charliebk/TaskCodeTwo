@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Crea `plataforma::prueba::{Parcial, Doble}` y `comun/plataforma.rs` con `panic!`
 |---|---|---|---|---|
 | 2026-11-24T08:18:58Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T08:22:54Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T08:22:55Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
