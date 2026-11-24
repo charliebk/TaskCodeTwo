@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2314328
 tokens_implementacion: 21749855
-tokens_revision: null
+tokens_revision: 10090939
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: []
@@ -75,8 +75,13 @@ Corregidos los 5 IMPORTANTE del grupo A3.
 | 2026-11-24T19:50:48Z | diseno | agente:a39668713434380c8 | 66 | 111657 | 2177396 | 25209 | 49 | 2314328 | - | - |
 | 2026-11-24T21:11:24Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 24 | 15380 | 7355211 | 5406 | 0 | 7376021 | - | - |
 | 2026-11-24T21:11:24Z | implementacion | agente:a6f4f072a8c0e9c53 | 188 | 211328 | 14109190 | 53128 | 15 | 14373834 | - | - |
+| 2026-11-24T22:02:08Z | revision | agente:a5047424bd7e80da7 | 144 | 173429 | 9889892 | 27474 | 18 | 10090939 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — ab11d28
 - 4D — ab11d28: helper buscado, criterios citados, 3 mutantes vistos en rojo
+
+## Verificacion ligera
+
+- 2026-11-24T22:02:10Z: ronda 1; commit revisado 65a9b47af269e1b7ec3bd6ee34daace322bf0d0d; commit verificado 7dc870a79156e7964c31f86977d1c57078d998c2; ficheros: crates/tc2/src/alta.rs, crates/tc2/src/lectura.rs; corregidos: MEN-1, MEN-2, MEN-4; pendientes: MEN-3
