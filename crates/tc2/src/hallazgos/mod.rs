@@ -2424,6 +2424,21 @@ mod tests {
         );
         assert_eq!(v.motivos(), ["I1:id-repetido"]);
         assert_eq!(v.cierres.len(), 1);
+        // Mas de TOPE_HALLAZGOS cierres: los que sobran, un rechazo con el
+        // indice del primero que pasa (sin hallazgos, el del cierre 100).
+        let muchos = vec![cierre("I1", 12); TOPE_HALLAZGOS + 1];
+        let v = validar_con("r", &con(&muchos), &d, Some(&informe), &abiertos);
+        let motivos = v.motivos();
+        assert_eq!(
+            motivos.last(),
+            Some(&format!("#{TOPE_HALLAZGOS}:fuera-de-tope"))
+        );
+        assert_eq!(motivos.len(), TOPE_HALLAZGOS, "{motivos:?}");
+        assert_eq!(
+            v.rechazados.last().map(|r| r.detalle.as_str()),
+            Some(format!("1 cierres pasan del tope de {TOPE_HALLAZGOS}").as_str())
+        );
+        assert_eq!(v.cierres.len(), 1);
         // MEN-4 (rust) de la ronda 1: sin `hallazgos` (como sin `cierres`),
         // es una lista vacia y el cierre valido no se pierde.
         let solo_cierres = format!("```json\n{{\"cierres\": [{}]}}\n```", cierre("I1", 12));
