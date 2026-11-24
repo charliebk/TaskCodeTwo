@@ -169,7 +169,7 @@ fn c2_dependencias_externas_validadas_y_errores_sin_commit() {
     let ruta = fichero(
         &f,
         "externas.md",
-        "### E1 Usa la existente\n- c\nDependencias: TASK-001\n### E2 Y la local\n- c\nDependencias: E1, TASK-001\n",
+        "### E1 Usa la existente\n> o\n- c\nDependencias: TASK-001\n### E2 Y la local\n> o\n- c\nDependencias: E1, TASK-001\n",
     );
     let (codigo, out, err) = importar(&f, &a, &ruta, &["--sprint", "2"]);
     assert_eq!(codigo, 0, "{out} {err}");
@@ -196,17 +196,17 @@ fn c2_dependencias_externas_validadas_y_errores_sin_commit() {
     for (nombre, contenido, motivo) in [
         (
             "inexistente.md",
-            "### X1 a\n- c\nDependencias: TASK-099\n",
+            "### X1 a\n> o\n- c\nDependencias: TASK-099\n",
             "referencia-inexistente",
         ),
         (
             "local.md",
-            "### X1 a\n- c\nDependencias: X9\n",
+            "### X1 a\n> o\n- c\nDependencias: X9\n",
             "referencia-inexistente",
         ),
         (
             "ciclo.md",
-            "### X1 a\n- c\nDependencias: X2\n### X2 b\n- c\nDependencias: X1\n",
+            "### X1 a\n> o\n- c\nDependencias: X2\n### X2 b\n> o\n- c\nDependencias: X1\n",
             "ciclo",
         ),
     ] {
@@ -233,7 +233,7 @@ fn c4_dos_entradas_mas_crean_solo_esas_dos() {
     // Otra tarea entre medias: los nuevos IDs van detras.
     assert_eq!(tc2(&f, &a, &["new", "Entre medias"]).status.code(), Some(0));
     let ampliado = format!(
-        "{base}### H6 Nueva seis\n- c6\nDependencias: H5, TASK-006\n\n### H7 Nueva siete\n- c7\nDependencias: H1, H6\n"
+        "{base}### H6 Nueva seis\n> o6\n- c6\nDependencias: H5, TASK-006\n\n### H7 Nueva siete\n> o7\n- c7\nDependencias: H1, H6\n"
     );
     let ruta = fichero(&f, "hito.md", &ampliado);
     let (codigo, out, err) = importar(&f, &a, &ruta, &[]);
@@ -347,6 +347,11 @@ fn c7_limites_y_sin_red() {
     let (codigo, out, _) = importar(&f, &a, &muchas, &[]);
     assert_eq!(codigo, 2, "{out}");
     assert_eq!(out, "import uso motivo=demasiadas-entradas limite=200\n");
+    // Vacio o solo espacios: se rechaza al leer, como en `plan` (A3-03).
+    let vacio = fichero(&f, "vacio.md", " \n\t\n");
+    let (codigo, out, _) = importar(&f, &a, &vacio, &[]);
+    assert_eq!(codigo, 2, "{out}");
+    assert_eq!(out, "import uso motivo=vacio\n");
     assert_eq!(antes, f.huella(&bare, &a));
     // 200 justas si valen.
     let justas = fichero(&f, "justas.md", &lote("justas", 1, 200, |_| None));
@@ -408,7 +413,7 @@ fn c6_simular_no_cambia_ni_un_byte() {
     );
     // Con estado: dos entradas mas, previstas sobre el commit conocido.
     let ampliado = format!(
-        "{}### H4 Cuarta\n- c\nDependencias: H1\n### H5 Quinta\n- c\n",
+        "{}### H4 Cuarta\n> o\n- c\nDependencias: H1\n### H5 Quinta\n> o\n- c\n",
         lote("sim", 5, 3, |_| None)
     );
     let ruta = fichero(&f, "sim.md", &ampliado);

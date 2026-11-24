@@ -100,7 +100,11 @@ fn sin_anterior_en_start_y_en_una_transicion() {
     let f = Fixture::nueva("progreso-sin-anterior");
     let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
-    let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
+    let (c, out, err) = tc2(
+        &f,
+        &a,
+        &["new", "Siete", "--objetivo", "o", "--criterio", "uno"],
+    );
     assert_eq!(c, Some(0), "{out} {err}");
     let p = carpeta(&a);
     std::fs::create_dir_all(&p).unwrap();
@@ -155,7 +159,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
     let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
     for t in ["Siete", "Ocho"] {
-        let (c, out, err) = tc2(&f, &a, &["new", t, "--criterio", "uno"]);
+        let (c, out, err) = tc2(&f, &a, &["new", t, "--objetivo", "o", "--criterio", "uno"]);
         assert_eq!(c, Some(0), "{out} {err}");
     }
     let p = carpeta(&a);
@@ -257,7 +261,11 @@ fn m4_reasignar_borra_el_progreso() {
     let f = Fixture::nueva("progreso-reasignar");
     let (_bare, a) = f.preparar(&Preparar::default());
     poner(&f, &a, &seis());
-    let (c, out, err) = tc2(&f, &a, &["new", "Siete", "--criterio", "uno"]);
+    let (c, out, err) = tc2(
+        &f,
+        &a,
+        &["new", "Siete", "--objetivo", "o", "--criterio", "uno"],
+    );
     assert_eq!(c, Some(0), "{out} {err}");
     let (c, out, err) = tc2(&f, &a, &["start", "TASK-007"]);
     assert_eq!(c, Some(0), "{out} {err}");

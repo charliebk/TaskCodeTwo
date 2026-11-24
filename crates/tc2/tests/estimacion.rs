@@ -285,7 +285,11 @@ fn c3_sin_datos_nunca_un_numero_inventado() {
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 10 * i))
         .collect();
     poner(&f, &a, &tres);
-    let (c, out, err) = correr(&f, &a, &["new", "Abierta", "--criterio", "uno"]);
+    let (c, out, err) = correr(
+        &f,
+        &a,
+        &["new", "Abierta", "--objetivo", "o", "--criterio", "uno"],
+    );
     assert_eq!(c, Some(0), "{out} {err}");
     assert_eq!(valor(&out, "id"), Some("TASK-004"), "{out}");
     assert_eq!(valor(&out, "estimacion"), Some("sin-datos"), "{out}");
@@ -344,7 +348,16 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
     let (c, out, err) = correr(
         &f,
         &a,
-        &["new", "Nueva", "--criterio", "uno", "--criterio", "dos"],
+        &[
+            "new",
+            "Nueva",
+            "--objetivo",
+            "o",
+            "--criterio",
+            "uno",
+            "--criterio",
+            "dos",
+        ],
     );
     assert_eq!(c, Some(0), "{out} {err}");
     assert_eq!(valor(&out, "estimacion-nivel"), Some("repo"), "{out}");
@@ -420,7 +433,11 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
     poner(&f, &a, &cinco);
-    let (c, out, err) = correr(&f, &a, &["new", "Abierta", "--criterio", "uno"]);
+    let (c, out, err) = correr(
+        &f,
+        &a,
+        &["new", "Abierta", "--objetivo", "o", "--criterio", "uno"],
+    );
     assert_eq!(c, Some(0), "{out} {err}");
     assert_eq!(valor(&out, "estimacion-n"), Some("5"), "{out}");
     // Termina una mas.
@@ -738,7 +755,11 @@ fn r1_05_un_git_log_en_new_import_y_start() {
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
     poner(&f, &a, &seis);
-    let (c, out, subs) = llamadas(&f, &a, &["new", "Nueva", "--criterio", "uno"]);
+    let (c, out, subs) = llamadas(
+        &f,
+        &a,
+        &["new", "Nueva", "--objetivo", "o", "--criterio", "uno"],
+    );
     assert_eq!(c, Some(0), "{out}");
     assert_eq!(valor(&out, "estimacion-n"), Some("6"), "{out}");
     assert_eq!(cuantas(&subs, "log "), 1, "new: {subs:?}");

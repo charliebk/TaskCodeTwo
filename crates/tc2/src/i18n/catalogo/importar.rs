@@ -13,6 +13,10 @@ crate::i18n::textos! {
         es: "{ruta} no es texto UTF-8. No se ha importado nada",
         en: "{ruta} is not UTF-8 text. Nothing was imported",
     }
+    VACIO {
+        es: "{ruta} esta vacio. No se ha importado nada",
+        en: "{ruta} is empty. Nothing was imported",
+    }
     FICHERO_GRANDE {
         es: "el fichero pasa de {limite} bytes: partelo en varios lotes. No se ha importado nada",
         en: "the file is larger than {limite} bytes: split it into several batches. Nothing was imported",
@@ -76,6 +80,14 @@ crate::i18n::textos! {
     CAUSA_CONTROL {
         es: "lleva caracteres de control",
         en: "it contains control characters",
+    }
+    CAUSA_SIN_OBJETIVO {
+        es: "tiene criterios pero no objetivo",
+        en: "it has criteria but no goal",
+    }
+    CAUSA_DEMASIADOS_CRITERIOS {
+        es: "tiene mas de {max} criterios de aceptacion: partela en varias tareas",
+        en: "it has more than {max} acceptance criteria: split it into several tasks",
     }
     CLAVE_DUPLICADA {
         es: "linea {linea}: la clave «{clave}» ya la usa otra entrada; empieza el «###» por una clave distinta (p. ej. «### F3-2 ...»). No se ha importado nada",

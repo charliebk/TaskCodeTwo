@@ -701,6 +701,30 @@ mod tests {
         assert_eq!(juegos_de_rondas(&rutas, "TASK-001"), vec![dos]);
     }
 
+    /// Los roles elegidos por dominio (F4-6): carril `fix` con la etiqueta
+    /// `wasm` deja el esqueleto de arquitectura y rendimiento, un juego que
+    /// `roles::seleccionar` no da. Solo lo reconoce la ronda de sus
+    /// peticiones (A3-02); sin las rutas, no.
+    #[test]
+    fn esqueleto_de_los_roles_de_la_ronda() {
+        let mut t = Tarea::nueva("TASK-001", "Uno", "2026-11-01");
+        t.etiquetas = vec!["wasm".to_owned()];
+        let juego: Vec<Rol> = roles::todos()
+            .filter(|r| ["brainstorm-arquitectura", "brainstorm-rendimiento"].contains(&r.id))
+            .copied()
+            .collect();
+        assert_eq!(juego.len(), 2);
+        let b = "TASK-001/planificacion/brainstorm/";
+        let rutas = vec![
+            format!("{b}peticion-brainstorm-arquitectura-1.md"),
+            format!("{b}peticion-brainstorm-rendimiento-1.md"),
+            format!("{b}peticion-unificador-1.md"),
+        ];
+        let plan = p::plan_final("TASK-001", "Uno", &juego);
+        assert!(es_esqueleto(&plan, &t, &rutas));
+        assert!(!es_esqueleto(&plan, &t, &[]));
+    }
+
     /// `exige_red` y el sello firmado con `Plan-Blob` de `plan-final.md`.
     #[test]
     fn exige_red_y_firma_con_plan_blob() {

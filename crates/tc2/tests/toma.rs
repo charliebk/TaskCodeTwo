@@ -429,7 +429,7 @@ fn rama_mal_formada_es_rama_invalida() {
 fn c7_lo_publicado_la_rama_y_el_worktree() {
     let f = Fixture::nueva("toma-c7");
     let (bare, a) = f.preparar(&Preparar {
-        altas: &[&["Primera", "--criterio", "uno"]],
+        altas: &[&["Primera", "--objetivo", "o", "--criterio", "uno"]],
         ..Default::default()
     });
     let antes = f.publicado(&bare, "TASK-001/tarea.md");

@@ -29,8 +29,9 @@ use crate::i18n::Mensaje;
 use crate::i18n::catalogo::importar as txt;
 use crate::tarea::{id_valido, titulo_valido};
 
-/// Tamano maximo del fichero (D4 de TASK-029).
-pub const MAX_BYTES: usize = 1 << 20;
+/// Tamano maximo del fichero (D4 de TASK-029): el tope unico de la lectura
+/// acotada (modulo `lectura`), el mismo de `plan guardar`.
+pub use crate::lectura::MAX_BYTES;
 /// Entradas maximas por lote (D4 de TASK-029).
 pub const MAX_ENTRADAS: usize = 200;
 /// Longitud maxima de una clave de entrada o de un nombre de lote.
@@ -520,7 +521,7 @@ mod tests {
     #[test]
     fn formato_016_sin_cabecera() {
         let l = ok(
-            "# Plan\n\nprosa ignorada\n\n### F1-19 ADR memoria\n> Objetivo uno\n>\n> dos\n- Criterio a\n  sigue a\n* Criterio b\n\n### Sin clave aqui\n- c\n## Otra cosa\ntexto suelto tras cerrar\n",
+            "# Plan\n\nprosa ignorada\n\n### F1-19 ADR memoria\n> Objetivo uno\n>\n> dos\n- Criterio a\n  sigue a\n* Criterio b\n\n### Sin clave aqui\n> o\n- c\n## Otra cosa\ntexto suelto tras cerrar\n",
         );
         assert_eq!((l.nombre, l.sprint), (None, None));
         let e = &l.entradas;
@@ -530,17 +531,17 @@ mod tests {
         assert_eq!(e[0].objetivo, "Objetivo uno\n\ndos");
         assert_eq!(e[0].criterios, ["Criterio a sigue a", "Criterio b"]);
         assert_eq!(e[1].clave, "sin-clave-aqui");
-        assert_eq!(e[1].objetivo, "");
+        assert_eq!(e[1].objetivo, "o");
     }
 
     #[test]
     fn cabecera_y_dependencias() {
         let l = ok(
-            "\u{feff}---\r\nlote: fase-3\r\nsprint: \"3\"\r\n---\r\n### A1 Uno\r\n- c\r\n### A2 Dos\r\nDependencias: A1, TASK-019, A1\r\n- c\r\n",
+            "\u{feff}---\r\nlote: fase-3\r\nsprint: \"3\"\r\n---\r\n### A1 Uno\r\n> o\r\n- c\r\n### A2 Dos\r\n> o\r\nDependencias: A1, TASK-019, A1\r\n- c\r\n",
         );
         assert_eq!((l.nombre.as_deref(), l.sprint), (Some("fase-3"), Some(3)));
         assert_eq!(l.entradas[1].dependencias, ["A1", "TASK-019"]);
-        assert_eq!(l.entradas[1].linea, 7);
+        assert_eq!(l.entradas[1].linea, 8);
         for (t, m) in [
             ("---\nlote: x\n", "cabecera-sin-cerrar"),
             ("---\nhito: 3\n---\n### A1 x\n- c\n", "cabecera-invalida"),
@@ -573,14 +574,17 @@ mod tests {
             ("### A1 x\nprosa\n- a\n", "linea-suelta"),
             ("### A1 x\n- a\n> objetivo tarde\n", "linea-suelta"),
             ("### A1 x\n- a\n\n  sangrada tras blanco\n", "linea-suelta"),
-            ("### A1 x\n- a\n### A1 y\n- b\n", "clave-duplicada"),
             (
-                "### A1 x\n- a\nDependencias: B9\n",
+                "### A1 x\n> o\n- a\n### A1 y\n> o\n- b\n",
+                "clave-duplicada",
+            ),
+            (
+                "### A1 x\n> o\n- a\nDependencias: B9\n",
                 "referencia-inexistente",
             ),
-            ("### A1 x\n- a\nDependencias: A1\n", "ciclo"),
+            ("### A1 x\n> o\n- a\nDependencias: A1\n", "ciclo"),
             (
-                "### A1 x\n- a\nDependencias: A3\n### A2 y\n- b\nDependencias: A1\n### A3 z\n- c\nDependencias: A2\n",
+                "### A1 x\n> o\n- a\nDependencias: A3\n### A2 y\n> o\n- b\nDependencias: A1\n### A3 z\n> o\n- c\nDependencias: A2\n",
                 "ciclo",
             ),
         ] {
@@ -589,17 +593,34 @@ mod tests {
         // La linea del error es la del `###` de la entrada mala.
         let mut t = String::new();
         for i in 1..=40 {
-            t.push_str(&format!("### T{i} tarea {i}\n- criterio {i}\n"));
+            t.push_str(&format!("### T{i} tarea {i}\n> o\n- criterio {i}\n"));
         }
-        let malo = t.replacen("### T30 tarea 30\n- criterio 30\n", "### T30 tarea 30\n", 1);
+        let malo = t.replacen(
+            "### T30 tarea 30\n> o\n- criterio 30\n",
+            "### T30 tarea 30\n",
+            1,
+        );
         let e = leer(&malo, Limites::default()).err();
         assert_eq!(
             e.map(|e| (e.motivo, e.claves)),
             Some((
                 "enunciado-no-listo",
                 vec![
-                    ("linea", "59".to_owned()),
+                    ("linea", "88".to_owned()),
                     ("causa", "sin-criterios".to_owned())
+                ]
+            ))
+        );
+        // Una entrada sin lineas `>` no esta lista, como la rechazaria
+        // `plan` (A3-08).
+        let e = leer("### A1 x\n> o\n- a\n### A2 y\n- b\n", Limites::default()).err();
+        assert_eq!(
+            e.map(|e| (e.motivo, e.claves)),
+            Some((
+                "enunciado-no-listo",
+                vec![
+                    ("linea", "4".to_owned()),
+                    ("causa", "objetivo-vacio".to_owned())
                 ]
             ))
         );
@@ -617,13 +638,13 @@ mod tests {
             leer(&"x".repeat(65), l).err().map(|e| e.motivo),
             Some("fichero-grande")
         );
-        let tres = "### A1 a\n- c\n### A2 b\n- c\n### A3 c\n- c\n";
-        assert_eq!(tres.len(), 39);
+        let tres = "### A1 a\n> o\n- c\n### A2 b\n> o\n- c\n### A3 c\n> o\n- c\n";
+        assert_eq!(tres.len(), 51);
         assert_eq!(
             leer(tres, l).err().map(|e| e.motivo),
             Some("demasiadas-entradas")
         );
-        assert_eq!(leer(&tres[..26], l).map(|x| x.entradas.len()), Ok(2));
+        assert_eq!(leer(&tres[..34], l).map(|x| x.entradas.len()), Ok(2));
     }
 
     #[test]

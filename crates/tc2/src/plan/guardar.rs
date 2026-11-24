@@ -30,9 +30,6 @@ use super::operacion::EN_DISENO;
 /// Nombre de la operacion (en el commit y en la anotacion).
 pub const NOMBRE_OP: &str = "plan-guardar";
 
-/// Tope del fichero que se publica (el del import, D4 de TASK-029).
-pub const MAX_BYTES: usize = 1 << 20;
-
 /// Si `destino` es uno de la lista: `plan-final.md` o
 /// `brainstorm/salida-<rol>-<n>.md` con un rol conocido y `n` un entero
 /// positivo sin ceros delante. Devuelve, para una salida, el nombre de su

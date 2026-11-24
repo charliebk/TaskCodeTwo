@@ -240,33 +240,23 @@ fn de_error(e: ErrorLote) -> Informe {
     i.diagnostico(e.mensaje)
 }
 
-/// Lee el fichero sin cargar mas del tope de bytes: se lee como mucho un
-/// byte de mas, y si llega a leerse el fichero es demasiado grande (sin
-/// carrera entre mirar el tamano y leer).
+/// Lee el fichero con [`crate::lectura::fichero`] (tope de `limites`,
+/// UTF-8, no vacio; ruta y error saneados, F1-8). Un fallo es `uso`.
 fn leer_fichero(ruta: &Path, limites: Limites) -> Result<String, Informe> {
-    use std::io::Read as _;
-    let no_se_lee = |e: std::io::Error| {
+    use crate::lectura::{self, Motivo};
+    lectura::fichero(ruta, limites.bytes).map_err(|n| {
+        let (motivo, m) = match n.motivo {
+            Motivo::Grande => return de_error(fichero::grande(limites)),
+            Motivo::NoSeLee => (
+                "no-se-lee",
+                Mensaje::nuevo(&txt::NO_SE_LEE).con("error", n.error),
+            ),
+            Motivo::NoUtf8 => ("no-utf8", Mensaje::nuevo(&txt::NO_UTF8)),
+            Motivo::Vacio => ("vacio", Mensaje::nuevo(&txt::VACIO)),
+        };
         Informe::nuevo(NOMBRE, Resultado::Uso)
-            .con("motivo", "no-se-lee")
-            .diagnostico(
-                Mensaje::nuevo(&txt::NO_SE_LEE)
-                    .con("ruta", ruta.display().to_string())
-                    .con("error", e.to_string()),
-            )
-    };
-    let f = std::fs::File::open(ruta).map_err(no_se_lee)?;
-    let tope = u64::try_from(limites.bytes).unwrap_or(u64::MAX);
-    let mut bytes = Vec::new();
-    f.take(tope.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(no_se_lee)?;
-    if bytes.len() > limites.bytes {
-        return Err(de_error(fichero::grande(limites)));
-    }
-    String::from_utf8(bytes).map_err(|_| {
-        Informe::nuevo(NOMBRE, Resultado::Uso)
-            .con("motivo", "no-utf8")
-            .diagnostico(Mensaje::nuevo(&txt::NO_UTF8).con("ruta", ruta.display().to_string()))
+            .con("motivo", motivo)
+            .diagnostico(m.con("ruta", n.ruta))
     })
 }
 
@@ -465,6 +455,27 @@ mod tests {
                 "{a:?}"
             );
         }
+    }
+
+    /// La ruta de `import` es un dato no confiable (F1-8): el diagnostico de
+    /// un fichero que no se lee sale saneado, sin saltos de linea ni
+    /// secuencias de escape (A3-03).
+    #[test]
+    fn ruta_que_no_se_lee_saneada() {
+        let ruta = std::env::temp_dir()
+            .join("tc2-tests")
+            .join("no\nexiste\u{1b}[31m.md");
+        let i = leer_fichero(&ruta, Limites::default()).err();
+        assert_eq!(
+            i.as_ref().map(|i| (i.resultado, i.valor("motivo"))),
+            Some((Resultado::Uso, Some("no-se-lee")))
+        );
+        let d = i
+            .and_then(|i| i.diagnostico)
+            .map(|m| m.texto(crate::i18n::Idioma::Es))
+            .unwrap_or_default();
+        assert!(d.contains("no existe [31m.md"), "{d}");
+        assert!(!d.contains('\n') && !d.contains('\u{1b}'), "{d:?}");
     }
 
     #[test]

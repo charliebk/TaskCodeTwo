@@ -104,7 +104,15 @@ impl Entrada {
                 return Err(NoListo::Repetido);
             }
         }
-        Ok(())
+        // Y la misma regla que `plan` (A3-08): lo que `plan` rechazaria no
+        // se da de alta.
+        let enunciado = crate::plan::heuristica::Enunciado {
+            objetivo: objetivo.to_owned(),
+            criterios: self.criterios.clone(),
+        };
+        enunciado
+            .validar()
+            .map_err(|(motivo, _)| NoListo::de_plan(motivo))
     }
 }
 
@@ -239,9 +247,28 @@ pub enum NoListo {
     Repetido,
     /// Caracteres de control.
     Control,
+    /// Hay criterios pero no objetivo (la regla de `plan`).
+    SinObjetivo,
+    /// Mas criterios de los que admite `plan`.
+    DemasiadosCriterios,
+    /// Otro `motivo=` de la regla de `plan` que el alta no conoce todavia:
+    /// sale tal cual en `causa=`, sin rotularlo como otra causa (el texto
+    /// del diagnostico es el que le da `plan`).
+    Plan(&'static str),
 }
 
 impl NoListo {
+    /// La causa del alta para un `motivo=` de `Enunciado::validar`.
+    fn de_plan(motivo: &'static str) -> Self {
+        match motivo {
+            "objetivo-vacio" => Self::SinObjetivo,
+            "sin-criterios" => Self::SinCriterios,
+            "criterio-vacio" => Self::CriterioVacio,
+            "demasiados-criterios" => Self::DemasiadosCriterios,
+            otro => Self::Plan(otro),
+        }
+    }
+
     /// Valor de `causa=` en la linea de contrato.
     pub fn causa(self) -> &'static str {
         match self {
@@ -250,6 +277,9 @@ impl NoListo {
             Self::Plantilla => "plantilla",
             Self::Repetido => "criterio-repetido",
             Self::Control => "caracter-de-control",
+            Self::SinObjetivo => "objetivo-vacio",
+            Self::DemasiadosCriterios => "demasiados-criterios",
+            Self::Plan(motivo) => motivo,
         }
     }
 
@@ -262,6 +292,14 @@ impl NoListo {
             Self::Plantilla => &t::CAUSA_PLANTILLA,
             Self::Repetido => &t::CAUSA_REPETIDO,
             Self::Control => &t::CAUSA_CONTROL,
+            Self::SinObjetivo => &t::CAUSA_SIN_OBJETIVO,
+            // Un motivo de `plan` sin texto propio aqui lleva el mismo que le
+            // da `plan` (`Planificar::enunciado_invalido`); `causa=` dice el
+            // motivo exacto.
+            Self::DemasiadosCriterios | Self::Plan(_) => {
+                return Mensaje::nuevo(&t::CAUSA_DEMASIADOS_CRITERIOS)
+                    .con("max", crate::plan::heuristica::MAX_CRITERIOS.to_string());
+            }
         })
     }
 }
@@ -565,9 +603,22 @@ pub fn aviso_parecidas(p: &[Parecida], idioma: Idioma) -> Option<String> {
 }
 
 /// Reconstruye un [`Alta`] desde su anotacion (para el catalogo).
+///
+/// La anotacion solo lleva el titulo, y la reconstruida es un alta con ese
+/// titulo y lo demas de la plantilla (tipo, objetivo, criterios,
+/// dependencias y lote se pierden). No hace falta mas: un `new` exige red
+/// ([`Operacion::exige_red`], F1-2 D2b), asi que sin red falla y nunca
+/// queda pendiente de reintento; el catalogo no llega a reconstruir uno con
+/// datos. Si `new` dejara de exigir red, la anotacion tendria que llevar la
+/// entrada entera (lo vigila `anotacion_ida_y_vuelta`).
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
+    alta_de_anotacion(a).map(|x| Box::new(x) as Box<dyn Operacion>)
+}
+
+/// La mitad sin `Box` de [`desde_anotacion`].
+fn alta_de_anotacion(a: &str) -> Option<Alta> {
     let titulo = a.strip_prefix(NOMBRE)?.strip_prefix('|')?;
-    titulo_valido(titulo).then(|| Box::new(Alta::nueva(titulo)) as Box<dyn Operacion>)
+    titulo_valido(titulo).then(|| Alta::nueva(titulo))
 }
 
 pub use crate::tarea::titulo_valido;
@@ -1048,11 +1099,62 @@ mod tests {
         assert_eq!(instante_utc(1_794_931_452), "2026-11-17T16:04:12Z");
     }
 
+    /// La regla de `plan` en el alta (A3-08): con objetivo, 12 criterios
+    /// valen y 13 no; sin objetivo, tampoco.
+    #[test]
+    fn listo_con_la_regla_de_plan() {
+        let mut e = Entrada::nueva("X");
+        e.objetivo = "o".to_owned();
+        e.criterios = (1..=12).map(|i| format!("criterio {i}")).collect();
+        assert_eq!(e.listo(false), Ok(()));
+        e.criterios.push("criterio 13".to_owned());
+        assert_eq!(e.listo(false), Err(NoListo::DemasiadosCriterios));
+        assert_eq!(e.listo(true), Err(NoListo::DemasiadosCriterios));
+        e.criterios.truncate(1);
+        e.objetivo.clear();
+        assert_eq!(e.listo(false), Err(NoListo::SinObjetivo));
+    }
+
+    /// Cada `motivo=` de `Enunciado::validar` tiene su causa; uno que el
+    /// alta no conoce sale tal cual, no rotulado como otro.
+    #[test]
+    fn causa_de_cada_motivo_de_plan() {
+        for (motivo, causa) in [
+            ("objetivo-vacio", NoListo::SinObjetivo),
+            ("sin-criterios", NoListo::SinCriterios),
+            ("criterio-vacio", NoListo::CriterioVacio),
+            ("demasiados-criterios", NoListo::DemasiadosCriterios),
+        ] {
+            assert_eq!(NoListo::de_plan(motivo), causa);
+            assert_eq!(causa.causa(), motivo);
+        }
+        let otro = NoListo::de_plan("motivo-nuevo");
+        assert_eq!(otro, NoListo::Plan("motivo-nuevo"));
+        assert_eq!(otro.causa(), "motivo-nuevo");
+        assert_eq!(
+            otro.mensaje().texto(Idioma::Es),
+            NoListo::DemasiadosCriterios.mensaje().texto(Idioma::Es)
+        );
+    }
+
     #[test]
     fn anotacion_ida_y_vuelta() {
         let a = Alta::con_fecha("con | barra", "2026-11-15");
         assert_eq!(a.anotacion(), "new|con | barra");
-        assert!(desde_anotacion(&a.anotacion()).is_some());
+        // La reconstruida es la misma operacion (como en `ciclo`).
+        let r = desde_anotacion(&a.anotacion());
+        assert_eq!(
+            r.as_ref()
+                .map(|x| (x.nombre().to_owned(), x.anotacion(), x.exige_red())),
+            Some((a.nombre().to_owned(), a.anotacion(), a.exige_red()))
+        );
+        // Solo el titulo: basta porque un `new` exige red y nunca queda
+        // pendiente (F1-2 D2b). Si dejara de exigirla, esto sale en rojo.
+        assert!(a.exige_red());
+        assert_eq!(
+            alta_de_anotacion(&a.anotacion()).map(|x| x.entrada),
+            Some(Entrada::nueva("con | barra"))
+        );
         assert!(desde_anotacion("new|").is_none());
         assert!(desde_anotacion("otra|x").is_none());
         assert!(desde_anotacion("newx|t").is_none());
