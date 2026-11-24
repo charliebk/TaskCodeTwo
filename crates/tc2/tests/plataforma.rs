@@ -101,17 +101,7 @@ fn bateria_de_la_poc_m_e_idempotencia() {
             &std::fs::read_to_string(format!("{carpeta}/{caso}.json")).unwrap(),
         )
         .unwrap();
-        let mock = Mock::nuevo();
-        for (ruta, r) in f["respuestas"].as_object().unwrap() {
-            mock.responder(
-                "GET",
-                ruta,
-                Simulada::json(
-                    r["estado"].as_u64().unwrap() as u16,
-                    &r["cuerpo"].to_string(),
-                ),
-            );
-        }
+        let mock = adaptadores::servir(&f);
         let exigir: Vec<&str> = f["politica"]["exigir_impuestas"]
             .as_array()
             .unwrap()
@@ -462,24 +452,7 @@ fn errores_dirigidos_a_la_persona() {
             "forma esperada",
         ),
     ];
-    for (respuesta, linea, codigo, arreglo) in casos {
-        let mock = Mock::nuevo();
-        mock.responder("GET", "/user", respuesta);
-        let gh = adaptador(&mock, &[Rol::Agente]);
-        let i = gh.identidad(Rol::Agente).unwrap_err();
-        let s = i.salida(false);
-        assert_eq!((s.stdout.trim_end(), s.codigo), (linea, codigo));
-        assert!(s.stderr.contains(arreglo), "{linea}: {}", s.stderr);
-        assert!(!s.stderr.contains('\u{7}'), "sin controles de la API");
-        for texto in [
-            s.stdout,
-            s.stderr,
-            i.salida(true).stdout,
-            format!("{gh:?} {i:?}"),
-        ] {
-            assert!(!texto.contains(TOKEN), "el token no sale: {texto}");
-        }
-    }
+    adaptadores::tabla_de_errores("/user", TOKEN, casos, |m| adaptador(m, &[Rol::Agente]));
 
     // Merge: 405 (no mergeable) y 409 (head cambiado en la plataforma).
     for (estado, linea) in [
