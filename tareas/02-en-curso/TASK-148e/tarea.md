@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Crea `estado::prueba` (con `EnMemoria` traído de `roadmap::tests`, `estado` y `
 |---|---|---|---|---|
 | 2026-11-24T07:10:49Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T07:14:31Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T07:14:32Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
