@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-24. No editar a mano.
 
-## Planificadas (00-planificadas) — 58
+## Planificadas (00-planificadas) — 57
 
 ```text
 ID         Titulo                                                                                            Asignado
@@ -61,7 +61,6 @@ TASK-144   Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANT
 TASK-145   Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE)                (sin asignar)
 TASK-146   Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE)  (sin asignar)
 TASK-147   Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE)                                     (sin asignar)
-TASK-148e  soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148)               (sin asignar)
 TASK-148f  dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148)             (sin asignar)
 TASK-149   Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)                        (sin asignar)
 TASK-150   Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE)                                   (sin asignar)
@@ -75,7 +74,7 @@ ID        Titulo                                Asignado
 TASK-039  F4-4 Orquestador del modo automatico  charlie.bk@gmail.com
 ```
 
-## Terminadas (04-terminadas) — 79
+## Terminadas (04-terminadas) — 80
 
 ```text
 ID         Titulo                                                                                                                     Asignado
@@ -159,4 +158,5 @@ TASK-148a  lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a d
 TASK-148b  escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148)  charlie.bk@gmail.com
 TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148)                                              charlie.bk@gmail.com
 TASK-148d  instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148)                                                  charlie.bk@gmail.com
+TASK-148e  soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148)                                        charlie.bk@gmail.com
 ```
