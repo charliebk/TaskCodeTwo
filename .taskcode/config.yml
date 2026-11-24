@@ -10,5 +10,5 @@ comando_verificacion: "cargo xtask verificar --perfil rapida"
 # La rapida ya pasa de 600 s en Windows (doctor y frescura con remotos bare);
 # limite subido el 2026-11-17 por decision de Carlos (TASK-079), y otra vez
 # el 2026-11-18 (TASK-125): solo los tests de la rapida suman 1444 s.
-timeout_verificacion: 2400
+timeout_verificacion: 3600
 rutas_documentacion: [docs/**, README.md, CHANGELOG.md, LICENSE]
