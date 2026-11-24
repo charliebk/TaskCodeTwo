@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -57,6 +57,7 @@ Soporte comun de los tests unitarios de `crates/tc2/src` en dos modulos `#[cfg(t
 | 2026-11-24T07:14:31Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T07:14:32Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T07:43:57Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T08:18:37Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -75,3 +76,10 @@ Soporte comun de los tests unitarios de `crates/tc2/src` en dos modulos `#[cfg(t
 ## Verificacion ligera
 
 - 2026-11-24T07:58:52Z: ronda 1; commit revisado b784ddac5325664edac24005c42ed909e40e3a2a; commit verificado 74ee3c9fbad2742ace242ed66a4930c9be67602c; ficheros: crates/tc2/src/estado/montaje.rs, crates/tc2/src/git/prueba.rs; corregidos: MEN-1, MEN-2; pendientes: ninguno
+
+## Duracion
+
+- Estimada: 50 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 64 min
+- Paso de la hora: 64 min reales frente a 50 estimados
+- Cierre (finish): 1177 s, de 2026-11-24T07:59:00Z a 2026-11-24T08:18:37Z

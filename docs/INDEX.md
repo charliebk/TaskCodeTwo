@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-148e — soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148) · etiquetas: (sin etiquetas) · rama fix/task-148-auditoria-4d-soporte-de-tests-compartido · terminada 2026-11-24 · tareas/04-terminadas/TASK-148e/
 - TASK-148d — instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148) · etiquetas: (sin etiquetas) · rama fix/task-148-auditoria-4d-soporte-de-tests-compartido · terminada 2026-11-24 · tareas/04-terminadas/TASK-148d/
 - TASK-148c — servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) · etiquetas: (sin etiquetas) · rama fix/task-148-auditoria-4d-soporte-de-tests-compartido · terminada 2026-11-24 · tareas/04-terminadas/TASK-148c/
 - TASK-148b — escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148) · etiquetas: (sin etiquetas) · rama fix/task-148-auditoria-4d-soporte-de-tests-compartido · terminada 2026-11-24 · tareas/04-terminadas/TASK-148b/
