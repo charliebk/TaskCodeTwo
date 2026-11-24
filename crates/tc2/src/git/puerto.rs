@@ -149,12 +149,43 @@ impl SalidaGit {
 
     /// Primera linea no vacia de stderr, para un diagnostico.
     pub fn primera_linea_error(&self) -> String {
-        self.stderr
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .unwrap_or("sin mensaje")
-            .to_owned()
+        primera_linea(&self.stderr)
+    }
+}
+
+/// Primera linea no vacia de `stderr`, recortada, o `sin mensaje`.
+pub(crate) fn primera_linea(stderr: &str) -> String {
+    stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("sin mensaje")
+        .to_owned()
+}
+
+/// Lo comun de [`SalidaGit`] y [`SalidaCruda`] para traducir un fallo.
+pub(crate) trait Salida {
+    /// Codigo de salida.
+    fn codigo(&self) -> i32;
+    /// Salida de error, tal cual.
+    fn stderr(&self) -> &str;
+}
+
+impl Salida for SalidaGit {
+    fn codigo(&self) -> i32 {
+        self.codigo
+    }
+    fn stderr(&self) -> &str {
+        &self.stderr
+    }
+}
+
+impl Salida for SalidaCruda {
+    fn codigo(&self) -> i32 {
+        self.codigo
+    }
+    fn stderr(&self) -> &str {
+        &self.stderr
     }
 }
 

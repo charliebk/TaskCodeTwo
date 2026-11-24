@@ -37,6 +37,8 @@ pub use worktree::{quitar_worktree, worktree_publicado};
 
 use std::path::{Component, Path, PathBuf};
 
+use puerto::{Salida, primera_linea};
+
 use crate::contrato::{Informe, Resultado};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -50,6 +52,28 @@ pub const CARPETA_WORKTREES: &str = crate::huella::CARPETA_WORKTREES;
 /// Resultado interno: el `Err` ya es el informe que se devuelve.
 pub(crate) type Paso<T> = Result<T, Informe>;
 
+/// La salida de una llamada a `git` (cualquier forma del puerto), con el
+/// fallo al lanzar convertido en un informe `error` con `git=<sub>`.
+pub(crate) fn lanzado<S>(op: &str, sub: Subcomando, r: Result<S, ErrorGit>) -> Paso<S> {
+    r.map_err(|e| {
+        Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(e.mensaje())
+    })
+}
+
+/// Como [`lanzado`], pero un codigo distinto de 0 tambien es `error`.
+pub(crate) fn exigida<S: Salida>(op: &str, sub: Subcomando, r: Result<S, ErrorGit>) -> Paso<S> {
+    let s = lanzado(op, sub, r)?;
+    if s.codigo() == 0 {
+        Ok(s)
+    } else {
+        Err(Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(git_fallo(sub, &s)))
+    }
+}
+
 /// Lanza `git` y convierte el fallo al lanzar en un informe `error`.
 pub(crate) fn correr(
     git: &Git,
@@ -58,18 +82,14 @@ pub(crate) fn correr(
     sub: Subcomando,
     args: &[&str],
 ) -> Paso<SalidaGit> {
-    git.ejecutar(dir, sub, args).map_err(|e| {
-        Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(e.mensaje())
-    })
+    lanzado(op, sub, git.ejecutar(dir, sub, args))
 }
 
 /// Diagnostico de un subcomando de git que termino con error.
-pub(crate) fn git_fallo(sub: Subcomando, s: &SalidaGit) -> Mensaje {
+pub(crate) fn git_fallo(sub: Subcomando, s: &impl Salida) -> Mensaje {
     Mensaje::nuevo(&txt::GIT_FALLO)
         .con("subcomando", sub.nombre())
-        .con("error", s.primera_linea_error())
+        .con("error", primera_linea(s.stderr()))
 }
 
 /// Como [`correr`], pero un codigo distinto de 0 tambien es `error`.
@@ -80,14 +100,7 @@ pub(crate) fn exigir(
     sub: Subcomando,
     args: &[&str],
 ) -> Paso<String> {
-    let s = correr(git, dir, op, sub, args)?;
-    if s.exito() {
-        Ok(s.stdout)
-    } else {
-        Err(Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(git_fallo(sub, &s)))
-    }
+    Ok(exigida(op, sub, git.ejecutar(dir, sub, args))?.stdout)
 }
 
 /// Commit al que apunta `referencia`, o `None` si no existe.
