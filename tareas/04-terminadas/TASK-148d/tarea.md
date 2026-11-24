@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-148-auditoria-4d-soporte-de-tests-compartido
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 316853
 tokens_implementacion: 6372184
-tokens_revision: null
+tokens_revision: 3264339
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: [TASK-148c]
@@ -57,6 +57,7 @@ Una sola instantanea de carpeta en `crates/tc2/tests/comun/instantanea.rs` (`ins
 | 2026-11-24T05:58:24Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-24T05:58:25Z | start | automatico | persona | 0.17.1 |
 | 2026-11-24T06:36:52Z | review | automatico | persona | 0.17.1 |
+| 2026-11-24T07:10:21Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -65,8 +66,16 @@ Una sola instantanea de carpeta en `crates/tc2/tests/comun/instantanea.rs` (`ins
 | 2026-11-24T05:58:24Z | diseno | agente:aa5704f48c80de0c1 | 16 | 56118 | 250824 | 9895 | 20 | 316853 | - | - |
 | 2026-11-24T06:36:52Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 14 | 10709 | 2892188 | 3563 | 0 | 2906474 | - | - |
 | 2026-11-24T06:36:52Z | implementacion | agente:a96e8b1a8f7a90623 | 70 | 123050 | 3329500 | 13090 | 2 | 3465710 | - | - |
+| 2026-11-24T06:51:12Z | revision | agente:a22b1e6f51185313e | 56 | 131471 | 3120354 | 12458 | 1 | 3264339 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — bb9fcfa
 - 4D — bb9fcfa: helper buscado, criterios citados, 2 tests mutados
+
+## Duracion
+
+- Estimada: 50 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 72 min
+- Paso de la hora: 72 min reales frente a 50 estimados
+- Cierre (finish): 1147 s, de 2026-11-24T06:51:14Z a 2026-11-24T07:10:21Z
