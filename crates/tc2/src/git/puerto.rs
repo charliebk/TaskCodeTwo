@@ -865,6 +865,11 @@ mod tests {
             (Subcomando::ReadTree, &["abc"]),
             (Subcomando::UpdateIndex, &["--add", "a"]),
             (Subcomando::WriteTree, &[]),
+            // Opciones cortas agrupadas que contienen una prohibida: git las
+            // acepta (A4-10 de la auditoria 4D).
+            (Subcomando::Push, &["-qf", "origin", "r"]),
+            (Subcomando::Branch, &["-qD", "x"]),
+            (Subcomando::Worktree, &["remove", "-ff", "w"]),
         ];
         for (sub, args) in casos {
             let r = git.ejecutar(Path::new("."), *sub, args);
@@ -881,6 +886,8 @@ mod tests {
         let git = git_sin_binario();
         let permitidos: &[(Subcomando, &[&str])] = &[
             (Subcomando::Push, &["--porcelain", "origin", "a:b"]),
+            // Agrupadas sin ninguna prohibida.
+            (Subcomando::Push, &["-qv", "--porcelain", "origin", "a:b"]),
             (
                 Subcomando::Commit,
                 &["-q", "-m", "--force no se usa", "--only", "--", "a.txt"],
