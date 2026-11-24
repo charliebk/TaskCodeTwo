@@ -17,7 +17,8 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores;
 use super::http::{Base, Metodo, codificar};
 use super::operaciones::{
-    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, entrada_merge, merge_fallido, segun_estado,
+    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge, merge_fallido,
+    segun_estado,
 };
 use super::puertas::{self, EstadoCheck, Lecturas, Objetivo, Origenes, Puerta};
 use super::{
@@ -33,7 +34,6 @@ const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
-const PRS_ABIERTOS: &str = "prs-abiertos";
 const LEER_PLAN: &str = "leer-plan";
 
 /// El scope de lectura en una clave (`doctor`, `permiso=`); el texto
@@ -568,35 +568,28 @@ fn estado_check(s: &str) -> EstadoCheck {
 
 impl Plataforma for GitLab {
     fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
-        if rol == Rol::Revisor {
-            return Err(rol_no_valido(PRS_ABIERTOS, rol));
-        }
-        let (_, ruta) = self.ep(&Endpoint::TodosLosMrsAbiertos);
-        let mrs: Vec<MrListaApi> =
-            self.con
-                .leer_paginas(PRS_ABIERTOS, rol, PERMISO_LECTURA, ruta, |c| {
-                    self.con.parsear(PRS_ABIERTOS, c)
-                })?;
-        let mut v = Vec::new();
-        for m in mrs {
-            // Los MR desde un fork no cuentan; una rama que tc2 no habria
-            // creado no casa con ninguna tarea.
-            if m.source_project_id != m.target_project_id || !rama_valida(&m.source_branch) {
-                continue;
-            }
-            let sha = m.sha.unwrap_or_default();
-            if !sha_valido(&sha) {
-                return Err(self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_DESTINO_O_SHA));
-            }
-            v.push(PrAbierto {
-                numero: m.iid,
-                rama: m.source_branch,
-                sha: sha.to_ascii_lowercase(),
-                borrador: m.draft || m.work_in_progress,
-            });
-        }
-        v.sort_by_key(|p| p.numero);
-        Ok(v)
+        let leer = || {
+            let (_, ruta) = self.ep(&Endpoint::TodosLosMrsAbiertos);
+            let mrs: Vec<MrListaApi> =
+                self.con
+                    .leer_paginas(PRS_ABIERTOS, rol, PERMISO_LECTURA, ruta, |c| {
+                        self.con.parsear(PRS_ABIERTOS, c)
+                    })?;
+            // Un MR desde un fork tiene otro proyecto de origen.
+            Ok(mrs
+                .into_iter()
+                .map(|m| PrLeido {
+                    propio: m.source_project_id == m.target_project_id,
+                    numero: m.iid,
+                    rama: m.source_branch,
+                    sha: m.sha.unwrap_or_default(),
+                    borrador: m.draft || m.work_in_progress,
+                })
+                .collect())
+        };
+        operaciones::prs_abiertos(rol, leer, || {
+            self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_DESTINO_O_SHA)
+        })
     }
 
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {

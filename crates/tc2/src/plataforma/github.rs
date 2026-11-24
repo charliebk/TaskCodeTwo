@@ -16,7 +16,8 @@ use super::credenciales::{Credenciales, Rol};
 use super::errores::{self, es_aviso_de_plan};
 use super::http::{Base, Metodo, codificar};
 use super::operaciones::{
-    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, entrada_merge, merge_fallido, segun_estado,
+    self, ABRIR_PR, AbrePr, Creado, MERGE_PR, PRS_ABIERTOS, PrLeido, entrada_merge, merge_fallido,
+    segun_estado,
 };
 use super::puertas::{self, EstadoCheck, Lecturas, Origenes, Puerta};
 use super::{
@@ -33,7 +34,6 @@ const LEER_PUERTAS: &str = "leer-puertas";
 const LEER_PERMISOS_CI: &str = "leer-permisos-ci";
 const FIRMA_COMMIT: &str = "firma-commit";
 const IDENTIDAD: &str = "identidad";
-const PRS_ABIERTOS: &str = "prs-abiertos";
 const LEER_PLAN: &str = "leer-plan";
 
 /// Permiso de `leer-puertas` (lo nombra `doctor` en `permiso=`).
@@ -436,34 +436,27 @@ impl AbrePr for GitHub {
 
 impl Plataforma for GitHub {
     fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
-        if rol == Rol::Revisor {
-            return Err(rol_no_valido(PRS_ABIERTOS, rol));
-        }
-        let (_, ruta) = self.ep(&Endpoint::TodosLosPrsAbiertos);
-        let prs: Vec<PrListaApi> =
-            self.con
-                .leer_paginas(PRS_ABIERTOS, rol, "pull_requests:read", ruta, |c| {
-                    self.con.parsear(PRS_ABIERTOS, c)
-                })?;
-        let mut v = Vec::new();
-        for p in prs {
-            let propio = matches!((&p.head.repo, &p.base.repo), (Some(h), Some(b)) if h.id == b.id);
-            // Una rama que tc2 no habria creado no casa con ninguna tarea.
-            if !propio || !rama_valida(&p.head.nombre) {
-                continue;
-            }
-            if !sha_valido(&p.head.sha) {
-                return Err(self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_BASE_O_SHA));
-            }
-            v.push(PrAbierto {
-                numero: p.number,
-                rama: p.head.nombre,
-                sha: p.head.sha.to_ascii_lowercase(),
-                borrador: p.draft,
-            });
-        }
-        v.sort_by_key(|p| p.numero);
-        Ok(v)
+        let leer = || {
+            let (_, ruta) = self.ep(&Endpoint::TodosLosPrsAbiertos);
+            let prs: Vec<PrListaApi> =
+                self.con
+                    .leer_paginas(PRS_ABIERTOS, rol, "pull_requests:read", ruta, |c| {
+                        self.con.parsear(PRS_ABIERTOS, c)
+                    })?;
+            Ok(prs
+                .into_iter()
+                .map(|p| PrLeido {
+                    propio: matches!((&p.head.repo, &p.base.repo), (Some(h), Some(b)) if h.id == b.id),
+                    numero: p.number,
+                    rama: p.head.nombre,
+                    sha: p.head.sha,
+                    borrador: p.draft,
+                })
+                .collect())
+        };
+        operaciones::prs_abiertos(rol, leer, || {
+            self.con.invalida_por(PRS_ABIERTOS, &t::RAMA_BASE_O_SHA)
+        })
     }
 
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {

@@ -6,9 +6,9 @@
 //! byte (RR-15). El transporte es de [`super::conexion`] y la evaluacion de
 //! las puertas, de [`super::puertas`].
 
-use super::Paso;
-use super::conexion::{rama_valida, sha_valido, uso};
-use super::puertas;
+use super::conexion::{rama_valida, rol_no_valido, sha_valido, uso};
+use super::credenciales::Rol;
+use super::{Paso, PrAbierto, puertas};
 use crate::contrato::{Informe, Resultado, Valor};
 use crate::i18n::catalogo::plataforma as t;
 use crate::i18n::{Mensaje, Texto};
@@ -18,6 +18,9 @@ pub(crate) const ABRIR_PR: &str = "abrir-pr";
 
 /// Nombre de la operacion `merge-pr`.
 pub(crate) const MERGE_PR: &str = "merge-pr";
+
+/// Nombre de la operacion `prs-abiertos`.
+pub(crate) const PRS_ABIERTOS: &str = "prs-abiertos";
 
 /// Lo que dio la escritura que crea el PR.
 pub(crate) enum Creado {
@@ -115,6 +118,52 @@ pub(crate) fn segun_estado(
         return Err(puertas::pr_cerrado_en(op, pr, cerrado));
     }
     Ok(())
+}
+
+/// Un PR (o MR) de la lista de abiertos, tal como lo lee un adaptador.
+pub(crate) struct PrLeido {
+    /// Numero del PR (en GitLab, el `iid` del MR).
+    pub(crate) numero: u64,
+    /// Rama de origen.
+    pub(crate) rama: String,
+    /// Sha de la cabeza, sin validar (vacio si la API no lo da).
+    pub(crate) sha: String,
+    /// Si es borrador.
+    pub(crate) borrador: bool,
+    /// Si la rama de origen es del propio repo (no de un fork).
+    pub(crate) propio: bool,
+}
+
+/// `prs-abiertos` (adenda de TASK-032 a F1-4 y F1-13): el revisor no lista
+/// PR; con lo que da `leer`, los de forks y las ramas que tc2 no habria
+/// creado (no casan con ninguna tarea) se saltan, y un sha que no es de 40
+/// hex es `invalida` (falla cerrado). El sha va en minusculas y la lista,
+/// por numero.
+pub(crate) fn prs_abiertos(
+    rol: Rol,
+    leer: impl FnOnce() -> Paso<Vec<PrLeido>>,
+    invalida: impl Fn() -> Informe,
+) -> Paso<Vec<PrAbierto>> {
+    if rol == Rol::Revisor {
+        return Err(rol_no_valido(PRS_ABIERTOS, rol));
+    }
+    let mut v = Vec::new();
+    for p in leer()? {
+        if !p.propio || !rama_valida(&p.rama) {
+            continue;
+        }
+        if !sha_valido(&p.sha) {
+            return Err(invalida());
+        }
+        v.push(PrAbierto {
+            numero: p.numero,
+            rama: p.rama,
+            sha: p.sha.to_ascii_lowercase(),
+            borrador: p.borrador,
+        });
+    }
+    v.sort_by_key(|p| p.numero);
+    Ok(v)
 }
 
 /// Un fallo de la escritura del merge, con `pr=` delante.
