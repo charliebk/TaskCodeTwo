@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-141-auditoria-4d-a3-plan-importar-y-alta-5-i
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-24
 dependencias: []
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Corregir los 5 casos IMPORTANTE del grupo A3 de `docs/auditoria-4d.md` (commit a
 - [ ] A3-01: `anotacion_ida_y_vuelta` (`alta.rs:1051-1058`) compara la operación reconstruida campo a campo, y `desde_anotacion` (`alta.rs:567-571`) deja de perder lo que no es el título, o documenta y prueba por qué no lo necesita. Con el mutante de la ficha aplicado, `cargo test -p tc2 --lib alta::tests::anotacion_ida_y_vuelta` sale en rojo.
 - [ ] A3-02: un test llama a `es_esqueleto` con rutas que eligen roles por dominio, la rama con unificador de `plan/aprobar.rs:117`. Con el mutante de la ficha aplicado, `cargo test -p tc2 --lib plan::aprobar` sale en rojo.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 5 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-24T19:39:12Z | plan | automatico | persona | 0.17.1 |
