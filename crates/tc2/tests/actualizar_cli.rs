@@ -1,7 +1,8 @@
 //! TASK-027 (F2-12): `tc2 actualizar --cli` contra una release servida en
-//! 127.0.0.1 (`TC2_BASE_URL`), sin red. Cada prueba copia el `tc2` compilado
-//! a una carpeta temporal (la «instalacion vX») y lo lanza desde ahi, porque
-//! la orden sustituye el ejecutable que se esta ejecutando.
+//! 127.0.0.1 con `comun::http_mock` (`TC2_BASE_URL`), sin red. Cada prueba
+//! copia el `tc2` compilado a una carpeta temporal (la «instalacion vX») y lo
+//! lanza desde ahi, porque la orden sustituye el ejecutable que se esta
+//! ejecutando.
 //!
 //! La «vY» es el ejemplo `tc2_falso` (`examples/tc2_falso.rs`): responde a
 //! `--version` y `version --json` como un `tc2` de version [`VERSION_Y`].
@@ -12,12 +13,11 @@
 mod comun;
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::sync::{Arc, Mutex};
 
+use comun::http_mock::{Corte, Mock, Simulada, serie};
 use comun::texto;
 use distribucion::Target;
 
@@ -51,155 +51,6 @@ impl Drop for Carpeta {
 const VERSION_Y: &str = "9.9.9";
 /// Version del `tc2` compilado (la «vX»).
 const VERSION_X: &str = env!("CARGO_PKG_VERSION");
-
-/// Servidor de ficheros minimo: `GET /<nombre>` da el contenido o 404, y
-/// cuenta las peticiones. Puede cortar la primera peticion a una ruta.
-struct Servidor {
-    puerto: u16,
-    peticiones: Arc<Mutex<Vec<String>>>,
-}
-
-/// Como se corta la primera peticion a una ruta.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Corte {
-    /// Se cierra la conexion sin enviar nada: el cliente no ve cabeceras.
-    AntesDeCabeceras,
-    /// Se envian las cabeceras y la mitad del cuerpo, y se cierra.
-    AMitadDelCuerpo,
-}
-
-/// La ruta cuya primera peticion se corta, y como.
-type Cortes = Mutex<Option<(String, Corte)>>;
-
-/// Lo que sirve el [`Servidor`]: ficheros por nombre y redirecciones por
-/// ruta (`/<nombre>` → destino).
-struct Ficheros {
-    contenido: BTreeMap<String, Vec<u8>>,
-    redirecciones: BTreeMap<String, String>,
-}
-
-impl Servidor {
-    fn nuevo(ficheros: BTreeMap<String, Vec<u8>>) -> Self {
-        Self::con_corte(ficheros, None)
-    }
-
-    fn con_corte(ficheros: BTreeMap<String, Vec<u8>>, corte: Option<(String, Corte)>) -> Self {
-        Self::con(ficheros, corte, BTreeMap::new())
-    }
-
-    /// Como [`Servidor::nuevo`], y `GET /<ruta>` de `redirecciones` responde
-    /// `302` con `Location: <destino>`.
-    fn con_redirecciones(
-        ficheros: BTreeMap<String, Vec<u8>>,
-        redirecciones: BTreeMap<String, String>,
-    ) -> Self {
-        Self::con(ficheros, None, redirecciones)
-    }
-
-    fn con(
-        ficheros: BTreeMap<String, Vec<u8>>,
-        corte: Option<(String, Corte)>,
-        redirecciones: BTreeMap<String, String>,
-    ) -> Self {
-        let l = TcpListener::bind("127.0.0.1:0").unwrap();
-        let puerto = l.local_addr().unwrap().port();
-        let peticiones: Arc<Mutex<Vec<String>>> = Arc::default();
-        let p = peticiones.clone();
-        let ficheros = Arc::new(Ficheros {
-            contenido: ficheros,
-            redirecciones,
-        });
-        let cortes: Arc<Cortes> = Arc::new(Mutex::new(corte));
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                // Un hilo por conexion: el cierre ordenado de una no frena
-                // las demas.
-                let (p, ficheros, cortes) = (p.clone(), ficheros.clone(), cortes.clone());
-                std::thread::spawn(move || atender(s, &p, &ficheros, &cortes));
-            }
-        });
-        Self { puerto, peticiones }
-    }
-
-    fn base(&self) -> String {
-        format!("http://127.0.0.1:{}", self.puerto)
-    }
-
-    fn peticiones(&self) -> Vec<String> {
-        self.peticiones.lock().unwrap().clone()
-    }
-}
-
-/// Sirve una peticion: `GET /<nombre>` da el contenido, una redireccion o
-/// 404.
-fn atender(s: std::net::TcpStream, p: &Mutex<Vec<String>>, ficheros: &Ficheros, cortes: &Cortes) {
-    let mut lector = BufReader::new(s.try_clone().unwrap());
-    let mut primera = String::new();
-    if lector.read_line(&mut primera).is_err() {
-        return;
-    }
-    loop {
-        let mut l = String::new();
-        if lector.read_line(&mut l).is_err() || l.trim().is_empty() {
-            break;
-        }
-    }
-    let ruta = primera.split_whitespace().nth(1).unwrap_or("").to_owned();
-    p.lock().unwrap().push(ruta.clone());
-    let mut s = s;
-    if let Some(destino) = ficheros.redirecciones.get(&ruta) {
-        let _ = write!(
-            s,
-            "HTTP/1.1 302 Found\r\nLocation: {destino}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-        );
-        let _ = s.flush();
-        let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
-        let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
-        return;
-    }
-    let (estado, cuerpo) = match ficheros.contenido.get(ruta.trim_start_matches('/')) {
-        Some(c) => ("200 OK", c.clone()),
-        None => ("404 Not Found", b"no".to_vec()),
-    };
-    let corte = {
-        let mut c = cortes.lock().unwrap();
-        match c.as_ref() {
-            Some((r, k)) if *r == ruta => {
-                let k = *k;
-                *c = None;
-                Some(k)
-            }
-            _ => None,
-        }
-    };
-    // Un corte se hace tambien con un cierre ordenado (FIN, no RST): el
-    // cliente ve el final de la conexion sin cabeceras, o antes de tener
-    // todo el cuerpo que anuncian.
-    if corte != Some(Corte::AntesDeCabeceras) {
-        let _ = write!(
-            s,
-            "HTTP/1.1 {estado}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            cuerpo.len()
-        );
-        let enviado = match corte {
-            Some(Corte::AMitadDelCuerpo) => cuerpo.get(..cuerpo.len() / 2).unwrap_or_default(),
-            _ => &cuerpo[..],
-        };
-        let _ = s.write_all(enviado);
-    }
-    let _ = s.flush();
-    // Cierre: una respuesta completa no lleva FIN del servidor; con
-    // `Content-Length` el cliente sabe cuando acaba, cierra el y despues se
-    // cierra aqui. En esta maquina (TASK-027) un FIN detras de los datos
-    // hacia que la red local perdiera a veces el final del cuerpo y la
-    // conexion se cayera a los ~19 s (tambien con curl y python). Un corte
-    // si cierra la escritura (FIN, no RST): es lo que se quiere probar.
-    if corte.is_some() {
-        let _ = s.shutdown(std::net::Shutdown::Write);
-    }
-    let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(30)));
-    let _ = std::io::Read::read_to_end(&mut lector, &mut Vec::new());
-}
 
 fn target() -> Target {
     Target::actual().expect("los tests corren en un sistema de P12")
@@ -250,6 +101,19 @@ fn release(version: &str, binario: &[u8], hash: Option<&str>) -> BTreeMap<String
     ])
 }
 
+/// Sirve cada fichero de `release` en `GET /<nombre>`; lo demas da 404.
+fn servir(release: BTreeMap<String, Vec<u8>>) -> Mock {
+    let m = Mock::nuevo();
+    for (nombre, contenido) in release {
+        m.responder(
+            "GET",
+            &format!("/{nombre}"),
+            Simulada::bytes(200, &contenido),
+        );
+    }
+    m
+}
+
 fn lanzar(exe: &Path, base: &str, idioma: &str, args: &[&str]) -> Output {
     lanzar_con(exe, base, idioma, args, &[])
 }
@@ -291,13 +155,14 @@ fn restos(dir: &Path, exe: &Path) -> Vec<String> {
 /// red sale `sinred` (4) con la URL.
 #[test]
 fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-comprobar");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
 
     // Hay una mas nueva (el binario no se baja: basta SHA256SUMS).
-    let srv = Servidor::nuevo(release(VERSION_Y, b"binario-y", None));
+    let srv = servir(release(VERSION_Y, b"binario-y", None));
     let o = lanzar(
         &exe,
         &srv.base(),
@@ -312,14 +177,14 @@ fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
     // Solo SHA256SUMS: el binario no se baja. (No se cuenta cuantas: en
     // Windows, un antivirus puede repetir la primera conexion de un .exe
     // recien copiado a %TEMP%; se vio en TASK-027.)
-    let p = srv.peticiones();
+    let p = srv.recibidas();
     assert!(
-        !p.is_empty() && p.iter().all(|r| r == "/SHA256SUMS"),
+        !p.is_empty() && p.iter().all(|r| r.linea == "GET /SHA256SUMS"),
         "{p:?}"
     );
 
     // La misma version: sin-cambios.
-    let srv = Servidor::nuevo(release(VERSION_X, b"binario-x", None));
+    let srv = servir(release(VERSION_X, b"binario-x", None));
     let o = lanzar(
         &exe,
         &srv.base(),
@@ -335,7 +200,7 @@ fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
     // Revision 1, MEN-6: con --version de una anterior, `ok` lo dice
     // (`cambio=anterior`) y no se confunde con una mas nueva.
     let anterior = format!("{VERSION_X}-anterior");
-    let srv = Servidor::nuevo(release(&anterior, b"binario-anterior", None));
+    let srv = servir(release(&anterior, b"binario-anterior", None));
     let o = lanzar(
         &exe,
         &srv.base(),
@@ -372,11 +237,12 @@ fn comprobar_no_modifica_nada_y_sin_red_da_sinred_con_la_url() {
 /// siquiera se pregunta a la release.
 #[test]
 fn el_tc2_de_la_cache_del_plugin_no_se_sustituye() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-plugin");
     let dir = f.raiz.join("taskcodetwo").join("cli").join(VERSION_X);
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
-    let srv = Servidor::nuevo(release(VERSION_Y, b"binario-y", None));
+    let srv = servir(release(VERSION_Y, b"binario-y", None));
     for idioma in ["es", "en"] {
         let o = lanzar(&exe, &srv.base(), idioma, &["actualizar", "--cli"]);
         assert_eq!(o.status.code(), Some(3));
@@ -390,7 +256,7 @@ fn el_tc2_de_la_cache_del_plugin_no_se_sustituye() {
             texto(&o.stderr)
         );
     }
-    assert!(srv.peticiones().is_empty());
+    assert!(srv.recibidas().is_empty());
     assert_eq!(sha256(&exe), antes);
 }
 
@@ -406,11 +272,12 @@ fn actualizar_sin_cli_es_uso() {
 /// `tc2 --version` da vY.
 #[test]
 fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-vx-vy");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let vy = binario_vy();
-    let srv = Servidor::nuevo(release(VERSION_Y, &vy, None));
+    let srv = servir(release(VERSION_Y, &vy, None));
 
     let antes = Command::new(&exe).arg("--version").output().unwrap();
     assert_eq!(texto(&antes.stdout), format!("tc2 {VERSION_X}\n"));
@@ -435,21 +302,22 @@ fn actualizar_sustituye_vx_por_vy_servida_en_127_0_0_1() {
     assert!(quedan.iter().all(|r| r == "tc2.exe.old"), "{quedan:?}");
     tc2::actualizar_cli::limpiar_old(&exe);
     assert!(restos(&dir, &exe).is_empty());
-    let pedidos = srv.peticiones();
-    assert!(pedidos.contains(&format!("/{}", target().fichero(VERSION_Y))));
+    let binario = format!("GET /{}", target().fichero(VERSION_Y));
+    assert!(srv.recibidas().iter().any(|r| r.linea == binario));
 }
 
 /// Criterio 2: si el sha256 no casa con `SHA256SUMS`, `rechazada` (3), el
 /// binario instalado no cambia y no quedan `.descarga` ni `.old`.
 #[test]
 fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-hash");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
     let vy = binario_vy();
     let otro = "0".repeat(64);
-    let srv = Servidor::nuevo(release(VERSION_Y, &vy, Some(&otro)));
+    let srv = servir(release(VERSION_Y, &vy, Some(&otro)));
     for idioma in ["es", "en"] {
         let o = lanzar(&exe, &srv.base(), idioma, &["actualizar", "--cli"]);
         assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
@@ -475,10 +343,11 @@ fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
 /// y el binario instalado no cambia.
 #[test]
 fn attestation_con_gh_ausente_valido_y_que_falla() {
+    let _serie = serie();
     let vy = binario_vy();
     let hash_vy = distribucion::sha256::hex(&vy);
     let gh = ejemplo("gh_falso");
-    let srv = Servidor::nuevo(release(VERSION_Y, &vy, None));
+    let srv = servir(release(VERSION_Y, &vy, None));
 
     // gh ausente.
     let f = Carpeta::nueva("attestation-sin-gh");
@@ -588,9 +457,12 @@ fn attestation_con_gh_ausente_valido_y_que_falla() {
 /// termina en 0 con dos peticiones al binario, y vY queda instalada.
 #[test]
 fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
+    let _serie = serie();
     let vy = binario_vy();
     let hash_vy = distribucion::sha256::hex(&vy);
-    let fichero = format!("/{}", target().fichero(VERSION_Y));
+    let fichero = target().fichero(VERSION_Y);
+    let ruta = format!("/{fichero}");
+    let pedido = format!("GET {ruta}");
     for (nombre, corte) in [
         ("corte-antes", Corte::AntesDeCabeceras),
         ("corte-mitad", Corte::AMitadDelCuerpo),
@@ -598,17 +470,19 @@ fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
         let f = Carpeta::nueva(nombre);
         let dir = f.raiz.join("bin");
         let exe = instalar_vx(&dir);
-        let srv = Servidor::con_corte(
-            release(VERSION_Y, &vy, None),
-            Some((fichero.clone(), corte)),
-        );
+        // La primera peticion al binario se corta; la segunda lo da entero.
+        let mut r = release(VERSION_Y, &vy, None);
+        let binario = r.remove(&fichero).unwrap();
+        let srv = servir(r);
+        srv.responder("GET", &ruta, Simulada::bytes(200, &binario).cortada(corte));
+        srv.responder("GET", &ruta, Simulada::bytes(200, &binario));
         let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
         assert_eq!(
             o.status.code(),
             Some(0),
             "{corte:?}: {} {:?}",
             texto(&o.stderr),
-            srv.peticiones()
+            srv.recibidas()
         );
         assert_eq!(
             texto(&o.stdout),
@@ -618,8 +492,8 @@ fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
             "{corte:?}"
         );
         assert_eq!(sha256(&exe), hash_vy, "{corte:?}");
-        let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
-        assert_eq!(al_binario, 2, "{corte:?}: {:?}", srv.peticiones());
+        let al_binario = srv.recibidas().iter().filter(|r| r.linea == pedido).count();
+        assert_eq!(al_binario, 2, "{corte:?}: {:?}", srv.recibidas());
         let quedan = restos(&dir, &exe);
         assert!(
             quedan.iter().all(|r| r == "tc2.exe.old"),
@@ -633,14 +507,20 @@ fn un_corte_en_la_descarga_del_binario_se_reintenta_una_vez() {
 /// al binario y la instalacion no cambia.
 #[test]
 fn redireccion_no_permitida_no_se_sigue_ni_reintenta() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-redireccion");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
-    let fichero = format!("/{}", target().fichero(VERSION_Y));
-    let srv = Servidor::con_redirecciones(
-        release(VERSION_Y, b"binario-y", None),
-        BTreeMap::from([(fichero.clone(), "https://evil.example/tc2".to_owned())]),
+    let fichero = target().fichero(VERSION_Y);
+    // El binario no se sirve: su ruta responde `302` a otro sitio.
+    let mut r = release(VERSION_Y, b"binario-y", None);
+    r.remove(&fichero).unwrap();
+    let srv = servir(r);
+    srv.responder(
+        "GET",
+        &format!("/{fichero}"),
+        Simulada::bytes(302, b"").con("Location", "https://evil.example/tc2"),
     );
     let o = lanzar(&exe, &srv.base(), "es", &["actualizar", "--cli"]);
     assert_eq!(o.status.code(), Some(3), "{}", texto(&o.stderr));
@@ -654,8 +534,12 @@ fn redireccion_no_permitida_no_se_sigue_ni_reintenta() {
         "{}",
         texto(&o.stderr)
     );
-    let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
-    assert_eq!(al_binario, 1, "{:?}", srv.peticiones());
+    let al_binario = srv
+        .recibidas()
+        .iter()
+        .filter(|r| r.linea == format!("GET /{fichero}"))
+        .count();
+    assert_eq!(al_binario, 1, "{:?}", srv.recibidas());
     assert_eq!(sha256(&exe), antes);
     let quedan = restos(&dir, &exe);
     assert!(quedan.is_empty(), "{quedan:?}");
@@ -666,14 +550,15 @@ fn redireccion_no_permitida_no_se_sigue_ni_reintenta() {
 /// al binario y la instalacion no cambia.
 #[test]
 fn binario_mayor_que_el_limite_se_rechaza() {
+    let _serie = serie();
     let f = Carpeta::nueva("actualizar-grande");
     let dir = f.raiz.join("bin");
     let exe = instalar_vx(&dir);
     let antes = sha256(&exe);
-    let fichero = format!("/{}", target().fichero(VERSION_Y));
+    let fichero = target().fichero(VERSION_Y);
     let limite = usize::try_from(tc2::descarga::LIMITE_BINARIO).unwrap();
     // El hash no importa: se rechaza antes de comprobarlo.
-    let srv = Servidor::nuevo(release(
+    let srv = servir(release(
         VERSION_Y,
         &vec![0u8; limite + 1],
         Some(&"0".repeat(64)),
@@ -685,8 +570,12 @@ fn binario_mayor_que_el_limite_se_rechaza() {
         "{}",
         texto(&o.stdout)
     );
-    let al_binario = srv.peticiones().iter().filter(|r| **r == fichero).count();
-    assert_eq!(al_binario, 1, "{:?}", srv.peticiones());
+    let al_binario = srv
+        .recibidas()
+        .iter()
+        .filter(|r| r.linea == format!("GET /{fichero}"))
+        .count();
+    assert_eq!(al_binario, 1, "{:?}", srv.recibidas());
     assert_eq!(sha256(&exe), antes);
     let quedan = restos(&dir, &exe);
     assert!(quedan.is_empty(), "{quedan:?}");
