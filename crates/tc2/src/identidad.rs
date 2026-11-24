@@ -742,6 +742,7 @@ mod tests {
         };
         assert_eq!(cache.guardar(&cuenta, AHORA), Ok(()));
         let antes = ana.0.llamadas.get();
+        assert_eq!(antes, 1, "con terminal se pregunta a la plataforma una vez");
         let q = quien_ejecuta(&ana, gh, &personas, &cache, false, AHORA + 60);
         assert_eq!(q.as_ref().map(Quien::decidido_por), Ok("agente"));
         assert_eq!(q.map(|q| q.cuenta().clone()), Ok(cuenta));
