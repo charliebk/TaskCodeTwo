@@ -890,21 +890,17 @@ impl Plataforma for GitHub {
 }
 
 impl GitHub {
-    /// Los nombres de los rulesets del repo; `None` si el plan no los da.
+    /// Los nombres de todos los rulesets del repo para `leer-puertas`,
+    /// paginados ([`GitHub::rulesets_de`]); `None` si el plan no los da (el
+    /// 403 de plan, que en `leer-puertas` no es un fallo). Un 403 que ademas
+    /// es limite de peticiones es `agotada`.
     fn rulesets(&self, rol: Rol) -> Paso<Option<Vec<String>>> {
-        let r = self
-            .con
-            .pedir(LEER_PUERTAS, rol, self.ep(&Endpoint::Rulesets), None)?;
-        if es_aviso_de_plan(&r) {
-            return Ok(None);
+        match self.rulesets_de(LEER_PUERTAS, rol, PERMISO_LEER_PUERTAS) {
+            Err(i) if i.resultado == Resultado::Rechazada && i.valor("motivo") == Some("plan") => {
+                Ok(None)
+            }
+            r => r.map(Some),
         }
-        if !r.exito() {
-            return Err(self
-                .con
-                .traducir(LEER_PUERTAS, rol, PERMISO_LEER_PUERTAS, &r));
-        }
-        let rulesets: Vec<RulesetApi> = self.con.parsear(LEER_PUERTAS, &r.cuerpo)?;
-        Ok(Some(rulesets.into_iter().map(|r| r.name).collect()))
     }
 
     /// Los nombres de todos los rulesets del repo para `op`, paginados; el

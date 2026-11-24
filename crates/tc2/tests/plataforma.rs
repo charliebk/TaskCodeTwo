@@ -916,6 +916,51 @@ fn protecciones_y_bordes() {
     assert_eq!(paginas, 10);
 }
 
+/// A1-07: `leer-puertas` sigue `Link rel=next` en los rulesets. Con 100 que
+/// no son de tc2 en la primera pagina y `taskcodetwo-develop` en la
+/// segunda, lo devuelve; y en lote igual.
+#[test]
+fn leer_puertas_pagina_los_rulesets() {
+    let _serie = serie();
+    let mock = Mock::nuevo();
+    let pagina1: Vec<String> = (1..=100)
+        .map(|n| format!("{{\"id\":{n},\"name\":\"otro-{n}\"}}"))
+        .collect();
+    let siguiente = "/repos/o/r/rulesets?per_page=100&page=2";
+    mock.responder(
+        "GET",
+        siguiente,
+        Simulada::json(200, "[{\"id\":101,\"name\":\"taskcodetwo-develop\"}]"),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rulesets",
+        Simulada::json(200, &format!("[{}]", pagina1.join(","))).con(
+            "link",
+            &format!("<{}{siguiente}>; rel=\"next\"", mock.base()),
+        ),
+    );
+    mock.responder(
+        "GET",
+        "/repos/o/r/rules/branches/develop",
+        Simulada::json(200, "[{\"type\":\"pull_request\"}]"),
+    );
+    let gh = adaptador(&mock, &[Rol::Agente]);
+    let r = gh.leer_puertas(Rol::Agente, "develop").unwrap();
+    assert_eq!(r.rulesets.len(), 101);
+    assert!(
+        r.rulesets.iter().any(|n| n == "taskcodetwo-develop"),
+        "{:?}",
+        r.rulesets
+    );
+    let lote = gh.leer_puertas_de(Rol::Agente, &["develop"], "");
+    assert!(
+        lote[0]
+            .as_ref()
+            .is_ok_and(|r| r.rulesets.iter().any(|n| n == "taskcodetwo-develop"))
+    );
+}
+
 /// TASK-118: `aplicar-puertas` en el adaptador. Un 422 al crear es «otro
 /// llego antes» (se relee y cuenta como existente), un fallo a mitad corta
 /// con `aplicadas=` y `faltan=`, y repetirla converge sin reescribir lo ya
