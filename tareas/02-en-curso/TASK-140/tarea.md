@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-140-auditoria-4d-a2-hallazgos-y-revision-7-i
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Corregir los 7 casos IMPORTANTE del grupo A2 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-24T16:45:38Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T16:52:08Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T16:52:09Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
