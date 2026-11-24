@@ -629,6 +629,21 @@ struct Fallo {
     detalle: String,
 }
 
+/// El constructor de los `Fallo` de un hallazgo o un cierre: con su `id` si
+/// lo trae y es valido, para que el rechazo lo nombre.
+fn fallo_de(v: &Value) -> impl Fn(&'static str, String) -> Fallo + use<> {
+    let id = v
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| es_id(s))
+        .map(str::to_owned);
+    move |motivo, detalle| Fallo {
+        id: id.clone(),
+        motivo,
+        detalle,
+    }
+}
+
 /// Que la evidencia traiga los campos de su tipo, llenos, y ninguno ajeno.
 fn evidencia_completa(e: &Evidencia) -> Result<(), String> {
     let texto = |o: &Option<String>| o.as_deref().map(no_vacio);
@@ -692,16 +707,7 @@ fn validar_uno(
             detalle: "el hallazgo no es un objeto".to_owned(),
         });
     };
-    let id = obj
-        .get("id")
-        .and_then(Value::as_str)
-        .filter(|s| es_id(s))
-        .map(str::to_owned);
-    let fallo = |motivo: &'static str, detalle: String| Fallo {
-        id: id.clone(),
-        motivo,
-        detalle,
-    };
+    let fallo = fallo_de(h);
     let evidencia = match obj.get("evidencia") {
         None | Some(Value::Null) => {
             return Err(fallo(
@@ -825,16 +831,7 @@ fn validar_cierre<'a>(
     abiertos: &'a [AceptadoDe],
     vistos: &mut BTreeSet<String>,
 ) -> Result<(Cierre, Vec<&'a AceptadoDe>), Fallo> {
-    let id = c
-        .get("id")
-        .and_then(Value::as_str)
-        .filter(|s| es_id(s))
-        .map(str::to_owned);
-    let fallo = |motivo: &'static str, detalle: String| Fallo {
-        id: id.clone(),
-        motivo,
-        detalle,
-    };
+    let fallo = fallo_de(c);
     let c: Cierre = serde_json::from_value(c.clone())
         .map_err(|e| fallo(motivo::HALLAZGO_INVALIDO, format!("cierre: {e}")))?;
     if !es_id(&c.id) || c.linea == 0 || !no_vacio(&c.fichero) || !no_vacio(&c.motivo) {
