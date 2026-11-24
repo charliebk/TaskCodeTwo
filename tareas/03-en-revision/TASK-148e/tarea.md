@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 730463
 tokens_implementacion: 6194957
-tokens_revision: null
+tokens_revision: 3019969
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: [TASK-148d]
@@ -65,8 +65,13 @@ Soporte comun de los tests unitarios de `crates/tc2/src` en dos modulos `#[cfg(t
 | 2026-11-24T07:14:30Z | diseno | agente:abefd1a86ce63717f | 30 | 64746 | 652198 | 13489 | 24 | 730463 | - | - |
 | 2026-11-24T07:43:57Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 12 | 9850 | 2627405 | 3582 | 0 | 2640849 | - | - |
 | 2026-11-24T07:43:57Z | implementacion | agente:a7201cf6b87eed8e4 | 64 | 130725 | 3406703 | 16616 | 7 | 3554108 | - | - |
+| 2026-11-24T07:58:50Z | revision | agente:a2f735ac9db74302d | 52 | 136745 | 2869934 | 13238 | 4 | 3019969 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 771e187
 - 4D — 771e187: helper buscado, criterios citados, 1 test mutado
+
+## Verificacion ligera
+
+- 2026-11-24T07:58:52Z: ronda 1; commit revisado b784ddac5325664edac24005c42ed909e40e3a2a; commit verificado 74ee3c9fbad2742ace242ed66a4930c9be67602c; ficheros: crates/tc2/src/estado/montaje.rs, crates/tc2/src/git/prueba.rs; corregidos: MEN-1, MEN-2; pendientes: ninguno
