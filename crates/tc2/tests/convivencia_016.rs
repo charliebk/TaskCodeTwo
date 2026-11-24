@@ -16,12 +16,9 @@ mod comun;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use std::time::Duration;
-
-use comun::ops::{Anotar, catalogo};
+use comun::ops::{Anotar, escribir_estado};
 use comun::{Fixture, escribir};
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Contexto, Politica};
 use tc2::{git, huella};
 
 /// Ficheros de la 0.16 en `.git/taskcode/`.
@@ -168,13 +165,7 @@ fn la_huella_de_la_016_queda_intacta_tras_new_y_start() {
         &clon,
         &["remote", "set-url", "origin", "http://127.0.0.1:1/x.git"],
     );
-    let mut c = Contexto::nuevo(&g, &clon, &catalogo, None);
-    c.politica = Politica {
-        intentos: 3,
-        base: Duration::from_millis(1),
-        espera_cerrojo: Duration::from_secs(30),
-    };
-    let i = estado::transaccion(&c, &Anotar::nueva("notas/a.md", false));
+    let i = escribir_estado(&g, &clon, &Anotar::nueva("notas/a.md", false));
     assert_eq!(
         i.linea(),
         "estado sinred operacion=anotar pendiente=si pendientes=1"

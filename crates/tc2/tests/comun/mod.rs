@@ -92,6 +92,28 @@ impl Fixture {
         (bare, clon)
     }
 
+    /// Repo `nombre` en la raiz, en `develop` con un commit y sin remoto.
+    pub fn repo_sin_remoto(&self, nombre: &str) -> PathBuf {
+        let repo = self.raiz.join(nombre);
+        self.crudo(&self.raiz, &["init", "-q", "-b", "develop", nombre]);
+        escribir(&repo, "README.md", "x\n");
+        self.crudo(&repo, &["add", "README.md"]);
+        self.crudo(&repo, &["commit", "-q", "-m", "inicial"]);
+        repo
+    }
+
+    /// Commit de la rama de estado local de `repo` (vacio si no existe).
+    pub fn rama_en(&self, repo: &Path) -> String {
+        self.crudo(
+            repo,
+            &[
+                "for-each-ref",
+                "--format=%(objectname)",
+                "refs/heads/taskcodetwo/tareas",
+            ],
+        )
+    }
+
     /// Otro clon del mismo remoto (otra persona).
     pub fn otro_clon(&self, bare: &Path, nombre: &str) -> PathBuf {
         self.crudo(&self.raiz, &["clone", "-q", bare.to_str().unwrap(), nombre]);

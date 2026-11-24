@@ -412,11 +412,7 @@ fn c6_denegado_y_sin_remoto() {
     assert_eq!(c, 0, "{out} {err}");
     assert_eq!(claves(&out)["remoto"], "denegado", "{out}");
     // Sin remoto: la rama local es el estado.
-    let solo = f.raiz.join("solo");
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
-    escribir(&solo, "README.md", "x\n");
-    f.crudo(&solo, &["add", "README.md"]);
-    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
+    let solo = f.repo_sin_remoto("solo");
     let (c, out, err) = correr(&solo, f.entorno(), "es", &["new", "Sola"]);
     assert_eq!(c, 0, "{out} {err}");
     let g = f.git();

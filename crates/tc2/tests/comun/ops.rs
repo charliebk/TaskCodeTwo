@@ -1,8 +1,32 @@
 //! Operaciones de prueba sobre la rama de estado.
 
-use tc2::estado::{Cambio, Estado, Fallo, Operacion};
+use std::path::Path;
+use std::time::Duration;
+
+use tc2::contrato::Informe;
+use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion, Politica};
+use tc2::git::Git;
 // Texto de prueba, fuera del catalogo: el test de guarda solo mira `src/`.
 use tc2::i18n::Mensaje;
+
+/// Politica de reintentos sin esperas largas para los tests.
+pub fn rapida() -> Politica {
+    Politica {
+        intentos: 3,
+        base: Duration::from_millis(1),
+        espera_cerrojo: Duration::from_secs(30),
+    }
+}
+
+/// Escribe `op` por la transaccion con [`catalogo`] y [`rapida`], y
+/// comprueba el contrato de su informe.
+pub fn escribir_estado(g: &Git, dir: &Path, op: &dyn Operacion) -> Informe {
+    let mut c = Contexto::nuevo(g, dir, &catalogo, None);
+    c.politica = rapida();
+    let i = estado::transaccion(&c, op);
+    super::contrato(&i);
+    i
+}
 
 /// Escribe `ruta` si no existe (idempotente).
 pub struct Anotar {

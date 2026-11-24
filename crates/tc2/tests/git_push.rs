@@ -173,11 +173,7 @@ fn push_reintenta_lo_transitorio_y_rechaza_lo_que_no_procede() {
 #[test]
 fn comprobar_id_sin_origin_mira_lo_local() {
     let f = Fixture::nueva("sin-origin");
-    let repo = f.raiz.join("repo");
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "repo"]);
-    escribir(&repo, "README.md", "x\n");
-    f.crudo(&repo, &["add", "README.md"]);
-    f.crudo(&repo, &["commit", "-q", "-m", "inicial"]);
+    let repo = f.repo_sin_remoto("repo");
     let g = f.git();
     let i = git::comprobar_id(&g, &repo, "TASK-007");
     contrato(&i);
