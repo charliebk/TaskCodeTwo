@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-140-auditoria-4d-a2-hallazgos-y-revision-7-i
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-24
 dependencias: []
 ---
 ## Objetivo
@@ -34,3 +34,9 @@ Corregir los 7 casos IMPORTANTE del grupo A2 de `docs/auditoria-4d.md` (commit a
 - [ ] A2-12: hay un test que ejecuta la rama «mezcla con conflictos -> `None`» de `desde_incremental` (`orden.rs:653-657`). Con el mutante de la ficha aplicado, `cargo test -p tc2 --test hallazgos el_diff_incremental_no_arrastra_lo_que_trae_la_base` (o el test nuevo) sale en rojo.
 - [ ] A2-13: `cada_regla_del_cierre_rechaza_con_su_motivo` (o un test nuevo) prueba el tope de cierres `fuera-de-tope` (`mod.rs:982-993`). Con el mutante de la ficha aplicado, `cargo test -p tc2 --lib hallazgos::tests::cada_regla_del_cierre_rechaza_con_su_motivo` sale en rojo.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 7 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-24T16:45:38Z | plan | automatico | persona | 0.17.1 |
