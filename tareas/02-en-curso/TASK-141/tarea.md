@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-141-auditoria-4d-a3-plan-importar-y-alta-5-i
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Corregir los 5 casos IMPORTANTE del grupo A3 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-24T19:39:12Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-24T19:50:50Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-24T19:50:54Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
