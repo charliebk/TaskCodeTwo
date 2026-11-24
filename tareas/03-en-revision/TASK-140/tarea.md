@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1263206
 tokens_implementacion: 12963980
-tokens_revision: null
+tokens_revision: 4423530
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: []
@@ -77,8 +77,13 @@ Corregidos los 7 IMPORTANTE del grupo A2 en `crates/tc2/src/hallazgos/`, todo co
 | 2026-11-24T16:52:07Z | diseno | agente:ac89536960f8a860a | 46 | 77424 | 1168108 | 17628 | 31 | 1263206 | - | - |
 | 2026-11-24T17:48:36Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 18 | 11625 | 5156830 | 4343 | 0 | 5172816 | - | - |
 | 2026-11-24T17:48:36Z | implementacion | agente:a77a4c4c94868bde8 | 116 | 186596 | 7565581 | 38871 | 24 | 7791164 | - | - |
+| 2026-11-24T18:22:42Z | revision | agente:a1c6045f3840af994 | 72 | 147625 | 4254846 | 20987 | 3 | 4423530 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — ef2855a
 - 4D — ef2855a: helper buscado, criterios citados, 4 mutantes vistos en rojo
+
+## Verificacion ligera
+
+- 2026-11-24T18:22:48Z: ronda 1; commit revisado 468ef2f20633db8d12b6b4b92a44665c0eefd3f7; commit verificado f90f7b6f45d0f3f4a44e95e95f328ec8cfdc1a62; ficheros: crates/tc2/src/hallazgos/mod.rs; corregidos: MEN-1, MEN-2; pendientes: ninguno
