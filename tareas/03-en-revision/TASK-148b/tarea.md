@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 3544116
 tokens_implementacion: 40771690
-tokens_revision: null
+tokens_revision: 8507497
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: [TASK-148a]
@@ -46,6 +46,7 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 - Tests nuevos en `tests/soporte.rs` (cada uno visto en rojo con su mutante): `git_en_aisla_la_configuracion_del_usuario`, `git_en_sin_gitconfig_propio_no_lanza_git` y `valor_recorta_y_lee_la_linea_de_contrato` (quitar solo `trim_end` es mutante equivalente: `lines()` ya recorta el fin de linea).
 - Recuento `cargo test -p tc2 --no-fail-fast` (target propio): antes 768 ok, 13 ignorados (cierre de TASK-148a); despues 48 binarios, 771 ok, 1 fallo, 13 ignorados. El fallo es `prs_abiertos::fallos_tipados` (`sinred` del mock HTTP, intermitencia conocida en Windows; `prs_abiertos.rs` no cambia): repetido solo, 4 ok. Cuadre: 768 + 3 tests nuevos + 1 copia del test de `http_mock` por `mod comun;` en `plataforma_gitlab_e2e.rs` = 772.
 - Decision 5: E2E real `plataforma_e2e::persona_aprueba_pr_del_agente` (usa `Clon::git` sobre `git_en`) contra `charliebk/taskcodetwo-e2e-github`: ok.
+- Ronda 1 corregida en 1b90eac (IMP-1) y be874cb (MEN-1 a MEN-3, 4 tests nuevos en soporte, cada uno visto en rojo con su mutante). Suite tras la correccion: 48 binarios, 776 ok, 0 fallos, 13 ignorados (772 + 4).
 - `cargo xtask verificar` lo ejecuta `finish`.
 
 ## Divergencias
@@ -71,8 +72,11 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 | 2026-11-23T23:05:03Z | diseno | agente:acc58ef3c6137b25e | 68 | 160352 | 3347341 | 36355 | 59 | 3544116 | - | - |
 | 2026-11-24T00:48:15Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 46 | 267772 | 6770035 | 9992 | 3 | 7047845 | - | - |
 | 2026-11-24T00:48:15Z | implementacion | agente:ac199e4502e7dfc94 | 306 | 1108902 | 32539848 | 74789 | 35 | 33723845 | - | - |
+| 2026-11-24T02:00:17Z | revision | agente:ad7d672ce353439e9 | 128 | 504865 | 7971666 | 30838 | 9 | 8507497 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — c6f65f0
 - 4D — c6f65f0: helper buscado, criterios citados, 3 tests mutados
+- rust-wasm-reviewer — be874cb
+- 4D — be874cb: helper buscado, criterios citados, 4 tests mutados
