@@ -584,7 +584,8 @@ pub const UPDATE_INDEX_STDIN: &[&str] = &["--add", "-z", "--index-info"];
 const FIRMA: &str = "-S";
 
 /// Argumentos prohibidos dentro de los subcomandos permitidos (F1-4,
-/// decision 3). Se mira cada argumento entero, no subcadenas (H9). No se
+/// decision 3). Se mira cada argumento entero, no subcadenas (H9), y cada
+/// letra de un grupo de opciones cortas (`-qf` es `-q -f`). No se
 /// miran el texto de un mensaje (`-m <texto>` en `commit` y `tag`) ni las
 /// rutas tras `--` en los subcomandos que las aceptan (`add`, `commit`,
 /// `status`, `diff`): ahi una palabra como `--force` es dato, no opcion.
@@ -641,7 +642,22 @@ fn forma_de_update_ref(args: &[&str]) -> bool {
     }
 }
 
+/// Si `a` esta prohibido en `sub`, entero o, si es un grupo de opciones
+/// cortas (`-xyz`, un solo guion), por cualquiera de sus letras (`-x`, `-y`,
+/// `-z`): git acepta `push -qf` como `push -q -f`. Cierra ante la duda: un
+/// valor pegado (`-mfoo`) tambien se despliega.
 fn es_prohibido(sub: Subcomando, a: &str) -> bool {
+    let grupo = a
+        .strip_prefix('-')
+        .filter(|r| !r.starts_with('-') && r.chars().count() > 1)
+        .unwrap_or_default();
+    es_prohibido_solo(sub, a)
+        || grupo
+            .chars()
+            .any(|c| es_prohibido_solo(sub, &format!("-{c}")))
+}
+
+fn es_prohibido_solo(sub: Subcomando, a: &str) -> bool {
     if a.starts_with("--force") {
         return true;
     }
