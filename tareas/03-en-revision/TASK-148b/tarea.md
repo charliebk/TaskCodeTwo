@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 3544116
 tokens_implementacion: 40771690
-tokens_revision: 8507497
+tokens_revision: 17841616
 creado: 2026-11-23
 actualizado: 2026-11-24
 dependencias: [TASK-148a]
@@ -56,6 +56,10 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 - `lanzar` sustituye tambien al `tc2` de alta, importar, estimacion, progreso y solape, y se quitan las copias de `worktree` de toma, liberar, solape y progreso (misma regla 4D).
 - `preparar` hace siempre `add .taskcode` con el mensaje «personas y config» (el plan ya lo daba por inocuo).
 
+## Rondas extra
+
+- Ronda 3: la decide Carlos por su consigna del 2026-11-23 (modo automatico, opcion recomendada): IMP-2 de la ronda 2 es barato y lo introdujo la propia correccion de MEN-2; corregido en 759c0ca (el stderr lo produce un alias de git, sin `sh` en el PATH; probado con `sh` fuera del PATH, 9 ok, y con el mutante del assert de `salida`, rojo).
+
 ## Transiciones
 
 | fecha | fase | modo | decidido_por | version |
@@ -74,6 +78,7 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 | 2026-11-24T00:48:15Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 46 | 267772 | 6770035 | 9992 | 3 | 7047845 | - | - |
 | 2026-11-24T00:48:15Z | implementacion | agente:ac199e4502e7dfc94 | 306 | 1108902 | 32539848 | 74789 | 35 | 33723845 | - | - |
 | 2026-11-24T02:00:17Z | revision | agente:ad7d672ce353439e9 | 128 | 504865 | 7971666 | 30838 | 9 | 8507497 | 1 | rust-wasm-reviewer |
+| 2026-11-24T03:26:08Z | revision | agente:adf16bddc2b1ec7e9 | 130 | 187634 | 9103471 | 42884 | 3 | 9334119 | 2 | rust-wasm-reviewer |
 
 ## Autorrevision
 
@@ -81,3 +86,5 @@ Escenario ssh, git de sistema y operacion de prueba comunes en `crates/tc2/tests
 - 4D — c6f65f0: helper buscado, criterios citados, 3 tests mutados
 - rust-wasm-reviewer — be874cb
 - 4D — be874cb: helper buscado, criterios citados, 4 tests mutados
+- rust-wasm-reviewer — 759c0ca
+- 4D — 759c0ca: helper buscado, criterios citados, 1 test mutado
