@@ -256,3 +256,17 @@ fn instantanea_ignora_los_nombres_excluidos() {
 
     assert!(comun::instantanea(&f.raiz.join("no-existe"), &[]).is_empty());
 }
+
+/// A8-05: una operacion que el doble de `Plataforma` no espera hace
+/// `panic!` con su nombre del contrato.
+#[test]
+#[should_panic(expected = "merge-pr")]
+fn un_doble_vacio_no_admite_merge_pr() {
+    use comun::plataforma::{Doble, Parcial};
+    use tc2::plataforma::Plataforma;
+
+    struct Vacio;
+    impl Parcial for Vacio {}
+
+    let _ = Doble(Vacio).merge_pr(1, "a");
+}

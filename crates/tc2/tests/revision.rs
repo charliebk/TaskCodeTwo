@@ -32,23 +32,25 @@ use std::time::Duration;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use comun::http_mock::{Mock, serie};
+use comun::plataforma::{Doble, Parcial};
 use comun::{Fixture, escribir};
 use tc2::contrato::{Informe, Resultado};
 use tc2::estado::{self, Operacion};
 use tc2::git::Git;
 use tc2::identidad::{Cuenta, Quien};
 use tc2::plataforma::{
-    Firma, ModeloPuertas, Paso, Plataforma, PrAbierto, Proveedor, ReglasLeidas, RevisionPublicada,
-    Rol, Secreto, Usuario, entorno_git,
+    LEER_REVISION, ModeloPuertas, Paso, Plataforma, PrAbierto, Proveedor, RevisionPublicada, Rol,
+    Secreto, entorno_git, puertas,
 };
 use tc2::{revision, toma};
 
 type Entorno = Vec<(OsString, OsString)>;
 
-/// Plataforma doble: da `extra` como entorno de push y abre un PR (el 12)
-/// la primera vez; apunta las URL y los PR pedidos.
+/// Estado de la plataforma doble (`Doble<Rc<Apuntes>>`): da `extra` como
+/// entorno de push y abre un PR (el 12) la primera vez; apunta las URL y los
+/// PR pedidos.
 #[derive(Default)]
-struct Doble {
+struct Apuntes {
     extra: Entorno,
     urls: RefCell<Vec<String>>,
     prs: RefCell<Vec<(String, String, String, String)>>,
@@ -63,27 +65,25 @@ struct Doble {
     lecturas: RefCell<Vec<(u64, u64)>>,
 }
 
-struct Compartida(Rc<Doble>);
-
-fn sin_uso(op: &str) -> Informe {
+/// Respuesta de una operacion sin dato en [`Apuntes`].
+fn sin_dato(op: &str) -> Informe {
     Informe::nuevo(op, Resultado::Error)
 }
 
-impl Plataforma for Compartida {
+impl Parcial for Rc<Apuntes> {
     fn prs_abiertos(&self, rol: Rol) -> Paso<Vec<PrAbierto>> {
         assert_eq!(rol, Rol::Agente);
-        self.0
-            .abiertos
+        self.abiertos
             .borrow()
             .clone()
-            .ok_or_else(|| sin_uso("prs-abiertos"))
+            .ok_or_else(|| sin_dato("prs-abiertos"))
     }
     fn entorno_push(&self, url: &str) -> Paso<Entorno> {
-        self.0.urls.borrow_mut().push(url.to_owned());
-        Ok(self.0.extra.clone())
+        self.urls.borrow_mut().push(url.to_owned());
+        Ok(self.extra.clone())
     }
     fn abrir_pr(&self, rama: &str, base: &str, titulo: &str, cuerpo: &str) -> Informe {
-        let mut prs = self.0.prs.borrow_mut();
+        let mut prs = self.prs.borrow_mut();
         let r = if prs.is_empty() {
             Resultado::Ok
         } else {
@@ -93,39 +93,22 @@ impl Plataforma for Compartida {
         Informe::nuevo("abrir-pr", r).con("pr", "12")
     }
     fn estado_puertas(&self, _: Rol, _: u64, _: &ModeloPuertas) -> Informe {
-        let mut cola = self.0.cola_puertas.borrow_mut();
+        let mut cola = self.cola_puertas.borrow_mut();
         if !cola.is_empty() {
             return cola.remove(0);
         }
-        self.0
-            .puertas
+        self.puertas
             .borrow()
             .clone()
-            .unwrap_or_else(|| sin_uso("estado-puertas"))
+            .unwrap_or_else(|| sin_dato(puertas::ESTADO_PUERTAS))
     }
     fn leer_revision(&self, rol: Rol, pr: u64, origen: u64) -> Paso<RevisionPublicada> {
         assert_eq!(rol, Rol::Agente);
-        self.0.lecturas.borrow_mut().push((pr, origen));
-        self.0
-            .revision
+        self.lecturas.borrow_mut().push((pr, origen));
+        self.revision
             .borrow()
             .clone()
-            .ok_or_else(|| sin_uso("leer-revision"))
-    }
-    fn merge_pr(&self, _: u64, _: &str) -> Informe {
-        sin_uso("merge-pr")
-    }
-    fn leer_puertas(&self, _: Rol, _: &str) -> Paso<ReglasLeidas> {
-        Err(sin_uso("leer-puertas"))
-    }
-    fn leer_permisos_ci(&self) -> Informe {
-        sin_uso("leer-permisos-ci")
-    }
-    fn firma_commit(&self, _: &str) -> Paso<Firma> {
-        Err(sin_uso("firma-commit"))
-    }
-    fn identidad(&self, _: Rol) -> Paso<Usuario> {
-        Err(sin_uso("identidad"))
+            .ok_or_else(|| sin_dato(LEER_REVISION))
     }
 }
 
@@ -174,7 +157,7 @@ fn empezada(f: &Fixture, g: &Git) -> (PathBuf, PathBuf, PathBuf) {
     (bare, clon, wt)
 }
 
-fn review(g: &Git, dir: &Path, doble: &Rc<Doble>, esperas: &[Duration]) -> Informe {
+fn review(g: &Git, dir: &Path, doble: &Rc<Apuntes>, esperas: &[Duration]) -> Informe {
     let base = toma::Entorno {
         dir,
         git: g,
@@ -183,7 +166,7 @@ fn review(g: &Git, dir: &Path, doble: &Rc<Doble>, esperas: &[Duration]) -> Infor
         ahora: tc2::identidad::ahora(),
     };
     let d = Rc::clone(doble);
-    let conectar = move || -> Paso<Box<dyn Plataforma>> { Ok(Box::new(Compartida(Rc::clone(&d)))) };
+    let conectar = move || -> Paso<Box<dyn Plataforma>> { Ok(Box::new(Doble(Rc::clone(&d)))) };
     let e = revision::Entorno {
         base: &base,
         conectar: &conectar,
@@ -201,7 +184,7 @@ fn review_empuja_abre_el_pr_y_pasa_a_en_revision() {
     let f = Fixture::nueva("review");
     let g = f.git();
     let (bare, clon, wt) = empezada(&f, &g);
-    let doble = Rc::new(Doble::default());
+    let doble = Rc::new(Apuntes::default());
 
     let i = review(&g, &clon, &doble, &[]);
     assert_eq!(
@@ -276,14 +259,14 @@ fn el_push_de_review_lleva_la_cabecera_del_agente() {
             &format!("{}/o/r.git", mock.base()),
         ],
     );
-    let doble = Rc::new(Doble {
+    let doble = Rc::new(Apuntes {
         extra: entorno_git(
             Proveedor::GitHub,
             &format!("{}/", mock.base()),
             &Secreto::nuevo(TOKEN),
             None,
         ),
-        ..Doble::default()
+        ..Apuntes::default()
     });
 
     let i = review(&g, &clon, &doble, &[Duration::ZERO, Duration::ZERO]);
@@ -328,7 +311,7 @@ fn review_guarda_el_informe_de_la_revision_ia() {
     f.crudo(&clon, &["push", "-q", "origin", "develop"]);
     let cabeza = f.crudo(&wt, &["rev-parse", "HEAD"]).trim().to_owned();
     let sha12 = &cabeza[..12];
-    let doble = Rc::new(Doble::default());
+    let doble = Rc::new(Apuntes::default());
     let rama_estado = || f.crudo(&bare, &["rev-parse", estado::RAMA]);
     let en_estado = |ruta: &str| {
         f.crudo(
@@ -476,7 +459,7 @@ fn review_guarda_el_informe_del_head_anterior_antes_del_push() {
     f.crudo(&clon, &["add", ".taskcode/config.yml"]);
     f.crudo(&clon, &["commit", "-q", "-m", "config"]);
     f.crudo(&clon, &["push", "-q", "origin", "develop"]);
-    let doble = Rc::new(Doble::default());
+    let doble = Rc::new(Apuntes::default());
     let cabeza = || f.crudo(&wt, &["rev-parse", "HEAD"]).trim().to_owned();
     let commit = |n: &str| {
         escribir(&wt, "a.txt", &format!("ronda {n}\n"));
