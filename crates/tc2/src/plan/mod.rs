@@ -413,20 +413,10 @@ fn traer(g: &Git, dir: &Path) -> Result<(), Informe> {
     Ok(())
 }
 
-/// La configuracion de la base (F1-10 decision 3). Sin base o sin
-/// configuracion, el suelo; una que no vale falla con su informe a nombre
-/// de `plan` (como `ciclo::umbral_de_inactividad`).
+/// La configuracion de la base (F1-10 decision 3), con la politica de
+/// [`crate::config::de_base_o_suelo`] a nombre de `plan`.
 pub fn config_de_base(g: &Git, dir: &Path) -> Result<Config, Informe> {
-    match crate::config::de_base(g, dir) {
-        Ok(c) => Ok(c),
-        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
-            Ok(Config::suelo())
-        }
-        Err(mut i) => {
-            NOMBRE.clone_into(&mut i.comando);
-            Err(i)
-        }
-    }
+    crate::config::de_base_o_suelo(g, dir, NOMBRE)
 }
 
 fn paso_plan(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Result<Informe, Informe> {

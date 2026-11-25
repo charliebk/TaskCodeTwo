@@ -161,21 +161,12 @@ fn destino_de(e: &Entorno<'_>, login: &str) -> Result<Asignado, Informe> {
 }
 
 /// Umbral de dias sin actividad (clave `dias_sin_actividad` de la
-/// configuracion de la base, D1a). Sin base o sin configuracion, el de por
-/// defecto; una configuracion que no vale (o que no se pudo leer) falla con
-/// su informe a nombre de `op`, como `identidad::clave_plataforma`:
-/// no se cae en silencio al de por defecto (M-4 de la ronda 1).
+/// configuracion de la base, D1a), con la politica de
+/// [`crate::config::de_base_o_suelo`]: sin base o sin configuracion, el del
+/// suelo (el de por defecto, [`DIAS_POR_DEFECTO`]); una configuracion que no
+/// vale falla con su informe a nombre de `op` (M-4 de la ronda 1).
 pub fn umbral_de_inactividad(g: &Git, dir: &Path, op: &str) -> Result<u64, Informe> {
-    match crate::config::de_base(g, dir) {
-        Ok(c) => Ok(u64::from(c.dias_sin_actividad)),
-        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
-            Ok(DIAS_POR_DEFECTO)
-        }
-        Err(mut i) => {
-            op.clone_into(&mut i.comando);
-            Err(i)
-        }
-    }
+    crate::config::de_base_o_suelo(g, dir, op).map(|c| u64::from(c.dias_sin_actividad))
 }
 
 /// Las dos operaciones, para tratarlas igual.
@@ -523,6 +514,48 @@ mod tests {
         assert_eq!(i.valor("asignado-anterior"), Some("beto"), "{}", i.linea());
         assert_eq!(i.valor("worktree"), None, "{}", i.linea());
         assert!(wt.join("a-medias.txt").is_file());
+        Ok(())
+    }
+
+    /// A8-10: la politica comun de `plan` y de `liberar`: sin configuracion
+    /// en la base, el suelo; con una que no vale, su rechazo a nombre de la
+    /// orden que la pidio.
+    #[test]
+    fn config_de_la_base_o_suelo_a_nombre_de_la_orden() -> R<()> {
+        let Repo {
+            _borrar,
+            raiz,
+            clon,
+            git: g,
+        } = repo_con_remoto(
+            "ciclo-suelo",
+            &[(
+                "README.md",
+                "linea 1
+",
+            )],
+            &[],
+        )?;
+        assert_eq!(
+            crate::config::de_base_o_suelo(&g, &clon, "plan").map_err(|i| i.linea()),
+            Ok(crate::config::Config::suelo())
+        );
+        std::fs::create_dir_all(clon.join(".taskcode"))?;
+        std::fs::write(
+            clon.join(crate::config::RUTA),
+            "---
+formato: 9
+",
+        )?;
+        sh(&raiz, &clon, &["add", "."])?;
+        sh(&raiz, &clon, &["commit", "-q", "-m", "config"])?;
+        sh(&raiz, &clon, &["push", "-q", "origin", "develop"])?;
+        sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
+        let i = crate::config::de_base_o_suelo(&g, &clon, "plan")
+            .err()
+            .ok_or("acepto formato 9")?;
+        assert_eq!(i.comando, "plan", "{}", i.linea());
+        assert_eq!(i.resultado, Resultado::Rechazada, "{}", i.linea());
         Ok(())
     }
 
