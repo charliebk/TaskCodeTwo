@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-149-auditoria-4d-capa-comun-de-ordenes-y-ope
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2514362
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -39,3 +39,10 @@ Extraer las piezas de la capa de órdenes que la auditoría 4D (`docs/auditoria-
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-25T15:46:58Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-25T15:54:57Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25T15:54:57Z | diseno | agente:a2556eb46cdca27b1 | 64 | 125609 | 2363006 | 25683 | 55 | 2514362 | - | - |
