@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-150-auditoria-4d-utilidades-comunes-de-e-s-y
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Extraer las utilidades de E/S y de tiempo que la auditoría 4D (`docs/auditoria-
 |---|---|---|---|---|
 | 2026-11-25T18:33:25Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T18:41:47Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T18:41:49Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
