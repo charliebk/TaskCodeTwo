@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-146-auditoria-4d-a8-transversal-actualizar-c
 asignado_a: charlie.bk@gmail.com
@@ -42,6 +42,7 @@ Corregir los 7 casos IMPORTANTE del grupo A8 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-25T11:48:23Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T11:53:43Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T11:54:44Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
