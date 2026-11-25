@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-146-auditoria-4d-a8-transversal-actualizar-c
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 1360634
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -41,3 +41,10 @@ Corregir los 7 casos IMPORTANTE del grupo A8 de `docs/auditoria-4d.md` (commit a
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-25T11:48:23Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-25T11:53:43Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25T11:53:41Z | diseno | agente:ada368e0e37ee38a9 | 46 | 80472 | 1266188 | 13928 | 30 | 1360634 | - | - |
