@@ -51,7 +51,7 @@ use std::path::{Path, PathBuf};
 use super::catalogo::{self, Catalogo};
 use super::{Contexto, Seleccion};
 use crate::carril::Carril;
-use crate::contrato::{Informe, Resultado};
+use crate::contrato::{Informe, Resultado, valor_de};
 use crate::git::Git;
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::seleccion as txt;
@@ -352,7 +352,7 @@ fn args(a: &[String]) -> Result<Args, Informe> {
     let mut r = Args::default();
     let mut it = a.iter();
     while let Some(x) = it.next() {
-        let mut valor = || it.next().cloned().ok_or_else(|| uso("falta-valor"));
+        let mut valor = || valor_de(&mut it, uso);
         match x.as_str() {
             "--rutas" if r.rutas.is_none() => r.rutas = Some(valor()?),
             "--nul" if !r.nul => r.nul = true,
@@ -563,11 +563,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     let (mut id, mut fichero, mut rutas_f) = (None, None, None);
     let mut it = a.iter();
     while let Some(x) = it.next() {
-        let mut valor = || {
-            it.next()
-                .cloned()
-                .ok_or_else(|| uso_seleccion("falta-valor"))
-        };
+        let mut valor = || valor_de(&mut it, uso_seleccion);
         match x.as_str() {
             "--tarea-fichero" if fichero.is_none() => fichero = Some(valor()?),
             "--rutas" if rutas_f.is_none() => rutas_f = Some(valor()?),
@@ -594,17 +590,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
                 SELECCION.clone_into(&mut i.comando);
                 i
             })?;
-            crate::estado::tarea_de(&v, id).map_err(|f| match f {
-                crate::estado::Fallo::Rechazada {
-                    motivo,
-                    diagnostico,
-                } => Informe::nuevo(SELECCION, Resultado::Rechazada)
-                    .con("motivo", motivo)
-                    .diagnostico(diagnostico),
-                crate::estado::Fallo::Error(m) => {
-                    Informe::nuevo(SELECCION, Resultado::Error).diagnostico(m)
-                }
-            })?
+            crate::estado::tarea_de(&v, id).map_err(|f| f.informe(SELECCION))?
         }
         (None, None) => return Err(uso_seleccion("sin-tarea")),
     };

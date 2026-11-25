@@ -63,7 +63,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::Salida;
-use crate::contrato::{Informe, Resultado};
+use crate::contrato::{Informe, Resultado, valor_de};
 use crate::i18n::catalogo::hallazgos as txt;
 use crate::i18n::{Idioma, Mensaje};
 use crate::verificacion::informe;
@@ -157,7 +157,7 @@ fn opciones(
         if unicas.contains(nombre) && !valores.is_empty() {
             return Err(uso("argumento-desconocido"));
         }
-        valores.push(it.next().cloned().ok_or_else(|| uso("falta-valor"))?);
+        valores.push(valor_de(&mut it, uso)?);
     }
     Ok(Opciones(o))
 }

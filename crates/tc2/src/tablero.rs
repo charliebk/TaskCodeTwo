@@ -440,15 +440,7 @@ fn tablero_en(g: &Git, dir: &Path, op: &str, con_local: bool) -> Result<Leido, I
         None
     };
     let commit = vista.commit().map(corto).unwrap_or_default();
-    let s = situacion::calcular(&vista).map_err(|f| match f {
-        Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        } => Informe::nuevo(op, Resultado::Rechazada)
-            .con("motivo", motivo)
-            .diagnostico(diagnostico),
-        Fallo::Error(d) => Informe::nuevo(op, Resultado::Error).diagnostico(d),
-    })?;
+    let s = situacion::calcular(&vista).map_err(|f: Fallo| f.informe(op))?;
     let (personas, ilegibles) = crate::roadmap::personas_y_aviso(g, dir);
     let avisos = if ilegibles {
         vec![PERSONAS_ILEGIBLES]

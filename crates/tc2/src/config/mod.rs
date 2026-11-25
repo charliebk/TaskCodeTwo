@@ -528,6 +528,23 @@ pub fn de_base(git: &Git, dir: &Path) -> Result<Config, Informe> {
     leer(&texto).map_err(|e| e.informe())
 }
 
+/// La politica de lectura de la base para una orden (A8-10): sin base o sin
+/// configuracion, el [`Config::suelo`]; una que no vale (o que no se pudo
+/// leer) falla con su informe a nombre de `orden`, sin caer en silencio al
+/// suelo (M-4 de la ronda 1 de TASK-081).
+pub fn de_base_o_suelo(git: &Git, dir: &Path, orden: &str) -> Result<Config, Informe> {
+    match de_base(git, dir) {
+        Ok(c) => Ok(c),
+        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
+            Ok(Config::suelo())
+        }
+        Err(mut i) => {
+            orden.clone_into(&mut i.comando);
+            Err(i)
+        }
+    }
+}
+
 /// Lee la configuracion del arbol de trabajo de `raiz` (F1-8 decision 5:
 /// la orden que se confia y se ejecuta es la del arbol, no la de la base).
 /// `Err` lleva el informe `config rechazada` (sin fichero, `sin-config`), o

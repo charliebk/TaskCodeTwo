@@ -46,7 +46,7 @@ use std::time::Duration;
 
 use crate::config;
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Fallo, Operacion};
+use crate::estado::{self, Fallo, Operacion, como_orden};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::revision as txt;
@@ -106,7 +106,7 @@ pub fn review_en(e: &Entorno<'_>, id: &str) -> Informe {
     let i = match paso(e, id) {
         Ok(i) | Err(i) => i,
     };
-    de_review(i, id)
+    como_orden(i, NOMBRE, "id", id)
 }
 
 /// Titulo del PR: `TASK-NNN: <titulo>`.
@@ -195,26 +195,6 @@ pub fn revision_ia(p: &dyn Plataforma, pr: u64, revisor_id: Option<u64>) -> &'st
     }
 }
 
-/// El informe como de `review`: el comando, `id=` el primero y sin la clave
-/// `operacion` de la transaccion. Un `sinred` dice `pendiente=no` (`review`
-/// exige red).
-fn de_review(mut i: Informe, id: &str) -> Informe {
-    NOMBRE.clone_into(&mut i.comando);
-    i.claves.retain(|(k, _)| k != "operacion" && k != "id");
-    i.claves
-        .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
-}
-
-fn rechazada(motivo: &str, m: Mensaje) -> Informe {
-    Informe::nuevo(NOMBRE, Resultado::Rechazada)
-        .con("motivo", motivo)
-        .diagnostico(m)
-}
-
 fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     let (g, dir, ahora) = (e.base.git, e.base.dir, e.base.ahora);
     let principal = git::localizar_principal(g, dir)?;
@@ -230,42 +210,28 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 2. El paso a revision en seco: los rechazos, antes de empujar nada.
     let sondeo = Revisar::nueva(id, &quien, ahora);
     if let Err(f) = sondeo.aplicar(&vista) {
-        return Err(match f {
-            Fallo::Rechazada {
-                motivo,
-                diagnostico,
-            } => {
-                let i = rechazada(&motivo, diagnostico);
-                match sondeo.dueno() {
-                    Some(l) => i.con("asignado", l),
-                    None => i,
-                }
-            }
-            Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
+        let i = f.informe(NOMBRE);
+        return Err(match sondeo.dueno() {
+            Some(l) if i.resultado == Resultado::Rechazada => i.con("asignado", l),
+            _ => i,
         });
     }
-    let (t, cuerpo) = match estado::tarea_de(&vista, id) {
-        Ok(tc) => tc,
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => return Err(rechazada(&motivo, diagnostico)),
-        Err(Fallo::Error(d)) => return Err(Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d)),
-    };
+    let (t, cuerpo) = estado::tarea_de(&vista, id).map_err(|f| f.informe(NOMBRE))?;
     // 3. La rama, contra `develop` (D3) y con su worktree.
     let Some(rama) = t.rama.clone() else {
-        return Err(rechazada(
-            "sin-rama",
-            Mensaje::nuevo(&txt::SIN_RAMA).con("id", id),
-        ));
+        return Err(
+            Fallo::rechazada("sin-rama", Mensaje::nuevo(&txt::SIN_RAMA).con("id", id))
+                .informe(NOMBRE),
+        );
     };
     if git::base_de_rama(&rama) != config::BASE {
-        return Err(rechazada(
+        return Err(Fallo::rechazada(
             "carril-no-soportado",
             Mensaje::nuevo(&txt::CARRIL_NO_SOPORTADO)
                 .con("id", id)
                 .con("rama", rama.as_str()),
         )
+        .informe(NOMBRE)
         .con("rama", rama.as_str()));
     }
     let wt = principal.join(git::CARPETA_WORKTREES).join(id);
@@ -274,18 +240,21 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
             .iter()
             .any(|w| w.rama.as_deref() == Some(rama.as_str()) && git::misma_ruta(&w.ruta, &wt));
     if !registrado {
-        return Err(rechazada(
+        return Err(Fallo::rechazada(
             "sin-worktree",
             Mensaje::nuevo(&txt::SIN_WORKTREE)
                 .con("id", id)
                 .con("ruta", git::worktree_relativo(id))
                 .con("rama", rama.as_str()),
         )
+        .informe(NOMBRE)
         .con("rama", rama.as_str())
         .con("arreglo", format!("tc2 start {id}")));
     }
     let Some(url) = git::estado::url_origin(g, &wt, NOMBRE)? else {
-        return Err(rechazada("plataforma", Mensaje::nuevo(&txt::SIN_ORIGIN)));
+        return Err(
+            Fallo::rechazada("plataforma", Mensaje::nuevo(&txt::SIN_ORIGIN)).informe(NOMBRE),
+        );
     };
     // 4. La seleccion de revision (F6-3), con el diff de la rama y lo de la
     // base; no cambia nada si falla: lo dice en `avisos`.

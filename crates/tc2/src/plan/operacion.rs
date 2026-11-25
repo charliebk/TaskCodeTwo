@@ -47,7 +47,9 @@ use super::plantillas::{self as p, Datos};
 use super::roles::{self, Rol};
 use crate::carril::Carril;
 use crate::config::Config;
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
@@ -348,13 +350,13 @@ impl Operacion for Planificar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.carril.map_or("-", Carril::nombre)
-        )
+        AnotacionConDueno {
+            orden: NOMBRE,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(self.carril.map_or("-", Carril::nombre)),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -365,18 +367,14 @@ impl Operacion for Planificar {
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         *self.resumen.borrow_mut() = None;
-        *self.dueno.borrow_mut() = None;
-        let (mut t, mut cuerpo) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        let (mut t, mut cuerpo) = tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             NOMBRE,
             ("de-otra-persona", &txt::DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
+            &self.dueno,
+        )?;
         if !PLANIFICABLES.contains(&t.estado.as_str()) {
             return Err(por_estado(&self.id, &t.estado, NOMBRE, &PLANIFICABLES));
         }

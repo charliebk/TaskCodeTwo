@@ -29,7 +29,7 @@
 use std::cell::RefCell;
 
 use super::operacion::{ABIERTAS, Lanzada};
-use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_de};
+use crate::estado::{AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_de};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::ciclo as txt;
 use crate::identidad::Quien;
@@ -232,7 +232,7 @@ impl Operacion for Liberar {
     }
 
     fn anotacion(&self) -> String {
-        format!("{}|{}", self.d.base.anotacion(LIBERAR), self.d.cola())
+        self.d.base.anotacion(LIBERAR, &self.d.cola())
     }
 
     fn exige_red(&self) -> bool {
@@ -309,13 +309,13 @@ impl Operacion for Reasignar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{}|{}|{}|{}",
-            self.d.base.anotacion(REASIGNAR),
+        let resto = format!(
+            "{}|{}|{}",
             self.a.id().unwrap_or_default(),
             self.a.login().unwrap_or_default(),
             self.d.cola()
-        )
+        );
+        self.d.base.anotacion(REASIGNAR, &resto)
     }
 
     fn exige_red(&self) -> bool {
@@ -349,12 +349,13 @@ impl Operacion for Reasignar {
 /// o ->|<dias>|<ahora>`. Exigen red y no quedan pendientes; si se
 /// re-ejecutaran, sin persona delante: `decidido_por: agente`.
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
-    let partes: Vec<&str> = a.split('|').collect();
-    let (nombre, id) = (*partes.first()?, *partes.get(1)?);
-    if !crate::git::es_id(id) {
-        return None;
-    }
-    let asignado = Asignado::persona(partes.get(2)?.parse().ok()?, partes.get(3)?)?;
+    let AnotacionConDueno {
+        orden: nombre,
+        id,
+        asignado,
+        resto,
+    } = AnotacionConDueno::leer(a)?;
+    let partes: Vec<&str> = resto.map(|r| r.split('|').collect()).unwrap_or_default();
     let cola = |p: &[&str]| -> Option<(Option<u64>, u64, u64)> {
         let [actividad, dias, ahora] = p else {
             return None;
@@ -367,14 +368,14 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
     };
     match nombre {
         LIBERAR => {
-            let (actividad, dias, ahora) = cola(partes.get(4..)?)?;
+            let (actividad, dias, ahora) = cola(&partes)?;
             Some(Box::new(Liberar {
                 d: Dejar::nueva(id, asignado, "agente", ahora, actividad, dias),
             }))
         }
         REASIGNAR => {
-            let destino = Asignado::persona(partes.get(4)?.parse().ok()?, partes.get(5)?)?;
-            let (actividad, dias, ahora) = cola(partes.get(6..)?)?;
+            let destino = Asignado::persona(partes.first()?.parse().ok()?, partes.get(1)?)?;
+            let (actividad, dias, ahora) = cola(partes.get(2..)?)?;
             Some(Box::new(Reasignar {
                 d: Dejar::nueva(id, asignado, "agente", ahora, actividad, dias),
                 a: destino,

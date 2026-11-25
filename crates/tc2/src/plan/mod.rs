@@ -5,7 +5,7 @@
 //!   lanza (identidad), la configuracion de la base (`modo_flujo` y
 //!   `politica_carriles`; sin base o sin configuracion, el suelo) y la
 //!   operacion [`Planificar`] por el punto unico de escritura
-//!   ([`estado::transaccion`], con el `ROADMAP.md` del mismo commit).
+//!   ([`crate::estado::transaccion`], con el `ROADMAP.md` del mismo commit).
 //!   Publica en la carpeta fija de la tarea, `TASK-NNN/planificacion/`: las
 //!   peticiones de la ronda en `brainstorm/` y el esqueleto de
 //!   `plan-final.md` si no existe; la tarea queda `en-diseno` con el carril
@@ -54,7 +54,7 @@ use std::path::Path;
 use crate::carril::Carril;
 use crate::config::Config;
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Operacion};
+use crate::estado::{como_orden, con_dueno};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
@@ -163,7 +163,7 @@ pub fn plan_en(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Informe {
     let i = match paso_plan(e, id, carril) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(NOMBRE, i, "id", id)
+    como_orden(i, NOMBRE, "id", id)
 }
 
 fn uso_approve(motivo: &str) -> Informe {
@@ -258,13 +258,13 @@ pub fn aprobar_hito_en(e: &Entorno<'_>, hito: u32) -> Informe {
     let i = match paso_aprobar_hito(e, hito) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(aprobar::NOMBRE, i, "hito", &hito.to_string())
+    como_orden(i, aprobar::NOMBRE, "hito", &hito.to_string())
 }
 
 fn paso_aprobar_hito(e: &Entorno<'_>, hito: u32) -> Result<Informe, Informe> {
     let (op, config) = persona_y_config(e, |q| aprobar::AprobarHito::nueva(hito, q, e.ahora))?;
     let op = op.con_config(&config);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok => Ok(t.con_lista("aprobadas", op.aprobadas())),
         Resultado::SinCambios => Ok(t),
@@ -291,7 +291,7 @@ pub fn aprobar_en(e: &Entorno<'_>, id: &str) -> Informe {
     let i = match paso_aprobar(e, id) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(aprobar::NOMBRE, i, "id", id)
+    como_orden(i, aprobar::NOMBRE, "id", id)
 }
 
 /// `approve --pedir-cambios` de `contenido` en la tarea `id` del repo de
@@ -300,7 +300,7 @@ pub fn pedir_cambios_en(e: &Entorno<'_>, id: &str, contenido: &str) -> Informe {
     let i = match paso_pedir_cambios(e, id, contenido) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(aprobar::NOMBRE, i, "id", id)
+    como_orden(i, aprobar::NOMBRE, "id", id)
 }
 
 /// `rechazada motivo=identidad rol=persona` (RR-04), con lo que diga el
@@ -341,7 +341,7 @@ fn persona_y_config<O>(
 fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     let (op, config) = persona_y_config(e, |q| Aprobar::nueva(id, q, e.ahora))?;
     let op = op.con_config(&config);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_seleccion(t, op.roles())),
         _ => Err(con_dueno(t, op.dueno())),
@@ -376,7 +376,7 @@ fn paso_pedir_cambios(e: &Entorno<'_>, id: &str, contenido: &str) -> Result<Info
     let quien = (e.quien)()?;
     traer(e.git, e.dir)?;
     let op = PedirCambios::nueva(id, &quien, contenido);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => {
             let n = op.ronda().unwrap_or_default();
@@ -395,7 +395,7 @@ pub fn guardar_en(e: &Entorno<'_>, id: &str, destino: &str, contenido: &str) -> 
     let i = match paso_guardar(e, id, destino, contenido) {
         Ok(i) | Err(i) => i,
     };
-    let mut i = de_la_orden(NOMBRE, i, "id", id);
+    let mut i = como_orden(i, NOMBRE, "id", id);
     i.claves
         .insert(1, ("destino".to_owned(), Valor::Texto(destino.to_owned())));
     i
@@ -413,20 +413,10 @@ fn traer(g: &Git, dir: &Path) -> Result<(), Informe> {
     Ok(())
 }
 
-/// La configuracion de la base (F1-10 decision 3). Sin base o sin
-/// configuracion, el suelo; una que no vale falla con su informe a nombre
-/// de `plan` (como `ciclo::umbral_de_inactividad`).
+/// La configuracion de la base (F1-10 decision 3), con la politica de
+/// [`crate::config::de_base_o_suelo`] a nombre de `plan`.
 pub fn config_de_base(g: &Git, dir: &Path) -> Result<Config, Informe> {
-    match crate::config::de_base(g, dir) {
-        Ok(c) => Ok(c),
-        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
-            Ok(Config::suelo())
-        }
-        Err(mut i) => {
-            NOMBRE.clone_into(&mut i.comando);
-            Err(i)
-        }
-    }
+    crate::config::de_base_o_suelo(g, dir, NOMBRE)
 }
 
 fn paso_plan(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Result<Informe, Informe> {
@@ -439,7 +429,7 @@ fn paso_plan(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Result<Inform
     let f = crate::seleccion::orden::fuentes(e.git, e.dir, claude.as_deref(), &[]);
     let op = Planificar::nueva(id, &quien, carril, &config, e.ahora)
         .con_fuentes(f.inventario, f.catalogo);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_resumen(t, op.resumen())),
         _ => Err(con_dueno(t, op.dueno())),
@@ -457,20 +447,11 @@ fn paso_guardar(
     let Some(op) = Guardar::nueva(id, &quien, destino, contenido) else {
         return Err(uso("destino-invalido"));
     };
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(t),
         _ => Err(con_dueno(t, op.dueno())),
     }
-}
-
-/// La operacion por el punto unico de escritura, con el `ROADMAP.md`
-/// regenerado en el mismo commit.
-fn escribir(e: &Entorno<'_>, op: &dyn Operacion) -> Informe {
-    let personas = crate::roadmap::personas(e.git, e.dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(e.git, e.dir, e.catalogo, Some(&generar));
-    estado::transaccion(&ctx, op)
 }
 
 /// Las claves de lo que decidio `plan`.
@@ -504,39 +485,10 @@ pub(crate) fn o_guion(s: &str) -> &str {
     if s.is_empty() { "-" } else { s }
 }
 
-/// Un rechazo con lo que sabe la operacion: quien la lleva o el arreglo de
-/// una tarea de la 0.16.
-fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
-    if i.resultado != Resultado::Rechazada {
-        return i;
-    }
-    match (i.valor("motivo"), dueno) {
-        (Some("de-otra-persona"), Some(l)) => i = i.con("asignado", l),
-        (Some("formato-1"), _) => i = i.con("arreglo", "tc2 actualizar"),
-        _ => {}
-    }
-    i
-}
-
-/// El informe como de la orden `nombre`: el comando, `clave=valor` el
-/// primero (`id=` de una tarea o `hito=` de `approve --hito`) y sin la
-/// clave `operacion` ni el `id=` de la transaccion. Un `sinred` sin
-/// `pendiente` dice `pendiente=no` (exige red).
-fn de_la_orden(nombre: &str, mut i: Informe, clave: &str, valor: &str) -> Informe {
-    nombre.clone_into(&mut i.comando);
-    i.claves
-        .retain(|(k, _)| k != "operacion" && k != "id" && k != clave);
-    i.claves
-        .insert(0, (clave.to_owned(), Valor::Texto(valor.to_owned())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::Operacion;
     use crate::i18n::Idioma;
 
     /// Carpeta temporal propia del test: se borra al acabar.

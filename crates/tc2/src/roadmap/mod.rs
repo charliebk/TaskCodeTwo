@@ -300,23 +300,11 @@ fn renombrado(mut i: Informe) -> Informe {
     i
 }
 
-fn de_fallo(f: Fallo) -> Informe {
-    match f {
-        Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        } => Informe::nuevo(NOMBRE, Resultado::Rechazada)
-            .con("motivo", motivo)
-            .diagnostico(diagnostico),
-        Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
-    }
-}
-
 /// La situacion del estado recien traido (F3-5b), su commit y su frescura.
 fn situacion_en(g: &Git, dir: &Path, ahora: u64) -> Result<(Situacion, String, Frescura), Informe> {
     let (vista, frescura) = estado::leer_fresco(g, dir, ahora).map_err(renombrado)?;
     let commit = vista.commit().map(corto).unwrap_or_default();
-    let s = situacion::calcular(&vista).map_err(de_fallo)?;
+    let s = situacion::calcular(&vista).map_err(|f| f.informe(NOMBRE))?;
     Ok((s, commit, frescura))
 }
 
@@ -359,7 +347,8 @@ fn imprimir(g: &Git, dir: &Path, ahora: u64) -> Result<(String, Informe, Frescur
 
 fn zona_rota(s: &Situacion, commit: &str) -> Informe {
     let motivo = s.roadmap_roto().map_or("", zona::Rota::motivo);
-    de_fallo(roto(ROADMAP, motivo))
+    roto(ROADMAP, motivo)
+        .informe(NOMBRE)
         .con("roto", motivo)
         .con("commit", commit)
 }
@@ -444,8 +433,16 @@ fn editado_en(g: &Git, carpeta: &Path) -> Result<Lectura, Informe> {
     )?;
     let mia = match zona::extraer(&texto) {
         Ok(Some(z)) => z.to_owned(),
-        Ok(None) => return Err(de_fallo(roto(&donde(), "sin-zona")).con("roto", "sin-zona")),
-        Err(r) => return Err(de_fallo(roto(&donde(), r.motivo())).con("roto", r.motivo())),
+        Ok(None) => {
+            return Err(roto(&donde(), "sin-zona")
+                .informe(NOMBRE)
+                .con("roto", "sin-zona"));
+        }
+        Err(r) => {
+            return Err(roto(&donde(), r.motivo())
+                .informe(NOMBRE)
+                .con("roto", r.motivo()));
+        }
     };
     let base = crate::git::estado::leer_blob(g, carpeta, NOMBRE, "HEAD", ROADMAP)
         .ok()

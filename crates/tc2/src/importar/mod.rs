@@ -402,20 +402,13 @@ fn simular(g: &git::Git, dir: &Path, op: &Importar, parecidas: &mut Vec<Parecida
                 .insert(0, ("simular".to_owned(), Valor::Texto("si".to_owned())));
             i
         }
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => {
-            let mut i = Informe::nuevo(NOMBRE, Resultado::Rechazada)
-                .con("simular", "si")
-                .con("motivo", motivo)
-                .diagnostico(diagnostico);
+        Err(f) => {
+            let mut i = f.informe(NOMBRE);
+            i.claves
+                .insert(0, ("simular".to_owned(), Valor::Texto("si".to_owned())));
             alta::referencia_a_uso(&mut i);
             i
         }
-        Err(Fallo::Error(d)) => Informe::nuevo(NOMBRE, Resultado::Error)
-            .con("simular", "si")
-            .diagnostico(d),
     }
 }
 

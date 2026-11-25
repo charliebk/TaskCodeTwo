@@ -19,7 +19,9 @@ use std::cell::RefCell;
 
 use super::plantillas::{self as p, BRAINSTORM, PLAN_FINAL};
 use super::roles;
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
 use crate::identidad::Quien;
@@ -92,13 +94,13 @@ impl Operacion for Guardar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE_OP}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.destino
-        )
+        AnotacionConDueno {
+            orden: NOMBRE_OP,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(&self.destino),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -108,18 +110,14 @@ impl Operacion for Guardar {
     }
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        *self.dueno.borrow_mut() = None;
-        let (t, _) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        let (t, _) = tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             super::NOMBRE,
             ("de-otra-persona", &txt::DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
+            &self.dueno,
+        )?;
         if t.estado != EN_DISENO {
             return Err(por_estado(&self.id, &t.estado, super::NOMBRE, &[EN_DISENO]));
         }

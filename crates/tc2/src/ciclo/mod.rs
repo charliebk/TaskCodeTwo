@@ -39,8 +39,8 @@ pub(crate) mod prueba;
 
 use std::path::Path;
 
-use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Fallo, Operacion};
+use crate::contrato::{Informe, Resultado};
+use crate::estado::{self, Operacion, como_orden, con_dueno};
 use crate::git::{self, Git};
 use crate::i18n::catalogo::ciclo as txt;
 use crate::i18n::{Mensaje, Texto};
@@ -138,7 +138,7 @@ pub fn dejar_en(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Informe {
     let i = match paso_dejar(e, id, destino) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(i, nombre, id)
+    como_orden(i, nombre, "id", id)
 }
 
 /// La persona de la lista de la base con ese login (sin distinguir
@@ -161,21 +161,12 @@ fn destino_de(e: &Entorno<'_>, login: &str) -> Result<Asignado, Informe> {
 }
 
 /// Umbral de dias sin actividad (clave `dias_sin_actividad` de la
-/// configuracion de la base, D1a). Sin base o sin configuracion, el de por
-/// defecto; una configuracion que no vale (o que no se pudo leer) falla con
-/// su informe a nombre de `op`, como `identidad::clave_plataforma`:
-/// no se cae en silencio al de por defecto (M-4 de la ronda 1).
+/// configuracion de la base, D1a), con la politica de
+/// [`crate::config::de_base_o_suelo`]: sin base o sin configuracion, el del
+/// suelo (el de por defecto, [`DIAS_POR_DEFECTO`]); una configuracion que no
+/// vale falla con su informe a nombre de `op` (M-4 de la ronda 1).
 pub fn umbral_de_inactividad(g: &Git, dir: &Path, op: &str) -> Result<u64, Informe> {
-    match crate::config::de_base(g, dir) {
-        Ok(c) => Ok(u64::from(c.dias_sin_actividad)),
-        Err(i) if matches!(i.valor("motivo"), Some("sin-base" | "sin-config")) => {
-            Ok(DIAS_POR_DEFECTO)
-        }
-        Err(mut i) => {
-            op.clone_into(&mut i.comando);
-            Err(i)
-        }
-    }
+    crate::config::de_base_o_suelo(g, dir, op).map(|c| u64::from(c.dias_sin_actividad))
 }
 
 /// Las dos operaciones, para tratarlas igual.
@@ -244,16 +235,7 @@ fn paso_dejar(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Result<Inform
     // En seco sobre lo leido: los rechazos, sin esperar al push.
     let cambia = match op.op().aplicar(&vista) {
         Ok(c) => !c.is_empty(),
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => {
-            let i = Informe::nuevo(nombre, Resultado::Rechazada)
-                .con("motivo", motivo)
-                .diagnostico(diagnostico);
-            return Err(con_rechazo(i, op.dejar()));
-        }
-        Err(Fallo::Error(d)) => return Err(Informe::nuevo(nombre, Resultado::Error).diagnostico(d)),
+        Err(f) => return Err(con_rechazo(f.informe(nombre), op.dejar())),
     };
     // El trabajo sin publicar del worktree de la tarea en este clon (D4):
     // antes de escribir nada.
@@ -270,7 +252,7 @@ fn paso_dejar(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Result<Inform
                     .con("que", m),
             ));
     }
-    let t = escribir(e, op.op());
+    let t = e.escribir(op.op());
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => {
             let mut i = t;
@@ -329,18 +311,18 @@ pub fn descartar_en(e: &Entorno<'_>, id: &str, motivo: &str) -> Informe {
     let i = match paso_descartar(e, id, motivo) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(i, DESCARTAR, id)
+    como_orden(i, DESCARTAR, "id", id)
 }
 
 /// `pausa` (o `reanudar`) de la tarea `id` en el repo de `e`.
 pub fn pausa_en(e: &Entorno<'_>, id: &str, reanudar: bool) -> Informe {
     let op = match (e.quien)() {
         Ok(q) => Pausar::nueva(id, &q, reanudar, e.ahora),
-        Err(i) => return de_la_orden(i, if reanudar { REANUDAR } else { PAUSA }, id),
+        Err(i) => return como_orden(i, if reanudar { REANUDAR } else { PAUSA }, "id", id),
     };
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     let i = con_dueno(t, op.dueno());
-    de_la_orden(i, op.nombre(), id)
+    como_orden(i, op.nombre(), "id", id)
 }
 
 fn paso_descartar(e: &Entorno<'_>, id: &str, motivo: &str) -> Result<Informe, Informe> {
@@ -356,35 +338,12 @@ fn paso_descartar(e: &Entorno<'_>, id: &str, motivo: &str) -> Result<Informe, In
     }
     let quien = (e.quien)()?;
     let op = Descartar::nueva(id, &quien, motivo, e.ahora);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         // Publicado, o ya descartada (repetir termina de quitar el worktree).
         Resultado::Ok | Resultado::SinCambios => Ok(con_worktree(t, g, &principal, e.dir, id)),
         _ => Err(con_dueno(t, op.dueno())),
     }
-}
-
-/// La operacion por el punto unico de escritura, con el `ROADMAP.md`
-/// regenerado en el mismo commit.
-fn escribir(e: &Entorno<'_>, op: &dyn Operacion) -> Informe {
-    let personas = crate::roadmap::personas(e.git, e.dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(e.git, e.dir, e.catalogo, Some(&generar));
-    estado::transaccion(&ctx, op)
-}
-
-/// Un rechazo con lo que sabe la operacion: el login de quien la lleva o
-/// el arreglo de una tarea de la 0.16.
-fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
-    if i.resultado != Resultado::Rechazada {
-        return i;
-    }
-    match (i.valor("motivo"), dueno) {
-        (Some("de-otra-persona"), Some(l)) => i = i.con("asignado", l),
-        (Some("formato-1"), _) => i = i.con("arreglo", "tc2 actualizar"),
-        _ => {}
-    }
-    i
 }
 
 /// Tras el descarte, el worktree de la tarea (D3): `worktree=quitado`,
@@ -417,20 +376,6 @@ fn dentro_de(dir: &Path, wt: &Path) -> bool {
         (Ok(d), Ok(w)) => d.starts_with(w),
         _ => false,
     }
-}
-
-/// El informe como de la orden: el comando, `id=` el primero y sin la clave
-/// `operacion` de la transaccion. Un `sinred` sin `pendiente` (el `fetch`
-/// previo de `descartar`) dice `pendiente=no`.
-fn de_la_orden(mut i: Informe, nombre: &str, id: &str) -> Informe {
-    nombre.clone_into(&mut i.comando);
-    i.claves.retain(|(k, _)| k != "operacion" && k != "id");
-    i.claves
-        .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
 }
 
 #[cfg(test)]
@@ -569,6 +514,48 @@ mod tests {
         assert_eq!(i.valor("asignado-anterior"), Some("beto"), "{}", i.linea());
         assert_eq!(i.valor("worktree"), None, "{}", i.linea());
         assert!(wt.join("a-medias.txt").is_file());
+        Ok(())
+    }
+
+    /// A8-10: la politica comun de `plan` y de `liberar`: sin configuracion
+    /// en la base, el suelo; con una que no vale, su rechazo a nombre de la
+    /// orden que la pidio.
+    #[test]
+    fn config_de_la_base_o_suelo_a_nombre_de_la_orden() -> R<()> {
+        let Repo {
+            _borrar,
+            raiz,
+            clon,
+            git: g,
+        } = repo_con_remoto(
+            "ciclo-suelo",
+            &[(
+                "README.md",
+                "linea 1
+",
+            )],
+            &[],
+        )?;
+        assert_eq!(
+            crate::config::de_base_o_suelo(&g, &clon, "plan").map_err(|i| i.linea()),
+            Ok(crate::config::Config::suelo())
+        );
+        std::fs::create_dir_all(clon.join(".taskcode"))?;
+        std::fs::write(
+            clon.join(crate::config::RUTA),
+            "---
+formato: 9
+",
+        )?;
+        sh(&raiz, &clon, &["add", "."])?;
+        sh(&raiz, &clon, &["commit", "-q", "-m", "config"])?;
+        sh(&raiz, &clon, &["push", "-q", "origin", "develop"])?;
+        sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
+        let i = crate::config::de_base_o_suelo(&g, &clon, "plan")
+            .err()
+            .ok_or("acepto formato 9")?;
+        assert_eq!(i.comando, "plan", "{}", i.linea());
+        assert_eq!(i.resultado, Resultado::Rechazada, "{}", i.linea());
         Ok(())
     }
 

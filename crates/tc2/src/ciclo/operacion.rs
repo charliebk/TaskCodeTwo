@@ -19,7 +19,9 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::grafo::DESCARTADA;
 use crate::i18n::catalogo::ciclo as txt;
 use crate::identidad::Quien;
@@ -75,19 +77,14 @@ impl Lanzada {
     /// La tarea de `estado`, si quien lanza `orden` puede cambiarla (D2): la
     /// lleva el o nadie.
     fn tarea(&self, estado: &dyn Estado, orden: &str) -> Result<(Tarea, Cuerpo), Fallo> {
-        *self.dueno.borrow_mut() = None;
-        let (t, c) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             orden,
             ("de-otra-persona", &txt::DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
-        Ok((t, c))
+            &self.dueno,
+        )
     }
 
     /// `terminada`, `descartada` u otro estado que no es de [`ABIERTAS`].
@@ -112,14 +109,15 @@ impl Lanzada {
         )]
     }
 
-    /// `<nombre>|TASK-NNN|<id>|<login>`.
-    pub(super) fn anotacion(&self, nombre: &str) -> String {
-        format!(
-            "{nombre}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default()
-        )
+    /// `<nombre>|TASK-NNN|<id>|<login>|<resto>` ([`AnotacionConDueno`]).
+    pub(super) fn anotacion(&self, nombre: &str, resto: &str) -> String {
+        AnotacionConDueno {
+            orden: nombre,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(resto),
+        }
+        .escribir()
     }
 }
 
@@ -154,7 +152,7 @@ impl Operacion for Descartar {
     }
 
     fn anotacion(&self) -> String {
-        format!("{}|{}", self.base.anotacion(DESCARTAR), self.motivo)
+        self.base.anotacion(DESCARTAR, &self.motivo)
     }
 
     fn exige_red(&self) -> bool {
@@ -212,7 +210,8 @@ impl Operacion for Pausar {
     fn anotacion(&self) -> String {
         // Con el instante: si queda pendiente sin red, la fila lleva la hora
         // de la pausa y no la de su publicacion (F1-17 mide las pausas).
-        format!("{}|{}", self.base.anotacion(self.fase()), self.base.ahora)
+        self.base
+            .anotacion(self.fase(), &self.base.ahora.to_string())
     }
 
     fn exige_red(&self) -> bool {
@@ -239,15 +238,13 @@ impl Operacion for Pausar {
 /// sin persona delante: `decidido_por: agente`, como en
 /// [`crate::toma::desde_anotacion`].
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
-    let mut partes = a.splitn(5, '|');
-    let nombre = partes.next()?;
-    let id = partes.next()?;
-    let cuenta: u64 = partes.next()?.parse().ok()?;
-    let asignado = Asignado::persona(cuenta, partes.next()?)?;
-    let resto = partes.next()?;
-    if !crate::git::es_id(id) {
-        return None;
-    }
+    let AnotacionConDueno {
+        orden: nombre,
+        id,
+        asignado,
+        resto,
+    } = AnotacionConDueno::leer(a)?;
+    let resto = resto?;
     match nombre {
         DESCARTAR if motivo_valido(resto) => Some(Box::new(Descartar {
             base: Lanzada::nueva(id, asignado, "agente", crate::identidad::ahora()),

@@ -17,7 +17,7 @@ use super::frescura::{Marca, Traida, rama_reescrita, traer_estado};
 use super::lectura::{Estado, Vista};
 use super::pendientes::{self, ANOTACION, Destino};
 use super::{CARPETA, OP, RAMA};
-use crate::contrato::{Informe, Resultado, corto};
+use crate::contrato::{Informe, Resultado, Valor, corto};
 use crate::git::estado::{
     Sello, construir_commit, construir_commit_sellado, dir_comun, hay_remoto,
 };
@@ -50,6 +50,21 @@ impl Fallo {
         Self::Rechazada {
             motivo: motivo.into(),
             diagnostico: diagnostico.into(),
+        }
+    }
+
+    /// El informe de la orden `comando` (A8-06): `rechazada motivo=` con el
+    /// diagnostico, o `error` con el diagnostico. Cada orden anade sus claves
+    /// encima.
+    pub fn informe(self, comando: &str) -> Informe {
+        match self {
+            Self::Rechazada {
+                motivo,
+                diagnostico,
+            } => Informe::nuevo(comando, Resultado::Rechazada)
+                .con("motivo", motivo)
+                .diagnostico(diagnostico),
+            Self::Error(d) => Informe::nuevo(comando, Resultado::Error).diagnostico(d),
         }
     }
 }
@@ -171,6 +186,23 @@ impl Tareas {
 
 fn informe(r: Resultado, op: &dyn Operacion) -> Informe {
     Informe::nuevo(OP, r).con("operacion", op.nombre())
+}
+
+/// El informe de la transaccion como de la orden `nombre` (A8-08): el
+/// comando, `clave=valor` el primero (`id=` de una tarea o `hito=` de
+/// `approve --hito`) y sin la clave `operacion` ni el `id=` de la
+/// transaccion. Un `sinred` sin `pendiente` dice `pendiente=no`: las ordenes
+/// que lo usan exigen red, o el `sinred` viene de su `fetch` previo.
+pub fn como_orden(mut i: Informe, nombre: &str, clave: &str, valor: &str) -> Informe {
+    nombre.clone_into(&mut i.comando);
+    i.claves
+        .retain(|(k, _)| k != "operacion" && k != "id" && k != clave);
+    i.claves
+        .insert(0, (clave.to_owned(), Valor::Texto(valor.to_owned())));
+    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
+        i = i.con("pendiente", "no");
+    }
+    i
 }
 
 fn error(diagnostico: impl Into<Mensaje>) -> Informe {
@@ -639,8 +671,52 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
 
 #[cfg(test)]
 mod tests {
-    use super::espera;
+    use super::{Fallo, como_orden, espera};
+    use crate::contrato::{Informe, Resultado};
+    use crate::i18n::Mensaje;
     use std::time::Duration;
+
+    /// A8-08: la linea de la transaccion como de la orden, con `clave=` el
+    /// primero, sin `operacion` ni el `id` de la transaccion, y
+    /// `pendiente=no` solo en un `sinred` que no lo dice.
+    #[test]
+    fn informe_de_la_transaccion_como_de_la_orden() {
+        let ok = Informe::nuevo("estado", Resultado::Ok)
+            .con("operacion", "start")
+            .con("id", "TASK-001")
+            .con("commit", "abc1234");
+        assert_eq!(
+            como_orden(ok, "start", "id", "TASK-002").linea(),
+            "start ok id=TASK-002 commit=abc1234"
+        );
+        let hito = Informe::nuevo("estado", Resultado::Sinred)
+            .con("operacion", "approve")
+            .con("id", "TASK-009")
+            .con("hito", "9");
+        assert_eq!(
+            como_orden(hito, "approve", "hito", "3").linea(),
+            "approve sinred hito=3 pendiente=no"
+        );
+        let dicho = Informe::nuevo("estado", Resultado::Sinred).con("pendiente", "si");
+        assert_eq!(
+            como_orden(dicho, "plan", "id", "TASK-001").linea(),
+            "plan sinred id=TASK-001 pendiente=si"
+        );
+    }
+
+    /// A8-06: el rechazo y el error de la rama de estado como informe de la
+    /// orden, con el diagnostico en los dos.
+    #[test]
+    fn fallo_como_informe_de_la_orden() {
+        let d = Mensaje::externo("haz esto");
+        let r = Fallo::rechazada("tomada", d.clone()).informe("start");
+        assert_eq!(r.linea(), "start rechazada motivo=tomada");
+        assert_eq!(r.resultado, Resultado::Rechazada);
+        assert_eq!(r.diagnostico, Some(d.clone()));
+        let e = Fallo::Error(d.clone()).informe("roadmap");
+        assert_eq!(e.linea(), "roadmap error");
+        assert_eq!(e.diagnostico, Some(d));
+    }
 
     #[test]
     fn espera_exponencial_con_jitter_entre_la_mitad_y_el_total() {
