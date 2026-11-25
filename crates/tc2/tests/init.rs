@@ -1596,9 +1596,11 @@ fn aplicar_puertas_sin_origen_se_rechaza_sin_escribir() {
     }
 }
 
-/// Criterio 2 (resto de la precondicion): sin `personas.yml`, con `develop`
-/// sin publicar o con la persona fuera de la lista, la opcion se rechaza
-/// con su motivo y sin escribir en la plataforma.
+/// Criterio 2 (resto de la precondicion): sin `personas.yml`, con la
+/// persona fuera de la lista, con `develop` con un commit local que
+/// `origin` no tiene (`ramas-por-delante`) o con `develop` sin publicar en
+/// `origin` (`ramas-sin-remoto`, A7-11), la opcion se rechaza con su motivo
+/// y sin escribir en la plataforma.
 #[test]
 fn aplicar_puertas_exige_personas_ramas_y_persona() {
     let _serie = serie();
@@ -1656,5 +1658,20 @@ fn aplicar_puertas_exige_personas_ramas_y_persona() {
         "{}",
         stdout(&h)
     );
+
+    // `develop` sin publicar: `origin` solo tiene `main`.
+    let f = Fixture::nueva("init-puertas-sin-remoto");
+    let (repo, g) = repo_listo(&f, &config);
+    let b = f.raiz.join("remoto.git");
+    f.crudo(&b, &["update-ref", "-d", "refs/heads/develop"]);
+    let h = aplicar(&repo, &g, false);
+    let linea = h.informe.linea();
+    assert_eq!(
+        h.informe.valor("motivo"),
+        Some("ramas-sin-remoto"),
+        "{}",
+        stdout(&h)
+    );
+    assert!(linea.contains(" faltan=develop "), "{linea}");
     assert!(escrituras(&m, 0).is_empty(), "{:?}", escrituras(&m, 0));
 }
