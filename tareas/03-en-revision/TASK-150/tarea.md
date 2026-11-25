@@ -67,6 +67,7 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 | 2026-11-25T18:41:47Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T18:41:49Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T19:42:14Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T20:53:26Z | review | automatico | persona | 0.17.1 |
 
 ## Coste
 
