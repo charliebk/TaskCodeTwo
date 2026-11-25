@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-143-auditoria-4d-a5-seleccion-inventario-rec
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Corregir los 6 casos IMPORTANTE del grupo A5 de `docs/auditoria-4d.md` (commit a
 - [ ] A5-06: `las_reglas_se_leen_de_la_tabla` (`seleccion/mod.rs:849`) no convierte el `Err` en `default()`. Con el mutante de la ficha aplicado, `cargo test -p tc2 --lib seleccion::tests::las_reglas_se_leen_de_la_tabla` sale en rojo.
 - [ ] A5-08 y A5-09: la comprobación «5 líneas, JSON con todo y `y N mas`» (`tests/doctor.rs:958` ~ `tests/recursos.rs:378`) queda en un ayudante, y `doctor_no_escribe_nada` (`tests/doctor.rs:1017`) llama a `doctor_contra` (`:519`).
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 6 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T01:23:09Z | plan | automatico | persona | 0.17.1 |
