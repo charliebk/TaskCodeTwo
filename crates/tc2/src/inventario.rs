@@ -139,6 +139,20 @@ pub struct Plugin {
     pub clave: String,
     /// Version instalada, si se sabe.
     pub version: Option<String>,
+    /// Carpeta de la instalacion que se eligio (la de `installPath` que
+    /// vale para el `scope` de este proyecto); `None` en los sincronizados
+    /// de claude.ai. No entra en [`Inventario::huella`]: depende de la
+    /// maquina.
+    pub carpeta: Option<PathBuf>,
+}
+
+/// De donde se carga un plugin.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fuente {
+    /// De `installed_plugins.json`.
+    Instalado,
+    /// Sincronizado desde claude.ai: cede ante un nombre ya cargado.
+    Sincronizado,
 }
 
 /// Lo instalado y habilitado, ordenado y sin repetir.
@@ -575,15 +589,17 @@ fn ajustes(dir_claude: &Path, raiz: &Path, a: &mut Acumulado) -> Ajustes {
 /// Carga el plugin de `dir` con clave `clave` (`nombre@origen`) si esta
 /// habilitado: `enabledPlugins` o, sin entrada, `defaultEnabled` de su
 /// manifiesto. Su nombre (prefijo de los ids) es el `name` del manifiesto o
-/// `por_defecto`. `omitir` descarta un nombre ya cargado (los sincronizados
-/// ceden ante cualquier otro origen). Devuelve si lo cargo.
+/// `por_defecto`. Un [`Fuente::Sincronizado`] cede ante un nombre ya
+/// cargado (de cualquier otro origen) y no guarda carpeta; uno
+/// [`Fuente::Instalado`] guarda `dir` en [`Plugin::carpeta`]. Devuelve si lo
+/// cargo.
 fn cargar_plugin(
     dir: &Path,
     clave: &str,
     por_defecto: &str,
     version: Option<&str>,
     ajustes: &Ajustes,
-    omitir: bool,
+    fuente: Fuente,
     a: &mut Acumulado,
 ) -> bool {
     let manifiesto = json_de(&dir.join(".claude-plugin").join("plugin.json"), a, clave);
@@ -607,7 +623,7 @@ fn cargar_plugin(
         .filter(|n| !n.is_empty())
         .unwrap_or(por_defecto)
         .to_owned();
-    if omitir && a.plugins.iter().any(|p| p.nombre == nombre) {
+    if fuente == Fuente::Sincronizado && a.plugins.iter().any(|p| p.nombre == nombre) {
         return false;
     }
     let version = version
@@ -636,6 +652,7 @@ fn cargar_plugin(
         nombre,
         clave: clave.to_owned(),
         version,
+        carpeta: (fuente == Fuente::Instalado).then(|| dir.to_path_buf()),
     });
     true
 }
@@ -846,7 +863,7 @@ fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
             nombre,
             version,
             ajustes,
-            true,
+            Fuente::Sincronizado,
             a,
         );
     }
@@ -956,7 +973,7 @@ fn leer_plugins(dir_claude: &Path, raiz: &Path, ajustes: &Ajustes, a: &mut Acumu
             clave.split('@').next().unwrap_or(clave),
             x.get("version").and_then(Value::as_str),
             ajustes,
-            false,
+            Fuente::Instalado,
             a,
         );
     }
@@ -1189,6 +1206,7 @@ mod tests {
                 nombre: "bueno".to_owned(),
                 clave: "bueno@mk".to_owned(),
                 version: Some("1.0.0".to_owned()),
+                carpeta: Some(bueno.clone()),
             }]
         );
         assert!(l.mcp.contains("engram"));
@@ -1434,6 +1452,46 @@ mod tests {
                 "{version:?}"
             );
             assert!(l.inventario.plugins().is_empty());
+        }
+    }
+
+    /// A5-02 (TASK-143): la carpeta del plugin habilitado sale de una sola
+    /// regla, la del `scope` del proyecto. Con la instalacion de otro
+    /// proyecto delante de la de usuario, el inventario guarda la de usuario
+    /// y el catalogo lee las revisoras de esa, sin `version` y con la misma.
+    #[test]
+    fn la_carpeta_del_plugin_es_la_del_scope_del_proyecto() {
+        let m = Tmp::nueva("a5-02");
+        let claude = m.0.join("claude");
+        let raiz = m.0.join("proyecto");
+        let a = m.0.join("cache").join("a");
+        let b = m.0.join("cache").join("b");
+        let rev = |n: &str| format!("---\nname: {n}\n---\n```yaml\nrol: revisor\n```\n");
+        m.escribir("cache/a/skills/de-a/SKILL.md", &rev("de-a"));
+        m.escribir("cache/b/skills/de-b/SKILL.md", &rev("de-b"));
+        for version in [None, Some("1.0.0")] {
+            let mut otro = serde_json::json!({
+                "scope": "project", "projectPath": m.0.join("otro"), "installPath": a
+            });
+            let mut usuario = serde_json::json!({"scope": "user", "installPath": b});
+            if let Some(v) = version {
+                otro["version"] = v.into();
+                usuario["version"] = v.into();
+            }
+            let instalados =
+                serde_json::json!({"version": 2, "plugins": {"p@mk": [otro, usuario]}});
+            m.escribir(
+                "claude/plugins/installed_plugins.json",
+                &instalados.to_string(),
+            );
+            let l = leer(Some(&claude), &raiz);
+            let carpetas: Vec<_> = l.inventario.plugins().iter().map(|p| &p.carpeta).collect();
+            assert_eq!(carpetas, [&Some(b.clone())], "{version:?}");
+            let ids: Vec<String> = crate::seleccion::catalogo::de_instalados(&l.inventario)
+                .into_iter()
+                .map(|r| r.id)
+                .collect();
+            assert_eq!(ids, ["p:de-b"], "{version:?}");
         }
     }
 

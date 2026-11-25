@@ -15,15 +15,14 @@
 //! - [`de_carpeta`]: `<dir>/<n>/SKILL.md` de un plugin dado por ruta (el
 //!   revisor en CI, con el plugin a una version fijada) o de una carpeta de
 //!   skills;
-//! - [`de_instalados`]: los plugins habilitados del inventario, por su
-//!   `installPath` de `installed_plugins.json`;
+//! - [`de_instalados`]: los plugins habilitados del inventario, por la
+//!   carpeta que el inventario eligio para cada uno;
 //! - [`de_base`]: `.claude/skills` del proyecto **en la base**
 //!   (`origin/develop`), nunca del worktree del PR (decision 2).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::contrato::Informe;
 use crate::git::{Git, Subcomando};
@@ -236,34 +235,15 @@ pub fn de_carpeta(skills: &Path, prefijo: &str, origen: &Origen) -> Lectura {
     l
 }
 
-/// Las revisoras de los plugins habilitados de `inv`, leidas de su
-/// `installPath` en `installed_plugins.json` de `dir_claude` (la instalacion
-/// con la version del inventario o, si no la dice, la primera con ruta
-/// absoluta que existe). Los sincronizados de claude.ai no se leen (no traen
-/// revisoras con metadatos).
-pub fn de_instalados(dir_claude: &Path, inv: &Inventario) -> Vec<Revisora> {
-    let Ok(Some(Ok(v))) = inventario::leer_instalados(dir_claude) else {
-        return Vec::new();
-    };
+/// Las revisoras de los plugins habilitados de `inv`, leidas de la carpeta
+/// que el inventario eligio para cada uno ([`inventario::Plugin::carpeta`]:
+/// la instalacion que vale para el `scope` de este proyecto), sin volver a
+/// leer `installed_plugins.json`. Los sincronizados de claude.ai no se leen
+/// (no traen revisoras con metadatos).
+pub fn de_instalados(inv: &Inventario) -> Vec<Revisora> {
     let mut salida = Vec::new();
     for p in inv.plugins() {
-        let Some(lista) = v
-            .get("plugins")
-            .and_then(|m| m.get(&p.clave))
-            .and_then(Value::as_array)
-        else {
-            continue;
-        };
-        let ruta = |x: &Value| {
-            x.get("installPath")
-                .and_then(Value::as_str)
-                .map(PathBuf::from)
-                .filter(|d| d.is_absolute() && d.is_dir())
-        };
-        let misma = lista.iter().find(|x| {
-            p.version.is_some() && x.get("version").and_then(Value::as_str) == p.version.as_deref()
-        });
-        let Some(dir) = misma.and_then(ruta).or_else(|| lista.iter().find_map(ruta)) else {
+        let Some(dir) = &p.carpeta else {
             continue;
         };
         let origen = Origen::Plugin {

@@ -121,9 +121,7 @@ pub fn fuentes(
     let mut lista_plugins = Vec::new();
     if plugins.is_empty() {
         let l = inventario::leer(claude, dir);
-        if let Some(c) = claude {
-            revisoras.extend(catalogo::de_instalados(c, &l.inventario));
-        }
+        revisoras.extend(catalogo::de_instalados(&l.inventario));
         entradas.extend(
             l.inventario
                 .entradas()
