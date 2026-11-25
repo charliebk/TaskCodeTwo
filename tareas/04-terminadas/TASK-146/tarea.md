@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-146-auditoria-4d-a8-transversal-actualizar-c
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1360634
 tokens_implementacion: 10313145
-tokens_revision: null
+tokens_revision: 1669990
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -49,7 +49,7 @@ Corregidos los 7 IMPORTANTE del grupo A8 de la ficha (sin los MENOR). Solo cambi
 | A9-02 (D4) | eccab4f |
 | A9-03 | 3047ee2 |
 
-Mutantes (los 9 de la ficha), todos en rojo con la orden del criterio: `dato.rs:88` y `:76` quitados; `contrato.rs:345` quitado (la auditoria decia `:336`); `instalacion.rs:56` quitado y `:62` solo con `packages`; `:79` con otro texto y `:229-231` como `v.push(d)`; `actualizar_cli.rs:406` como `Ok(())` y `:738` como `if false`.
+Mutantes (los 9 de la ficha), todos en rojo con la orden del criterio: `dato.rs:88` y `:76` quitados; `contrato.rs:345` quitado (la auditoria decia `:336`); `instalacion.rs:56` quitado y `:62` solo con `packages`; `:79` con otro texto (solo la linea de produccion; el test lleva la misma cadena, MEN-1) y `:229-231` como `v.push(d)`; `actualizar_cli.rs:406` como `Ok(())` y `:738` como `if false`.
 
 Suite completa (`cargo test --workspace`, target propio): 852 ok, 0 fallidos, 13 ignorados. `cargo xtask verificar` lo ejecuta `finish`.
 
@@ -67,6 +67,7 @@ Suite completa (`cargo test --workspace`, target propio): 852 ok, 0 fallidos, 13
 | 2026-11-25T11:53:43Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T11:54:44Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T14:05:23Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T14:53:17Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -75,8 +76,16 @@ Suite completa (`cargo test --workspace`, target propio): 852 ok, 0 fallidos, 13
 | 2026-11-25T11:53:41Z | diseno | agente:ada368e0e37ee38a9 | 46 | 80472 | 1266188 | 13928 | 30 | 1360634 | - | - |
 | 2026-11-25T14:05:23Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 34 | 18590 | 1816764 | 5314 | 1 | 1840702 | - | - |
 | 2026-11-25T14:05:23Z | implementacion | agente:a60da250ce9d1dd14 | 138 | 487316 | 7950084 | 34905 | 18 | 8472443 | - | - |
+| 2026-11-25T14:16:07Z | revision | agente:a68e8797235706831 | 32 | 112133 | 1549781 | 8044 | 5 | 1669990 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 3047ee2
 - 4D — 3047ee2: helper buscado, criterios citados, 9 tests mutados
+
+## Duracion
+
+- Estimada: 110 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 179 min
+- Paso de la hora: 179 min reales frente a 110 estimados
+- Cierre (finish): 2217 s, de 2026-11-25T14:16:20Z a 2026-11-25T14:53:17Z

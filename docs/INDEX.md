@@ -8,6 +8,7 @@ Indice determinista para la recuperacion de contexto por etiquetas
 - [Puerta de valor de la Fase 10 (2026-11-16)](mediciones/fase10-puerta-valor/README.md): A/B índice frente a grep, veredicto NO-GO; [informe](mediciones/fase10-puerta-valor/informe.md) y [corridas](mediciones/fase10-puerta-valor/corridas.tsv).
 
 ## Tareas terminadas
+- TASK-146 — Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE) · etiquetas: (sin etiquetas) · rama fix/task-146-auditoria-4d-a8-transversal-actualizar-c · terminada 2026-11-25 · tareas/04-terminadas/TASK-146/
 - TASK-145 — Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE) · etiquetas: (sin etiquetas) · rama fix/task-145-auditoria-4d-a7-config-init-desinstalar · terminada 2026-11-25 · tareas/04-terminadas/TASK-145/
 - TASK-144 — Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE) · etiquetas: (sin etiquetas) · rama fix/task-144-auditoria-4d-a6-estimacion-progreso-road · terminada 2026-11-25 · tareas/04-terminadas/TASK-144/
 - TASK-143 — Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE) · etiquetas: (sin etiquetas) · rama fix/task-143-auditoria-4d-a5-seleccion-inventario-rec · terminada 2026-11-25 · tareas/04-terminadas/TASK-143/

@@ -2,60 +2,59 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-25. No editar a mano.
 
-## Planificadas (00-planificadas) — 49
+## Planificadas (00-planificadas) — 48
 
 ```text
-ID        Titulo                                                                                            Asignado
---------  ------------------------------------------------------------------------------------------------  -------------
-TASK-040  F4-5 Punto de relevo                                                                              (sin asignar)
-TASK-054  F7-1 finish: merge en develop por la cola cuando pasan las puertas                                (sin asignar)
-TASK-055  F7-2 Resultado obligatorio en cada tarea                                                          (sin asignar)
-TASK-056  F7-3 release y hotfix con tag y notas desde los PR                                                (sin asignar)
-TASK-057  F7-4 CHANGELOG generado al publicar, no en cada cierre                                            (sin asignar)
-TASK-058  F8-1 metricas: tiempo por fase, rondas, hallazgos, tokens y minutos                               (sin asignar)
-TASK-059  F8-2 Presupuesto de tokens por carril con desglose                                                (sin asignar)
-TASK-060  F8-3 Ciclo de iteracion                                                                           (sin asignar)
-TASK-061  F8-4 Espejo opcional en issues de GitHub o GitLab                                                 (sin asignar)
-TASK-062  F8-5 Guia de una pagina y referencia generada desde el codigo                                     (sin asignar)
-TASK-063  F9-1 taskctl actualizar --simular                                                                 (sin asignar)
-TASK-064  F9-2 taskctl actualizar                                                                           (sin asignar)
-TASK-065  F9-3 Actualizaciones entre versiones de la 2.x                                                    (sin asignar)
-TASK-066  F9-4 Suite E2E del flujo con dos personas a la vez                                                (sin asignar)
-TASK-067  F9-5 Prueba de seguridad                                                                          (sin asignar)
-TASK-068  F9-6 Auditoria externa repetida con el mismo encargo                                              (sin asignar)
-TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0                                   (sin asignar)
-TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                                                 (sin asignar)
-TASK-071  F9-9a Prueba de instalacion en maquinas limpias                                                   (sin asignar)
-TASK-072  F9-9 Publicar 2.0.0                                                                               (sin asignar)
-TASK-086  F4-7 taskctl lote: secuencia de tareas sin preguntas                                              (sin asignar)
-TASK-087  F4-8 Fallos, presupuesto, reanudacion e informe del lote                                          (sin asignar)
-TASK-088  F4-9 Progreso del lote en el terminal                                                             (sin asignar)
-TASK-089  F8-6 Medicion del acierto de skills, agentes y modelo                                             (sin asignar)
-TASK-090  F8-7 Metricas finales de cada tarea y de cada lote                                                (sin asignar)
-TASK-091  F9-4b Prueba nocturna de un lote de 10 tareas                                                     (sin asignar)
-TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                                               (sin asignar)
-TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                                                      (sin asignar)
-TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                                            (sin asignar)
-TASK-117  Seguimiento de F2-14: menores aceptados de tc2 desinstalar                                        (sin asignar)
-TASK-119  Seguimiento de F3-1: menores aceptados de tc2 init                                                (sin asignar)
-TASK-120  Seguimiento de F3-2: menores aceptados de tc2 import                                              (sin asignar)
-TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                                                (sin asignar)
-TASK-122  tc2 roadmap --grafo: grafo completo de tareas (RF-04)                                             (sin asignar)
-TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                                             (sin asignar)
-TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status                                      (sin asignar)
-TASK-126  Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad                  (sin asignar)
-TASK-129  F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos             (sin asignar)
-TASK-130  F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas   (sin asignar)
-TASK-131  F11-3 Coste por tarea: tarifas por modelo configurables y desglose de entrada, salida y cache     (sin asignar)
-TASK-132  F11-4 Esqueleto web Vue servido por tc2 panel: pestanas, tema y build embebido                    (sin asignar)
-TASK-133  F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona de cada tarea               (sin asignar)
-TASK-134  F11-6 Pestana Planificacion: tareas por persona y predecesoras                                    (sin asignar)
-TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido                                        (sin asignar)
-TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                 (sin asignar)
-TASK-146  Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE)  (sin asignar)
-TASK-147  Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE)                                     (sin asignar)
-TASK-149  Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)                        (sin asignar)
-TASK-150  Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE)                                   (sin asignar)
+ID        Titulo                                                                                           Asignado
+--------  -----------------------------------------------------------------------------------------------  -------------
+TASK-040  F4-5 Punto de relevo                                                                             (sin asignar)
+TASK-054  F7-1 finish: merge en develop por la cola cuando pasan las puertas                               (sin asignar)
+TASK-055  F7-2 Resultado obligatorio en cada tarea                                                         (sin asignar)
+TASK-056  F7-3 release y hotfix con tag y notas desde los PR                                               (sin asignar)
+TASK-057  F7-4 CHANGELOG generado al publicar, no en cada cierre                                           (sin asignar)
+TASK-058  F8-1 metricas: tiempo por fase, rondas, hallazgos, tokens y minutos                              (sin asignar)
+TASK-059  F8-2 Presupuesto de tokens por carril con desglose                                               (sin asignar)
+TASK-060  F8-3 Ciclo de iteracion                                                                          (sin asignar)
+TASK-061  F8-4 Espejo opcional en issues de GitHub o GitLab                                                (sin asignar)
+TASK-062  F8-5 Guia de una pagina y referencia generada desde el codigo                                    (sin asignar)
+TASK-063  F9-1 taskctl actualizar --simular                                                                (sin asignar)
+TASK-064  F9-2 taskctl actualizar                                                                          (sin asignar)
+TASK-065  F9-3 Actualizaciones entre versiones de la 2.x                                                   (sin asignar)
+TASK-066  F9-4 Suite E2E del flujo con dos personas a la vez                                               (sin asignar)
+TASK-067  F9-5 Prueba de seguridad                                                                         (sin asignar)
+TASK-068  F9-6 Auditoria externa repetida con el mismo encargo                                             (sin asignar)
+TASK-069  F9-7 Piloto: OpenDockTrading actualizado y 10 tareas con la 2.0                                  (sin asignar)
+TASK-070  F9-8 ToolsaWeb actualizado y 10 tareas con la 2.0                                                (sin asignar)
+TASK-071  F9-9a Prueba de instalacion en maquinas limpias                                                  (sin asignar)
+TASK-072  F9-9 Publicar 2.0.0                                                                              (sin asignar)
+TASK-086  F4-7 taskctl lote: secuencia de tareas sin preguntas                                             (sin asignar)
+TASK-087  F4-8 Fallos, presupuesto, reanudacion e informe del lote                                         (sin asignar)
+TASK-088  F4-9 Progreso del lote en el terminal                                                            (sin asignar)
+TASK-089  F8-6 Medicion del acierto de skills, agentes y modelo                                            (sin asignar)
+TASK-090  F8-7 Metricas finales de cada tarea y de cada lote                                               (sin asignar)
+TASK-091  F9-4b Prueba nocturna de un lote de 10 tareas                                                    (sin asignar)
+TASK-092  F9-8b Piloto final: TaskCodeTwo con la 2.0 completa                                              (sin asignar)
+TASK-093  F9-10 Desinstalacion limpia de TaskCode 0.16                                                     (sin asignar)
+TASK-114  F2-12b Lanzador del plugin que fija la version del CLI                                           (sin asignar)
+TASK-117  Seguimiento de F2-14: menores aceptados de tc2 desinstalar                                       (sin asignar)
+TASK-119  Seguimiento de F3-1: menores aceptados de tc2 init                                               (sin asignar)
+TASK-120  Seguimiento de F3-2: menores aceptados de tc2 import                                             (sin asignar)
+TASK-121  Seguimiento de F3-3: menores aceptados de tc2 next                                               (sin asignar)
+TASK-122  tc2 roadmap --grafo: grafo completo de tareas (RF-04)                                            (sin asignar)
+TASK-123  Seguimiento de F3-4: menores aceptados de tc2 roadmap                                            (sin asignar)
+TASK-124  Seguimiento de F3-5: menores aceptados de tc2 board y status                                     (sin asignar)
+TASK-126  Seguimiento de F3-13: historia=sin-log en new e import y generador de la paridad                 (sin asignar)
+TASK-129  F11-1 ADR panel web de tc2: servidor local de solo lectura, Vue y origen de los datos            (sin asignar)
+TASK-130  F11-2 Datos del panel: tareas con estado, hito, persona, dependencias, tokens por fase y fechas  (sin asignar)
+TASK-131  F11-3 Coste por tarea: tarifas por modelo configurables y desglose de entrada, salida y cache    (sin asignar)
+TASK-132  F11-4 Esqueleto web Vue servido por tc2 panel: pestanas, tema y build embebido                   (sin asignar)
+TASK-133  F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona de cada tarea              (sin asignar)
+TASK-134  F11-6 Pestana Planificacion: tareas por persona y predecesoras                                   (sin asignar)
+TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido                                       (sin asignar)
+TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
+TASK-147  Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE)                                    (sin asignar)
+TASK-149  Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)                       (sin asignar)
+TASK-150  Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE)                                  (sin asignar)
 ```
 
 ## En diseno (01-en-diseno) — 1
@@ -66,7 +65,7 @@ ID        Titulo                                Asignado
 TASK-039  F4-4 Orquestador del modo automatico  charlie.bk@gmail.com
 ```
 
-## Terminadas (04-terminadas) — 88
+## Terminadas (04-terminadas) — 89
 
 ```text
 ID         Titulo                                                                                                                     Asignado
@@ -153,6 +152,7 @@ TASK-142   Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE)           
 TASK-143   Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE)                                                   charlie.bk@gmail.com
 TASK-144   Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE)                                                    charlie.bk@gmail.com
 TASK-145   Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE)                                         charlie.bk@gmail.com
+TASK-146   Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE)                           charlie.bk@gmail.com
 TASK-148a  lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148)                                           charlie.bk@gmail.com
 TASK-148b  escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148)  charlie.bk@gmail.com
 TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148)                                              charlie.bk@gmail.com
