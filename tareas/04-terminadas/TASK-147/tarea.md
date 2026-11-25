@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-147-auditoria-4d-a10-scripts-de-ci-e-instala
 asignado_a: charlie.bk@gmail.com
@@ -69,6 +69,7 @@ A10-05 (wget de `install.sh` que sigue una redireccion a `http://`): sin reprodu
 | 2026-11-25T14:59:20Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T14:59:22Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T15:18:58Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T15:46:43Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -87,3 +88,9 @@ A10-05 (wget de `install.sh` que sigue una redireccion a `http://`): sin reprodu
 ## Verificacion ligera
 
 - 2026-11-25T15:21:40Z: ronda 1; commit revisado a633ae9ba48107bb986004ac3359e4cf1434a7b8; commit verificado a501376c7cfa6d508d2c7f79d77aaf57cc03e287; ficheros: ninguno; corregidos: ninguno; pendientes: MEN-2
+
+## Duracion
+
+- Estimada: 120 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 47 min
+- Cierre (finish): 1491 s, de 2026-11-25T15:21:52Z a 2026-11-25T15:46:43Z
