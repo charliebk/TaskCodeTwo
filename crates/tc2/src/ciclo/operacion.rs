@@ -267,37 +267,17 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ciclo::prueba::{AHORA, Extra, ana};
     use crate::estado::prueba::{estado, motivo, texto};
-    use crate::identidad::Cuenta;
-    use crate::plataforma::Proveedor;
 
-    /// 2026-11-17T10:20:30Z.
-    const AHORA: u64 = 1_794_910_830;
-
-    fn ana() -> Quien {
-        Quien::Agente(Cuenta {
-            proveedor: Proveedor::GitHub,
-            id: 7,
-            login: "ana".to_owned(),
-        })
-    }
-
+    /// Sin plan aprobado ni filas de transicion.
     fn md(id: &str, estado: &str, asignado: Option<Asignado>) -> String {
-        let mut t = Tarea::nueva(id, &format!("Tarea {id}"), "2026-11-01");
-        t.estado = estado.to_owned();
-        if estado == DESCARTADA {
-            t.motivo = Some("el de entonces".to_owned());
-        }
-        t.asignado_a = asignado;
-        t.rama = Some(crate::alta::rama_de(id, &t.tipo, &t.titulo));
-        t.escribir(&Cuerpo::plantilla())
+        crate::ciclo::prueba::md(id, estado, asignado, Extra::default())
     }
 
+    /// La fila que anade el agente de Ana.
     fn fila(fase: &str) -> String {
-        format!(
-            "| 2026-11-17T10:20:30Z | {fase} | manual | agente | {} |\n",
-            crate::VERSION
-        )
+        crate::ciclo::prueba::fila(fase, "agente")
     }
 
     /// C1 (unitario): desde cada estado de origen, `estado: descartada`, el

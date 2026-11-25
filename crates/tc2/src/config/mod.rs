@@ -530,16 +530,19 @@ pub fn de_base(git: &Git, dir: &Path) -> Result<Config, Informe> {
 
 /// Lee la configuracion del arbol de trabajo de `raiz` (F1-8 decision 5:
 /// la orden que se confia y se ejecuta es la del arbol, no la de la base).
-/// `Err` lleva el informe `config rechazada`.
+/// `Err` lleva el informe `config rechazada` (sin fichero, `sin-config`), o
+/// `config error ruta=...` si el fichero existe y no se lee (sin permiso,
+/// no UTF-8: A7-09).
 pub fn del_arbol(raiz: &Path) -> Result<Config, Informe> {
     match std::fs::read_to_string(raiz.join(RUTA)) {
         Ok(texto) => leer(&texto).map_err(|e| e.informe()),
-        Err(_) => Err(Invalida::una(
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(Invalida::una(
             Motivo::SinConfig,
             "",
             Mensaje::nuevo(&t::NO_HAY_CONFIG_EN_ARBOL).con("ruta", RUTA),
         )
         .informe()),
+        Err(e) => Err(crate::lectura::no_se_lee(NOMBRE, Path::new(RUTA), &e)),
     }
 }
 
@@ -587,5 +590,43 @@ mod tests {
         assert_eq!(leer("---\nformato: 2\n"), Ok(Config::suelo()));
         assert_eq!(leer("---\r\nformato: 2\r\n"), Ok(Config::suelo()));
         assert_eq!(leer(texto_minimo()), Ok(Config::suelo()));
+    }
+
+    /// A7-09: un `config.yml` que existe y no se lee (UTF-16LE con BOM, lo
+    /// que deja el Bloc de notas con «Unicode») da `config error` con la
+    /// ruta y la causa, no `sin-config` con el arreglo de `tc2 init`; sin
+    /// fichero, `sin-config`.
+    #[test]
+    fn del_arbol_distingue_no_existe_de_no_se_lee() -> std::io::Result<()> {
+        let raiz = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("config-del-arbol-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(raiz.join(".taskcode"))?;
+        let sin = del_arbol(&raiz).err();
+        let mut utf16 = vec![0xFF, 0xFE];
+        utf16.extend(
+            "---\nformato: 2\n"
+                .encode_utf16()
+                .flat_map(u16::to_le_bytes),
+        );
+        std::fs::write(raiz.join(RUTA), utf16)?;
+        let ilegible = del_arbol(&raiz).err();
+        let _ = std::fs::remove_dir_all(&raiz);
+        assert_eq!(
+            sin.as_ref().map(|i| (i.resultado, i.valor("motivo"))),
+            Some((Resultado::Rechazada, Some("sin-config")))
+        );
+        let i = ilegible.ok_or(std::io::ErrorKind::InvalidData)?;
+        assert_eq!(i.linea(), format!("config error ruta={RUTA}"));
+        let diag = i
+            .diagnostico_en(crate::i18n::Idioma::Es)
+            .unwrap_or_default();
+        assert!(
+            diag.starts_with(&format!("no se puede leer {RUTA}: ")),
+            "{diag}"
+        );
+        assert!(!diag.contains("tc2 init"), "{diag}");
+        Ok(())
     }
 }

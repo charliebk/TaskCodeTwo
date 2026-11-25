@@ -494,6 +494,55 @@ fn hook_mal_escrito_no_bloquea_la_parada() {
     assert_eq!(o.status.code(), Some(2), "{}", volcado(&o));
 }
 
+/// A7-09 (TASK-145): un `config.yml` en el arbol que existe y no se lee
+/// (UTF-16LE con BOM) da `error` (1) con la ruta a nombre de la orden, sin
+/// el `sin-config` ni el arreglo de `tc2 init`, en `verificar` y en
+/// `confiar`; con `--hook` no bloquea la parada (0 y un aviso) y no se
+/// ejecuta nada del repo.
+#[test]
+fn config_ilegible_da_error_y_el_hook_no_bloquea() {
+    let c = Caso::nuevo("verificar-config-utf16");
+    c.proyecto(Paso::Rojo(4));
+    c.confiar();
+    let mut utf16 = vec![0xFF, 0xFE];
+    utf16.extend(
+        config("", Some(60), 600)
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes),
+    );
+    std::fs::write(c.repo.join(".taskcode/config.yml"), utf16).unwrap();
+    for (orden, o) in [
+        ("verificar", c.verificar("rapida")),
+        ("confiar", c.tc2(&c.repo, &["confiar", CLAVE], None)),
+    ] {
+        assert_eq!(o.status.code(), Some(1), "{orden}: {}", volcado(&o));
+        assert_eq!(
+            texto(&o.stdout).trim(),
+            format!("{orden} error ruta=.taskcode/config.yml"),
+            "{}",
+            volcado(&o)
+        );
+        let err = texto(&o.stderr);
+        assert!(
+            err.contains("no se puede leer .taskcode/config.yml: "),
+            "{}",
+            volcado(&o)
+        );
+        assert!(!err.contains("tc2 init"), "{}", volcado(&o));
+    }
+    let o = c.hook(false);
+    assert_eq!(o.status.code(), Some(0), "{}", volcado(&o));
+    assert!(
+        texto(&o.stderr).contains("no se puede leer .taskcode/config.yml"),
+        "{}",
+        volcado(&o)
+    );
+    assert!(
+        !c.se_ejecuto(),
+        "se ejecuto la orden con la config ilegible"
+    );
+}
+
 /// Ronda 1, MEN-1 (calidad): con `--hook` y un perfil que no es `rapida`,
 /// un timeout agotado es rojo y bloquea (2); el resumen trae solo las
 /// ultimas 15 lineas de la salida.

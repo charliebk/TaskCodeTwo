@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use super::{ARREGLO_016, Accion, Contexto, Decision, Efecto, NOMBRE, ORDEN_PUERTAS, leer, t};
+use super::{ARREGLO_016, Accion, Contexto, Decision, Efecto, NOMBRE, ORDEN_PUERTAS, t};
 use crate::config::{self, Motivo};
 use crate::contrato::{Informe, Resultado};
 use crate::estado::{self, CARPETA, Previsto};
@@ -16,6 +16,7 @@ use crate::git::{
 use crate::huella::{LINEAS_EXCLUDE, LINEAS_GITIGNORE, RUTA_WORKFLOW};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::init as txt;
+use crate::lectura::opcional;
 use crate::plataforma::personas::{self, Personas};
 use crate::plataforma::puertas::{modelo, ruleset_github};
 use crate::plataforma::{EstadoPuerta, GitHub, GitLab, Plataforma, Proveedor, Rol, detectar};
@@ -82,7 +83,7 @@ pub(super) fn plan(c: &Contexto<'_>, aplicar: bool) -> Result<(Vec<Accion>, Cone
     let mut clave: Option<(&'static str, String)> = None;
     // `plataforma.revisor_id` (TASK-118): el origen de `revision-ia`.
     let mut revisor: Option<u64> = None;
-    match leer(&ruta_config)? {
+    match opcional(NOMBRE, &ruta_config)? {
         None => v.push(Accion::crea(
             t(&ruta_config),
             "config",
@@ -120,7 +121,7 @@ pub(super) fn plan(c: &Contexto<'_>, aplicar: bool) -> Result<(Vec<Accion>, Cone
 
     // `.gitignore`: solo se anaden lineas.
     let gitignore = principal.join(".gitignore");
-    let texto = leer(&gitignore)?
+    let texto = opcional(NOMBRE, &gitignore)?
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .unwrap_or_default();
     let lineas = faltan(&texto, &LINEAS_GITIGNORE);
@@ -161,7 +162,7 @@ pub(super) fn plan(c: &Contexto<'_>, aplicar: bool) -> Result<(Vec<Accion>, Cone
     // `info/exclude`.
     let comun = dir_comun(g, &principal, NOMBRE)?;
     let exclude = comun.join("info").join("exclude");
-    let texto = leer(&exclude)?
+    let texto = opcional(NOMBRE, &exclude)?
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .unwrap_or_default();
     v.push(if faltan(&texto, &LINEAS_EXCLUDE).is_empty() {
@@ -767,7 +768,7 @@ fn plataforma(
     // La lista de personas, si ya existe y vale: `aplicar-puertas` exige
     // que la identidad de persona este en ella (TASK-118). Sin ella, vacia
     // (las lecturas de `init` no la miran).
-    let lista = leer(&principal.join(personas::RUTA))?
+    let lista = opcional(NOMBRE, &principal.join(personas::RUTA))?
         .and_then(|b| Personas::leer(&String::from_utf8_lossy(&b)).ok())
         .unwrap_or_default();
     let p: Result<Box<dyn Plataforma>, Informe> = match destino.proveedor {
@@ -803,7 +804,7 @@ fn motivo_de(i: &Informe) -> String {
 fn personas_yml(principal: &Path, plataforma: &Conexion) -> Result<Accion, Informe> {
     let ruta = principal.join(personas::RUTA);
     let nueva = |d: Decision| Accion::nueva(t(&ruta), "personas", "taskcodetwo", d);
-    if let Some(bytes) = leer(&ruta)? {
+    if let Some(bytes) = opcional(NOMBRE, &ruta)? {
         return Ok(match Personas::leer(&String::from_utf8_lossy(&bytes)) {
             Ok(_) => nueva(Decision::Existe),
             Err(_) => {

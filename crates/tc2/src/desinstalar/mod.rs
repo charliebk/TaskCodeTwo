@@ -27,9 +27,11 @@ use std::path::{Path, PathBuf};
 use crate::Salida;
 use crate::contrato::{Informe, LineaAccion, Resultado};
 use crate::git::Git;
+use crate::i18n::catalogo::comun::CAMBIO_DESDE_EL_PLAN;
 use crate::i18n::catalogo::desinstalar as txt;
 use crate::i18n::{Idioma, Mensaje};
 use crate::instalacion::{Entorno, Sistema};
+use crate::plan_dato::{self, Paso, externo, t};
 pub use puertos::{Maquina, MaquinaEnMemoria, MaquinaReal};
 
 /// Nombre de la orden.
@@ -298,6 +300,19 @@ impl Accion {
     }
 }
 
+impl Paso for Accion {
+    fn aplicable(&self) -> bool {
+        self.decision == Decision::Borra
+    }
+    fn aplazar(&mut self, motivo: &str) {
+        self.decision = Decision::Pendiente;
+        self.motivo = Some(motivo.to_owned());
+    }
+    fn ruta(&self) -> &str {
+        &self.ruta
+    }
+}
+
 /// Lo que se necesita para desinstalar, inyectable en los tests.
 pub struct Contexto<'a> {
     /// HOME, `LOCALAPPDATA`, el ejecutable...
@@ -364,31 +379,6 @@ pub(crate) fn orden_borrar(sistema: Sistema, ruta: &Path) -> String {
     }
 }
 
-/// Ruta como texto para la linea.
-pub(crate) fn t(p: &Path) -> String {
-    p.display().to_string()
-}
-
-/// Lee un fichero; `None` si no existe.
-pub(crate) fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
-    match std::fs::read(p) {
-        Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(no_se_lee(p, &e)),
-    }
-}
-
-/// Informe de error al leer `ruta`.
-pub(crate) fn no_se_lee(ruta: &Path, e: &std::io::Error) -> Informe {
-    Informe::nuevo(NOMBRE, Resultado::Error)
-        .con("ruta", ruta.display().to_string())
-        .diagnostico(
-            Mensaje::nuevo(&txt::NO_SE_LEE)
-                .con("ruta", ruta.display().to_string())
-                .con("error", e.to_string()),
-        )
-}
-
 /// El plan completo: primero el proyecto y luego la maquina (el orden
 /// recomendado).
 pub fn plan(op: &Opciones, c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
@@ -427,13 +417,7 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
     if let Some(b) = acciones.iter().find(|a| a.bloquea).cloned() {
         // No se toca nada: lo que se habria borrado queda pendiente, y el
         // resumen no cuenta borrados que no hay.
-        for a in acciones
-            .iter_mut()
-            .filter(|a| a.decision == Decision::Borra)
-        {
-            a.decision = Decision::Pendiente;
-            a.motivo = Some("no-aplicada".to_owned());
-        }
+        plan_dato::rechazar(&mut acciones);
         let motivo = b.motivo.clone().unwrap_or_default();
         let i = base(Resultado::Rechazada, &acciones)
             .con("motivo", motivo.clone())
@@ -457,38 +441,17 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
                 informe: i,
             };
         }
-        let mut fallo: Option<Informe> = None;
-        for a in acciones.iter_mut() {
-            if a.decision != Decision::Borra {
-                continue;
-            }
-            if fallo.is_some() {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("no-aplicada".to_owned());
-                continue;
-            }
-            if let Err(e) = aplicar(&a.efecto, c) {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("error".to_owned());
-                fallo = Some(
-                    Informe::nuevo(NOMBRE, Resultado::Error)
-                        .con("ruta", a.ruta.clone())
-                        .diagnostico(
-                            Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
-                                .con("ruta", a.ruta.clone())
-                                .con("error", e),
-                        ),
+        if let Some((ruta, e)) =
+            plan_dato::aplicar_en_orden(&mut acciones, |a| aplicar(&a.efecto, c))
+        {
+            let informe = base(Resultado::Error, &acciones)
+                .con("ruta", ruta.clone())
+                .diagnostico(
+                    Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
+                        .con("ruta", ruta)
+                        .con_mensaje("error", e),
                 );
-            }
-        }
-        if let Some(i) = fallo {
-            let mut f = base(Resultado::Error, &acciones);
-            f.claves.extend(i.claves);
-            f.diagnostico = i.diagnostico;
-            return Hecho {
-                acciones,
-                informe: f,
-            };
+            return Hecho { acciones, informe };
         }
     }
     // El que se nombra es el binario del grupo en uso, no su primera linea
@@ -516,10 +479,10 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
 }
 
 /// Aplica un efecto. `Err` con el texto del fallo.
-fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
+fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), Mensaje> {
     let no_existe = |r: std::io::Result<()>| match r {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        otro => otro.map_err(|e| e.to_string()),
+        otro => otro.map_err(externo),
     };
     match e {
         Efecto::Ninguno => Ok(()),
@@ -535,22 +498,15 @@ fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
             ruta,
             antes,
             despues,
-        } => {
-            // Si la persona lo cambio despues del plan, no se pisa.
-            let ahora = std::fs::read(ruta).map_err(|e| e.to_string())?;
-            if &ahora != antes {
-                return Err("cambio desde el plan".to_owned());
-            }
-            escribir_atomico(ruta, despues).map_err(|e| e.to_string())
-        }
+        } => reescribir(ruta, antes, despues),
         Efecto::PathUsuario { viejo, nuevo } => c
             .maquina
             .escribir_path_usuario(viejo, nuevo)
-            .map_err(|e| e.to_string()),
+            .map_err(externo),
         Efecto::Autoborrado { ficheros, dirs } => c
             .maquina
             .programar_borrado(c.entorno.pid, ficheros, dirs)
-            .map_err(|e| e.to_string()),
+            .map_err(externo),
         Efecto::QuitarWorktree { principal, ruta } => {
             proyecto::quitar_worktree(c.git, principal, ruta)
         }
@@ -562,6 +518,16 @@ fn aplicar(e: &Efecto, c: &Contexto<'_>) -> Result<(), String> {
         } => proyecto::borrar_ref(c.git, principal, referencia, sha),
         Efecto::BorrarRamaEstado { principal, sha } => proyecto::borrar_rama(c.git, principal, sha),
     }
+}
+
+/// Cambia `ruta` de `antes` a `despues`; si la persona lo cambio despues
+/// del plan, no se pisa.
+fn reescribir(ruta: &Path, antes: &[u8], despues: &[u8]) -> Result<(), Mensaje> {
+    let ahora = std::fs::read(ruta).map_err(externo)?;
+    if ahora != antes {
+        return Err(Mensaje::nuevo(&CAMBIO_DESDE_EL_PLAN).con("ruta", t(ruta)));
+    }
+    escribir_atomico(ruta, despues).map_err(externo)
 }
 
 /// Escribe `ruta` de una vez: un temporal en la misma carpeta y un
@@ -602,16 +568,9 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
                 .salida_en(json, idioma);
         }
     };
-    let dir = match std::env::current_dir() {
+    let dir = match crate::tablero::carpeta_actual(NOMBRE) {
         Ok(d) => d,
-        Err(e) => {
-            return Informe::nuevo(NOMBRE, Resultado::Error)
-                .diagnostico(
-                    Mensaje::nuevo(&crate::i18n::catalogo::cli::CARPETA_ACTUAL)
-                        .con("error", e.to_string()),
-                )
-                .salida_en(json, idioma);
-        }
+        Err(i) => return i.salida_en(json, idioma),
     };
     let git = Git::nuevo();
     let maquina = MaquinaReal;
@@ -658,6 +617,37 @@ mod tests {
                 "{args:?}"
             );
         }
+    }
+
+    /// A7-07: un fichero que cambio desde el plan no se pisa, y el
+    /// diagnostico sale entero en el idioma pedido (con `en`, sin un trozo
+    /// en espanol en `{error}`).
+    #[test]
+    fn cambio_desde_el_plan_en_ingles() -> std::io::Result<()> {
+        let dir = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("desinstalar-reescribir-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let ruta = dir.join(".profile");
+        std::fs::write(&ruta, "cambiado por la persona\n")?;
+        let r = reescribir(&ruta, b"original\n", b"");
+        let ahora = std::fs::read_to_string(&ruta);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(ahora?, "cambiado por la persona\n");
+        let e = r.err().map(|m| {
+            Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
+                .con("ruta", t(&ruta))
+                .con_mensaje("error", m)
+                .texto(Idioma::En)
+        });
+        let r = t(&ruta);
+        assert_eq!(
+            e,
+            Some(format!(
+                "could not remove {r}: {r} changed after the plan was made. What the previous lines list is already removed: fix the cause and run tc2 desinstalar again"
+            ))
+        );
+        Ok(())
     }
 
     #[test]

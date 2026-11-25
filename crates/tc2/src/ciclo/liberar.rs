@@ -387,27 +387,11 @@ pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ciclo::prueba::{AHORA, Extra, ana, cuenta, fila};
     use crate::estado::prueba::{EnMemoria, estado, motivo, texto};
     use crate::grafo::DESCARTADA;
-    use crate::identidad::Cuenta;
-    use crate::plataforma::Proveedor;
 
-    /// 2026-11-17T10:20:30Z.
-    const AHORA: u64 = 1_794_910_830;
     const DIA: u64 = 86_400;
-
-    fn cuenta(id: u64, login: &str) -> Cuenta {
-        Cuenta {
-            proveedor: Proveedor::GitHub,
-            id,
-            login: login.to_owned(),
-        }
-    }
-
-    /// Ana desde su agente (sin terminal).
-    fn ana() -> Quien {
-        Quien::Agente(cuenta(7, "ana"))
-    }
 
     /// Beto en un terminal.
     fn beto() -> Quien {
@@ -419,27 +403,13 @@ mod tests {
     }
 
     /// Un `tarea.md` con una fila de transicion de hace `hace` segundos.
+    /// Con el plan aprobado (estas operaciones no lo tocan).
     fn md(id: &str, estado: &str, asignado: Option<Asignado>, hace: u64) -> String {
-        let mut t = Tarea::nueva(id, &format!("Tarea {id}"), "2026-11-01");
-        t.estado = estado.to_owned();
-        if estado == DESCARTADA {
-            t.motivo = Some("no".to_owned());
-        }
-        t.plan_aprobado = true;
-        t.asignado_a = asignado;
-        t.rama = Some(crate::alta::rama_de(id, &t.tipo, &t.titulo));
-        let fila = format!(
-            "| {} | start | manual | persona | 0.1 |\n",
-            crate::toma::instante(AHORA - hace)
-        );
-        t.escribir(&Cuerpo::plantilla()) + &fila
-    }
-
-    fn fila(fase: &str, por: &str) -> String {
-        format!(
-            "| 2026-11-17T10:20:30Z | {fase} | manual | {por} | {} |\n",
-            crate::VERSION
-        )
+        let extra = Extra {
+            plan_aprobado: true,
+            hace: Some(hace),
+        };
+        crate::ciclo::prueba::md(id, estado, asignado, extra)
     }
 
     /// C1 (unitario): el dueno (su agente) libera una en curso: `planificada`,

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use super::texto::hooks_con_tc2;
-use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, leer, t};
+use super::{Accion, Contexto, Decision, Efecto, NOMBRE, Opciones, t};
 use crate::contrato::{Informe, Resultado};
 use crate::estado::Cerrojo;
 use crate::git::estado::dir_comun;
@@ -19,6 +19,8 @@ use crate::git::{
 use crate::huella::{self, RAMA_ESTADO};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::desinstalar as txt;
+use crate::lectura::opcional;
+use crate::plan_dato::externo;
 
 /// Si la carpeta `dir` esta dentro de `ruta` (o es ella).
 fn dentro(dir: &Path, ruta: &Path) -> bool {
@@ -153,7 +155,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     }
     // Lineas de `info/exclude` (inversa de `git::rama::excluir`).
     let exclude = comun.join("info").join("exclude");
-    if let Some(bytes) = leer(&exclude)?
+    if let Some(bytes) = opcional(NOMBRE, &exclude)?
         && let Ok(texto) = String::from_utf8(bytes.clone())
     {
         let propias = huella::LINEAS_EXCLUDE;
@@ -261,7 +263,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     // queda siempre, y con ella `personas.yml`, compartido (F1-12 D4a, D6).
     let config = principal.join(crate::config::RUTA);
     let mut de_la_016 = false;
-    if let Some(bytes) = leer(&config)? {
+    if let Some(bytes) = opcional(NOMBRE, &config)? {
         let de_la_2 = match crate::config::leer(&String::from_utf8_lossy(&bytes)) {
             Ok(_) => true,
             Err(e) => matches!(
@@ -291,7 +293,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     // Lo versionado que deja `tc2 init` (F3-1): las lineas de `.gitignore` y
     // el workflow estan en la historia; los quita la persona con un PR.
     let gitignore = principal.join(".gitignore");
-    if let Some(bytes) = leer(&gitignore)? {
+    if let Some(bytes) = opcional(NOMBRE, &gitignore)? {
         let texto = String::from_utf8_lossy(&bytes);
         if huella::LINEAS_GITIGNORE
             .iter()
@@ -330,7 +332,7 @@ pub(super) fn plan(op: &Opciones, c: &Contexto<'_>, v: &mut Vec<Accion>) -> Resu
     // Hooks del proyecto que nombran tc2: aviso, nunca se editan (C4).
     for nombre in ["settings.json", "settings.local.json"] {
         let p = principal.join(".claude").join(nombre);
-        if let Some(bytes) = leer(&p)?
+        if let Some(bytes) = opcional(NOMBRE, &p)?
             && let Ok(valor) = serde_json::from_slice::<serde_json::Value>(&bytes)
         {
             for _ in hooks_con_tc2(&valor) {
@@ -369,26 +371,23 @@ pub(super) fn cerrojo_libre(c: &Contexto<'_>) -> Result<(), Informe> {
     }
 }
 
-/// Texto de un informe de error de git, para la linea de fallo.
-fn texto(i: &Informe) -> String {
-    i.diagnostico_en(crate::i18n::Idioma::Es)
-        .unwrap_or_else(|| i.linea())
-}
+// Los ayudantes de la aplicacion devuelven el mensaje del fallo para el
+// hueco `{error}` de `FALLO_AL_APLICAR` (A7-07): se traduce al escribir.
 
-pub(super) fn quitar_worktree(git: &Git, principal: &Path, ruta: &Path) -> Result<(), String> {
-    let r = ruta.to_str().ok_or_else(|| t(ruta))?;
+pub(super) fn quitar_worktree(git: &Git, principal: &Path, ruta: &Path) -> Result<(), Mensaje> {
+    let r = ruta.to_str().ok_or_else(|| externo(t(ruta)))?;
     exigir(git, principal, NOMBRE, Subcomando::Worktree, &["remove", r])
         .map(|_| ())
-        .map_err(|i| texto(&i))
+        .map_err(|i| i.mensaje())
 }
 
-pub(super) fn podar(git: &Git, principal: &Path) -> Result<(), String> {
+pub(super) fn podar(git: &Git, principal: &Path) -> Result<(), Mensaje> {
     exigir(git, principal, NOMBRE, Subcomando::Worktree, &["prune"])
         .map(|_| ())
-        .map_err(|i| texto(&i))
+        .map_err(|i| i.mensaje())
 }
 
-pub(super) fn borrar_ref(git: &Git, principal: &Path, r: &str, sha: &str) -> Result<(), String> {
+pub(super) fn borrar_ref(git: &Git, principal: &Path, r: &str, sha: &str) -> Result<(), Mensaje> {
     exigir(
         git,
         principal,
@@ -397,16 +396,16 @@ pub(super) fn borrar_ref(git: &Git, principal: &Path, r: &str, sha: &str) -> Res
         &["-d", r, sha],
     )
     .map(|_| ())
-    .map_err(|i| texto(&i))
+    .map_err(|i| i.mensaje())
 }
 
-pub(super) fn borrar_rama(git: &Git, principal: &Path, sha: &str) -> Result<(), String> {
+pub(super) fn borrar_rama(git: &Git, principal: &Path, sha: &str) -> Result<(), Mensaje> {
     let s = git
         .borrar_rama_de_estado(principal, sha)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.mensaje())?;
     if s.exito() {
         Ok(())
     } else {
-        Err(s.primera_linea_error())
+        Err(externo(s.primera_linea_error()))
     }
 }

@@ -53,13 +53,11 @@ crate::i18n::textos! {
         es: "no se pudo crear {ruta}: {error}. Lo de las lineas anteriores ya esta hecho: arregla la causa y repite tc2 init",
         en: "could not create {ruta}: {error}. What the previous lines list is already done: fix the cause and run tc2 init again",
     }
-    NO_SE_LEE {
-        es: "no se puede leer {ruta}: {error}",
-        en: "cannot read {ruta}: {error}",
-    }
-    CAMBIO_DESDE_EL_PLAN {
-        es: "{ruta} cambio despues de hacer el plan",
-        en: "{ruta} changed after the plan was made",
+    /// Error interno: el efecto de las puertas se aplica con la plataforma,
+    /// no por el camino de los ficheros.
+    EFECTO_PUERTAS_SIN_PLATAFORMA {
+        es: "aplicar-puertas sin plataforma",
+        en: "aplicar-puertas without a platform",
     }
     AVISO_SIN_RELACION {
         es: "aviso: la historia de este clon no tiene nada en comun con la de origin; init no propone publicar ninguna rama de codigo (la rama de estado {rama}, huerfana, si se publica): decide tu si este clon es de ese remoto",

@@ -37,10 +37,6 @@ crate::i18n::textos! {
         es: "no se pudo quitar {ruta}: {error}. Lo de las lineas anteriores ya se quito: arregla la causa y repite tc2 desinstalar",
         en: "could not remove {ruta}: {error}. What the previous lines list is already removed: fix the cause and run tc2 desinstalar again",
     }
-    NO_SE_LEE {
-        es: "no se puede leer {ruta}: {error}",
-        en: "cannot read {ruta}: {error}",
-    }
     SIN_ENTORNO {
         es: "no se puede saber donde esta este tc2: {error}",
         en: "cannot tell where this tc2 is: {error}",
