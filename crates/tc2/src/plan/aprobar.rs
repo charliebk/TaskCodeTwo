@@ -28,7 +28,8 @@ use super::plantillas as p;
 use super::roles::{self, Rol};
 use crate::config::Config;
 use crate::estado::{
-    Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado, tarea_de, tareas,
+    Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado, tarea_de, tarea_propia,
+    tareas,
 };
 use crate::grafo::{DESCARTADA, TERMINADA};
 use crate::i18n::catalogo::plan as txt;
@@ -519,18 +520,14 @@ impl Operacion for PedirCambios {
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
         *self.ronda.borrow_mut() = None;
-        *self.dueno.borrow_mut() = None;
-        let (t, _) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        let (t, _) = tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             NOMBRE,
             ("de-otra-persona", &txt::APROBAR_DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
+            &self.dueno,
+        )?;
         if t.estado != EN_DISENO {
             return Err(por_estado(&self.id, &t.estado, NOMBRE, &[EN_DISENO]));
         }

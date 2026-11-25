@@ -19,7 +19,7 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
 use crate::grafo::DESCARTADA;
 use crate::i18n::catalogo::ciclo as txt;
 use crate::identidad::Quien;
@@ -75,19 +75,14 @@ impl Lanzada {
     /// La tarea de `estado`, si quien lanza `orden` puede cambiarla (D2): la
     /// lleva el o nadie.
     fn tarea(&self, estado: &dyn Estado, orden: &str) -> Result<(Tarea, Cuerpo), Fallo> {
-        *self.dueno.borrow_mut() = None;
-        let (t, c) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             orden,
             ("de-otra-persona", &txt::DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
-        Ok((t, c))
+            &self.dueno,
+        )
     }
 
     /// `terminada`, `descartada` u otro estado que no es de [`ABIERTAS`].

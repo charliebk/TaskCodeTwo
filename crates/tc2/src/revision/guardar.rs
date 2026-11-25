@@ -17,7 +17,7 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
 use crate::hallazgos::InformeTarea;
 use crate::i18n::catalogo::revision as txt;
 use crate::identidad::Quien;
@@ -94,18 +94,14 @@ impl Operacion for GuardarRevision {
     }
 
     fn aplicar(&self, estado: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        *self.dueno.borrow_mut() = None;
-        let (t, _) = tarea_de(estado, &self.id)?;
-        if let Some((fallo, dueno)) = de_otra_persona(
+        let (t, _) = tarea_propia(
+            estado,
             &self.id,
-            t.asignado_a.as_ref(),
             &self.asignado,
             NOMBRE,
             ("de-otra-persona", &txt::DE_OTRA_PERSONA),
-        ) {
-            *self.dueno.borrow_mut() = dueno;
-            return Err(fallo);
-        }
+            &self.dueno,
+        )?;
         if t.estado != EN_REVISION {
             return Err(por_estado(&self.id, &t.estado, NOMBRE, &[EN_REVISION]));
         }

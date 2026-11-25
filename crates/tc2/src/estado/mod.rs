@@ -37,7 +37,7 @@ mod transaccion;
 
 pub use crate::git::{Cambio, Sello};
 pub use cerrojo::Cerrojo;
-pub use dueno::con_dueno;
+pub use dueno::{con_dueno, tarea_propia};
 pub use frescura::{Frescura, Marca, Remoto, hace, sincronizado_texto};
 pub(crate) use lectura::referencia_de_lectura;
 pub use lectura::{Estado, Local, Vista, leer, leer_fresco, local_de, sincronizado_en};
