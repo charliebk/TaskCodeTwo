@@ -422,7 +422,7 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
                 .ok_or_else(|| fallo_lectura("-", format!("mas de {TOPE_RUTAS} bytes")))?;
             String::from_utf8(b).map_err(|x| fallo_lectura("-", x.to_string()))?
         }
-        Some(f) => crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
+        Some(f) => crate::lectura::texto_con_tope_lossy(Path::new(f), TOPE_RUTAS)
             .map_err(|x| fallo_lectura(f, x.to_string()))?
             .ok_or_else(|| fallo_lectura(f, format!("mas de {TOPE_RUTAS} bytes")))?,
         None => return Err(uso("sin-rutas")),
@@ -569,7 +569,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     };
     let (t, c) = match (&fichero, &id) {
         (Some(f), _) => {
-            let texto = crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
+            let texto = crate::lectura::texto_con_tope_lossy(Path::new(f), TOPE_RUTAS)
                 .map_err(|x| error(f, x.to_string()))?
                 .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?;
             tarea_de_fichero(&texto).map_err(|x| error(f, x))?
@@ -585,7 +585,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     };
     let rutas = match &rutas_f {
         Some(f) => separar_rutas(
-            &crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
+            &crate::lectura::texto_con_tope_lossy(Path::new(f), TOPE_RUTAS)
                 .map_err(|x| error(f, x.to_string()))?
                 .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?,
             false,

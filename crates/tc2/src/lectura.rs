@@ -15,7 +15,10 @@
 //! Y el «leer con tope» de todos (A8-17): [`acotado`] lee como mucho un
 //! byte mas del tope y rechaza si llega a leerlo; [`con_tope`] y
 //! [`texto_con_tope`] lo aplican a un fichero. El texto es UTF-8 estricto:
-//! unos bytes que no lo son dan `InvalidData`, nunca `U+FFFD`.
+//! unos bytes que no lo son dan `InvalidData`, nunca `U+FFFD` (decision 3
+//! de TASK-150, para los informes del revisor). Las entradas que no son
+//! informes (un diff, la respuesta de la revisora, una lista de rutas) usan
+//! [`texto_con_tope_lossy`]: el mismo tope y `U+FFFD`, como antes.
 
 use std::io::{self, Read as _};
 use std::path::Path;
@@ -65,6 +68,12 @@ pub(crate) fn texto_con_tope(ruta: &Path, tope: u64) -> io::Result<Option<String
     con_tope(ruta, tope)?
         .map(|b| String::from_utf8(b).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e)))
         .transpose()
+}
+
+/// El texto de `ruta` con [`con_tope`]: `None` si pasa de `tope`, y los
+/// bytes que no son UTF-8 como `U+FFFD` (IMP-1 de TASK-150).
+pub(crate) fn texto_con_tope_lossy(ruta: &Path, tope: u64) -> io::Result<Option<String>> {
+    Ok(con_tope(ruta, tope)?.map(|b| String::from_utf8_lossy(&b).into_owned()))
 }
 
 /// Tope de un fichero externo (D4 de TASK-029).
@@ -151,7 +160,8 @@ mod tests {
     }
 
     /// Decision 3 de TASK-150: `texto_con_tope` rechaza lo que no es UTF-8
-    /// con `InvalidData` (sin `U+FFFD`); `con_tope` da los bytes tal cual.
+    /// con `InvalidData` (sin `U+FFFD`); `con_tope` da los bytes tal cual, y
+    /// `texto_con_tope_lossy` (IMP-1), el texto con `U+FFFD` y el mismo tope.
     #[test]
     fn texto_con_tope_es_utf8_estricto() -> io::Result<()> {
         let dir = std::env::temp_dir()
@@ -162,9 +172,13 @@ mod tests {
         std::fs::write(&malo, [b'a', 0xff])?;
         let texto = texto_con_tope(&malo, 16).map_err(|e| e.kind());
         let bytes = con_tope(&malo, 16)?;
+        let lossy = texto_con_tope_lossy(&malo, 16)?;
+        let grande = texto_con_tope_lossy(&malo, 1)?;
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(texto, Err(io::ErrorKind::InvalidData));
         assert_eq!(bytes, Some(vec![b'a', 0xff]));
+        assert_eq!(lossy, Some("a\u{fffd}".to_owned()));
+        assert_eq!(grande, None);
         Ok(())
     }
 }

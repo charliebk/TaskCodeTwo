@@ -220,8 +220,10 @@ fn fallo_io(p: &Path, error: String) -> Informe {
     )
 }
 
+/// Una entrada que no es el informe (respuesta, diff, contexto, JSON,
+/// rutas): con tope y `U+FFFD`, como antes de TASK-150 (IMP-1).
 fn leer_entrada(p: &Path, tope: u64) -> Result<String, Informe> {
-    crate::lectura::texto_con_tope(p, tope)
+    crate::lectura::texto_con_tope_lossy(p, tope)
         .map_err(|e| fallo_io(p, e.to_string()))?
         .ok_or_else(|| {
             Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(
@@ -327,7 +329,7 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
 
 /// Una salida de `validar` del contrato vigente, o `None`.
 fn leer_validados(p: &Path) -> Option<super::Validados> {
-    let t = crate::lectura::texto_con_tope(p, TOPE_VALIDADOS).ok()??;
+    let t = crate::lectura::texto_con_tope_lossy(p, TOPE_VALIDADOS).ok()??;
     serde_json::from_str::<super::Validados>(&t)
         .ok()
         .filter(|v| v.version == super::VERSION)
