@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-149-auditoria-4d-capa-comun-de-ordenes-y-ope
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2514362
-tokens_implementacion: null
+tokens_implementacion: 21769944
 tokens_revision: null
 creado: 2026-11-23
 actualizado: 2026-11-25
@@ -68,12 +68,15 @@ Para la segunda auditoria: `estado/transaccion.rs` `aplicar_en` (~467, conversio
 | 2026-11-25T15:46:58Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T15:54:57Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T15:54:58Z | start | automatico | persona | 0.17.1 |
+| 2026-11-25T17:08:44Z | review | automatico | persona | 0.17.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-25T15:54:57Z | diseno | agente:a2556eb46cdca27b1 | 64 | 125609 | 2363006 | 25683 | 55 | 2514362 | - | - |
+| 2026-11-25T17:08:44Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 24 | 16666 | 2732574 | 5373 | 0 | 2754637 | - | - |
+| 2026-11-25T17:08:44Z | implementacion | agente:a6264d9616ecb04fa | 226 | 489160 | 18456423 | 69498 | 5 | 19015307 | - | - |
 
 ## Autorrevision
 
