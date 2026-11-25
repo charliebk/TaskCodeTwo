@@ -203,42 +203,18 @@ pub fn estado(
     incluye: &[String],
     op: &str,
 ) -> Result<Evaluacion, Informe> {
-    let ruta = ruta_almacen(almacen, repo);
-    let mut a = leer_almacen(&ruta);
-    let entrada = a.claves.get(clave).cloned();
-    let c = cierre::calcular(
-        &repo.raiz,
-        &repo.indice,
-        orden,
-        incluye,
-        entrada.as_ref().map(|e| e.ficheros.as_slice()),
-    )
-    .map_err(|e| error_de_cierre(op, &e))?;
-    let huella = cierre::huella(orden, incluye, &c.ficheros);
-    let estado = match &entrada {
+    let mut c = Calculo::nuevo(repo, almacen, clave, orden, incluye, op, true)?;
+    let estado = match &c.anterior {
         None => Estado::Nunca,
-        Some(e) if e.huella == huella => Estado::Confiado,
+        Some(e) if e.huella == c.huella => Estado::Confiado,
         Some(_) => Estado::Cambiado,
     };
-    if estado == Estado::Confiado && c.hasheados > 0 {
+    if estado == Estado::Confiado && c.cierre.hasheados > 0 {
         // Solo la cache: misma huella. Si no se puede escribir, la proxima
-        // vez se vuelve a leer, nada mas.
-        a.claves.insert(
-            clave.to_owned(),
-            Entrada {
-                huella: huella.clone(),
-                ficheros: c.ficheros.clone(),
-            },
-        );
-        let _ = escribir_almacen(&ruta, &a, op);
+        // vez se vuelve a leer, nada mas: el fallo no se propaga.
+        let _ = c.guardar(clave, op);
     }
-    Ok(Evaluacion {
-        estado,
-        huella,
-        ficheros: c.ficheros.len(),
-        hasheados: c.hasheados,
-        globs_vacios: c.globs_vacios.clone(),
-    })
+    Ok(c.evaluacion(estado))
 }
 
 /// Confia en `orden` tal como esta ahora en el arbol: rehashea todo el
@@ -251,27 +227,74 @@ pub fn confiar(
     incluye: &[String],
     op: &str,
 ) -> Result<Evaluacion, Informe> {
-    let ruta = ruta_almacen(almacen, repo);
-    let mut a = leer_almacen(&ruta);
-    a.version = VERSION_ALMACEN;
-    let c = cierre::calcular(&repo.raiz, &repo.indice, orden, incluye, None)
-        .map_err(|e| error_de_cierre(op, &e))?;
-    let huella = cierre::huella(orden, incluye, &c.ficheros);
-    a.claves.insert(
-        clave.to_owned(),
-        Entrada {
-            huella: huella.clone(),
-            ficheros: c.ficheros.clone(),
-        },
-    );
-    escribir_almacen(&ruta, &a, op)?;
-    Ok(Evaluacion {
-        estado: Estado::Confiado,
-        huella,
-        ficheros: c.ficheros.len(),
-        hasheados: c.hasheados,
-        globs_vacios: c.globs_vacios.clone(),
-    })
+    let mut c = Calculo::nuevo(repo, almacen, clave, orden, incluye, op, false)?;
+    c.guardar(clave, op)?;
+    Ok(c.evaluacion(Estado::Confiado))
+}
+
+/// Lo que comparten [`estado`] y [`confiar`]: el almacen leido, la entrada
+/// anterior de la clave, el cierre calculado y su huella.
+struct Calculo {
+    ruta: PathBuf,
+    almacen: Almacen,
+    anterior: Option<Entrada>,
+    cierre: cierre::Cierre,
+    huella: String,
+}
+
+impl Calculo {
+    /// Lee el almacen y calcula el cierre de `orden`; con `cache`, reutiliza
+    /// el sha de los ficheros de la entrada anterior que no cambiaron.
+    fn nuevo(
+        repo: &Repo,
+        almacen: &Path,
+        clave: &str,
+        orden: &str,
+        incluye: &[String],
+        op: &str,
+        cache: bool,
+    ) -> Result<Self, Informe> {
+        let ruta = ruta_almacen(almacen, repo);
+        let almacen = leer_almacen(&ruta);
+        let anterior = almacen.claves.get(clave).cloned();
+        let previos = anterior
+            .as_ref()
+            .filter(|_| cache)
+            .map(|e| e.ficheros.as_slice());
+        let cierre = cierre::calcular(&repo.raiz, &repo.indice, orden, incluye, previos)
+            .map_err(|e| error_de_cierre(op, &e))?;
+        let huella = cierre::huella(orden, incluye, &cierre.ficheros);
+        Ok(Self {
+            ruta,
+            almacen,
+            anterior,
+            cierre,
+            huella,
+        })
+    }
+
+    /// Guarda en el almacen la huella y los ficheros de `clave`.
+    fn guardar(&mut self, clave: &str, op: &str) -> Result<(), Informe> {
+        self.almacen.version = VERSION_ALMACEN;
+        self.almacen.claves.insert(
+            clave.to_owned(),
+            Entrada {
+                huella: self.huella.clone(),
+                ficheros: self.cierre.ficheros.clone(),
+            },
+        );
+        escribir_almacen(&self.ruta, &self.almacen, op)
+    }
+
+    fn evaluacion(self, estado: Estado) -> Evaluacion {
+        Evaluacion {
+            estado,
+            ficheros: self.cierre.ficheros.len(),
+            hasheados: self.cierre.hasheados,
+            globs_vacios: self.cierre.globs_vacios,
+            huella: self.huella,
+        }
+    }
 }
 
 /// `tc2 confiar <clave>` en la carpeta actual: confia en la orden de `clave`
