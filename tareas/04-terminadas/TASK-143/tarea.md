@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-143-auditoria-4d-a5-seleccion-inventario-rec
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2679413
 tokens_implementacion: 24484216
-tokens_revision: null
+tokens_revision: 5964181
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -67,6 +67,7 @@ Corregidos los IMPORTANTE del grupo A5 (A5-07 lo cerro TASK-148).
 | 2026-11-25T01:35:23Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T01:35:26Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T03:40:37Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T04:29:00Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -75,8 +76,16 @@ Corregidos los IMPORTANTE del grupo A5 (A5-07 lo cerro TASK-148).
 | 2026-11-25T01:35:21Z | diseno | agente:a5aabafa72024696c | 72 | 104702 | 2549422 | 25217 | 45 | 2679413 | - | - |
 | 2026-11-25T03:40:37Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 30 | 15103 | 10446515 | 6098 | 0 | 10467746 | - | - |
 | 2026-11-25T03:40:37Z | implementacion | agente:a135228d546560dc5 | 164 | 230711 | 13732701 | 52894 | 17 | 14016470 | - | - |
+| 2026-11-25T03:56:13Z | revision | agente:adaf8a387d6c6418e | 96 | 144421 | 5803213 | 16451 | 11 | 5964181 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 26dbb31
 - 4D — 26dbb31: helper buscado, criterios citados, 2 mutantes vistos en rojo
+
+## Duracion
+
+- Estimada: 240 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 174 min
+- Paso de la hora: 174 min reales frente a 240 estimados
+- Cierre (finish): 1916 s, de 2026-11-25T03:57:04Z a 2026-11-25T04:29:00Z
