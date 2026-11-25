@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-144-auditoria-4d-a6-estimacion-progreso-road
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Corregir los 6 casos IMPORTANTE del grupo A6 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-25T04:29:29Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T04:34:52Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T04:34:55Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
