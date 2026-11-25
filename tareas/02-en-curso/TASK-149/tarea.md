@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-149-auditoria-4d-capa-comun-de-ordenes-y-ope
 asignado_a: charlie.bk@gmail.com
@@ -40,6 +40,7 @@ Extraer las piezas de la capa de órdenes que la auditoría 4D (`docs/auditoria-
 |---|---|---|---|---|
 | 2026-11-25T15:46:58Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T15:54:57Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T15:54:58Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
