@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-143-auditoria-4d-a5-seleccion-inventario-rec
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 2679413
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -39,3 +39,10 @@ Corregir los 6 casos IMPORTANTE del grupo A5 de `docs/auditoria-4d.md` (commit a
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-25T01:23:09Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-25T01:35:23Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25T01:35:21Z | diseno | agente:a5aabafa72024696c | 72 | 104702 | 2549422 | 25217 | 45 | 2679413 | - | - |
