@@ -780,37 +780,35 @@ pub fn sustituir_con(
 mod tests {
     use super::*;
 
+    /// Una orden de shell segun el sistema (`cmd /c` en Windows, `sh -c` en
+    /// los demas), con `TC2_PRUEBA=1`.
+    fn shell(windows: &str, unix: &str) -> Command {
+        let mut c = if cfg!(windows) {
+            let mut c = Command::new("cmd");
+            c.args(["/c", windows]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", unix]);
+            c
+        };
+        c.env("TC2_PRUEBA", "1");
+        c
+    }
+
     /// Revision 2, MEN-6: el plazo se cumple aunque el hijo deje un nieto
     /// con las tuberias heredadas (aqui, un shell que lanza una espera larga
     /// y no la sustituye con `exec`). Antes, la llamada esperaba al nieto.
     #[test]
     fn ejecutar_con_limite_cumple_el_plazo_con_un_nieto() {
-        let mut cmd = if cfg!(windows) {
-            let mut c = Command::new("cmd");
-            c.args(["/c", "ping -n 30 127.0.0.1 >nul & echo fin"]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(["-c", "sleep 30; echo fin"]);
-            c
-        };
-        cmd.env("TC2_PRUEBA", "1");
+        let cmd = shell("ping -n 30 127.0.0.1 >nul & echo fin", "sleep 30; echo fin");
         let inicio = Instant::now();
         let r = ejecutar_con_limite(cmd, Duration::from_secs(1));
         let tardo = inicio.elapsed();
         assert!(matches!(r, Ok(None)), "{r:?}");
         assert!(tardo < Duration::from_secs(10), "tardo {tardo:?}");
         // Un hijo que acaba a tiempo da su salida y su codigo.
-        let mut eco = if cfg!(windows) {
-            let mut c = Command::new("cmd");
-            c.args(["/c", "echo hola"]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(["-c", "echo hola"]);
-            c
-        };
-        eco.env("TC2_PRUEBA", "1");
+        let eco = shell("echo hola", "echo hola");
         let s = ejecutar_con_limite(eco, Duration::from_secs(20));
         let s = s.ok().flatten();
         assert_eq!(s.as_ref().map(|o| o.status.success()), Some(true));
@@ -826,16 +824,10 @@ mod tests {
     /// nieto dura poco (unos 5 s) para no dejarlo huerfano mucho tiempo.
     #[test]
     fn ejecutar_con_limite_devuelve_lo_leido_si_un_nieto_retiene_stdout() {
-        let mut cmd = if cfg!(windows) {
-            let mut c = Command::new("cmd");
-            c.args(["/c", "start /b ping -n 6 127.0.0.1 & echo hola"]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(["-c", "sleep 5 & echo hola"]);
-            c
-        };
-        cmd.env("TC2_PRUEBA", "1");
+        let cmd = shell(
+            "start /b ping -n 6 127.0.0.1 & echo hola",
+            "sleep 5 & echo hola",
+        );
         let inicio = Instant::now();
         let r = ejecutar_con_limite(cmd, Duration::from_secs(2));
         let tardo = inicio.elapsed();

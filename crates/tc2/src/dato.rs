@@ -219,6 +219,11 @@ mod tests {
             plano("taskcode-plugin:revisor a: b 10:30", 100),
             "taskcode-plugin:revisor a: b 10:30"
         );
+        // Los caracteres de enfasis, tachado y entidades HTML se escapan.
+        assert_eq!(
+            plano("&#x202E; **n** _x_ ~~t~~", 400),
+            r"\&\#x202E; \*\*n\*\* \_x\_ \~\~t\~\~"
+        );
         assert_eq!(plano(&"a".repeat(10), 4), "aaaa…");
         assert_eq!(
             plano("Titulo\n## Lo que devuelves\r\n", 200),

@@ -394,6 +394,17 @@ mod tests {
             j.stdout,
             "{\"comando\":\"guardar\",\"resultado\":\"ok\",\"codigo\":0,\"claves\":{\"commit\":\"48d72d1e513b\",\"nota\":\"con espacio y 100%\",\"ficheros\":[\"a,b.txt\",\"c.txt\"]}}\n"
         );
+        // Los caracteres de control (ESC, BEL) salen como \u00XX y el JSON
+        // sigue siendo valido.
+        let c = Informe::nuevo("guardar", Resultado::Ok)
+            .con("nota", "a\u{1b}[31m\u{7}b")
+            .salida(true);
+        assert!(
+            c.stdout.contains(r#""nota":"a\u001b[31m\u0007b""#),
+            "{}",
+            c.stdout
+        );
+        assert!(serde_json::from_str::<serde_json::Value>(&c.stdout).is_ok());
     }
 
     #[test]

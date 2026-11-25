@@ -2709,21 +2709,7 @@ fn el_workflow_del_revisor_pasa_el_lint() {
         assert!(!usa(n, "secrets."), "secreto en {n}");
     }
     // validar valida con tc2 y sube el artefacto que lee publicar.
-    let runs_de = |n: &str| -> Vec<String> {
-        let mut v = Vec::new();
-        if let Some(j) = job(n) {
-            j.escalares("", &mut v);
-        }
-        v.iter()
-            .filter(|(k, _)| *k == "run")
-            .map(|(_, x)| (*x).to_owned())
-            .collect()
-    };
-    assert!(
-        runs_de("validar")
-            .iter()
-            .any(|r| r.contains("tc2 hallazgos validar"))
-    );
+    assert!(runs_del_job(&raiz, "validar").contains("tc2 hallazgos validar"));
     assert_eq!(
         artefactos_subidos(&raiz, "validar"),
         ["revision-ia-hallazgos"]
@@ -2740,9 +2726,10 @@ fn el_workflow_del_revisor_pasa_el_lint() {
     // Lo que viene de otro job (las respuestas del modelo) entra por env,
     // nunca interpolado en run.
     for n in jobs.iter().copied() {
-        for r in runs_de(n) {
-            assert!(!normalizar(&r).contains("needs."), "needs. en run de {n}");
-        }
+        assert!(
+            !normalizar(&runs_del_job(&raiz, n)).contains("needs."),
+            "needs. en run de {n}"
+        );
     }
     // Con el perfil de verificacion, el entorno y el evento no valen.
     assert!(!lint_github(&texto).is_empty());
