@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-145-auditoria-4d-a7-config-init-desinstalar
 asignado_a: charlie.bk@gmail.com
@@ -41,6 +41,7 @@ Corregir los 8 casos IMPORTANTE del grupo A7 de `docs/auditoria-4d.md` (commit a
 |---|---|---|---|---|
 | 2026-11-25T06:52:16Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T07:04:06Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T07:04:07Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
