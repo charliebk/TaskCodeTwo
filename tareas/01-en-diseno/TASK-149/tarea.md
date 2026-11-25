@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-149-auditoria-4d-capa-comun-de-ordenes-y-ope
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Extraer las piezas de la capa de órdenes que la auditoría 4D (`docs/auditoria-
 - [ ] A8-08 y A8-09: el adaptador «informe de la transacción -> informe de la orden» (`revision/mod.rs:201-210`, `toma/mod.rs:106-115`, `ciclo/mod.rs:423-432`, `plan/mod.rs:542-551`) es uno solo, con un orden único de argumentos, y `con_dueno` y `escribir` (`ciclo/mod.rs:367-386` ~ `plan/mod.rs:487-537`) están escritos una vez.
 - [ ] A8-10: la política de lectura de la configuración de la base (`ciclo/mod.rs:166-177` ~ `plan/mod.rs:437-448`) es una función común, y las dos órdenes la usan con su nombre de orden en el informe.
 - [ ] Las líneas de contrato de `review`, `start`, `plan`, `approve`, `liberar` y `roadmap` no cambian: los tests de integración existentes siguen en verde sin tocar sus aserciones. `cargo xtask verificar` sale en verde y el `## Resultado` lista los 6 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T15:46:58Z | plan | automatico | persona | 0.17.1 |
