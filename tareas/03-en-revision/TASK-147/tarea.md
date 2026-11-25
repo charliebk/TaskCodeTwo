@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-147-auditoria-4d-a10-scripts-de-ci-e-instala
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 496824
-tokens_implementacion: null
+tokens_implementacion: 8406045
 tokens_revision: null
 creado: 2026-11-23
 actualizado: 2026-11-25
@@ -68,12 +68,15 @@ A10-05 (wget de `install.sh` que sigue una redireccion a `http://`): sin reprodu
 | 2026-11-25T14:53:54Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T14:59:20Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T14:59:22Z | start | automatico | persona | 0.17.1 |
+| 2026-11-25T15:18:58Z | review | automatico | persona | 0.17.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-25T14:59:19Z | diseno | agente:a85ef397f5f461ba9 | 22 | 62171 | 419494 | 15137 | 25 | 496824 | - | - |
+| 2026-11-25T15:18:58Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 10 | 13145 | 754613 | 3717 | 0 | 771485 | - | - |
+| 2026-11-25T15:18:58Z | implementacion | agente:a4cfa12ccd90e5979 | 116 | 166214 | 7425121 | 43109 | 12 | 7634560 | - | - |
 
 ## Autorrevision
 
