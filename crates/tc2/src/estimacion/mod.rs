@@ -238,20 +238,21 @@ fn rellenar(e: &Entorno<'_>) -> Informe {
     i
 }
 
+/// Un rechazo de la lectura dice `id=` el primero, antes de `motivo=`; un
+/// `error` queda como esta.
+fn con_id_si_rechazada(mut i: Informe, id: &str) -> Informe {
+    if i.resultado == Resultado::Rechazada {
+        i.claves
+            .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
+    }
+    i
+}
+
 /// La tarea `id` leida del estado conocido (sin `fetch`: solo lectura), con
 /// todos los `tarea.md` y los commits.
 fn leer(e: &Entorno<'_>, id: &str) -> Result<(Tarea, Cuerpo, Historico, Commits), Informe> {
     let vista = estado::leer(e.git, e.dir).map_err(de_estimar)?;
-    let rechazo = |f: Fallo| match f {
-        Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        } => Informe::nuevo(NOMBRE, Resultado::Rechazada)
-            .con("id", id)
-            .con("motivo", motivo)
-            .diagnostico(diagnostico),
-        Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
-    };
+    let rechazo = |f: Fallo| con_id_si_rechazada(f.informe(NOMBRE), id);
     let (t, c) = estado::tarea_de(&vista, id).map_err(rechazo)?;
     let leidas = estado::tareas(&vista, &vista.rutas()).map_err(rechazo)?;
     let commits = commits_de(e.git, e.dir);
@@ -355,6 +356,23 @@ fn medir(e: &Entorno<'_>, id: &str) -> (Informe, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A8-06: el rechazo de la lectura conserva `id=` antes de `motivo=`; el
+    /// error no lleva `id`.
+    #[test]
+    fn rechazo_de_lectura_con_id_el_primero() {
+        let m = Mensaje::externo("x");
+        let r = con_id_si_rechazada(
+            Fallo::rechazada("no-existe", m.clone()).informe(NOMBRE),
+            "TASK-007",
+        );
+        assert_eq!(
+            r.linea(),
+            format!("{NOMBRE} rechazada id=TASK-007 motivo=no-existe")
+        );
+        let e = con_id_si_rechazada(Fallo::Error(m).informe(NOMBRE), "TASK-007");
+        assert_eq!(e.linea(), format!("{NOMBRE} error"));
+    }
 
     #[test]
     fn decimales_con_punto_y_con_coma() {

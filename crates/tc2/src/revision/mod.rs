@@ -46,7 +46,7 @@ use std::time::Duration;
 
 use crate::config;
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Fallo, Operacion};
+use crate::estado::{self, Operacion};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::revision as txt;
@@ -230,28 +230,13 @@ fn paso(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     // 2. El paso a revision en seco: los rechazos, antes de empujar nada.
     let sondeo = Revisar::nueva(id, &quien, ahora);
     if let Err(f) = sondeo.aplicar(&vista) {
-        return Err(match f {
-            Fallo::Rechazada {
-                motivo,
-                diagnostico,
-            } => {
-                let i = rechazada(&motivo, diagnostico);
-                match sondeo.dueno() {
-                    Some(l) => i.con("asignado", l),
-                    None => i,
-                }
-            }
-            Fallo::Error(d) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
+        let i = f.informe(NOMBRE);
+        return Err(match sondeo.dueno() {
+            Some(l) if i.resultado == Resultado::Rechazada => i.con("asignado", l),
+            _ => i,
         });
     }
-    let (t, cuerpo) = match estado::tarea_de(&vista, id) {
-        Ok(tc) => tc,
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => return Err(rechazada(&motivo, diagnostico)),
-        Err(Fallo::Error(d)) => return Err(Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d)),
-    };
+    let (t, cuerpo) = estado::tarea_de(&vista, id).map_err(|f| f.informe(NOMBRE))?;
     // 3. La rama, contra `develop` (D3) y con su worktree.
     let Some(rama) = t.rama.clone() else {
         return Err(rechazada(

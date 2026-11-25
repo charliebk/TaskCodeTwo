@@ -594,17 +594,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
                 SELECCION.clone_into(&mut i.comando);
                 i
             })?;
-            crate::estado::tarea_de(&v, id).map_err(|f| match f {
-                crate::estado::Fallo::Rechazada {
-                    motivo,
-                    diagnostico,
-                } => Informe::nuevo(SELECCION, Resultado::Rechazada)
-                    .con("motivo", motivo)
-                    .diagnostico(diagnostico),
-                crate::estado::Fallo::Error(m) => {
-                    Informe::nuevo(SELECCION, Resultado::Error).diagnostico(m)
-                }
-            })?
+            crate::estado::tarea_de(&v, id).map_err(|f| f.informe(SELECCION))?
         }
         (None, None) => return Err(uso_seleccion("sin-tarea")),
     };

@@ -40,7 +40,7 @@ pub(crate) mod prueba;
 use std::path::Path;
 
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Fallo, Operacion};
+use crate::estado::{self, Operacion};
 use crate::git::{self, Git};
 use crate::i18n::catalogo::ciclo as txt;
 use crate::i18n::{Mensaje, Texto};
@@ -244,16 +244,7 @@ fn paso_dejar(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Result<Inform
     // En seco sobre lo leido: los rechazos, sin esperar al push.
     let cambia = match op.op().aplicar(&vista) {
         Ok(c) => !c.is_empty(),
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => {
-            let i = Informe::nuevo(nombre, Resultado::Rechazada)
-                .con("motivo", motivo)
-                .diagnostico(diagnostico);
-            return Err(con_rechazo(i, op.dejar()));
-        }
-        Err(Fallo::Error(d)) => return Err(Informe::nuevo(nombre, Resultado::Error).diagnostico(d)),
+        Err(f) => return Err(con_rechazo(f.informe(nombre), op.dejar())),
     };
     // El trabajo sin publicar del worktree de la tarea en este clon (D4):
     // antes de escribir nada.

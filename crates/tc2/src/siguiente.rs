@@ -75,13 +75,7 @@ fn siguiente(g: &Git, dir: &Path, ahora: u64) -> (Informe, Option<Mensaje>) {
     let commit = vista.commit().map(corto).unwrap_or_default();
     let i = match calcular(&vista) {
         Ok(c) => frescura.anotar(c.informe(&commit)),
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => Informe::nuevo(NOMBRE, Resultado::Rechazada)
-            .con("motivo", motivo)
-            .diagnostico(diagnostico),
-        Err(Fallo::Error(d)) => Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d),
+        Err(f) => f.informe(NOMBRE),
     };
     (i, aviso)
 }

@@ -156,11 +156,7 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
     let sondeo = Tomar::nueva(id, &quien, e.ahora);
     let empezada = match sondeo.aplicar(&SinHistorico(&vista)) {
         Ok(c) => c.is_empty(),
-        Err(Fallo::Rechazada {
-            motivo,
-            diagnostico,
-        }) => return Err(rechazo_de_toma(rechazada(&motivo, diagnostico), &sondeo)),
-        Err(Fallo::Error(d)) => return Err(Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(d)),
+        Err(f) => return Err(rechazo_de_toma(f.informe(NOMBRE), &sondeo)),
     };
     let rama = sondeo.rama().unwrap_or_default();
     let Some((tipo, slug)) = git::partes_de_rama(id, &rama) else {

@@ -52,6 +52,21 @@ impl Fallo {
             diagnostico: diagnostico.into(),
         }
     }
+
+    /// El informe de la orden `comando` (A8-06): `rechazada motivo=` con el
+    /// diagnostico, o `error` con el diagnostico. Cada orden anade sus claves
+    /// encima.
+    pub fn informe(self, comando: &str) -> Informe {
+        match self {
+            Self::Rechazada {
+                motivo,
+                diagnostico,
+            } => Informe::nuevo(comando, Resultado::Rechazada)
+                .con("motivo", motivo)
+                .diagnostico(diagnostico),
+            Self::Error(d) => Informe::nuevo(comando, Resultado::Error).diagnostico(d),
+        }
+    }
 }
 
 /// Una operacion sobre el estado. Se re-ejecuta en cada intento: tiene que
@@ -639,8 +654,24 @@ fn adelantar(git: &Git, principal: &Path, sha: &str) -> Result<Tareas, Informe> 
 
 #[cfg(test)]
 mod tests {
-    use super::espera;
+    use super::{Fallo, espera};
+    use crate::contrato::Resultado;
+    use crate::i18n::Mensaje;
     use std::time::Duration;
+
+    /// A8-06: el rechazo y el error de la rama de estado como informe de la
+    /// orden, con el diagnostico en los dos.
+    #[test]
+    fn fallo_como_informe_de_la_orden() {
+        let d = Mensaje::externo("haz esto");
+        let r = Fallo::rechazada("tomada", d.clone()).informe("start");
+        assert_eq!(r.linea(), "start rechazada motivo=tomada");
+        assert_eq!(r.resultado, Resultado::Rechazada);
+        assert_eq!(r.diagnostico, Some(d.clone()));
+        let e = Fallo::Error(d.clone()).informe("roadmap");
+        assert_eq!(e.linea(), "roadmap error");
+        assert_eq!(e.diagnostico, Some(d));
+    }
 
     #[test]
     fn espera_exponencial_con_jitter_entre_la_mitad_y_el_total() {
