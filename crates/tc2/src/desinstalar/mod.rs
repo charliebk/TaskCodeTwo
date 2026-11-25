@@ -30,6 +30,7 @@ use crate::git::Git;
 use crate::i18n::catalogo::desinstalar as txt;
 use crate::i18n::{Idioma, Mensaje};
 use crate::instalacion::{Entorno, Sistema};
+use crate::plan_dato::{self, Paso, t};
 pub use puertos::{Maquina, MaquinaEnMemoria, MaquinaReal};
 
 /// Nombre de la orden.
@@ -298,6 +299,19 @@ impl Accion {
     }
 }
 
+impl Paso for Accion {
+    fn aplicable(&self) -> bool {
+        self.decision == Decision::Borra
+    }
+    fn aplazar(&mut self, motivo: &str) {
+        self.decision = Decision::Pendiente;
+        self.motivo = Some(motivo.to_owned());
+    }
+    fn ruta(&self) -> &str {
+        &self.ruta
+    }
+}
+
 /// Lo que se necesita para desinstalar, inyectable en los tests.
 pub struct Contexto<'a> {
     /// HOME, `LOCALAPPDATA`, el ejecutable...
@@ -364,31 +378,6 @@ pub(crate) fn orden_borrar(sistema: Sistema, ruta: &Path) -> String {
     }
 }
 
-/// Ruta como texto para la linea.
-pub(crate) fn t(p: &Path) -> String {
-    p.display().to_string()
-}
-
-/// Lee un fichero; `None` si no existe.
-pub(crate) fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
-    match std::fs::read(p) {
-        Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(no_se_lee(p, &e)),
-    }
-}
-
-/// Informe de error al leer `ruta`.
-pub(crate) fn no_se_lee(ruta: &Path, e: &std::io::Error) -> Informe {
-    Informe::nuevo(NOMBRE, Resultado::Error)
-        .con("ruta", ruta.display().to_string())
-        .diagnostico(
-            Mensaje::nuevo(&txt::NO_SE_LEE)
-                .con("ruta", ruta.display().to_string())
-                .con("error", e.to_string()),
-        )
-}
-
 /// El plan completo: primero el proyecto y luego la maquina (el orden
 /// recomendado).
 pub fn plan(op: &Opciones, c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
@@ -427,13 +416,7 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
     if let Some(b) = acciones.iter().find(|a| a.bloquea).cloned() {
         // No se toca nada: lo que se habria borrado queda pendiente, y el
         // resumen no cuenta borrados que no hay.
-        for a in acciones
-            .iter_mut()
-            .filter(|a| a.decision == Decision::Borra)
-        {
-            a.decision = Decision::Pendiente;
-            a.motivo = Some("no-aplicada".to_owned());
-        }
+        plan_dato::rechazar(&mut acciones);
         let motivo = b.motivo.clone().unwrap_or_default();
         let i = base(Resultado::Rechazada, &acciones)
             .con("motivo", motivo.clone())
@@ -457,38 +440,17 @@ pub fn desinstalar(op: &Opciones, c: &Contexto<'_>) -> Hecho {
                 informe: i,
             };
         }
-        let mut fallo: Option<Informe> = None;
-        for a in acciones.iter_mut() {
-            if a.decision != Decision::Borra {
-                continue;
-            }
-            if fallo.is_some() {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("no-aplicada".to_owned());
-                continue;
-            }
-            if let Err(e) = aplicar(&a.efecto, c) {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("error".to_owned());
-                fallo = Some(
-                    Informe::nuevo(NOMBRE, Resultado::Error)
-                        .con("ruta", a.ruta.clone())
-                        .diagnostico(
-                            Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
-                                .con("ruta", a.ruta.clone())
-                                .con("error", e),
-                        ),
+        if let Some((ruta, e)) =
+            plan_dato::aplicar_en_orden(&mut acciones, |a| aplicar(&a.efecto, c))
+        {
+            let informe = base(Resultado::Error, &acciones)
+                .con("ruta", ruta.clone())
+                .diagnostico(
+                    Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
+                        .con("ruta", ruta)
+                        .con("error", e),
                 );
-            }
-        }
-        if let Some(i) = fallo {
-            let mut f = base(Resultado::Error, &acciones);
-            f.claves.extend(i.claves);
-            f.diagnostico = i.diagnostico;
-            return Hecho {
-                acciones,
-                informe: f,
-            };
+            return Hecho { acciones, informe };
         }
     }
     // El que se nombra es el binario del grupo en uso, no su primera linea
@@ -602,16 +564,9 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
                 .salida_en(json, idioma);
         }
     };
-    let dir = match std::env::current_dir() {
+    let dir = match crate::tablero::carpeta_actual(NOMBRE) {
         Ok(d) => d,
-        Err(e) => {
-            return Informe::nuevo(NOMBRE, Resultado::Error)
-                .diagnostico(
-                    Mensaje::nuevo(&crate::i18n::catalogo::cli::CARPETA_ACTUAL)
-                        .con("error", e.to_string()),
-                )
-                .salida_en(json, idioma);
-        }
+        Err(i) => return i.salida_en(json, idioma),
     };
     let git = Git::nuevo();
     let maquina = MaquinaReal;

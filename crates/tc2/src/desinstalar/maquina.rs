@@ -9,10 +9,11 @@ use std::path::{Path, PathBuf};
 use distribucion::{MARCA_INICIO_PERFIL, STATUS_LINE};
 
 use super::texto::{hooks_con_tc2, quitar_bloque, quitar_del_path, quitar_miembro};
-use super::{Accion, Contexto, Decision, Efecto, leer, no_se_lee, orden_borrar, t};
+use super::{Accion, Contexto, Decision, Efecto, NOMBRE, orden_borrar, t};
 use crate::contrato::Informe;
 use crate::git::misma_ruta;
 use crate::instalacion::{Modo, Sistema, orden_del_gestor, ruta_old};
+use crate::lectura::{no_se_lee, opcional};
 
 /// Perfiles del shell donde `install.sh` puede dejar el bloque.
 const PERFILES: [&str; 4] = [".profile", ".bashrc", ".zshrc", ".bash_profile"];
@@ -62,7 +63,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
     let mut path = if windows {
         c.maquina
             .leer_path_usuario()
-            .map_err(|er| no_se_lee(Path::new("HKCU\\Environment\\Path"), &er))?
+            .map_err(|er| no_se_lee(NOMBRE, Path::new("HKCU\\Environment\\Path"), &er))?
     } else {
         None
     };
@@ -91,7 +92,7 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
             && windows
             && c.maquina
                 .en_uso_por_otro(&bin, e.pid)
-                .map_err(|er| no_se_lee(&bin, &er))?;
+                .map_err(|er| no_se_lee(NOMBRE, &bin, &er))?;
         let mut grupo: Vec<Accion> = Vec::new();
         let path_antes = path.clone();
         // Lo que este grupo quita: solo cuenta para las carpetas si se aplica.
@@ -237,7 +238,9 @@ pub(super) fn plan(c: &Contexto<'_>, v: &mut Vec<Accion>) -> Result<(), Informe>
     if !windows && let Some(home) = &e.home {
         for nombre in PERFILES {
             let p = home.join(nombre);
-            let Some(bytes) = leer(&p)? else { continue };
+            let Some(bytes) = opcional(NOMBRE, &p)? else {
+                continue;
+            };
             let Ok(texto) = String::from_utf8(bytes.clone()) else {
                 if bytes
                     .windows(MARCA_INICIO_PERFIL.len())
@@ -366,7 +369,11 @@ fn instalados(c: &Contexto<'_>) -> Result<Option<serde_json::Value>, Informe> {
     };
     match crate::inventario::leer_instalados(&dir) {
         Ok(v) => Ok(v.and_then(Result::ok)),
-        Err(e) => Err(no_se_lee(&crate::inventario::ruta_instalados(&dir), &e)),
+        Err(e) => Err(no_se_lee(
+            NOMBRE,
+            &crate::inventario::ruta_instalados(&dir),
+            &e,
+        )),
     }
 }
 
@@ -425,7 +432,7 @@ fn claude(
         return Ok(());
     };
     let settings = dir.join("settings.json");
-    if let Some(bytes) = leer(&settings)? {
+    if let Some(bytes) = opcional(NOMBRE, &settings)? {
         let texto = String::from_utf8(bytes.clone()).ok();
         let valor = texto
             .as_deref()

@@ -134,7 +134,8 @@ fn ramas_raiz(
     let mut cambios = Vec::with_capacity(ficheros.len());
     for f in ficheros {
         let ruta = principal.join(f);
-        let bytes = std::fs::read(&ruta).map_err(|e| super::no_se_lee(&ruta, &e))?;
+        let bytes =
+            std::fs::read(&ruta).map_err(|e| crate::lectura::no_se_lee(NOMBRE, &ruta, &e))?;
         cambios.push(Cambio::nuevo(
             f.as_str(),
             String::from_utf8_lossy(&bytes).into_owned(),

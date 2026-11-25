@@ -5,11 +5,41 @@
 //! El fichero lo pasa quien lanza la orden: es un dato no confiable (F1-8),
 //! asi que la ruta y el error del sistema salen ya saneados
 //! ([`sanear`]: controles a espacio, 200 caracteres como mucho).
+//!
+//! Tambien la lectura de un fichero propio del proyecto o de la maquina
+//! (la de `init`, `desinstalar` y la configuracion, A7-01 y A7-09):
+//! [`opcional`] distingue «no existe» de «no se lee», y [`no_se_lee`] da el
+//! informe `error` de lo segundo a nombre de la orden. Esas rutas las
+//! calcula `tc2`, no las pasa la persona: no se sanean.
 
 use std::io::Read as _;
 use std::path::Path;
 
+use crate::contrato::{Informe, Resultado};
+use crate::i18n::Mensaje;
+use crate::i18n::catalogo::comun::NO_SE_LEE;
 use crate::plataforma::errores::sanear;
+
+/// Informe `{op} error ruta=...` de un fichero que existe y no se lee.
+pub(crate) fn no_se_lee(op: &str, ruta: &Path, e: &std::io::Error) -> Informe {
+    let r = ruta.display().to_string();
+    Informe::nuevo(op, Resultado::Error)
+        .con("ruta", r.clone())
+        .diagnostico(
+            Mensaje::nuevo(&NO_SE_LEE)
+                .con("ruta", r)
+                .con("error", e.to_string()),
+        )
+}
+
+/// Lee un fichero; `None` si no existe y [`no_se_lee`] si no se lee.
+pub(crate) fn opcional(op: &str, ruta: &Path) -> Result<Option<Vec<u8>>, Informe> {
+    match std::fs::read(ruta) {
+        Ok(b) => Ok(Some(b)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(no_se_lee(op, ruta, &e)),
+    }
+}
 
 /// Tope de un fichero externo (D4 de TASK-029).
 pub const MAX_BYTES: usize = 1 << 20;

@@ -40,6 +40,7 @@ use crate::contrato::{Informe, LineaAccion, Resultado, Valor};
 use crate::git::Git;
 use crate::i18n::catalogo::init as txt;
 use crate::i18n::{Idioma, Mensaje};
+use crate::plan_dato::{self, Paso, t};
 use crate::plataforma::Credenciales;
 use crate::plataforma::puertas::Origenes;
 
@@ -265,6 +266,19 @@ impl Accion {
     }
 }
 
+impl Paso for Accion {
+    fn aplicable(&self) -> bool {
+        self.decision == Decision::Crea
+    }
+    fn aplazar(&mut self, motivo: &str) {
+        self.decision = Decision::Pendiente;
+        self.motivo = Some(motivo.to_owned());
+    }
+    fn ruta(&self) -> &str {
+        &self.ruta
+    }
+}
+
 /// Lo que necesita `init`, inyectable en los tests.
 pub struct Contexto<'a> {
     /// Carpeta del proyecto.
@@ -343,31 +357,6 @@ impl Hecho {
     }
 }
 
-/// Ruta como texto para la linea.
-pub(crate) fn t(p: &Path) -> String {
-    p.display().to_string()
-}
-
-/// Informe de error al leer `ruta`.
-pub(crate) fn no_se_lee(ruta: &Path, e: &std::io::Error) -> Informe {
-    Informe::nuevo(NOMBRE, Resultado::Error)
-        .con("ruta", t(ruta))
-        .diagnostico(
-            Mensaje::nuevo(&txt::NO_SE_LEE)
-                .con("ruta", t(ruta))
-                .con("error", e.to_string()),
-        )
-}
-
-/// Lee un fichero; `None` si no existe.
-pub(crate) fn leer(p: &Path) -> Result<Option<Vec<u8>>, Informe> {
-    match std::fs::read(p) {
-        Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(no_se_lee(p, &e)),
-    }
-}
-
 /// El plan, sin aplicar nada (sin `--aplicar-puertas`).
 pub fn plan(c: &Contexto<'_>) -> Result<Vec<Accion>, Informe> {
     inventario::plan(c, false).map(|(v, _)| v)
@@ -426,10 +415,7 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
         .cloned()
     {
         // No se toca nada: lo que se habria creado queda pendiente.
-        for a in acciones.iter_mut().filter(|a| a.decision == Decision::Crea) {
-            a.decision = Decision::Pendiente;
-            a.motivo = Some("no-aplicada".to_owned());
-        }
+        plan_dato::rechazar(&mut acciones);
         let motivo = b.motivo.clone().unwrap_or_default();
         let mut cabeza = vec![("motivo", texto(&motivo))];
         if let Some(o) = &b.orden {
@@ -448,38 +434,22 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
         return Hecho { acciones, informe };
     }
     if !op.simular {
-        // (ruta, error) del primer fallo; lo que venia detras no se aplica.
-        let mut fallo: Option<(String, String)> = None;
         // El informe de `aplicar-puertas`, si se lanzo.
         let mut puertas: Option<Informe> = None;
-        for a in acciones.iter_mut() {
-            if a.decision != Decision::Crea {
-                continue;
+        // (ruta, error) del primer fallo; lo que venia detras no se aplica.
+        let mut fallo = plan_dato::aplicar_en_orden(&mut acciones, |a| match &a.efecto {
+            Efecto::AplicarPuertas { origenes, .. } => {
+                let i = aplicar::puertas(&conexion, origenes);
+                let r = if i.resultado.es_exito() {
+                    Ok(())
+                } else {
+                    Err(i.diagnostico_en(Idioma::Es).unwrap_or_else(|| i.linea()))
+                };
+                puertas = Some(i);
+                r
             }
-            if fallo.is_some() {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("no-aplicada".to_owned());
-                continue;
-            }
-            let r = match &a.efecto {
-                Efecto::AplicarPuertas { origenes, .. } => {
-                    let i = aplicar::puertas(&conexion, origenes);
-                    let r = if i.resultado.es_exito() {
-                        Ok(())
-                    } else {
-                        Err(i.diagnostico_en(Idioma::Es).unwrap_or_else(|| i.linea()))
-                    };
-                    puertas = Some(i);
-                    r
-                }
-                e => aplicar::aplicar(e, c),
-            };
-            if let Err(e) = r {
-                a.decision = Decision::Pendiente;
-                a.motivo = Some("error".to_owned());
-                fallo = Some((a.ruta.clone(), e));
-            }
-        }
+            e => aplicar::aplicar(e, c),
+        });
         let mut cabeza = Vec::new();
         if let Some(i) = &puertas {
             // Cada linea `ruleset` dice lo que de verdad paso: creada,
@@ -550,16 +520,9 @@ pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
         Ok(o) => o,
         Err(i) => return i.salida_en(json, idioma),
     };
-    let dir = match std::env::current_dir() {
+    let dir = match crate::tablero::carpeta_actual(NOMBRE) {
         Ok(d) => d,
-        Err(e) => {
-            return Informe::nuevo(NOMBRE, Resultado::Error)
-                .diagnostico(
-                    Mensaje::nuevo(&crate::i18n::catalogo::cli::CARPETA_ACTUAL)
-                        .con("error", e.to_string()),
-                )
-                .salida_en(json, idioma);
-        }
+        Err(i) => return i.salida_en(json, idioma),
     };
     let git = Git::nuevo();
     let credenciales = || -> Box<dyn Credenciales> { crate::plataforma::de_entorno() };

@@ -4,6 +4,12 @@ crate::i18n::textos! {
     /// Texto que viene de fuera de `tc2` (git, el sistema, HTTP) y se
     /// muestra tal cual.
     EXTERNO { es: "{texto}", en: "{texto}" }
+    /// Un fichero propio que existe y no se lee (`init`, `desinstalar`,
+    /// la configuracion: `crate::lectura::no_se_lee`).
+    NO_SE_LEE {
+        es: "no se puede leer {ruta}: {error}",
+        en: "cannot read {ruta}: {error}",
+    }
     /// La tarea que se quiere cambiar no esta en la rama de estado
     /// (`start`, `descartar`, `pausa`, `reanudar`).
     TAREA_NO_EXISTE {
