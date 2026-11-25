@@ -7,6 +7,8 @@
 
 use std::path::Path;
 
+use crate::i18n::Mensaje;
+
 /// Una linea del plan, vista desde el bucle de aplicacion.
 pub(crate) trait Paso {
     /// Se aplica al ejecutar el plan (`crea` en init, `borra` en
@@ -46,6 +48,13 @@ pub(crate) fn aplicar_en_orden<P: Paso, E>(
         }
     }
     fallo
+}
+
+/// Error de fuera de `tc2` (el sistema de ficheros, git) para el hueco
+/// `{error}` de `FALLO_AL_APLICAR`: se muestra tal cual, sin nada que
+/// traducir alrededor (A7-07).
+pub(crate) fn externo(e: impl std::fmt::Display) -> Mensaje {
+    Mensaje::externo(e.to_string())
 }
 
 /// Ruta como texto para la linea.

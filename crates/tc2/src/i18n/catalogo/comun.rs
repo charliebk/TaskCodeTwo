@@ -10,6 +10,12 @@ crate::i18n::textos! {
         es: "no se puede leer {ruta}: {error}",
         en: "cannot read {ruta}: {error}",
     }
+    /// Plan como dato (`init`, `desinstalar`): el fichero cambio entre el
+    /// plan y su aplicacion, y no se pisa.
+    CAMBIO_DESDE_EL_PLAN {
+        es: "{ruta} cambio despues de hacer el plan",
+        en: "{ruta} changed after the plan was made",
+    }
     /// La tarea que se quiere cambiar no esta en la rama de estado
     /// (`start`, `descartar`, `pausa`, `reanudar`).
     TAREA_NO_EXISTE {

@@ -29,11 +29,7 @@ pub trait Estado {
 /// Un fallo de lectura de git como [`Fallo::Error`]. Sin diagnostico queda
 /// la linea de contrato, que no se traduce (ADR F1-4).
 fn fallo_de_lectura(i: &Informe) -> Fallo {
-    Fallo::Error(
-        i.diagnostico
-            .clone()
-            .unwrap_or_else(|| crate::i18n::Mensaje::externo(i.linea())),
-    )
+    Fallo::Error(i.mensaje())
 }
 
 /// Vista de un commit de la rama de estado (o del estado vacio si la rama no

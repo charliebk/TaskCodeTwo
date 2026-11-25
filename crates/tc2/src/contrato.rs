@@ -211,6 +211,15 @@ impl Informe {
         self.diagnostico.as_ref().map(|d| d.texto(idioma))
     }
 
+    /// El diagnostico como mensaje neutro, para meterlo en el hueco de otro
+    /// (F2-8: se traduce al escribir la salida, A7-07). Sin diagnostico
+    /// queda la linea de contrato, que no se traduce (ADR F1-4).
+    pub(crate) fn mensaje(&self) -> Mensaje {
+        self.diagnostico
+            .clone()
+            .unwrap_or_else(|| Mensaje::externo(self.linea()))
+    }
+
     /// Lo convierte en la salida del proceso, con el diagnostico en espanol.
     pub fn salida(&self, json: bool) -> Salida {
         self.salida_en(json, Idioma::Es)

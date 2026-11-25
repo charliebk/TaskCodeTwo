@@ -9,9 +9,12 @@ use std::path::{Path, PathBuf};
 /// fuera (git, el sistema, HTTP) sin nada que traducir alrededor. Lista
 /// cerrada: un uso nuevo tiene que anadirse aqui a proposito.
 const EXTERNOS: &[(&str, usize)] = &[
-    // Fallo al leer un blob sin diagnostico: queda la linea de contrato, que
-    // no se traduce (ADR F1-4).
-    ("estado/lectura.rs", 1),
+    // `Informe::mensaje`: un informe sin diagnostico deja la linea de
+    // contrato, que no se traduce (ADR F1-4).
+    ("contrato.rs", 1),
+    // `plan_dato::externo`: el error del sistema o de git en el hueco
+    // `{error}` de `FALLO_AL_APLICAR` (A7-07).
+    ("plan_dato.rs", 1),
 ];
 
 /// Formas de meter un literal en un diagnostico sin pasar por el catalogo.

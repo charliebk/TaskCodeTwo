@@ -443,7 +443,7 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
                 let r = if i.resultado.es_exito() {
                     Ok(())
                 } else {
-                    Err(i.diagnostico_en(Idioma::Es).unwrap_or_else(|| i.linea()))
+                    Err(i.mensaje())
                 };
                 puertas = Some(i);
                 r
@@ -499,7 +499,7 @@ pub fn init(op: Opciones, c: &Contexto<'_>) -> Hecho {
             let informe = cuenta(Resultado::Error, &acciones, &cabeza).diagnostico(
                 Mensaje::nuevo(&txt::FALLO_AL_APLICAR)
                     .con("ruta", ruta)
-                    .con("error", e),
+                    .con_mensaje("error", e),
             );
             return Hecho { acciones, informe };
         }
