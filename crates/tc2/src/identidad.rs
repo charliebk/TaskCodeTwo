@@ -226,18 +226,9 @@ impl Cache {
     /// Lo guardado; `None` si no hay o no se entiende (se trata como si no
     /// hubiera: hay que volver a lanzar `tc2 identidad`).
     pub fn leer(&self) -> Option<Guardada> {
-        use std::io::Read;
         // Con tope: un fichero mayor no es una cache de `tc2` (se trata como
         // corrupta, es decir, como si no hubiera).
-        let mut texto = String::new();
-        std::fs::File::open(&self.ruta)
-            .ok()?
-            .take(LIMITE_CACHE + 1)
-            .read_to_string(&mut texto)
-            .ok()?;
-        if texto.len() as u64 > LIMITE_CACHE {
-            return None;
-        }
+        let texto = crate::lectura::texto_con_tope(&self.ruta, LIMITE_CACHE).ok()??;
         let c: GuardadaCruda =
             serde_saphyr::from_str_with_options(&texto, crate::yaml::opciones()).ok()?;
         let proveedor = match c.proveedor.as_str() {

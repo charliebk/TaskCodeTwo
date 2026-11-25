@@ -45,7 +45,6 @@
 //! recibe) no cabe en claves del contrato F1-4: va, con `--detalle`, a un
 //! JSON `{"revisoras":[{"id","skill","rutas"}]}` que lee el workflow.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use super::catalogo::{self, Catalogo};
@@ -78,10 +77,10 @@ pub struct Entorno<'a> {
     pub git: &'a Git,
     /// Carpeta de Claude Code, si se sabe.
     pub claude: Option<&'a Path>,
-    /// Lee la entrada estandar (para `--rutas -`): como mucho
-    /// `TOPE_RUTAS + 1` bytes, para que el exceso se vea y falle igual que
-    /// con fichero.
-    pub stdin: &'a dyn Fn() -> std::io::Result<Vec<u8>>,
+    /// Lee la entrada estandar (para `--rutas -`) con un tope de
+    /// [`TOPE_RUTAS`] bytes (`crate::lectura::acotado`): `None` si pasa, y
+    /// la orden falla igual que con fichero.
+    pub stdin: &'a dyn Fn() -> std::io::Result<Option<Vec<u8>>>,
 }
 
 /// Inventario y catalogo con los que se selecciona, y los avisos de
@@ -281,20 +280,11 @@ pub fn detalle(s: &Seleccion, cat: &Catalogo) -> String {
     serde_json::json!({ "revisoras": v }).to_string()
 }
 
-/// Lee como mucho `tope` bytes de `p`: `Ok(None)` si pasa del tope.
-fn leer_con_tope(p: &Path, tope: u64) -> std::io::Result<Option<String>> {
-    let mut b = Vec::new();
-    std::fs::File::open(p)?.take(tope + 1).read_to_end(&mut b)?;
-    if b.len() as u64 > tope {
-        return Ok(None);
-    }
-    Ok(Some(String::from_utf8_lossy(&b).into_owned()))
-}
-
 /// Estado del informe de verificacion y, si vale, su seccion para el
 /// revisor (artefacto `artefacto`).
 pub fn informe_revisor(p: &Path, artefacto: &str) -> (&'static str, Option<String>) {
-    match leer_con_tope(p, TOPE_INFORME) {
+    match crate::lectura::texto_con_tope(p, TOPE_INFORME) {
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => ("invalido", None),
         Err(_) => ("sin-informe", None),
         Ok(None) => ("grande", None),
         Ok(Some(t)) => match informe::leer(&t) {
@@ -427,13 +417,12 @@ fn paso(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     };
     let texto = match a.rutas.as_deref() {
         Some("-") => {
-            let b = (e.stdin)().map_err(|x| fallo_lectura("-", x.to_string()))?;
-            if b.len() as u64 > TOPE_RUTAS {
-                return Err(fallo_lectura("-", format!("mas de {TOPE_RUTAS} bytes")));
-            }
+            let b = (e.stdin)()
+                .map_err(|x| fallo_lectura("-", x.to_string()))?
+                .ok_or_else(|| fallo_lectura("-", format!("mas de {TOPE_RUTAS} bytes")))?;
             String::from_utf8(b).map_err(|x| fallo_lectura("-", x.to_string()))?
         }
-        Some(f) => leer_con_tope(Path::new(f), TOPE_RUTAS)
+        Some(f) => crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
             .map_err(|x| fallo_lectura(f, x.to_string()))?
             .ok_or_else(|| fallo_lectura(f, format!("mas de {TOPE_RUTAS} bytes")))?,
         None => return Err(uso("sin-rutas")),
@@ -580,7 +569,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     };
     let (t, c) = match (&fichero, &id) {
         (Some(f), _) => {
-            let texto = leer_con_tope(Path::new(f), TOPE_RUTAS)
+            let texto = crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
                 .map_err(|x| error(f, x.to_string()))?
                 .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?;
             tarea_de_fichero(&texto).map_err(|x| error(f, x))?
@@ -596,7 +585,7 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
     };
     let rutas = match &rutas_f {
         Some(f) => separar_rutas(
-            &leer_con_tope(Path::new(f), TOPE_RUTAS)
+            &crate::lectura::texto_con_tope(Path::new(f), TOPE_RUTAS)
                 .map_err(|x| error(f, x.to_string()))?
                 .ok_or_else(|| error(f, format!("mas de {TOPE_RUTAS} bytes")))?,
             false,
@@ -661,4 +650,27 @@ fn paso_seleccion(a: &[String], e: &Entorno<'_>) -> Result<Informe, Informe> {
         .con("revision-modelo", modelo(&rv))
         .con_lista("revision-reglas", rv.reglas.clone())
         .con_lista("avisos", avisos))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Decision 3 de TASK-150: un informe que no es UTF-8 es `invalido`, no
+    /// `sin-informe`; uno que no existe sigue siendo `sin-informe`.
+    #[test]
+    fn informe_no_utf8_es_invalido() -> std::io::Result<()> {
+        let dir = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("seleccion-informe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let malo = dir.join("informe.json");
+        std::fs::write(&malo, [b'{', 0xff, b'}'])?;
+        let r = informe_revisor(&malo, "artefacto");
+        let falta = informe_revisor(&dir.join("no-existe.json"), "artefacto");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r, ("invalido", None));
+        assert_eq!(falta, ("sin-informe", None));
+        Ok(())
+    }
 }

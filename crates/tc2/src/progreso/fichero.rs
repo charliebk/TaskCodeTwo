@@ -12,7 +12,6 @@
 //! Lo que se lee es texto no confiable (otro proceso o una persona puede
 //! tocarlo): se valida al leer y se sanea al pintar.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -123,13 +122,7 @@ pub fn ruta_anterior(carpeta: &Path, id: &str) -> PathBuf {
 
 /// Bytes de `ruta`, con tope; `None` si no se lee o pasa de [`LIMITE`].
 fn bytes(ruta: &Path) -> Option<Vec<u8>> {
-    let mut v = Vec::new();
-    std::fs::File::open(ruta)
-        .ok()?
-        .take(LIMITE + 1)
-        .read_to_end(&mut v)
-        .ok()?;
-    (v.len() as u64 <= LIMITE).then_some(v)
+    crate::lectura::con_tope(ruta, LIMITE).ok()?
 }
 
 /// Un progreso valido de `ruta`, si lo hay.

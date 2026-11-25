@@ -584,15 +584,8 @@ fn orden_revisoras(args: &[String]) -> Informe {
     };
     let g = git::Git::nuevo();
     let claude = dir_claude();
-    // Un byte de mas que el tope: la orden falla si llega, como con fichero.
-    let stdin = || {
-        use std::io::Read;
-        let mut b = Vec::new();
-        std::io::stdin()
-            .take(seleccion::orden::TOPE_RUTAS + 1)
-            .read_to_end(&mut b)
-            .map(|_| b)
-    };
+    // Con tope: la orden falla si pasa, como con fichero.
+    let stdin = || lectura::acotado(std::io::stdin(), seleccion::orden::TOPE_RUTAS);
     seleccion::orden::orden(
         args,
         &seleccion::orden::Entorno {
@@ -615,7 +608,7 @@ fn orden_seleccion(args: &[String]) -> Informe {
     };
     let g = git::Git::nuevo();
     let claude = dir_claude();
-    let stdin = || Ok(Vec::new());
+    let stdin = || Ok(Some(Vec::new()));
     seleccion::orden::orden_seleccion(
         args,
         &seleccion::orden::Entorno {

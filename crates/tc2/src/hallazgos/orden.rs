@@ -59,7 +59,6 @@
 //!   cortado=<si|no> abiertos=<si|no>`.
 
 use std::collections::BTreeMap;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::Salida;
@@ -213,16 +212,6 @@ fn args(a: &[String]) -> Result<Args, Informe> {
     Ok(r)
 }
 
-/// Lee como mucho `tope` bytes de `p`: `Ok(None)` si pasa del tope.
-fn leer_con_tope(p: &Path, tope: u64) -> std::io::Result<Option<String>> {
-    let mut b = Vec::new();
-    std::fs::File::open(p)?.take(tope + 1).read_to_end(&mut b)?;
-    if b.len() as u64 > tope {
-        return Ok(None);
-    }
-    Ok(Some(String::from_utf8_lossy(&b).into_owned()))
-}
-
 fn fallo_io(p: &Path, error: String) -> Informe {
     Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(
         Mensaje::nuevo(&txt::NO_SE_LEE)
@@ -232,7 +221,7 @@ fn fallo_io(p: &Path, error: String) -> Informe {
 }
 
 fn leer_entrada(p: &Path, tope: u64) -> Result<String, Informe> {
-    leer_con_tope(p, tope)
+    crate::lectura::texto_con_tope(p, tope)
         .map_err(|e| fallo_io(p, e.to_string()))?
         .ok_or_else(|| {
             Informe::nuevo(NOMBRE, Resultado::Error).diagnostico(
@@ -296,7 +285,8 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
     let diff = super::Diff::leer(&leer_entrada(pd, TOPE_DIFF)?);
     let (estado, inf) = match &a.informe {
         None => (None, None),
-        Some(p) => match leer_con_tope(p, TOPE_INFORME) {
+        Some(p) => match crate::lectura::texto_con_tope(p, TOPE_INFORME) {
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => (Some("invalido"), None),
             Err(_) => (Some("sin-informe"), None),
             Ok(None) => (Some("grande"), None),
             Ok(Some(t)) => match informe::leer(&t) {
@@ -337,7 +327,7 @@ fn validar(a: &[String]) -> Result<Informe, Informe> {
 
 /// Una salida de `validar` del contrato vigente, o `None`.
 fn leer_validados(p: &Path) -> Option<super::Validados> {
-    let t = leer_con_tope(p, TOPE_VALIDADOS).ok()??;
+    let t = crate::lectura::texto_con_tope(p, TOPE_VALIDADOS).ok()??;
     serde_json::from_str::<super::Validados>(&t)
         .ok()
         .filter(|v| v.version == super::VERSION)

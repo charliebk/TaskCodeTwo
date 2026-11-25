@@ -169,16 +169,7 @@ impl Marca {
     }
 
     fn leer_crudo(&self) -> Option<u64> {
-        use std::io::Read;
-        let mut texto = String::new();
-        std::fs::File::open(&self.ruta)
-            .ok()?
-            .take(LIMITE_MARCA + 1)
-            .read_to_string(&mut texto)
-            .ok()?;
-        if texto.len() as u64 > LIMITE_MARCA {
-            return None;
-        }
+        let texto = crate::lectura::texto_con_tope(&self.ruta, LIMITE_MARCA).ok()??;
         let t = texto.strip_suffix('\n').unwrap_or(&texto);
         if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
             return None;

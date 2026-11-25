@@ -49,13 +49,8 @@ pub struct Repo {
 
 /// Texto de un fichero pequeno, sin el salto final.
 fn texto_corto(p: &Path) -> Option<String> {
-    let mut s = String::new();
-    std::fs::File::open(p)
-        .ok()?
-        .take(LIMITE_GIT + 1)
-        .read_to_string(&mut s)
-        .ok()?;
-    (s.len() as u64 <= LIMITE_GIT).then(|| s.trim_end_matches(['\r', '\n']).to_owned())
+    let s = crate::lectura::texto_con_tope(p, LIMITE_GIT).ok()??;
+    Some(s.trim_end_matches(['\r', '\n']).to_owned())
 }
 
 /// `rel` relativo a `base` si no es absoluto.
