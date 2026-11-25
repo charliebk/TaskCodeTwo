@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-146-auditoria-4d-a8-transversal-actualizar-c
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -35,3 +35,9 @@ Corregir los 7 casos IMPORTANTE del grupo A8 de `docs/auditoria-4d.md` (commit a
 - [ ] A8-13: el «comando de shell según el sistema» de los tests de `ejecutar_con_limite` (`actualizar_cli.rs:788-797`, `:804-813`, `:829-838`) queda en un ayudante.
 - [ ] A9-03: el cierre `runs_de` (`xtask/src/workflows.rs:2712-2721`) usa `runs_del_job` (`:2162-2173`) del mismo módulo. `cargo test -p xtask` sigue en verde.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 7 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T11:48:23Z | plan | automatico | persona | 0.17.1 |
