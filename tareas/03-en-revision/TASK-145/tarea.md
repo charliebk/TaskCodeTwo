@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 5414571
 tokens_implementacion: 37979959
-tokens_revision: null
+tokens_revision: 5572899
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -79,8 +79,13 @@ Corregidos los 8 IMPORTANTE del grupo A7 (A7-02 va en A8-04/TASK-150; A7-06 lo c
 | 2026-11-25T07:04:05Z | diseno | agente:a7ef2497f364e6e35 | 118 | 142075 | 5238702 | 33676 | 77 | 5414571 | - | - |
 | 2026-11-25T08:59:20Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 32 | 17929 | 11635827 | 6380 | 0 | 11660168 | - | - |
 | 2026-11-25T08:59:20Z | implementacion | agente:ae6af017a6f582157 | 272 | 559467 | 25678498 | 81554 | 15 | 26319791 | - | - |
+| 2026-11-25T09:38:30Z | revision | agente:a0b7b704852f76bd0 | 72 | 179299 | 5367402 | 26126 | 3 | 5572899 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — f2b311e
 - 4D — f2b311e: helper buscado, criterios citados, 3 mutantes vistos en rojo
+
+## Verificacion ligera
+
+- 2026-11-25T09:38:35Z: ronda 1; commit revisado fce8bd62afb7e421e03fef98b93e6c8ff949cadf; commit verificado 131dff3c8d2b33ccb0dbc4393174506f7fa86b65; ficheros: crates/tc2/src/i18n/guarda.rs, crates/tc2/src/init/aplicar.rs; corregidos: MEN-1, MEN-2; pendientes: MEN-3
