@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-150-auditoria-4d-utilidades-comunes-de-e-s-y
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1470926
 tokens_implementacion: 14586326
-tokens_revision: 2683737
+tokens_revision: 8784640
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -68,6 +68,7 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 | 2026-11-25T18:41:49Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T19:42:14Z | review | automatico | persona | 0.17.1 |
 | 2026-11-25T20:53:26Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T22:07:32Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -77,9 +78,18 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 | 2026-11-25T19:42:14Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 18 | 13274 | 2413773 | 4291 | 0 | 2431356 | - | - |
 | 2026-11-25T19:42:14Z | implementacion | agente:a75fa5f062ea72442 | 158 | 407532 | 11694112 | 53168 | 7 | 12154970 | - | - |
 | 2026-11-25T20:00:30Z | revision | agente:af7b3472141f92569 | 42 | 141134 | 2529203 | 13358 | 2 | 2683737 | 1 | rust-wasm-reviewer |
+| 2026-11-25T21:18:13Z | revision | agente:ac816c5d430368ffb | 50 | 114480 | 2506870 | 7513 | 3 | 2628913 | 2 | rust-wasm-reviewer |
+| 2026-11-25T21:18:13Z | revision | agente:a27ecd91f81f9f3b1 | 70 | 245323 | 3210367 | 16230 | 12 | 3471990 | - | - |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 689cb93
 - 4D — 689cb93: helper buscado, criterios citados, 9 tests mutados
 - rust-wasm-reviewer — 9ce49a2
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 206 min
+- Paso de la hora: 206 min reales frente a 150 estimados
+- Cierre (finish): 2939 s, de 2026-11-25T21:18:33Z a 2026-11-25T22:07:32Z

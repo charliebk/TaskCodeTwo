@@ -4,6 +4,7 @@ Registro de tareas terminadas. Lo actualiza taskctl finish; una linea
 por tarea, renderizada desde su frontmatter.
 
 ## Sin publicar
+- TASK-150 (fix) — Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE) (2026-11-25)
 - TASK-149 (fix) — Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE) (2026-11-25)
 - TASK-147 (fix) — Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE) (2026-11-25)
 - TASK-146 (fix) — Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE) (2026-11-25)
