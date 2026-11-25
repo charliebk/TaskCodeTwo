@@ -33,8 +33,8 @@ pub mod operacion;
 
 use std::path::Path;
 
-use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Catalogo, Estado, Fallo, Operacion};
+use crate::contrato::{Informe, Resultado};
+use crate::estado::{self, Catalogo, Estado, Fallo, Operacion, como_orden};
 use crate::git::{self, Git, Subcomando};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::toma as txt;
@@ -97,27 +97,7 @@ pub fn start_con_solape(e: &Entorno<'_>, id: &str) -> (Informe, Option<Solape>) 
     let i = match paso(e, id, &mut s) {
         Ok(i) | Err(i) => i,
     };
-    (de_start(i, id), s)
-}
-
-/// El informe como de `start`: el comando, `id=` el primero y sin la clave
-/// `operacion` de la transaccion. Un `sinred` dice siempre `pendiente=no`
-/// (`start` exige red, F1-2 D2b).
-fn de_start(mut i: Informe, id: &str) -> Informe {
-    NOMBRE.clone_into(&mut i.comando);
-    i.claves.retain(|(k, _)| k != "operacion" && k != "id");
-    i.claves
-        .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
-}
-
-fn rechazada(motivo: &str, m: Mensaje) -> Informe {
-    Informe::nuevo(NOMBRE, Resultado::Rechazada)
-        .con("motivo", motivo)
-        .diagnostico(m)
+    (como_orden(i, NOMBRE, "id", id), s)
 }
 
 /// Un rechazo de la toma con lo que sabe la operacion: el login de quien la
@@ -160,12 +140,13 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
     };
     let rama = sondeo.rama().unwrap_or_default();
     let Some((tipo, slug)) = git::partes_de_rama(id, &rama) else {
-        return Err(rechazada(
+        return Err(Fallo::rechazada(
             "rama-invalida",
             Mensaje::nuevo(&txt::RAMA_INVALIDA)
                 .con("id", id)
                 .con("rama", rama.as_str()),
         )
+        .informe(NOMBRE)
         .con("rama", rama.as_str()));
     };
     // 4. La base, valida antes de escribir nada (F1-3).
@@ -279,10 +260,11 @@ fn en_curso_de(e: &dyn Estado) -> Option<Vec<EnCurso>> {
 /// sin tags, su punta; `release/` no se empieza con `start`.
 fn base_de(g: &Git, principal: &Path, id: &str, rama: &str) -> Result<String, Informe> {
     if rama.starts_with("release/") {
-        return Err(rechazada(
+        return Err(Fallo::rechazada(
             "tipo-release",
             Mensaje::nuevo(&txt::TIPO_RELEASE).con("id", id),
-        ));
+        )
+        .informe(NOMBRE));
     }
     if !rama.starts_with("hotfix/") {
         return Ok(git::base_de_rama(rama).to_owned());
@@ -326,11 +308,12 @@ fn carpeta_libre(g: &Git, principal: &Path, id: &str, rama: &str) -> Result<(), 
     if registrado {
         return Ok(());
     }
-    Err(rechazada(
+    Err(Fallo::rechazada(
         "carpeta-ocupada",
         Mensaje::nuevo(&crate::i18n::catalogo::git::CARPETA_OCUPADA)
             .con("ruta", git::worktree_relativo(id)),
     )
+    .informe(NOMBRE)
     .con("rama", rama))
 }
 

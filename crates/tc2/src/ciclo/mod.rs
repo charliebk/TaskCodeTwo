@@ -39,8 +39,8 @@ pub(crate) mod prueba;
 
 use std::path::Path;
 
-use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Operacion};
+use crate::contrato::{Informe, Resultado};
+use crate::estado::{self, Operacion, como_orden};
 use crate::git::{self, Git};
 use crate::i18n::catalogo::ciclo as txt;
 use crate::i18n::{Mensaje, Texto};
@@ -138,7 +138,7 @@ pub fn dejar_en(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Informe {
     let i = match paso_dejar(e, id, destino) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(i, nombre, id)
+    como_orden(i, nombre, "id", id)
 }
 
 /// La persona de la lista de la base con ese login (sin distinguir
@@ -320,18 +320,18 @@ pub fn descartar_en(e: &Entorno<'_>, id: &str, motivo: &str) -> Informe {
     let i = match paso_descartar(e, id, motivo) {
         Ok(i) | Err(i) => i,
     };
-    de_la_orden(i, DESCARTAR, id)
+    como_orden(i, DESCARTAR, "id", id)
 }
 
 /// `pausa` (o `reanudar`) de la tarea `id` en el repo de `e`.
 pub fn pausa_en(e: &Entorno<'_>, id: &str, reanudar: bool) -> Informe {
     let op = match (e.quien)() {
         Ok(q) => Pausar::nueva(id, &q, reanudar, e.ahora),
-        Err(i) => return de_la_orden(i, if reanudar { REANUDAR } else { PAUSA }, id),
+        Err(i) => return como_orden(i, if reanudar { REANUDAR } else { PAUSA }, "id", id),
     };
     let t = escribir(e, &op);
     let i = con_dueno(t, op.dueno());
-    de_la_orden(i, op.nombre(), id)
+    como_orden(i, op.nombre(), "id", id)
 }
 
 fn paso_descartar(e: &Entorno<'_>, id: &str, motivo: &str) -> Result<Informe, Informe> {
@@ -408,20 +408,6 @@ fn dentro_de(dir: &Path, wt: &Path) -> bool {
         (Ok(d), Ok(w)) => d.starts_with(w),
         _ => false,
     }
-}
-
-/// El informe como de la orden: el comando, `id=` el primero y sin la clave
-/// `operacion` de la transaccion. Un `sinred` sin `pendiente` (el `fetch`
-/// previo de `descartar`) dice `pendiente=no`.
-fn de_la_orden(mut i: Informe, nombre: &str, id: &str) -> Informe {
-    nombre.clone_into(&mut i.comando);
-    i.claves.retain(|(k, _)| k != "operacion" && k != "id");
-    i.claves
-        .insert(0, ("id".to_owned(), Valor::Texto(id.to_owned())));
-    if i.resultado == Resultado::Sinred && i.valor("pendiente").is_none() {
-        i = i.con("pendiente", "no");
-    }
-    i
 }
 
 #[cfg(test)]

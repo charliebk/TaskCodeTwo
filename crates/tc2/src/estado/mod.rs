@@ -41,7 +41,9 @@ pub(crate) use lectura::referencia_de_lectura;
 pub use lectura::{Estado, Local, Vista, leer, leer_fresco, local_de, sincronizado_en};
 pub use montaje::{Previsto, montar, montar_con, previsto};
 pub use tareas::{Leida, de_otra_persona, es_tarea_md, por_estado, tarea_de, tareas};
-pub use transaccion::{Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, transaccion};
+pub use transaccion::{
+    Catalogo, Contexto, Fallo, Operacion, Politica, Roadmap, como_orden, transaccion,
+};
 
 /// Rama huerfana del estado (ADR F1-1; nombre en [`crate::huella`]).
 pub const RAMA: &str = crate::huella::RAMA_ESTADO;
