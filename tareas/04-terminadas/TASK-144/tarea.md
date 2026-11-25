@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-144-auditoria-4d-a6-estimacion-progreso-road
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1411378
 tokens_implementacion: 21799570
-tokens_revision: null
+tokens_revision: 14767061
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -66,6 +66,7 @@ Corregidos los IMPORTANTE del grupo A6 (A6-01 va en A8-06, TASK-149), solo en te
 | 2026-11-25T04:34:52Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T04:34:55Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T05:54:32Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T06:51:50Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -74,8 +75,16 @@ Corregidos los IMPORTANTE del grupo A6 (A6-01 va en A8-06, TASK-149), solo en te
 | 2026-11-25T04:34:50Z | diseno | agente:a3be8fa8a8d8a9717 | 48 | 85474 | 1309237 | 16619 | 36 | 1411378 | - | - |
 | 2026-11-25T05:54:32Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 28 | 14225 | 9448433 | 5538 | 0 | 9468224 | - | - |
 | 2026-11-25T05:54:32Z | implementacion | agente:a93d1c403792c28cd | 164 | 194836 | 12095569 | 40777 | 22 | 12331346 | - | - |
+| 2026-11-25T06:28:37Z | revision | agente:a9a15c295f6060d76 | 202 | 179430 | 14557980 | 29449 | 13 | 14767061 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 250cf46
 - 4D — 250cf46: helper buscado, criterios citados, 2 mutantes vistos en rojo
+
+## Duracion
+
+- Estimada: 150 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 137 min
+- Paso de la hora: 137 min reales frente a 150 estimados
+- Cierre (finish): 1340 s, de 2026-11-25T06:29:30Z a 2026-11-25T06:51:50Z
