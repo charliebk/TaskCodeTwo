@@ -19,7 +19,9 @@ use std::cell::RefCell;
 
 use super::plantillas::{self as p, BRAINSTORM, PLAN_FINAL};
 use super::roles;
-use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
 use crate::identidad::Quien;
@@ -92,13 +94,13 @@ impl Operacion for Guardar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE_OP}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.destino
-        )
+        AnotacionConDueno {
+            orden: NOMBRE_OP,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(&self.destino),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {

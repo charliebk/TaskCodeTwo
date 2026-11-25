@@ -23,7 +23,9 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::i18n::catalogo::revision as txt;
 use crate::identidad::Quien;
 use crate::tarea::{Asignado, Transicion};
@@ -114,13 +116,13 @@ impl Operacion for Revisar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.ahora
-        )
+        AnotacionConDueno {
+            orden: NOMBRE,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(&self.ahora.to_string()),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -179,16 +181,9 @@ impl Operacion for Revisar {
 /// nunca queda pendiente; si se re-ejecutara, sin persona delante:
 /// `decidido_por: agente`.
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
-    let mut partes = a.splitn(5, '|');
-    if partes.next()? != NOMBRE {
-        return None;
-    }
-    let id = partes.next()?;
-    let cuenta: u64 = partes.next()?.parse().ok()?;
-    let asignado = Asignado::persona(cuenta, partes.next()?)?;
-    let ahora: u64 = partes.next()?.parse().ok()?;
-    crate::git::es_id(id)
-        .then(|| Box::new(Revisar::con(id, asignado, "agente", ahora)) as Box<dyn Operacion>)
+    let a = AnotacionConDueno::leer(a).filter(|a| a.orden == NOMBRE)?;
+    let ahora: u64 = a.resto?.parse().ok()?;
+    Some(Box::new(Revisar::con(a.id, a.asignado, "agente", ahora)))
 }
 
 #[cfg(test)]

@@ -24,7 +24,9 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, de_otra_persona, por_estado, tarea_de,
+};
 use crate::estimacion::{Commits, Estimacion};
 use crate::grafo::{Nodo, dependencia_cumplida};
 use crate::i18n::Mensaje;
@@ -143,12 +145,13 @@ impl Operacion for Tomar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default()
-        )
+        AnotacionConDueno {
+            orden: NOMBRE,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: None,
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -264,21 +267,13 @@ pub fn instante(segundos: u64) -> String {
 /// (para el catalogo). `start` exige red y nunca queda pendiente; si se
 /// re-ejecutara, lo haria el CLI sin persona delante: `decidido_por: agente`.
 pub fn desde_anotacion(a: &str) -> Option<Box<dyn Operacion>> {
-    let mut partes = a.splitn(4, '|');
-    if partes.next()? != NOMBRE {
-        return None;
-    }
-    let id = partes.next()?;
-    let cuenta: u64 = partes.next()?.parse().ok()?;
-    let asignado = Asignado::persona(cuenta, partes.next()?)?;
-    crate::git::es_id(id).then(|| {
-        Box::new(Tomar::con(
-            id,
-            asignado,
-            "agente",
-            crate::identidad::ahora(),
-        )) as Box<dyn Operacion>
-    })
+    let a = AnotacionConDueno::leer(a).filter(|a| a.orden == NOMBRE && a.resto.is_none())?;
+    Some(Box::new(Tomar::con(
+        a.id,
+        a.asignado,
+        "agente",
+        crate::identidad::ahora(),
+    )))
 }
 
 #[cfg(test)]

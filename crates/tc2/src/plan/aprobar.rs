@@ -28,8 +28,8 @@ use super::plantillas as p;
 use super::roles::{self, Rol};
 use crate::config::Config;
 use crate::estado::{
-    Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado, tarea_de, tarea_propia,
-    tareas,
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado,
+    tarea_de, tarea_propia, tareas,
 };
 use crate::grafo::{DESCARTADA, TERMINADA};
 use crate::i18n::catalogo::plan as txt;
@@ -155,12 +155,13 @@ impl Operacion for Aprobar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default()
-        )
+        AnotacionConDueno {
+            orden: NOMBRE,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: None,
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -360,12 +361,13 @@ impl Operacion for AprobarHito {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE_HITO}|{}|{}|{}",
-            self.hito,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default()
-        )
+        AnotacionConDueno {
+            orden: NOMBRE_HITO,
+            id: &self.hito.to_string(),
+            asignado: self.asignado.clone(),
+            resto: None,
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
@@ -505,12 +507,13 @@ impl Operacion for PedirCambios {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE_CAMBIOS}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default()
-        )
+        AnotacionConDueno {
+            orden: NOMBRE_CAMBIOS,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: None,
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {

@@ -47,7 +47,9 @@ use super::plantillas::{self as p, Datos};
 use super::roles::{self, Rol};
 use crate::carril::Carril;
 use crate::config::Config;
-use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
@@ -348,13 +350,13 @@ impl Operacion for Planificar {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.carril.map_or("-", Carril::nombre)
-        )
+        AnotacionConDueno {
+            orden: NOMBRE,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(self.carril.map_or("-", Carril::nombre)),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {

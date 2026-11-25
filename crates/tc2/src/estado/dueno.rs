@@ -36,6 +36,56 @@ pub fn tarea_propia(
     Ok((t, c))
 }
 
+/// La anotacion de una operacion con dueno (A8-19):
+/// `<orden>|<id>|<cuenta>|<login>[|<resto>]`. Se escribe y se lee solo
+/// aqui; cada operacion interpreta su `resto` (el instante, el motivo, el
+/// carril...), que puede llevar `|`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnotacionConDueno<'a> {
+    /// Nombre de la operacion (`start`, `review`, `descartar`...).
+    pub orden: &'a str,
+    /// La tarea (en `approve-hito`, el numero del hito).
+    pub id: &'a str,
+    /// Quien la lanza.
+    pub asignado: Asignado,
+    /// Lo que anade la operacion, si anade algo.
+    pub resto: Option<&'a str>,
+}
+
+impl<'a> AnotacionConDueno<'a> {
+    /// La linea de la anotacion.
+    pub fn escribir(&self) -> String {
+        let mut s = format!(
+            "{}|{}|{}|{}",
+            self.orden,
+            self.id,
+            self.asignado.id().unwrap_or_default(),
+            self.asignado.login().unwrap_or_default()
+        );
+        if let Some(r) = self.resto {
+            s.push('|');
+            s.push_str(r);
+        }
+        s
+    }
+
+    /// La anotacion de `a`, si tiene la forma: un ID de tarea, una cuenta
+    /// numerica y un login que valen ([`Asignado::persona`]). `None` si no.
+    pub fn leer(a: &'a str) -> Option<Self> {
+        let mut partes = a.splitn(5, '|');
+        let orden = partes.next()?;
+        let id = partes.next()?;
+        let cuenta: u64 = partes.next()?.parse().ok()?;
+        let asignado = Asignado::persona(cuenta, partes.next()?)?;
+        crate::git::es_id(id).then_some(Self {
+            orden,
+            id,
+            asignado,
+            resto: partes.next(),
+        })
+    }
+}
+
 /// Un rechazo con lo que sabe la operacion (A8-09): el login de quien lleva
 /// la tarea (`asignado=`) o el arreglo de una tarea de la 0.16. Cualquier
 /// otro resultado queda como esta.
@@ -56,6 +106,40 @@ mod tests {
     use super::*;
     use crate::ciclo::prueba::{Extra, md};
     use crate::estado::prueba::estado;
+
+    /// A8-19: ida y vuelta de la operacion entera, sin `resto`, con uno y con
+    /// uno que lleva `|`; las anotaciones malas no se leen.
+    #[test]
+    fn anotacion_con_dueno_ida_y_vuelta() {
+        let ana = Asignado::persona(7, "ana").unwrap_or_else(|| unreachable!());
+        for resto in [None, Some("1794910830"), Some(""), Some("por | esto")] {
+            let a = AnotacionConDueno {
+                orden: "descartar",
+                id: "TASK-001",
+                asignado: ana.clone(),
+                resto,
+            };
+            let texto = a.escribir();
+            assert_eq!(AnotacionConDueno::leer(&texto), Some(a), "{texto}");
+        }
+        let a = AnotacionConDueno {
+            orden: "start",
+            id: "TASK-012",
+            asignado: ana,
+            resto: Some("x|y"),
+        };
+        assert_eq!(a.escribir(), "start|TASK-012|7|ana|x|y");
+        for mala in [
+            "start|TASK-1|7|ana",
+            "start|TASK-001|x|ana",
+            "start|TASK-001|0|ana",
+            "start|TASK-001|7|",
+            "start|TASK-001|7",
+            "start",
+        ] {
+            assert_eq!(AnotacionConDueno::leer(mala), None, "{mala}");
+        }
+    }
 
     /// A8-07: la propia o sin dueno se lee; la ajena guarda el login y se
     /// rechaza con el motivo de la orden; la heredada y la inexistente no

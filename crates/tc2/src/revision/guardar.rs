@@ -17,7 +17,9 @@
 
 use std::cell::RefCell;
 
-use crate::estado::{Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia};
+use crate::estado::{
+    AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
+};
 use crate::hallazgos::InformeTarea;
 use crate::i18n::catalogo::revision as txt;
 use crate::identidad::Quien;
@@ -78,13 +80,13 @@ impl Operacion for GuardarRevision {
     }
 
     fn anotacion(&self) -> String {
-        format!(
-            "{NOMBRE_OP}|{}|{}|{}|{}",
-            self.id,
-            self.asignado.id().unwrap_or_default(),
-            self.asignado.login().unwrap_or_default(),
-            self.sha12
-        )
+        AnotacionConDueno {
+            orden: NOMBRE_OP,
+            id: &self.id,
+            asignado: self.asignado.clone(),
+            resto: Some(&self.sha12),
+        }
+        .escribir()
     }
 
     fn exige_red(&self) -> bool {
