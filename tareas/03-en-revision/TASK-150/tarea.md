@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-curso
+estado: en-revision
 plan_aprobado: true
 rama: fix/task-150-auditoria-4d-utilidades-comunes-de-e-s-y
 asignado_a: charlie.bk@gmail.com
@@ -16,7 +16,7 @@ regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1470926
-tokens_implementacion: null
+tokens_implementacion: 14586326
 tokens_revision: null
 creado: 2026-11-23
 actualizado: 2026-11-25
@@ -65,12 +65,15 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 | 2026-11-25T18:33:25Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T18:41:47Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T18:41:49Z | start | automatico | persona | 0.17.1 |
+| 2026-11-25T19:42:14Z | review | automatico | persona | 0.17.1 |
 
 ## Coste
 
 | fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-11-25T18:41:46Z | diseno | agente:afaf9edd246673d34 | 52 | 89610 | 1355310 | 25954 | 51 | 1470926 | - | - |
+| 2026-11-25T19:42:14Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 18 | 13274 | 2413773 | 4291 | 0 | 2431356 | - | - |
+| 2026-11-25T19:42:14Z | implementacion | agente:a75fa5f062ea72442 | 158 | 407532 | 11694112 | 53168 | 7 | 12154970 | - | - |
 
 ## Autorrevision
 
