@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 496824
 tokens_implementacion: 8406045
-tokens_revision: null
+tokens_revision: 790164
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -77,8 +77,13 @@ A10-05 (wget de `install.sh` que sigue una redireccion a `http://`): sin reprodu
 | 2026-11-25T14:59:19Z | diseno | agente:a85ef397f5f461ba9 | 22 | 62171 | 419494 | 15137 | 25 | 496824 | - | - |
 | 2026-11-25T15:18:58Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 10 | 13145 | 754613 | 3717 | 0 | 771485 | - | - |
 | 2026-11-25T15:18:58Z | implementacion | agente:a4cfa12ccd90e5979 | 116 | 166214 | 7425121 | 43109 | 12 | 7634560 | - | - |
+| 2026-11-25T15:21:37Z | revision | agente:a27fdb3985229fc1f | 16 | 69231 | 712714 | 8203 | 3 | 790164 | 1 | - |
 
 ## Autorrevision
 
 - code-quality-reviewer — 4e94a65
 - 4D — 4e94a65: helper buscado, criterios citados, 5 tests mutados
+
+## Verificacion ligera
+
+- 2026-11-25T15:21:40Z: ronda 1; commit revisado a633ae9ba48107bb986004ac3359e4cf1434a7b8; commit verificado a501376c7cfa6d508d2c7f79d77aaf57cc03e287; ficheros: ninguno; corregidos: ninguno; pendientes: MEN-2
