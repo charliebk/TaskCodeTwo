@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-150-auditoria-4d-utilidades-comunes-de-e-s-y
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Extraer las utilidades de E/S y de tiempo que la auditoría 4D (`docs/auditoria-
 - [ ] A9-01 (`divergente`): «esperar a un hijo con plazo y matarlo» es una sola función (`actualizar_cli.rs:574-592` ~ `verificacion/ejecutar.rs:380-393`) que mata el árbol entero (`matar_arbol`), y la documentación de `actualizar_cli.rs:516-518` dice lo que hace.
 - [ ] A8-03: el formateo `AAAA-MM-DDTHH:MM:SSZ` y el algoritmo civil están una sola vez en `tc2` (`alta.rs:673-698` ~ `toma/operacion.rs:250-261`), y el test `iso` de `tests/identidades.rs:366-384` usa la función del crate. `xtask/src/main.rs:430-448` (`fecha_utc`) se queda como está si xtask sigue sin depender de tc2, y se anota el motivo.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 4 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T18:33:25Z | plan | automatico | persona | 0.17.1 |
