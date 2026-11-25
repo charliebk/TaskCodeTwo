@@ -169,16 +169,7 @@ impl Marca {
     }
 
     fn leer_crudo(&self) -> Option<u64> {
-        use std::io::Read;
-        let mut texto = String::new();
-        std::fs::File::open(&self.ruta)
-            .ok()?
-            .take(LIMITE_MARCA + 1)
-            .read_to_string(&mut texto)
-            .ok()?;
-        if texto.len() as u64 > LIMITE_MARCA {
-            return None;
-        }
+        let texto = crate::lectura::texto_con_tope(&self.ruta, LIMITE_MARCA).ok()??;
         let t = texto.strip_suffix('\n').unwrap_or(&texto);
         if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
             return None;
@@ -187,9 +178,9 @@ impl Marca {
     }
 
     /// Guarda `ahora`. Escribe un temporal y lo renombra
-    /// ([`crate::huella::escribir_local`]).
+    /// (`crate::escritura::atomica`).
     pub fn registrar(&self, ahora: u64) -> std::io::Result<()> {
-        crate::huella::escribir_local(&self.ruta, format!("{ahora}\n").as_bytes())
+        crate::escritura::atomica(&self.ruta, format!("{ahora}\n").as_bytes())
     }
 }
 
@@ -260,7 +251,7 @@ pub struct Frescura {
 
 /// Valor de `sincronizado=`: la hora UTC o `nunca`.
 pub fn sincronizado_texto(sincronizado: Option<u64>) -> String {
-    sincronizado.map_or_else(|| "nunca".to_owned(), crate::alta::instante_utc)
+    sincronizado.map_or_else(|| "nunca".to_owned(), crate::fecha::instante)
 }
 
 /// «hace N» entre `entonces` y `ahora` (un `entonces` del futuro, por un
@@ -303,7 +294,7 @@ impl Frescura {
         Some(match self.sincronizado {
             Some(s) => Mensaje::nuevo(&txt::AVISO_NO_FRESCO)
                 .con_mensaje("porque", porque)
-                .con("hora", crate::alta::instante_utc(s))
+                .con("hora", crate::fecha::instante(s))
                 .con_mensaje("hace", hace(s, ahora)),
             None => Mensaje::nuevo(&txt::AVISO_NUNCA_SINCRONIZADO).con_mensaje("porque", porque),
         })
@@ -319,7 +310,7 @@ impl Frescura {
         match (&self.remoto, self.sincronizado) {
             (Remoto::Consultado, Some(s)) => Some(
                 Mensaje::nuevo(&txt::SINCRONIZADO)
-                    .con("hora", crate::alta::instante_utc(s))
+                    .con("hora", crate::fecha::instante(s))
                     .con_mensaje("hace", hace(s, ahora)),
             ),
             _ => None,

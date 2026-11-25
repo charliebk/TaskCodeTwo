@@ -11,8 +11,16 @@
 //! [`opcional`] distingue «no existe» de «no se lee», y [`no_se_lee`] da el
 //! informe `error` de lo segundo a nombre de la orden. Esas rutas las
 //! calcula `tc2`, no las pasa la persona: no se sanean.
+//!
+//! Y el «leer con tope» de todos (A8-17): [`acotado`] lee como mucho un
+//! byte mas del tope y rechaza si llega a leerlo; [`con_tope`] y
+//! [`texto_con_tope`] lo aplican a un fichero. El texto es UTF-8 estricto:
+//! unos bytes que no lo son dan `InvalidData`, nunca `U+FFFD` (decision 3
+//! de TASK-150, para los informes del revisor). Las entradas que no son
+//! informes (un diff, la respuesta de la revisora, una lista de rutas) usan
+//! [`texto_con_tope_lossy`]: el mismo tope y `U+FFFD`, como antes.
 
-use std::io::Read as _;
+use std::io::{self, Read as _};
 use std::path::Path;
 
 use crate::contrato::{Informe, Resultado};
@@ -21,7 +29,7 @@ use crate::i18n::catalogo::comun::NO_SE_LEE;
 use crate::plataforma::errores::sanear;
 
 /// Informe `{op} error ruta=...` de un fichero que existe y no se lee.
-pub(crate) fn no_se_lee(op: &str, ruta: &Path, e: &std::io::Error) -> Informe {
+pub(crate) fn no_se_lee(op: &str, ruta: &Path, e: &io::Error) -> Informe {
     let r = ruta.display().to_string();
     Informe::nuevo(op, Resultado::Error)
         .con("ruta", r.clone())
@@ -36,9 +44,36 @@ pub(crate) fn no_se_lee(op: &str, ruta: &Path, e: &std::io::Error) -> Informe {
 pub(crate) fn opcional(op: &str, ruta: &Path) -> Result<Option<Vec<u8>>, Informe> {
     match std::fs::read(ruta) {
         Ok(b) => Ok(Some(b)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(no_se_lee(op, ruta, &e)),
     }
+}
+
+/// Lee de `r` como mucho `tope` bytes: se lee un byte de mas, y si llega a
+/// leerse, `None` (sin carrera entre mirar el tamano y leer).
+pub(crate) fn acotado(r: impl io::Read, tope: u64) -> io::Result<Option<Vec<u8>>> {
+    let mut b = Vec::new();
+    r.take(tope.saturating_add(1)).read_to_end(&mut b)?;
+    Ok((b.len() as u64 <= tope).then_some(b))
+}
+
+/// Los bytes de `ruta` con [`acotado`]: `None` si pasa de `tope`.
+pub(crate) fn con_tope(ruta: &Path, tope: u64) -> io::Result<Option<Vec<u8>>> {
+    acotado(std::fs::File::open(ruta)?, tope)
+}
+
+/// El texto de `ruta` con [`con_tope`]: `None` si pasa de `tope` e
+/// `InvalidData` si no es UTF-8.
+pub(crate) fn texto_con_tope(ruta: &Path, tope: u64) -> io::Result<Option<String>> {
+    con_tope(ruta, tope)?
+        .map(|b| String::from_utf8(b).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e)))
+        .transpose()
+}
+
+/// El texto de `ruta` con [`con_tope`]: `None` si pasa de `tope`, y los
+/// bytes que no son UTF-8 como `U+FFFD` (IMP-1 de TASK-150).
+pub(crate) fn texto_con_tope_lossy(ruta: &Path, tope: u64) -> io::Result<Option<String>> {
+    Ok(con_tope(ruta, tope)?.map(|b| String::from_utf8_lossy(&b).into_owned()))
 }
 
 /// Tope de un fichero externo (D4 de TASK-029).
@@ -78,15 +113,11 @@ pub fn fichero(ruta: &Path, tope: usize) -> Result<String, NoSeLeyo> {
         ruta: sanear(&ruta.display().to_string()),
         error,
     };
-    let no_se_lee = |e: std::io::Error| mal(Motivo::NoSeLee, sanear(&e.to_string()));
+    let no_se_lee = |e: io::Error| mal(Motivo::NoSeLee, sanear(&e.to_string()));
     let f = std::fs::File::open(ruta).map_err(no_se_lee)?;
-    let mut bytes = Vec::new();
-    f.take(u64::try_from(tope).unwrap_or(u64::MAX).saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(no_se_lee)?;
-    if bytes.len() > tope {
-        return Err(mal(Motivo::Grande, String::new()));
-    }
+    let bytes = acotado(f, u64::try_from(tope).unwrap_or(u64::MAX))
+        .map_err(no_se_lee)?
+        .ok_or_else(|| mal(Motivo::Grande, String::new()))?;
     let texto = String::from_utf8(bytes).map_err(|_| mal(Motivo::NoUtf8, String::new()))?;
     if texto.trim().is_empty() {
         return Err(mal(Motivo::Vacio, String::new()));
@@ -115,6 +146,39 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(r, Err(Motivo::NoUtf8));
         assert_eq!(b, Ok("a\u{f1}b".to_owned()));
+        Ok(())
+    }
+
+    /// Frontera del tope: `tope` bytes se leen enteros; `tope + 1`, `None`.
+    #[test]
+    fn acotado_en_la_frontera() -> io::Result<()> {
+        assert_eq!(acotado(&b"abcd"[..], 4)?, Some(b"abcd".to_vec()));
+        assert_eq!(acotado(&b"abcde"[..], 4)?, None);
+        assert_eq!(acotado(&b""[..], 0)?, Some(Vec::new()));
+        assert_eq!(acotado(&b"a"[..], 0)?, None);
+        Ok(())
+    }
+
+    /// Decision 3 de TASK-150: `texto_con_tope` rechaza lo que no es UTF-8
+    /// con `InvalidData` (sin `U+FFFD`); `con_tope` da los bytes tal cual, y
+    /// `texto_con_tope_lossy` (IMP-1), el texto con `U+FFFD` y el mismo tope.
+    #[test]
+    fn texto_con_tope_es_utf8_estricto() -> io::Result<()> {
+        let dir = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("lectura-tope-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let malo = dir.join("binario");
+        std::fs::write(&malo, [b'a', 0xff])?;
+        let texto = texto_con_tope(&malo, 16).map_err(|e| e.kind());
+        let bytes = con_tope(&malo, 16)?;
+        let lossy = texto_con_tope_lossy(&malo, 16)?;
+        let grande = texto_con_tope_lossy(&malo, 1)?;
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(texto, Err(io::ErrorKind::InvalidData));
+        assert_eq!(bytes, Some(vec![b'a', 0xff]));
+        assert_eq!(lossy, Some("a\u{fffd}".to_owned()));
+        assert_eq!(grande, None);
         Ok(())
     }
 }

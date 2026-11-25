@@ -120,7 +120,7 @@ fn salida_rechaza_stderr_en_un_exito() {
 #[test]
 #[should_panic(expected = "| start | manual | agente |")]
 fn con_fila_rechaza_una_fila_de_otra_fase() {
-    let hoy = tc2::toma::instante(tc2::identidad::ahora());
+    let hoy = tc2::fecha::instante(tc2::identidad::ahora());
     let antes = "actualizado: \"2020-01-01\"\n";
     let despues = format!(
         "actualizado: \"{}\"\n| {hoy} | start | manual | agente | {} |\n",

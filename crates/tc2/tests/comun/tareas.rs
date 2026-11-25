@@ -15,7 +15,7 @@ pub const CABECERA: &str =
 pub fn fila(ts: u64, fase: &str) -> String {
     format!(
         "| {} | {fase} | manual | persona | 0.1 |\n",
-        tc2::toma::instante(ts)
+        tc2::fecha::instante(ts)
     )
 }
 

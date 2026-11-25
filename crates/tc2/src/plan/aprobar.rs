@@ -31,12 +31,12 @@ use crate::estado::{
     AnotacionConDueno, Cambio, Estado, Fallo, Operacion, Sello, de_otra_persona, por_estado,
     tarea_de, tarea_propia, tareas,
 };
+use crate::fecha::instante;
 use crate::grafo::{DESCARTADA, TERMINADA};
 use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
 use crate::tarea::{Asignado, Cuerpo, Documento, Tarea, Transicion};
-use crate::toma::instante;
 
 /// Nombre de la orden, de la operacion y de su fila.
 pub const NOMBRE: &str = "approve";

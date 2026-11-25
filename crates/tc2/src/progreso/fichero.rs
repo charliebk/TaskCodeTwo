@@ -12,7 +12,6 @@
 //! Lo que se lee es texto no confiable (otro proceso o una persona puede
 //! tocarlo): se valida al leer y se sanea al pintar.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -123,13 +122,7 @@ pub fn ruta_anterior(carpeta: &Path, id: &str) -> PathBuf {
 
 /// Bytes de `ruta`, con tope; `None` si no se lee o pasa de [`LIMITE`].
 fn bytes(ruta: &Path) -> Option<Vec<u8>> {
-    let mut v = Vec::new();
-    std::fs::File::open(ruta)
-        .ok()?
-        .take(LIMITE + 1)
-        .read_to_end(&mut v)
-        .ok()?;
-    (v.len() as u64 <= LIMITE).then_some(v)
+    crate::lectura::con_tope(ruta, LIMITE).ok()?
 }
 
 /// Un progreso valido de `ruta`, si lo hay.
@@ -187,7 +180,7 @@ pub enum Anterior {
 }
 
 /// Escribe `p` en `carpeta`: antes, el que habia pasa a `.anterior.json`.
-/// Cada paso, de una vez ([`crate::huella::escribir_local`]). Si el anterior
+/// Cada paso, de una vez (`crate::escritura::atomica`). Si el anterior
 /// no se puede escribir, el progreso se escribe igual (revision 1 de
 /// TASK-084, R1-04): el anterior solo es el respaldo de un fichero a medias,
 /// y sin el nuevo la linea se quedaria con el dato viejo. Lo que paso con el
@@ -204,7 +197,7 @@ pub fn escribir(carpeta: &Path, p: &Progreso) -> std::io::Result<Anterior> {
         // (TASK-128), y el anterior dejaria de ser el fichero que habia.
         match bytes(&r).filter(|b| valido(b, &p.id)) {
             Some(previo) => {
-                match crate::huella::escribir_local(&ruta_anterior(carpeta, &p.id), &previo) {
+                match crate::escritura::atomica(&ruta_anterior(carpeta, &p.id), &previo) {
                     Ok(()) => Anterior::Rotado,
                     Err(_) => Anterior::NoEscrito,
                 }
@@ -212,7 +205,7 @@ pub fn escribir(carpeta: &Path, p: &Progreso) -> std::io::Result<Anterior> {
             None => Anterior::NoEscrito,
         }
     };
-    crate::huella::escribir_local(&r, &p.json())?;
+    crate::escritura::atomica(&r, &p.json())?;
     Ok(anterior)
 }
 

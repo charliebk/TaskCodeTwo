@@ -41,7 +41,7 @@ use crate::i18n::catalogo::toma as txt;
 use crate::identidad::Quien;
 use crate::solape::{self, EnCurso, Solape};
 
-pub use operacion::{Tomar, desde_anotacion, instante};
+pub use operacion::{Tomar, desde_anotacion};
 
 /// Nombre de la orden y de la operacion de la rama de estado.
 pub const NOMBRE: &str = "start";

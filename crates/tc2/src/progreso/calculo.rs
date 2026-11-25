@@ -156,7 +156,7 @@ pub(crate) mod tests {
         for (s, f) in filas {
             texto.push_str(&format!(
                 "| {} | {f} | manual | persona | 0.1 |\n",
-                crate::toma::instante(T0 + s)
+                crate::fecha::instante(T0 + s)
             ));
         }
         (t, Cuerpo::leer(&texto))

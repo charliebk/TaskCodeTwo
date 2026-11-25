@@ -440,7 +440,7 @@ fn c7_lo_publicado_la_rama_y_el_worktree() {
     assert!(valor(&out, "creado").is_none(), "{out}");
     let rama = "feature/task-001-primera";
     let despues = f.publicado(&bare, "TASK-001/tarea.md");
-    let hoy = tc2::toma::instante(tc2::identidad::ahora());
+    let hoy = tc2::fecha::instante(tc2::identidad::ahora());
     let creado = antes
         .lines()
         .find_map(|l| l.strip_prefix("actualizado: "))

@@ -49,7 +49,7 @@ pub(crate) fn md(id: &str, estado: &str, asignado: Option<Asignado>, extra: Extr
     let fila = extra.hace.map_or_else(String::new, |hace| {
         format!(
             "| {} | start | manual | persona | 0.1 |\n",
-            crate::toma::instante(AHORA - hace)
+            crate::fecha::instante(AHORA - hace)
         )
     });
     t.escribir(&Cuerpo::plantilla()) + &fila

@@ -190,6 +190,42 @@ fn una_respuesta_en_prosa_se_rechaza_entera() {
     );
 }
 
+/// IMP-1 de TASK-150: un diff o una respuesta con bytes que no son UTF-8
+/// (un fichero en Latin-1 en el repo) no son informes: se leen con
+/// `U+FFFD`, como antes, y `validar` sigue dando `ok` con salida 0.
+#[test]
+fn diff_y_respuesta_no_utf8_se_leen() {
+    let d = carpeta("latin1");
+    let mut bytes = std::fs::read(fixture("hallazgos/diff.txt")).unwrap();
+    bytes.extend_from_slice(b"+// caf\xE9\n");
+    let diff = d.join("diff-latin1.txt");
+    std::fs::write(&diff, bytes).unwrap();
+    let mut bytes = std::fs::read(fixture("hallazgos/respuesta-mixta.md")).unwrap();
+    bytes.extend_from_slice(b"\nNota: caf\xE9\n");
+    let respuesta = d.join("respuesta-latin1.md");
+    std::fs::write(&respuesta, bytes).unwrap();
+    let esperada = format!(
+        "hallazgos ok revisora={REVISORA} aceptados=3 rechazados=2 \
+         motivos=H4:sin-evidencia,H5:linea-fuera-del-diff"
+    );
+    for (r, df) in [
+        (fixture("hallazgos/respuesta-mixta.md"), &diff),
+        (respuesta.clone(), &fixture("hallazgos/diff.txt")),
+    ] {
+        let (codigo, linea, err) = hallazgos(&[
+            "validar",
+            "--respuesta",
+            ruta(&r),
+            "--diff",
+            ruta(df),
+            "--revisora",
+            REVISORA,
+        ]);
+        assert_eq!(codigo, Some(0), "{linea}{err}");
+        assert_eq!(linea.trim_end(), esperada);
+    }
+}
+
 /// `instrucciones` da el texto del prompt (con todos los motivos) y su
 /// ejemplo pasa por `validar` contra el diff de los fixtures; los errores de
 /// uso y de lectura dicen que hacer.

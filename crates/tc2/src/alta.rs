@@ -716,36 +716,7 @@ pub(crate) fn hoy() -> String {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    fecha_de_dias(i64::try_from(segundos / 86_400).unwrap_or(0))
-}
-
-/// Instante UTC `AAAA-MM-DDTHH:MM:SSZ` de unos segundos desde 1970 (F3-5b,
-/// D6a), con la fecha de [`fecha_de_dias`].
-pub(crate) fn instante_utc(segundos: u64) -> String {
-    let dias = i64::try_from(segundos / 86_400).unwrap_or(0);
-    let s = segundos % 86_400;
-    format!(
-        "{}T{:02}:{:02}:{:02}Z",
-        fecha_de_dias(dias),
-        s / 3600,
-        s % 3600 / 60,
-        s % 60
-    )
-}
-
-/// Fecha civil de un numero de dias desde 1970-01-01 (algoritmo de Howard
-/// Hinnant, `civil_from_days`).
-pub(crate) fn fecha_de_dias(dias: i64) -> String {
-    let z = dias + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let a = yoe + era * 400 + i64::from(m <= 2);
-    format!("{a:04}-{m:02}-{d:02}")
+    crate::fecha::fecha_de_dias(i64::try_from(segundos / 86_400).unwrap_or(0))
 }
 
 #[cfg(test)]
@@ -1086,17 +1057,6 @@ mod tests {
             .filter(|e| !ABIERTOS.contains(e))
             .collect();
         assert_eq!(cerrados, ["terminada", "descartada"]);
-    }
-
-    #[test]
-    fn fechas_civiles() {
-        assert_eq!(fecha_de_dias(0), "1970-01-01");
-        assert_eq!(fecha_de_dias(11_016), "2000-02-29");
-        assert_eq!(fecha_de_dias(20_772), "2026-11-15");
-        assert_eq!(fecha_de_dias(-1), "1969-12-31");
-        assert_eq!(instante_utc(0), "1970-01-01T00:00:00Z");
-        assert_eq!(instante_utc(951_868_799), "2000-02-29T23:59:59Z");
-        assert_eq!(instante_utc(1_794_931_452), "2026-11-17T16:04:12Z");
     }
 
     /// La regla de `plan` en el alta (A3-08): con objetivo, 12 criterios

@@ -426,7 +426,8 @@ fn commit_actual() -> Option<String> {
 }
 
 /// `AAAA-MM-DDTHH:MM:SSZ` de unos segundos Unix (algoritmo de dias civiles de
-/// H. Hinnant).
+/// H. Hinnant). Copia de `tc2::fecha::instante` a proposito (A8-03): xtask
+/// solo depende de `distribucion`, no de `tc2`.
 fn fecha_utc(segundos: u64) -> String {
     let dias = segundos / 86_400;
     let resto = segundos % 86_400;
