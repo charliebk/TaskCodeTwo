@@ -40,7 +40,7 @@ pub(crate) mod prueba;
 use std::path::Path;
 
 use crate::contrato::{Informe, Resultado};
-use crate::estado::{self, Operacion, como_orden};
+use crate::estado::{self, Operacion, como_orden, con_dueno};
 use crate::git::{self, Git};
 use crate::i18n::catalogo::ciclo as txt;
 use crate::i18n::{Mensaje, Texto};
@@ -261,7 +261,7 @@ fn paso_dejar(e: &Entorno<'_>, id: &str, destino: Option<&str>) -> Result<Inform
                     .con("que", m),
             ));
     }
-    let t = escribir(e, op.op());
+    let t = e.escribir(op.op());
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => {
             let mut i = t;
@@ -329,7 +329,7 @@ pub fn pausa_en(e: &Entorno<'_>, id: &str, reanudar: bool) -> Informe {
         Ok(q) => Pausar::nueva(id, &q, reanudar, e.ahora),
         Err(i) => return como_orden(i, if reanudar { REANUDAR } else { PAUSA }, "id", id),
     };
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     let i = con_dueno(t, op.dueno());
     como_orden(i, op.nombre(), "id", id)
 }
@@ -347,35 +347,12 @@ fn paso_descartar(e: &Entorno<'_>, id: &str, motivo: &str) -> Result<Informe, In
     }
     let quien = (e.quien)()?;
     let op = Descartar::nueva(id, &quien, motivo, e.ahora);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         // Publicado, o ya descartada (repetir termina de quitar el worktree).
         Resultado::Ok | Resultado::SinCambios => Ok(con_worktree(t, g, &principal, e.dir, id)),
         _ => Err(con_dueno(t, op.dueno())),
     }
-}
-
-/// La operacion por el punto unico de escritura, con el `ROADMAP.md`
-/// regenerado en el mismo commit.
-fn escribir(e: &Entorno<'_>, op: &dyn Operacion) -> Informe {
-    let personas = crate::roadmap::personas(e.git, e.dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(e.git, e.dir, e.catalogo, Some(&generar));
-    estado::transaccion(&ctx, op)
-}
-
-/// Un rechazo con lo que sabe la operacion: el login de quien la lleva o
-/// el arreglo de una tarea de la 0.16.
-fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
-    if i.resultado != Resultado::Rechazada {
-        return i;
-    }
-    match (i.valor("motivo"), dueno) {
-        (Some("de-otra-persona"), Some(l)) => i = i.con("asignado", l),
-        (Some("formato-1"), _) => i = i.con("arreglo", "tc2 actualizar"),
-        _ => {}
-    }
-    i
 }
 
 /// Tras el descarte, el worktree de la tarea (D3): `worktree=quitado`,

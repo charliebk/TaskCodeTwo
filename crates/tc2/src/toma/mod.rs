@@ -65,6 +65,17 @@ pub struct Entorno<'a> {
     pub ahora: u64,
 }
 
+impl Entorno<'_> {
+    /// La operacion por el punto unico de escritura, con el `ROADMAP.md`
+    /// regenerado en el mismo commit (A8-09).
+    pub(crate) fn escribir(&self, op: &dyn Operacion) -> Informe {
+        let personas = crate::roadmap::personas(self.git, self.dir);
+        let generar = crate::roadmap::generador(&personas);
+        let ctx = estado::Contexto::nuevo(self.git, self.dir, self.catalogo, Some(&generar));
+        estado::transaccion(&ctx, op)
+    }
+}
+
 /// `start TASK-NNN` (sin `--json`, que quita `lib.rs`).
 pub fn orden(args: &[String], e: &Entorno<'_>) -> Informe {
     orden_con_solape(args, e).0
@@ -185,10 +196,7 @@ fn paso(e: &Entorno<'_>, id: &str, s: &mut Option<Solape>) -> Result<Informe, In
     let commits = crate::estimacion::commits_de(g, &principal);
     let leido = commits.leido();
     let op = Tomar::nueva(id, &quien, e.ahora).con_commits(commits);
-    let personas = crate::roadmap::personas(g, e.dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(g, e.dir, e.catalogo, Some(&generar));
-    let t = estado::transaccion(&ctx, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok => {
             let commit = t.valor("commit").map(str::to_owned);

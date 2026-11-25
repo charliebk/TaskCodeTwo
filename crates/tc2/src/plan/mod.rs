@@ -5,7 +5,7 @@
 //!   lanza (identidad), la configuracion de la base (`modo_flujo` y
 //!   `politica_carriles`; sin base o sin configuracion, el suelo) y la
 //!   operacion [`Planificar`] por el punto unico de escritura
-//!   ([`estado::transaccion`], con el `ROADMAP.md` del mismo commit).
+//!   ([`crate::estado::transaccion`], con el `ROADMAP.md` del mismo commit).
 //!   Publica en la carpeta fija de la tarea, `TASK-NNN/planificacion/`: las
 //!   peticiones de la ronda en `brainstorm/` y el esqueleto de
 //!   `plan-final.md` si no existe; la tarea queda `en-diseno` con el carril
@@ -54,7 +54,7 @@ use std::path::Path;
 use crate::carril::Carril;
 use crate::config::Config;
 use crate::contrato::{Informe, Resultado, Valor};
-use crate::estado::{self, Operacion, como_orden};
+use crate::estado::{como_orden, con_dueno};
 use crate::git::{self, Git};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::plan as txt;
@@ -264,7 +264,7 @@ pub fn aprobar_hito_en(e: &Entorno<'_>, hito: u32) -> Informe {
 fn paso_aprobar_hito(e: &Entorno<'_>, hito: u32) -> Result<Informe, Informe> {
     let (op, config) = persona_y_config(e, |q| aprobar::AprobarHito::nueva(hito, q, e.ahora))?;
     let op = op.con_config(&config);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok => Ok(t.con_lista("aprobadas", op.aprobadas())),
         Resultado::SinCambios => Ok(t),
@@ -341,7 +341,7 @@ fn persona_y_config<O>(
 fn paso_aprobar(e: &Entorno<'_>, id: &str) -> Result<Informe, Informe> {
     let (op, config) = persona_y_config(e, |q| Aprobar::nueva(id, q, e.ahora))?;
     let op = op.con_config(&config);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_seleccion(t, op.roles())),
         _ => Err(con_dueno(t, op.dueno())),
@@ -376,7 +376,7 @@ fn paso_pedir_cambios(e: &Entorno<'_>, id: &str, contenido: &str) -> Result<Info
     let quien = (e.quien)()?;
     traer(e.git, e.dir)?;
     let op = PedirCambios::nueva(id, &quien, contenido);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => {
             let n = op.ronda().unwrap_or_default();
@@ -439,7 +439,7 @@ fn paso_plan(e: &Entorno<'_>, id: &str, carril: Option<Carril>) -> Result<Inform
     let f = crate::seleccion::orden::fuentes(e.git, e.dir, claude.as_deref(), &[]);
     let op = Planificar::nueva(id, &quien, carril, &config, e.ahora)
         .con_fuentes(f.inventario, f.catalogo);
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(con_resumen(t, op.resumen())),
         _ => Err(con_dueno(t, op.dueno())),
@@ -457,20 +457,11 @@ fn paso_guardar(
     let Some(op) = Guardar::nueva(id, &quien, destino, contenido) else {
         return Err(uso("destino-invalido"));
     };
-    let t = escribir(e, &op);
+    let t = e.escribir(&op);
     match t.resultado {
         Resultado::Ok | Resultado::SinCambios => Ok(t),
         _ => Err(con_dueno(t, op.dueno())),
     }
-}
-
-/// La operacion por el punto unico de escritura, con el `ROADMAP.md`
-/// regenerado en el mismo commit.
-fn escribir(e: &Entorno<'_>, op: &dyn Operacion) -> Informe {
-    let personas = crate::roadmap::personas(e.git, e.dir);
-    let generar = crate::roadmap::generador(&personas);
-    let ctx = estado::Contexto::nuevo(e.git, e.dir, e.catalogo, Some(&generar));
-    estado::transaccion(&ctx, op)
 }
 
 /// Las claves de lo que decidio `plan`.
@@ -504,23 +495,10 @@ pub(crate) fn o_guion(s: &str) -> &str {
     if s.is_empty() { "-" } else { s }
 }
 
-/// Un rechazo con lo que sabe la operacion: quien la lleva o el arreglo de
-/// una tarea de la 0.16.
-fn con_dueno(mut i: Informe, dueno: Option<String>) -> Informe {
-    if i.resultado != Resultado::Rechazada {
-        return i;
-    }
-    match (i.valor("motivo"), dueno) {
-        (Some("de-otra-persona"), Some(l)) => i = i.con("asignado", l),
-        (Some("formato-1"), _) => i = i.con("arreglo", "tc2 actualizar"),
-        _ => {}
-    }
-    i
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::estado::Operacion;
     use crate::i18n::Idioma;
 
     /// Carpeta temporal propia del test: se borra al acabar.
