@@ -10,8 +10,9 @@
 #   instalacion, comprueba que un hash que no casa no instala nada y que el
 #   PATH queda una sola vez aunque se instale dos veces.
 # - publico: la linea real contra la release publicada. Mide la instalacion y
-#   comprueba que sin TC2_VERSION instala la ultima estable o, si no la hay,
-#   falla diciendo que se use TC2_VERSION.
+#   comprueba que sin TC2_VERSION instala la ultima estable (el binario y su
+#   --version, la del tag de /releases/latest) o, si no la hay, falla
+#   diciendo que se use TC2_VERSION.
 #
 # La medida va desde antes de lanzar la linea hasta que un proceso nuevo, que
 # lee el PATH como una terminal nueva (sh -l en Unix, el registro en Windows),
@@ -42,12 +43,26 @@ esac
 
 # --- Unix: la linea de sh con un HOME nuevo (sin perfil) -------------------
 
-linea_unix() { # <home>
+bajar() { # <url>: a la salida estandar, con curl o, si no lo hay, wget
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url/install.sh" | HOME="$1" SHELL=/bin/sh sh
+    curl -fsSL "$1"
   else
-    wget -qO- "$url/install.sh" | HOME="$1" SHELL=/bin/sh sh
+    wget -qO- "$1"
   fi
+}
+
+# Sin pipefail, la tuberia da el codigo de sh, que sale con 0 si la descarga
+# falla (lee una entrada vacia): el fallo se marca en un fichero, se da en
+# rojo y se devuelve el codigo de sh.
+linea_unix() { # <home>
+  rm -f "$tmp/descarga-fallo"
+  if { bajar "$url/install.sh" || : >"$tmp/descarga-fallo"; } | HOME="$1" SHELL=/bin/sh sh; then
+    codigo_sh=0
+  else
+    codigo_sh=$?
+  fi
+  [ ! -e "$tmp/descarga-fallo" ] || rojo "no se pudo bajar $url/install.sh"
+  return "$codigo_sh"
 }
 
 # Un proceso nuevo, con el entorno vacio, que lee el perfil como un login.
@@ -265,16 +280,37 @@ desinstalar_maquina() {
   echo "probar: VERDE: tc2 desinstalar --maquina deja la maquina como antes de instalar"
 }
 
+# La version de la ultima release estable, como la saca install.sh
+# (ultima_version): la redireccion de /releases/latest a /releases/tag/v<v>.
+# En modo publico, <url> es .../releases/download/<tag>.
+ultima_estable() {
+  latest="${url%/releases/download/*}/releases/latest"
+  if command -v curl >/dev/null 2>&1; then
+    final=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$latest") || rojo "no se pudo consultar $latest"
+  else
+    final=$(wget -S --spider "$latest" 2>&1 | sed -n 's/^ *[Ll]ocation: *//p' | tail -n 1)
+  fi
+  final=$(printf '%s' "$final" | tr -d '\r')
+  case "$final" in
+    */releases/tag/v*) printf '%s\n' "${final##*/releases/tag/v}" ;;
+    '') rojo "no se pudo consultar $latest" ;;
+    *) rojo "$latest no lleva a ninguna release estable ('$final')" ;;
+  esac
+}
+
 sin_version() {
   unset TC2_VERSION
   set +e
   if [ "$so" = windows ]; then
     salida=$(linea_windows "$(dir_windows "$tmp/dest-ultima")" 2>&1)
+    codigo=$?
+    instalado="$tmp/dest-ultima/tc2.exe"
   else
     mkdir -p "$tmp/home-ultima"
     salida=$(linea_unix "$tmp/home-ultima" 2>&1)
+    codigo=$?
+    instalado="$tmp/home-ultima/.local/bin/tc2"
   fi
-  codigo=$?
   set -e
   echo "$salida"
   if [ "$codigo" -ne 0 ]; then
@@ -282,8 +318,14 @@ sin_version() {
       *"no hay ninguna release estable"*TC2_VERSION*) ;;
       *) rojo "sin TC2_VERSION fallo sin decir que se use TC2_VERSION" ;;
     esac
+    echo "probar: VERDE: sin TC2_VERSION y sin release estable, error con el arreglo"
+    return 0
   fi
-  echo "probar: VERDE: sin TC2_VERSION, ultima estable o error con el arreglo"
+  [ -e "$instalado" ] || rojo "sin TC2_VERSION el instalador salio con 0, pero no se instalo $instalado"
+  ultima=$(ultima_estable)
+  v=$("$instalado" --version | tr -d '\r')
+  [ "$v" = "tc2 $ultima" ] || rojo "sin TC2_VERSION se instalo '$v', se esperaba 'tc2 $ultima' (la de /releases/latest)"
+  echo "probar: VERDE: sin TC2_VERSION, instala la ultima estable ($ultima)"
 }
 
 case "$modo" in
