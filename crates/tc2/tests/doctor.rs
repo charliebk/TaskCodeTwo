@@ -945,17 +945,7 @@ fn salida_acotada_y_json_con_todo() {
     assert!(!out.contains('\u{1b}') && !err.contains('\u{1b}'));
     let (cj, json, _) = tc2(&f, &clon, &["doctor", "--json"], &[]);
     assert_eq!(cj, c);
-    assert_eq!(json.lines().count(), 1);
-    assert!(!json.contains('\u{1b}'));
-    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-    let n = |k: &str| v["claves"][k].as_str().unwrap().parse::<usize>().unwrap();
-    let malos = n("fallos") + n("avisos") + n("no-comprobado");
-    let todos = v["hallazgos"].as_array().unwrap();
-    let oks = todos.iter().filter(|h| h["estado"] == "ok").count();
-    assert_eq!(todos.len(), malos + oks);
-    assert!(malos > 4, "el caso tiene que no caber: {json}");
-    assert_eq!(lineas.len(), 5);
-    assert_eq!(lineas[4], format!("y {} mas: tc2 doctor --json", malos - 3));
+    comun::salida_acotada(&lineas, &json, "tc2 doctor --json");
 }
 
 /// Lo que `doctor` no puede cambiar: refs, `git worktree list`, el arbol de

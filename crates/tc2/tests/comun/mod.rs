@@ -18,7 +18,7 @@ pub mod remoto;
 #[allow(unused_imports)] // cada fichero de tests usa una parte
 pub use instantanea::instantanea;
 #[allow(unused_imports)] // cada fichero de tests usa una parte
-pub use lanzador::{BINARIO, lanzar, orden_tc2, salida, texto, valor, volcado};
+pub use lanzador::{BINARIO, lanzar, orden_tc2, salida, salida_acotada, texto, valor, volcado};
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
