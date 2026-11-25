@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-147-auditoria-4d-a10-scripts-de-ci-e-instala
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -32,3 +32,9 @@ Corregir los 4 casos IMPORTANTE del grupo A10 de `docs/auditoria-4d.md` (commit 
 - [ ] A10-02: con `codigo` 0, `sin_version` (`.github/scripts/probar-instalador.sh:268-287`) exige el binario instalado y que su `--version` sea la del tag de `/releases/latest`. El arnés de la ficha (`tareas/04-terminadas/TASK-138/seguimiento/arneses/a10/d4-sin-version.sh`: instalador que sale 0 sin instalar), sobre el script corregido, da rojo, y `linea_unix` (`:45-51`) no esconde un fallo de `curl` detrás del 0 de `sh`.
 - [ ] A10-05: primero se reproduce, sin red externa, con un servidor en 127.0.0.1 que responde 302 a una URL `http://` y con `instalar/install.sh` sin `curl` en el `PATH`. Si wget sigue la redirección, la rama `wget` de `descargar` (`instalar/install.sh:47-56`) la rechaza, o el instalador exige `curl` y lo dice en el arreglo, y la reproducción queda como prueba. Si wget no la sigue, el caso se cierra como descartado y se anota en `docs/auditoria-4d.md`.
 - [ ] El job que usa cada script (`release.yml`) sigue en verde en la rama, y el `## Resultado` lista los 4 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T14:53:54Z | plan | automatico | persona | 0.17.1 |
