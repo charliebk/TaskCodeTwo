@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-145-auditoria-4d-a7-config-init-desinstalar
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -34,3 +34,9 @@ Corregir los 8 casos IMPORTANTE del grupo A7 de `docs/auditoria-4d.md` (commit a
 - [ ] A7-09: `config::del_arbol` (`config/mod.rs:534-543`) da `sin-config` solo con `ErrorKind::NotFound`. Un `.taskcode/config.yml` en UTF-16 o sin permiso de lectura da otro motivo con la causa, y no «crea la configuración con tc2 init». Lo prueba un test con un fichero UTF-16LE con BOM.
 - [ ] A7-11: un test ejercita el rechazo `ramas-sin-remoto` con `develop` sin publicar (`init/inventario.rs:347-352`, criterio de TASK-118), y el docstring de `aplicar_puertas_exige_personas_ramas_y_persona` (`tests/init.rs:1693-1754`) dice lo que provoca. Con el mutante de la ficha aplicado, `cargo test -p tc2 --test init` sale en rojo.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 8 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T06:52:16Z | plan | automatico | persona | 0.17.1 |
