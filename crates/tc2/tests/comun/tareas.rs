@@ -4,6 +4,48 @@
 use tc2::estado::ROADMAP;
 use tc2::tarea::{Cuerpo, Tarea};
 
+/// 2026-10-01T09:00:00Z.
+pub const BASE: u64 = 1_790_845_200;
+
+/// Cabecera de la tabla de transiciones de un `tarea.md`.
+pub const CABECERA: &str =
+    "## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n";
+
+/// Fila de transiciones de `fase` a las `ts`.
+pub fn fila(ts: u64, fase: &str) -> String {
+    format!(
+        "| {} | {fase} | manual | persona | 0.1 |\n",
+        tc2::toma::instante(ts)
+    )
+}
+
+/// Una terminada («Hecha {id}», plan aprobado, con `criterios` marcados y
+/// lo que ponga `ajustar`) con `imp` minutos de implementacion (sin huecos
+/// de mas de 45), 10 de rondas y 5 de cierre, el dia `dia` desde [`BASE`]:
+/// su ruta y su texto.
+pub fn terminada(
+    id: &str,
+    dia: u64,
+    imp: u64,
+    criterios: &str,
+    ajustar: impl FnOnce(&mut Tarea),
+) -> (String, String) {
+    let mut t = Tarea::nueva(id, &format!("Hecha {id}"), "2026-10-01");
+    "terminada".clone_into(&mut t.estado);
+    ajustar(&mut t);
+    t.plan_aprobado = true;
+    let s = BASE + dia * 86_400;
+    let r1 = s + imp * 60;
+    let cuerpo = format!(
+        "## Objetivo\n\nHecha.\n\n## Criterios de aceptacion\n\n{criterios}\n\n{CABECERA}{}{}{}{}",
+        fila(s, "start"),
+        fila(r1, "review"),
+        fila(r1 + 600, "review"),
+        fila(r1 + 900, "finish"),
+    );
+    (format!("{id}/tarea.md"), t.escribir(&Cuerpo::leer(&cuerpo)))
+}
+
 /// `tarea.md` de `id` («Titulo de {id}») en `sprint` y `estado`, con sus
 /// dependencias; una descartada lleva `motivo` (sin el no se lee).
 pub fn tarea(id: &str, sprint: u32, estado: &str, deps: &[&str]) -> String {

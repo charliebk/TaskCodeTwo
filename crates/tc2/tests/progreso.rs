@@ -10,8 +10,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 
+use comun::tareas::{CABECERA, fila, terminada};
 use comun::{Fixture, remoto::Preparar, remoto::worktree, texto};
-use tc2::estado::{Cambio, Estado, Fallo, Operacion};
 use tc2::progreso::{self, Refresco};
 use tc2::tarea::{Cuerpo, Tarea};
 
@@ -22,67 +22,11 @@ fn tc2(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, String) 
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
 }
 
-/// Escribe ficheros en la rama de estado por la transaccion.
-struct Poner(Vec<(String, String)>);
-
-impl Operacion for Poner {
-    fn nombre(&self) -> &str {
-        "poner"
-    }
-    fn anotacion(&self) -> String {
-        "poner".to_owned()
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        Ok(self
-            .0
-            .iter()
-            .map(|(r, t)| Cambio::nuevo(r.clone(), t.clone()))
-            .collect())
-    }
-}
-
-fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    f.transaccion(dir, &Poner(ficheros.to_vec()));
-}
-
-/// 2026-10-01T09:00:00Z.
-const BASE: u64 = 1_790_845_200;
-
-fn fila(ts: u64, fase: &str) -> String {
-    format!(
-        "| {} | {fase} | manual | persona | 0.1 |\n",
-        tc2::toma::instante(ts)
-    )
-}
-
-const CABECERA: &str =
-    "## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n";
-
-/// Una terminada con `imp` minutos de implementacion, 10 de rondas y 5 de
-/// cierre.
-fn terminada(id: &str, dia: u64, imp: u64) -> (String, String) {
-    let mut t = Tarea::nueva(id, &format!("Hecha {id}"), "2026-10-01");
-    "terminada".clone_into(&mut t.estado);
-    t.plan_aprobado = true;
-    let s = BASE + dia * 86_400;
-    let r1 = s + imp * 60;
-    let cuerpo = format!(
-        "## Objetivo\n\nHecha.\n\n## Criterios de aceptacion\n\n- [x] a\n\n{CABECERA}{}{}{}{}",
-        fila(s, "start"),
-        fila(r1, "review"),
-        fila(r1 + 600, "review"),
-        fila(r1 + 900, "finish"),
-    );
-    (format!("{id}/tarea.md"), t.escribir(&Cuerpo::leer(&cuerpo)))
-}
-
-/// Seis terminadas (implementacion 30..80 min).
+/// Seis terminadas ([`terminada`] con un criterio; implementacion 30..80
+/// min).
 fn seis() -> Vec<(String, String)> {
     (1..=6)
-        .map(|i| terminada(&format!("TASK-{i:03}"), i, 20 + 10 * i))
+        .map(|i| terminada(&format!("TASK-{i:03}"), i, 20 + 10 * i, "- [x] a", |_| {}))
         .collect()
 }
 
@@ -99,7 +43,7 @@ fn carpeta(dir: &Path) -> PathBuf {
 fn sin_anterior_en_start_y_en_una_transicion() {
     let f = Fixture::nueva("progreso-sin-anterior");
     let (_bare, a) = f.preparar(&Preparar::default());
-    poner(&f, &a, &seis());
+    f.poner(&a, &seis());
     let (c, out, err) = tc2(
         &f,
         &a,
@@ -157,7 +101,7 @@ fn rotado(out: &str, anterior: &Path, previo: &[u8]) {
 fn c3_transiciones_reales_reescriben_el_progreso() {
     let f = Fixture::nueva("progreso-c3");
     let (_bare, a) = f.preparar(&Preparar::default());
-    poner(&f, &a, &seis());
+    f.poner(&a, &seis());
     for t in ["Siete", "Ocho"] {
         let (c, out, err) = tc2(&f, &a, &["new", t, "--objetivo", "o", "--criterio", "uno"]);
         assert_eq!(c, Some(0), "{out} {err}");
@@ -260,7 +204,7 @@ fn c3_transiciones_reales_reescriben_el_progreso() {
 fn m4_reasignar_borra_el_progreso() {
     let f = Fixture::nueva("progreso-reasignar");
     let (_bare, a) = f.preparar(&Preparar::default());
-    poner(&f, &a, &seis());
+    f.poner(&a, &seis());
     let (c, out, err) = tc2(
         &f,
         &a,
@@ -305,7 +249,7 @@ fn repo_con(f: &Fixture, n: usize, inicio: u64) -> PathBuf {
         ficheros.push((format!("{id}/tarea.md"), t.escribir(&Cuerpo::plantilla())));
     }
     // En una sola transaccion: rutas y entradas van por stdin (TASK-127).
-    poner(f, &a, &ficheros);
+    f.poner(&a, &ficheros);
     a
 }
 
