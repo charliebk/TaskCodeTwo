@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-145-auditoria-4d-a7-config-init-desinstalar
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 5414571
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -40,3 +40,10 @@ Corregir los 8 casos IMPORTANTE del grupo A7 de `docs/auditoria-4d.md` (commit a
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-25T06:52:16Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-25T07:04:06Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25T07:04:05Z | diseno | agente:a7ef2497f364e6e35 | 118 | 142075 | 5238702 | 33676 | 77 | 5414571 | - | - |
