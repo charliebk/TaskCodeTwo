@@ -477,23 +477,42 @@ mod tests {
     }
 
     /// C7: fuera de un repo, sin tarea; el JSON que no vale usa la carpeta
-    /// del proceso.
+    /// del proceso (adenda de TASK-084 en F1-17): con una tarea en curso en
+    /// ella, da su linea.
     #[test]
-    fn c7_fuera_de_un_repo() {
-        let d = dir("fuera");
-        let _ = std::fs::create_dir_all(&d);
-        // La carpeta temporal no esta dentro de un repo (si lo estuviera, el
-        // test no probaria nada: se comprueba).
-        if buscar(&d).is_none() {
-            let json = format!(
-                "{{\"workspace\":{{\"current_dir\":{}}}}}",
-                serde_json::Value::from(d.display().to_string())
-            );
-            assert_eq!(orden_estado(&json, None, 0), linea::SIN_TAREA);
-            assert_eq!(orden_estado("no es json", Some(&d), 0), linea::SIN_TAREA);
-        }
+    fn c7_fuera_de_un_repo() -> std::io::Result<()> {
+        let raiz = dir("fuera");
+        let fuera = raiz.join("fuera");
+        std::fs::create_dir_all(&fuera)?;
+        assert!(
+            buscar(&fuera).is_none(),
+            "{} esta dentro de un repo: el test no probaria nada",
+            fuera.display()
+        );
+        let json = format!(
+            "{{\"workspace\":{{\"current_dir\":{}}}}}",
+            serde_json::Value::from(fuera.display().to_string())
+        );
+        assert_eq!(orden_estado(&json, None, 0), linea::SIN_TAREA);
+        assert_eq!(
+            orden_estado("no es json", Some(&fuera), 0),
+            linea::SIN_TAREA
+        );
         assert_eq!(orden_estado("", None, 0), linea::SIN_TAREA);
-        let _ = std::fs::remove_dir_all(&d);
+        // La carpeta del proceso es un principal con el progreso de una
+        // tarea: el JSON que no vale da la linea de esa carpeta.
+        let principal = raiz.join("p");
+        let comun = principal.join(".git");
+        std::fs::create_dir_all(&comun)?;
+        fichero::escribir(
+            &fichero::carpeta(&comun),
+            &fichero::tests::ejemplo("TASK-001"),
+        )?;
+        let esperada = linea_en(&principal, 0);
+        assert_ne!(esperada, linea::SIN_TAREA);
+        assert_eq!(orden_estado("no es json", Some(&principal), 0), esperada);
+        let _ = std::fs::remove_dir_all(&raiz);
+        Ok(())
     }
 
     /// C9 (biblioteca): `seguir` imprime la linea inicial, otra al
