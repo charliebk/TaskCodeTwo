@@ -202,7 +202,7 @@ pub fn editar(f: &Fixture, dir: &Path, id: &str, de: &str, a: &str) {
 /// Lo que `tarea.md` gana con una fila: `antes` con `actualizado` de hoy y
 /// la fila `fase` de `por` (la ultima linea de `despues`).
 pub fn con_fila(antes: &str, despues: &str, fase: &str, por: &str) -> String {
-    let hoy = tc2::toma::instante(tc2::identidad::ahora());
+    let hoy = tc2::fecha::instante(tc2::identidad::ahora());
     let actualizado = antes
         .lines()
         .find_map(|l| l.strip_prefix("actualizado: "))

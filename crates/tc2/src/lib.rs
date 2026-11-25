@@ -39,6 +39,7 @@ pub mod doctor;
 mod escritura;
 pub mod estado;
 pub mod estimacion;
+pub mod fecha;
 pub mod git;
 pub mod grafo;
 pub mod hallazgos;

@@ -230,7 +230,7 @@ impl Operacion for Tomar {
         let h = crate::estimacion::historico(&leidas, &self.commits);
         let e = crate::estimacion::recalcular(&mut t, &cuerpo, &h, self.ahora);
         *self.estimacion.borrow_mut() = Some(e);
-        let instante = instante(self.ahora);
+        let instante = crate::fecha::instante(self.ahora);
         EN_CURSO.clone_into(&mut t.estado);
         t.asignado_a = Some(self.asignado.clone());
         t.actualizado = instante.get(..10).unwrap_or_default().to_owned();
@@ -248,19 +248,6 @@ impl Operacion for Tomar {
             crate::progreso::calcular(&t, &cuerpo, &h, &self.commits, self.ahora);
         Ok(vec![Cambio::nuevo(ruta, t.escribir(&cuerpo))])
     }
-}
-
-/// `AAAA-MM-DDTHH:MM:SSZ` (UTC) de `segundos` desde 1970.
-pub fn instante(segundos: u64) -> String {
-    let dias = i64::try_from(segundos / 86_400).unwrap_or(0);
-    let resto = segundos % 86_400;
-    format!(
-        "{}T{:02}:{:02}:{:02}Z",
-        crate::alta::fecha_de_dias(dias),
-        resto / 3600,
-        resto % 3600 / 60,
-        resto % 60
-    )
 }
 
 /// Reconstruye un [`Tomar`] desde su anotacion `start|TASK-NNN|<id>|<login>`
@@ -309,13 +296,6 @@ mod tests {
         t.asignado_a = asignado;
         t.rama = Some(crate::alta::rama_de(id, &t.tipo, &t.titulo));
         t.escribir(&Cuerpo::plantilla())
-    }
-
-    #[test]
-    fn instante_en_utc() {
-        assert_eq!(instante(0), "1970-01-01T00:00:00Z");
-        assert_eq!(instante(AHORA), "2026-11-17T10:20:30Z");
-        assert_eq!(instante(86_399), "1970-01-01T23:59:59Z");
     }
 
     /// C7 (unitario): la toma escribe estado, asignado, actualizado y una

@@ -89,7 +89,7 @@ pub fn recalcular(t: &mut Tarea, cuerpo: &Cuerpo, h: &Historico, ahora: u64) -> 
     let mut e = estimar(
         &objetivo(t, cuerpo),
         &h.muestras,
-        &crate::alta::instante_utc(ahora),
+        &crate::fecha::instante(ahora),
     );
     e.agente = t
         .estimacion()
@@ -268,7 +268,7 @@ fn mostrar(e: &Entorno<'_>, id: &str) -> (Informe, Option<String>) {
             let est = estimar(
                 &objetivo(&t, &c),
                 &h.muestras,
-                &crate::alta::instante_utc(e.ahora),
+                &crate::fecha::instante(e.ahora),
             );
             let i = con_historia(
                 con_claves(

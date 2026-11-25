@@ -22,11 +22,11 @@ use std::cell::RefCell;
 use crate::estado::{
     AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
 };
+use crate::fecha::instante;
 use crate::grafo::DESCARTADA;
 use crate::i18n::catalogo::ciclo as txt;
 use crate::identidad::Quien;
 use crate::tarea::{Asignado, Cuerpo, PAUSA, REANUDAR, Tarea, Transicion};
-use crate::toma::instante;
 use crate::toma::operacion::MODO;
 
 /// Nombre de `descartar`, de su operacion y de su fila de transicion.

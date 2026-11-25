@@ -50,13 +50,13 @@ use crate::config::Config;
 use crate::estado::{
     AnotacionConDueno, Cambio, Estado, Fallo, Operacion, por_estado, tarea_propia,
 };
+use crate::fecha::instante;
 use crate::i18n::catalogo::plan as txt;
 use crate::i18n::{Mensaje, Texto};
 use crate::identidad::Quien;
 use crate::inventario::Inventario;
 use crate::seleccion::{self, Catalogo};
 use crate::tarea::{Asignado, Cuerpo, Transicion};
-use crate::toma::instante;
 
 /// Estados desde los que se planifica.
 pub const PLANIFICABLES: [&str; 2] = ["planificada", "en-diseno"];

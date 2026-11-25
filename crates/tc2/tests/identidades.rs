@@ -361,33 +361,12 @@ fn el_entorno_git_del_agente_lleva_cabecera_y_autor_sin_token_en_argv() {
 // --- Ronda 1 de revision de TASK-047 (IMP-1, MEN-1, MEN-2, MEN-4,
 // MENOR-1, MENOR-3, MENOR-4) ---
 
-/// `2026-11-19T10:00:00Z` de unos segundos desde 1970 (algoritmo de dias
-/// civiles de H. Hinnant; el `expires_at` que da GitHub).
-fn iso(segundos: u64) -> String {
-    let dias = i64::try_from(segundos / 86_400).unwrap();
-    let resto = segundos % 86_400;
-    let z = dias + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let dia = doy - (153 * mp + 2) / 5 + 1;
-    let mes = if mp < 10 { mp + 3 } else { mp - 9 };
-    let anio = yoe + era * 400 + i64::from(mes <= 2);
-    format!(
-        "{anio:04}-{mes:02}-{dia:02}T{:02}:{:02}:{:02}Z",
-        resto / 3600,
-        resto % 3600 / 60,
-        resto % 60
-    )
-}
-
+/// El `expires_at` que da GitHub, con la funcion del crate (A8-03).
 #[test]
 fn iso_formatea_como_github() {
-    assert_eq!(iso(0), "1970-01-01T00:00:00Z");
-    assert_eq!(iso(951_782_400), "2000-02-29T00:00:00Z");
-    assert_eq!(iso(4_070_908_800), "2099-01-01T00:00:00Z");
+    assert_eq!(tc2::fecha::instante(0), "1970-01-01T00:00:00Z");
+    assert_eq!(tc2::fecha::instante(951_782_400), "2000-02-29T00:00:00Z");
+    assert_eq!(tc2::fecha::instante(4_070_908_800), "2099-01-01T00:00:00Z");
 }
 
 /// La causa de un fallo al acunar, o panico si no lo es.
@@ -433,7 +412,10 @@ fn el_token_que_vence_dentro_del_margen_se_renueva_y_el_de_fuera_no() {
             "/app/installations/77/access_tokens",
             Simulada::json(
                 201,
-                &format!(r#"{{"token":"{token}","expires_at":"{}"}}"#, iso(t0 + vida)),
+                &format!(
+                    r#"{{"token":"{token}","expires_at":"{}"}}"#,
+                    tc2::fecha::instante(t0 + vida)
+                ),
             ),
         );
     }

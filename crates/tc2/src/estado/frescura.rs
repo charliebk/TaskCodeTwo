@@ -251,7 +251,7 @@ pub struct Frescura {
 
 /// Valor de `sincronizado=`: la hora UTC o `nunca`.
 pub fn sincronizado_texto(sincronizado: Option<u64>) -> String {
-    sincronizado.map_or_else(|| "nunca".to_owned(), crate::alta::instante_utc)
+    sincronizado.map_or_else(|| "nunca".to_owned(), crate::fecha::instante)
 }
 
 /// «hace N» entre `entonces` y `ahora` (un `entonces` del futuro, por un
@@ -294,7 +294,7 @@ impl Frescura {
         Some(match self.sincronizado {
             Some(s) => Mensaje::nuevo(&txt::AVISO_NO_FRESCO)
                 .con_mensaje("porque", porque)
-                .con("hora", crate::alta::instante_utc(s))
+                .con("hora", crate::fecha::instante(s))
                 .con_mensaje("hace", hace(s, ahora)),
             None => Mensaje::nuevo(&txt::AVISO_NUNCA_SINCRONIZADO).con_mensaje("porque", porque),
         })
@@ -310,7 +310,7 @@ impl Frescura {
         match (&self.remoto, self.sincronizado) {
             (Remoto::Consultado, Some(s)) => Some(
                 Mensaje::nuevo(&txt::SINCRONIZADO)
-                    .con("hora", crate::alta::instante_utc(s))
+                    .con("hora", crate::fecha::instante(s))
                     .con_mensaje("hace", hace(s, ahora)),
             ),
             _ => None,
