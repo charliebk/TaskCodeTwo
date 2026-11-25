@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-diseno
+estado: en-curso
 plan_aprobado: true
 rama: fix/task-147-auditoria-4d-a10-scripts-de-ci-e-instala
 asignado_a: charlie.bk@gmail.com
@@ -39,6 +39,7 @@ Corregir los 4 casos IMPORTANTE del grupo A10 de `docs/auditoria-4d.md` (commit 
 |---|---|---|---|---|
 | 2026-11-25T14:53:54Z | plan | automatico | persona | 0.17.1 |
 | 2026-11-25T14:59:20Z | approve | automatico | persona | 0.17.1 |
+| 2026-11-25T14:59:22Z | start | automatico | persona | 0.17.1 |
 
 ## Coste
 
