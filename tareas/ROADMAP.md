@@ -42,7 +42,7 @@ taskctl actualizar, E2E, seguridad, auditoría externa, piloto en OpenDockTradin
 
 Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tarea). Sale de las dependencias: ninguna tarea va antes que aquellas de las que depende y, a igualdad, va primero la del hito anterior (en el orden de los `### Hn — título` de la zona manual) y luego la de número menor. taskctl lo regenera en cada transición que cae en la rama de integración; solo la zona manual se edita a mano.
 
-- **En marcha:** TASK-039 (en diseño), TASK-142 (en diseño)
+- **En marcha:** TASK-039 (en diseño)
 - **Listas para empezar:** TASK-054, TASK-056, TASK-058, TASK-061, TASK-063, TASK-067, TASK-129, TASK-114, TASK-117, TASK-119, TASK-120, TASK-121, TASK-122, TASK-123, TASK-124, TASK-126, TASK-143, TASK-144, TASK-145, TASK-146, TASK-147, TASK-149, TASK-150
 
 ## H1 — Arranque y decisiones de arquitectura (ADR)
@@ -222,7 +222,7 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 
 ## H0 — H0
 
-16 de 33 terminadas.
+17 de 33 terminadas.
 
 | Paso | Tarea | Título | Complejidad | Depende de | Estado |
 |---|---|---|---|---|---|
@@ -245,14 +245,14 @@ Orden en que se hacen las tareas, agrupadas por hito (campo `sprint` de cada tar
 | — | TASK-139 | Auditoria 4D: A1 plataforma e identidad (11 IMPORTANTE) | — | — | ✅ terminada |
 | — | TASK-140 | Auditoria 4D: A2 hallazgos y revision (7 IMPORTANTE) | — | — | ✅ terminada |
 | — | TASK-141 | Auditoria 4D: A3 plan, importar y alta (5 IMPORTANTE) | — | — | ✅ terminada |
-| 47 | TASK-142 | Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE) | — | — | ▶ en diseño |
-| 48 | TASK-143 | Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE) | — | — | lista para empezar |
-| 49 | TASK-144 | Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE) | — | — | lista para empezar |
-| 50 | TASK-145 | Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE) | — | — | lista para empezar |
-| 51 | TASK-146 | Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE) | — | — | lista para empezar |
-| 52 | TASK-147 | Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE) | — | — | lista para empezar |
-| 53 | TASK-149 | Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE) | — | — | lista para empezar |
-| 54 | TASK-150 | Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE) | — | — | lista para empezar |
+| — | TASK-142 | Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE) | — | — | ✅ terminada |
+| 47 | TASK-143 | Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE) | — | — | lista para empezar |
+| 48 | TASK-144 | Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE) | — | — | lista para empezar |
+| 49 | TASK-145 | Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE) | — | — | lista para empezar |
+| 50 | TASK-146 | Auditoria 4D: A8 transversal, actualizar_cli, instalacion, contrato, dato y xtask (7 IMPORTANTE) | — | — | lista para empezar |
+| 51 | TASK-147 | Auditoria 4D: A10 scripts de CI e instaladores (4 IMPORTANTE) | — | — | lista para empezar |
+| 52 | TASK-149 | Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE) | — | — | lista para empezar |
+| 53 | TASK-150 | Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE) | — | — | lista para empezar |
 | — | TASK-148a | lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148) | — | — | ✅ terminada |
 | — | TASK-148b | escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148) | — | TASK-148a | ✅ terminada |
 | — | TASK-148c | servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148) | — | TASK-148b | ✅ terminada |

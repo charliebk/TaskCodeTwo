@@ -1,8 +1,8 @@
 # Tablero de tareas
 
-> Generado automaticamente por taskctl finish el 2026-11-24. No editar a mano.
+> Generado automaticamente por taskctl finish el 2026-11-25. No editar a mano.
 
-## Planificadas (00-planificadas) — 53
+## Planificadas (00-planificadas) — 52
 
 ```text
 ID        Titulo                                                                                            Asignado
@@ -52,7 +52,6 @@ TASK-133  F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona 
 TASK-134  F11-6 Pestana Planificacion: tareas por persona y predecesoras                                    (sin asignar)
 TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido                                        (sin asignar)
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                 (sin asignar)
-TASK-142  Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE)                                        (sin asignar)
 TASK-143  Auditoria 4D: A5 seleccion, inventario, recursos y doctor (6 IMPORTANTE)                          (sin asignar)
 TASK-144  Auditoria 4D: A6 estimacion, progreso, roadmap y tablero (6 IMPORTANTE)                           (sin asignar)
 TASK-145  Auditoria 4D: A7 config, init, desinstalar, i18n, confianza y ciclo (8 IMPORTANTE)                (sin asignar)
@@ -70,7 +69,7 @@ ID        Titulo                                Asignado
 TASK-039  F4-4 Orquestador del modo automatico  charlie.bk@gmail.com
 ```
 
-## Terminadas (04-terminadas) — 84
+## Terminadas (04-terminadas) — 85
 
 ```text
 ID         Titulo                                                                                                                     Asignado
@@ -153,6 +152,7 @@ TASK-138   Auditoria 4D de todo el codigo de TaskCodeTwo                        
 TASK-139   Auditoria 4D: A1 plataforma e identidad (11 IMPORTANTE)                                                                    charlie.bk@gmail.com
 TASK-140   Auditoria 4D: A2 hallazgos y revision (7 IMPORTANTE)                                                                       charlie.bk@gmail.com
 TASK-141   Auditoria 4D: A3 plan, importar y alta (5 IMPORTANTE)                                                                      charlie.bk@gmail.com
+TASK-142   Auditoria 4D: A4 git, rama de estado y toma (9 IMPORTANTE)                                                                 charlie.bk@gmail.com
 TASK-148a  lanzador del binario en tests/comun (A8-02, absorbe A5-07) (parte a de TASK-148)                                           charlie.bk@gmail.com
 TASK-148b  escenario ssh, git de sistema y operacion de prueba (A8-01, A8-16, A3-06, A4-09, A8-20 integracion) (parte b de TASK-148)  charlie.bk@gmail.com
 TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de TASK-148)                                              charlie.bk@gmail.com
