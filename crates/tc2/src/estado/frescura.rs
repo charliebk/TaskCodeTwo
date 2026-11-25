@@ -187,9 +187,9 @@ impl Marca {
     }
 
     /// Guarda `ahora`. Escribe un temporal y lo renombra
-    /// ([`crate::huella::escribir_local`]).
+    /// (`crate::escritura::atomica`).
     pub fn registrar(&self, ahora: u64) -> std::io::Result<()> {
-        crate::huella::escribir_local(&self.ruta, format!("{ahora}\n").as_bytes())
+        crate::escritura::atomica(&self.ruta, format!("{ahora}\n").as_bytes())
     }
 }
 

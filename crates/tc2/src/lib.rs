@@ -36,6 +36,7 @@ pub mod dato;
 pub mod descarga;
 pub mod desinstalar;
 pub mod doctor;
+mod escritura;
 pub mod estado;
 pub mod estimacion;
 pub mod git;

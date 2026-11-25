@@ -165,16 +165,8 @@ fn escribir_almacen(ruta: &Path, a: &Almacen, op: &str) -> Result<(), Informe> {
                 .con("error", e.to_string()),
         )
     };
-    if let Some(padre) = ruta.parent() {
-        std::fs::create_dir_all(padre).map_err(|e| error(&e))?;
-    }
     let texto = serde_json::to_string_pretty(a).map_err(|e| error(&e))?;
-    let tmp = ruta.with_extension(format!("json.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, texto).map_err(|e| error(&e))?;
-    std::fs::rename(&tmp, ruta).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        error(&e)
-    })
+    crate::escritura::atomica(ruta, texto.as_bytes()).map_err(|e| error(&e))
 }
 
 fn error_de_cierre(op: &str, e: &cierre::ErrorCierre) -> Informe {

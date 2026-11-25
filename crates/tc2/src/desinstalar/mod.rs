@@ -527,30 +527,9 @@ fn reescribir(ruta: &Path, antes: &[u8], despues: &[u8]) -> Result<(), Mensaje> 
     if ahora != antes {
         return Err(Mensaje::nuevo(&CAMBIO_DESDE_EL_PLAN).con("ruta", t(ruta)));
     }
-    escribir_atomico(ruta, despues).map_err(externo)
-}
-
-/// Escribe `ruta` de una vez: un temporal en la misma carpeta y un
-/// renombrado, para que un corte no deje el perfil o el `settings.json` de
-/// la persona vacio. Si `ruta` es un enlace simbolico se escribe su destino
-/// (como `cat >` de `install.sh`), y se conservan sus permisos.
-fn escribir_atomico(ruta: &Path, contenido: &[u8]) -> std::io::Result<()> {
-    let destino = if std::fs::symlink_metadata(ruta)?.file_type().is_symlink() {
-        std::fs::canonicalize(ruta)?
-    } else {
-        ruta.to_path_buf()
-    };
-    let permisos = std::fs::metadata(&destino)?.permissions();
-    let mut nombre = destino.file_name().unwrap_or_default().to_os_string();
-    nombre.push(format!(".tc2-tmp-{}", std::process::id()));
-    let tmp = destino.with_file_name(nombre);
-    let r = std::fs::write(&tmp, contenido)
-        .and_then(|()| std::fs::set_permissions(&tmp, permisos))
-        .and_then(|()| std::fs::rename(&tmp, &destino));
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r
+    // De una vez: un corte no deja el perfil o el `settings.json` de la
+    // persona vacio; un enlace se escribe en su destino y conserva permisos.
+    crate::escritura::atomica(ruta, despues).map_err(externo)
 }
 
 /// La orden completa desde la linea de ordenes, en la carpeta actual y con

@@ -272,7 +272,7 @@ impl Cache {
             cuenta.id,
             crate::tarea::yaml::cadena(&cuenta.login),
         );
-        crate::huella::escribir_local(&self.ruta, texto.as_bytes()).map_err(error)
+        crate::escritura::atomica(&self.ruta, texto.as_bytes()).map_err(error)
     }
 }
 
