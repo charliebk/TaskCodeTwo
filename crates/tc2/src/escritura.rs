@@ -23,12 +23,14 @@ const ESPERAS_RENAME: [Duration; 5] = [
 ];
 
 /// Escribe `ruta` de una vez. Si `ruta` es un enlace simbolico se escribe su
-/// destino (como `cat >` de `install.sh`); si el destino ya existe, el nuevo
+/// destino (como `cat >` de `install.sh`); un enlace roto da el error de
+/// `canonicalize` y no crea nada. Si el destino ya existe, el nuevo
 /// conserva sus permisos. Crea la carpeta si falta, escribe el temporal
 /// `<nombre>.tc2-tmp-<pid>` al lado y lo renombra encima. Si el `rename`
-/// falla, se repite tras cada espera de [`ESPERAS_RENAME`]. Si falla la
-/// escritura, los permisos o el ultimo `rename`, se borra el temporal y se
-/// devuelve el error.
+/// falla, por el motivo que sea (no solo un lector abierto en Windows:
+/// tambien un destino que es una carpeta), se repite tras cada espera de
+/// [`ESPERAS_RENAME`]. Si falla la escritura, los permisos o el ultimo
+/// `rename`, se borra el temporal y se devuelve el error.
 pub(crate) fn atomica(ruta: &Path, contenido: &[u8]) -> io::Result<()> {
     atomica_con(ruta, contenido, &ESPERAS_RENAME)
 }
