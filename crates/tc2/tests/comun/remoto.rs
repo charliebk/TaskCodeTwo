@@ -120,6 +120,25 @@ impl Fixture {
         self.transaccion(dir, &op);
     }
 
+    /// Publica en `bare` la rama de estado con `ficheros` (ruta y texto)
+    /// desde el repo aparte `estado` de la raiz, sin pasar por `tc2`;
+    /// devuelve el commit publicado.
+    pub fn publicar_estado(
+        &self,
+        bare: &Path,
+        ficheros: &[(impl AsRef<str>, impl AsRef<str>)],
+    ) -> String {
+        let dir = self.raiz.join("estado");
+        self.crudo(&self.raiz, &["init", "-q", "-b", estado::RAMA, "estado"]);
+        for (ruta, texto) in ficheros {
+            escribir(&dir, ruta.as_ref(), texto.as_ref());
+        }
+        self.crudo(&dir, &["add", "-A"]);
+        self.crudo(&dir, &["commit", "-q", "-m", "estado"]);
+        self.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), estado::RAMA]);
+        self.crudo(&dir, &["rev-parse", "HEAD"]).trim().to_owned()
+    }
+
     /// Punta de la rama de estado en `bare`.
     pub fn punta(&self, bare: &Path) -> String {
         self.crudo(bare, &["rev-parse", estado::RAMA])
