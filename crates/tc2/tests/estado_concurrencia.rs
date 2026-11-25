@@ -213,11 +213,7 @@ fn dos_procesos_del_mismo_clon_sin_remoto_los_serializa_el_cerrojo() {
     // Sin remoto no hay compare-and-swap en un servidor: lo unico que impide
     // que dos procesos del mismo clon se pisen es el cerrojo local.
     let f = Fixture::nueva("estado-cerrojo");
-    let solo = f.raiz.join("solo");
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
-    comun::escribir(&solo, "README.md", "x\n");
-    f.crudo(&solo, &["add", "README.md"]);
-    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
+    let solo = f.repo_sin_remoto("solo");
     let g = f.git();
     assert!(estado::montar(&g, &solo).resultado.es_exito());
 

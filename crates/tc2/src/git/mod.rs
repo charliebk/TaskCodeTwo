@@ -37,6 +37,8 @@ pub use worktree::{quitar_worktree, worktree_publicado};
 
 use std::path::{Component, Path, PathBuf};
 
+use puerto::{Salida, primera_linea};
+
 use crate::contrato::{Informe, Resultado};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -50,6 +52,28 @@ pub const CARPETA_WORKTREES: &str = crate::huella::CARPETA_WORKTREES;
 /// Resultado interno: el `Err` ya es el informe que se devuelve.
 pub(crate) type Paso<T> = Result<T, Informe>;
 
+/// La salida de una llamada a `git` (cualquier forma del puerto), con el
+/// fallo al lanzar convertido en un informe `error` con `git=<sub>`.
+pub(crate) fn lanzado<S>(op: &str, sub: Subcomando, r: Result<S, ErrorGit>) -> Paso<S> {
+    r.map_err(|e| {
+        Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(e.mensaje())
+    })
+}
+
+/// Como [`lanzado`], pero un codigo distinto de 0 tambien es `error`.
+pub(crate) fn exigida<S: Salida>(op: &str, sub: Subcomando, r: Result<S, ErrorGit>) -> Paso<S> {
+    let s = lanzado(op, sub, r)?;
+    if s.codigo() == 0 {
+        Ok(s)
+    } else {
+        Err(Informe::nuevo(op, Resultado::Error)
+            .con("git", sub.nombre())
+            .diagnostico(git_fallo(sub, &s)))
+    }
+}
+
 /// Lanza `git` y convierte el fallo al lanzar en un informe `error`.
 pub(crate) fn correr(
     git: &Git,
@@ -58,18 +82,14 @@ pub(crate) fn correr(
     sub: Subcomando,
     args: &[&str],
 ) -> Paso<SalidaGit> {
-    git.ejecutar(dir, sub, args).map_err(|e| {
-        Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(e.mensaje())
-    })
+    lanzado(op, sub, git.ejecutar(dir, sub, args))
 }
 
 /// Diagnostico de un subcomando de git que termino con error.
-pub(crate) fn git_fallo(sub: Subcomando, s: &SalidaGit) -> Mensaje {
+pub(crate) fn git_fallo(sub: Subcomando, s: &impl Salida) -> Mensaje {
     Mensaje::nuevo(&txt::GIT_FALLO)
         .con("subcomando", sub.nombre())
-        .con("error", s.primera_linea_error())
+        .con("error", primera_linea(s.stderr()))
 }
 
 /// Como [`correr`], pero un codigo distinto de 0 tambien es `error`.
@@ -80,14 +100,7 @@ pub(crate) fn exigir(
     sub: Subcomando,
     args: &[&str],
 ) -> Paso<String> {
-    let s = correr(git, dir, op, sub, args)?;
-    if s.exito() {
-        Ok(s.stdout)
-    } else {
-        Err(Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(git_fallo(sub, &s)))
-    }
+    Ok(exigida(op, sub, git.ejecutar(dir, sub, args))?.stdout)
 }
 
 /// Commit al que apunta `referencia`, o `None` si no existe.
@@ -213,20 +226,32 @@ fn normalizar(p: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Entradas de `git status --porcelain -z`: (estado XY, ruta). Las de
-/// renombrado traen un segundo campo (la ruta de origen) que se salta.
-pub(crate) fn entradas_status(salida: &str) -> Vec<(String, String)> {
+/// Registros de `git status --porcelain -z`: (estado XY, ruta, origen). Las
+/// de renombrado (`R`) y copia (`C`) traen un segundo campo, la ruta de
+/// origen.
+pub(crate) fn registros_status(salida: &str) -> Vec<(String, String, Option<String>)> {
     let mut v = Vec::new();
     let mut campos = salida.split('\0').filter(|c| !c.is_empty());
     while let Some(c) = campos.next() {
         let xy = c.get(..2).unwrap_or(c).to_owned();
         let ruta = c.get(3..).unwrap_or("").to_owned();
-        if xy.starts_with('R') || xy.starts_with('C') {
-            campos.next();
-        }
-        v.push((xy, ruta));
+        let origen = if xy.starts_with('R') || xy.starts_with('C') {
+            campos.next().map(str::to_owned)
+        } else {
+            None
+        };
+        v.push((xy, ruta, origen));
     }
     v
+}
+
+/// Entradas de `git status --porcelain -z`: (estado XY, ruta), sin la ruta
+/// de origen de los renombrados y las copias.
+pub(crate) fn entradas_status(salida: &str) -> Vec<(String, String)> {
+    registros_status(salida)
+        .into_iter()
+        .map(|(xy, ruta, _)| (xy, ruta))
+        .collect()
 }
 
 /// `TASK-NNN` con al menos tres cifras.
@@ -251,14 +276,25 @@ mod tests {
 
     #[test]
     fn status_z_con_renombrado_y_espacios() {
-        let s = " M a b.txt\0R  nuevo.txt\0viejo.txt\0?? d/\0";
+        let s = " M a b.txt\0R  nuevo.txt\0viejo.txt\0C  copia.txt\0orig.txt\0?? d/\0";
         let e = entradas_status(s);
         assert_eq!(
             e,
             vec![
                 (" M".to_owned(), "a b.txt".to_owned()),
                 ("R ".to_owned(), "nuevo.txt".to_owned()),
+                ("C ".to_owned(), "copia.txt".to_owned()),
                 ("??".to_owned(), "d/".to_owned()),
+            ]
+        );
+        let origenes: Vec<Option<String>> = registros_status(s).into_iter().map(|r| r.2).collect();
+        assert_eq!(
+            origenes,
+            vec![
+                None,
+                Some("viejo.txt".to_owned()),
+                Some("orig.txt".to_owned()),
+                None
             ]
         );
     }

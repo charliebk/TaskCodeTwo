@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::puerto::{HASH_OBJECT_STDIN, UPDATE_INDEX_STDIN};
 use super::rama::error_de_fichero;
-use super::{Git, Paso, Subcomando, correr, exigir, git_fallo};
+use super::{Git, Paso, Subcomando, correr, exigida, exigir, lanzado};
 use crate::contrato::{Informe, Resultado};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -132,22 +132,12 @@ pub(crate) fn leer_blobs(
         std::collections::HashMap::new();
     if !en_lote.is_empty() {
         let entrada: String = en_lote.iter().map(|r| format!("{commit}:{r}\n")).collect();
-        let s = git
-            .ejecutar_con_entrada(dir, Subcomando::CatFile, &["--batch"], entrada.as_bytes())
-            .map_err(|e| {
-                Informe::nuevo(op, Resultado::Error)
-                    .con("git", Subcomando::CatFile.nombre())
-                    .diagnostico(e.mensaje())
-            })?;
-        if s.codigo != 0 {
-            return Err(Informe::nuevo(op, Resultado::Error)
-                .con("git", Subcomando::CatFile.nombre())
-                .diagnostico(
-                    Mensaje::nuevo(&txt::GIT_FALLO)
-                        .con("subcomando", Subcomando::CatFile.nombre())
-                        .con("error", s.stderr.lines().next().unwrap_or_default()),
-                ));
-        }
+        let sub = Subcomando::CatFile;
+        let s = exigida(
+            op,
+            sub,
+            git.ejecutar_con_entrada(dir, sub, &["--batch"], entrada.as_bytes()),
+        )?;
         let contenidos = partir_batch(&s.stdout, en_lote.len()).ok_or_else(|| {
             Informe::nuevo(op, Resultado::Error).diagnostico(&txt::CAT_FILE_INCOMPLETO)
         })?;
@@ -248,20 +238,7 @@ fn con_indice(
     args: &[&str],
     indice: &Path,
 ) -> Paso<String> {
-    let s = git
-        .ejecutar_con_indice(dir, sub, args, indice)
-        .map_err(|e| {
-            Informe::nuevo(op, Resultado::Error)
-                .con("git", sub.nombre())
-                .diagnostico(e.mensaje())
-        })?;
-    if s.exito() {
-        Ok(s.stdout)
-    } else {
-        Err(Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(git_fallo(sub, &s)))
-    }
+    Ok(exigida(op, sub, git.ejecutar_con_indice(dir, sub, args, indice))?.stdout)
 }
 
 /// `hash-object` (sin indice) o `update-index` (con `indice`) en su unica
@@ -278,23 +255,7 @@ fn con_entrada(
         None => git.ejecutar_con_entrada(dir, sub, HASH_OBJECT_STDIN, entrada),
         Some(i) => git.ejecutar_con_indice_y_entrada(dir, sub, UPDATE_INDEX_STDIN, i, entrada),
     };
-    let s = r.map_err(|e| {
-        Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(e.mensaje())
-    })?;
-    if s.codigo == 0 {
-        Ok(s.stdout)
-    } else {
-        let s = super::SalidaGit {
-            codigo: s.codigo,
-            stdout: String::new(),
-            stderr: s.stderr,
-        };
-        Err(Informe::nuevo(op, Resultado::Error)
-            .con("git", sub.nombre())
-            .diagnostico(git_fallo(sub, &s)))
-    }
+    Ok(exigida(op, sub, r)?.stdout)
 }
 
 /// Escribe en el almacen de objetos los ficheros de `rutas` (una ruta por
@@ -433,11 +394,7 @@ pub(crate) fn construir_commit_sellado(
         sellado.push_str(&format!("{clave}: {}\n", blob.trim()));
     }
     args.extend(["-m", &sellado]);
-    let s = git.ejecutar_firmado(dir, &args).map_err(|e| {
-        Informe::nuevo(op, Resultado::Error)
-            .con("git", Subcomando::CommitTree.nombre())
-            .diagnostico(e.mensaje())
-    })?;
+    let s = lanzado(op, Subcomando::CommitTree, git.ejecutar_firmado(dir, &args))?;
     if !s.exito() {
         return Err(Informe::nuevo(op, Resultado::Rechazada)
             .con("motivo", "firma")
@@ -446,20 +403,13 @@ pub(crate) fn construir_commit_sellado(
     Ok(Some(s.stdout.trim().to_owned()))
 }
 
-/// Si `origin` esta configurado. `ls-remote --get-url` no habla con el
-/// remoto: sin `origin`, devuelve el nombre tal cual.
+/// Si `origin` esta configurado (sin hablar con el remoto).
 pub(crate) fn hay_remoto(git: &Git, dir: &Path, op: &str) -> Paso<bool> {
-    let s = correr(
-        git,
-        dir,
-        op,
-        Subcomando::LsRemote,
-        &["--get-url", super::REMOTO],
-    )?;
-    Ok(s.exito() && s.stdout.trim() != super::REMOTO && !s.stdout.trim().is_empty())
+    Ok(url_origin(git, dir, op)?.is_some())
 }
 
-/// URL de `origin`, si esta configurado (sin hablar con el remoto).
+/// URL de `origin`, si esta configurado. `ls-remote --get-url` no habla con
+/// el remoto: sin `origin`, devuelve el nombre tal cual.
 pub(crate) fn url_origin(git: &Git, dir: &Path, op: &str) -> Paso<Option<String>> {
     let s = correr(
         git,
@@ -590,24 +540,18 @@ mod tests_stdin {
         let _ = std::fs::remove_dir_all(&d);
     }
 
-    /// Git falso que delega en el real salvo `hash-object`, al que responde
-    /// con un unico sha sea cual sea el numero de rutas. El subcomando es el
-    /// quinto argumento (`-c color.ui=never -c core.quotepath=false <sub>`).
-    fn git_que_pierde_shas(d: &Path) -> Git {
-        let sha = "0123456789012345678901234567890123456789";
+    /// Git falso que delega en el real salvo lo que intercepte su guion:
+    /// `cmd` en Windows, `sh` en el resto, que van antes de la llamada al
+    /// git real. El subcomando es el quinto argumento (`-c color.ui=never -c
+    /// core.quotepath=false <sub>`).
+    fn git_falso(d: &Path, cmd: &str, sh: &str) -> Git {
         if cfg!(windows) {
             let f = d.join("git-falso.cmd");
-            let guion = format!(
-                "@echo off\r\nif \"%5\"==\"hash-object\" (\r\n  echo {sha}\r\n  exit /b 0\r\n)\r\ngit %*\r\n"
-            );
-            std::fs::write(&f, guion).unwrap();
+            std::fs::write(&f, format!("@echo off\r\n{cmd}git %*\r\n")).unwrap();
             Git::con_binario(f)
         } else {
             let f = d.join("git-falso.sh");
-            let guion = format!(
-                "#!/bin/sh\nif [ \"$5\" = hash-object ]; then cat >/dev/null; echo {sha}; exit 0; fi\nexec git \"$@\"\n"
-            );
-            std::fs::write(&f, guion).unwrap();
+            std::fs::write(&f, format!("#!/bin/sh\n{sh}exec git \"$@\"\n")).unwrap();
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -615,6 +559,36 @@ mod tests_stdin {
             }
             Git::con_binario(f)
         }
+    }
+
+    /// Git falso que responde a `hash-object` con un unico sha sea cual sea
+    /// el numero de rutas.
+    fn git_que_pierde_shas(d: &Path) -> Git {
+        let sha = "0123456789012345678901234567890123456789";
+        git_falso(
+            d,
+            &format!("if \"%5\"==\"hash-object\" (\r\n  echo {sha}\r\n  exit /b 0\r\n)\r\n"),
+            &format!("if [ \"$5\" = hash-object ]; then cat >/dev/null; echo {sha}; exit 0; fi\n"),
+        )
+    }
+
+    /// A4-02: un `cat-file --batch` que falla con stderr que empieza por una
+    /// linea en blanco da en el diagnostico la primera linea no vacia, como
+    /// cualquier otra llamada a git.
+    #[test]
+    fn leer_blobs_diagnostica_la_primera_linea_no_vacia() {
+        let d = repo("leer-blobs");
+        let git = git_falso(
+            &d,
+            "if \"%5\"==\"cat-file\" (\r\n  >&2 echo.\r\n  >&2 echo fatal: x\r\n  exit /b 1\r\n)\r\n",
+            "if [ \"$5\" = cat-file ]; then cat >/dev/null; printf '\\nfatal: x\\n' >&2; exit 1; fi\n",
+        );
+        let i = leer_blobs(&git, &d, "prueba", "HEAD", &["a.md"]).expect_err("cat-file falla");
+        assert_eq!(i.resultado, Resultado::Error);
+        assert!(i.linea().contains("git=cat-file"), "{}", i.linea());
+        let diag = i.diagnostico_en(Idioma::Es).unwrap_or_default();
+        assert!(diag.contains("fatal: x"), "{diag}");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// TASK-127: si `hash-object` devuelve menos shas que ficheros,

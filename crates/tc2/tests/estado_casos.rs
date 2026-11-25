@@ -7,41 +7,13 @@
 mod comun;
 
 use std::cell::Cell;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::path::PathBuf;
 
-use comun::ops::{Anotar, CrearUnico, catalogo};
+use comun::ops::{Anotar, CrearUnico, escribir_estado};
 use comun::{Fixture, contrato, escribir, registro_permitido};
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Contexto, Estado, Fallo, Operacion, Politica};
+use tc2::estado::{self, Cambio, Estado, Fallo, Operacion};
 use tc2::git::Git;
-
-fn rapida() -> Politica {
-    Politica {
-        intentos: 3,
-        base: Duration::from_millis(1),
-        espera_cerrojo: Duration::from_secs(30),
-    }
-}
-
-fn escribir_estado(g: &Git, dir: &Path, op: &dyn Operacion) -> tc2::contrato::Informe {
-    let mut c = Contexto::nuevo(g, dir, &catalogo, None);
-    c.politica = rapida();
-    let i = estado::transaccion(&c, op);
-    contrato(&i);
-    i
-}
-
-fn rama_en(f: &Fixture, repo: &Path) -> String {
-    f.crudo(
-        repo,
-        &[
-            "for-each-ref",
-            "--format=%(objectname)",
-            "refs/heads/taskcodetwo/tareas",
-        ],
-    )
-}
 
 #[test]
 fn montar_crea_monta_repite_y_vuelve_a_montar() {
@@ -53,7 +25,7 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
     contrato(&i);
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert!(clon.join("tareas/LEEME.md").exists());
-    let publicada = rama_en(&f, &bare);
+    let publicada = f.rama_en(&bare);
     assert!(!publicada.is_empty(), "la rama de estado esta en el remoto");
     assert_eq!(
         f.crudo(&bare, &["rev-list", "--count", "taskcodetwo/tareas"])
@@ -85,7 +57,7 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
     let otro = f.otro_clon(&bare, "otro");
     let i = estado::montar(&g, &otro);
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
-    assert_eq!(rama_en(&f, &bare), publicada, "no escribio nada");
+    assert_eq!(f.rama_en(&bare), publicada, "no escribio nada");
     assert!(otro.join("tareas/LEEME.md").exists());
 
     // Carpeta borrada (como con `git clean -ffdx`): se vuelve a montar.
@@ -100,7 +72,7 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
     let i = escribir_estado(&g, &otro, &Anotar::nueva("notas/sin-montar.md", true));
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert_eq!(i.valor("tareas"), Some("sin-montar"));
-    assert_eq!(rama_en(&f, &otro), rama_en(&f, &bare));
+    assert_eq!(f.rama_en(&otro), f.rama_en(&bare));
     let i = estado::montar(&g, &otro);
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert!(otro.join("tareas/notas/sin-montar.md").exists());
@@ -122,11 +94,7 @@ fn montar_crea_monta_repite_y_vuelve_a_montar() {
 #[test]
 fn repo_sin_remoto_el_commit_local_es_la_transaccion() {
     let f = Fixture::nueva("estado-solo");
-    let solo = f.raiz.join("solo");
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
-    escribir(&solo, "README.md", "x\n");
-    f.crudo(&solo, &["add", "README.md"]);
-    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
+    let solo = f.repo_sin_remoto("solo");
     let g = f.git();
 
     let i = estado::montar(&g, &solo);
@@ -144,7 +112,7 @@ fn repo_sin_remoto_el_commit_local_es_la_transaccion() {
         i.linea()
     );
     // Rechazo de la operacion: nada escrito.
-    let antes = rama_en(&f, &solo);
+    let antes = f.rama_en(&solo);
     let i = escribir_estado(
         &g,
         &solo,
@@ -156,7 +124,7 @@ fn repo_sin_remoto_el_commit_local_es_la_transaccion() {
         i.linea(),
         "estado rechazada operacion=crear-unico motivo=ya-existe"
     );
-    assert_eq!(rama_en(&f, &solo), antes);
+    assert_eq!(f.rama_en(&solo), antes);
 
     let v = estado::leer(&g, &solo).unwrap();
     assert!(v.rutas().contains(&"notas/a.md".to_owned()));
@@ -173,7 +141,7 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
     let (bare, clon) = f.remoto_y_clon();
     let g = f.git();
     assert!(estado::montar(&g, &clon).resultado.es_exito());
-    let antes = rama_en(&f, &bare);
+    let antes = f.rama_en(&bare);
 
     // Hook o regla del remoto: `denegada` (8), un solo push.
     let hook = bare.join("hooks").join("pre-receive");
@@ -197,7 +165,7 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
     );
     assert_eq!(i.salida(false).codigo, 8);
     assert_eq!(pushes(&g) - previos, 1, "sin reintento");
-    assert_eq!(rama_en(&f, &bare), antes);
+    assert_eq!(f.rama_en(&bare), antes);
     assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
     std::fs::remove_file(&hook).unwrap();
 
@@ -209,7 +177,7 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
         otro: otro.join("tareas"),
         n: Cell::new(0),
     };
-    let local_antes = rama_en(&f, &clon);
+    let local_antes = f.rama_en(&clon);
     let i = escribir_estado(&g, &clon, &op);
     assert_eq!(i.linea(), "estado agotada operacion=pisada intentos=3");
     assert_eq!(i.salida(false).codigo, 5);
@@ -220,7 +188,7 @@ fn el_remoto_que_deniega_no_se_reintenta_y_la_contencion_acaba_en_agotada() {
         &["ls-tree", "-r", "--name-only", "taskcodetwo/tareas"],
     );
     assert!(!notas.contains("notas/pisada.md"), "{notas}");
-    assert_eq!(rama_en(&f, &clon), local_antes);
+    assert_eq!(f.rama_en(&clon), local_antes);
     assert!(!clon.join("tareas/notas/pisada.md").exists());
     assert_eq!(f.crudo(&clon, &["for-each-ref", "refs/taskcodetwo/"]), "");
     registro_permitido(&g.registro());
@@ -443,7 +411,7 @@ fn mil_ficheros_en_una_transaccion_con_procesos_acotados() {
     let diez = procesos("diez", 10);
     let mil = procesos("mil", 1000);
 
-    let rama = rama_en(&f, &clon);
+    let rama = f.rama_en(&clon);
     let rama = rama.trim();
     let listado = f.crudo(
         &clon,

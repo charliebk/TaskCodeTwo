@@ -149,12 +149,43 @@ impl SalidaGit {
 
     /// Primera linea no vacia de stderr, para un diagnostico.
     pub fn primera_linea_error(&self) -> String {
-        self.stderr
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .unwrap_or("sin mensaje")
-            .to_owned()
+        primera_linea(&self.stderr)
+    }
+}
+
+/// Primera linea no vacia de `stderr`, recortada, o `sin mensaje`.
+pub(crate) fn primera_linea(stderr: &str) -> String {
+    stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("sin mensaje")
+        .to_owned()
+}
+
+/// Lo comun de [`SalidaGit`] y [`SalidaCruda`] para traducir un fallo.
+pub(crate) trait Salida {
+    /// Codigo de salida.
+    fn codigo(&self) -> i32;
+    /// Salida de error, tal cual.
+    fn stderr(&self) -> &str;
+}
+
+impl Salida for SalidaGit {
+    fn codigo(&self) -> i32 {
+        self.codigo
+    }
+    fn stderr(&self) -> &str {
+        &self.stderr
+    }
+}
+
+impl Salida for SalidaCruda {
+    fn codigo(&self) -> i32 {
+        self.codigo
+    }
+    fn stderr(&self) -> &str {
+        &self.stderr
     }
 }
 
@@ -553,7 +584,8 @@ pub const UPDATE_INDEX_STDIN: &[&str] = &["--add", "-z", "--index-info"];
 const FIRMA: &str = "-S";
 
 /// Argumentos prohibidos dentro de los subcomandos permitidos (F1-4,
-/// decision 3). Se mira cada argumento entero, no subcadenas (H9). No se
+/// decision 3). Se mira cada argumento entero, no subcadenas (H9), y cada
+/// letra de un grupo de opciones cortas (`-qf` es `-q -f`). No se
 /// miran el texto de un mensaje (`-m <texto>` en `commit` y `tag`) ni las
 /// rutas tras `--` en los subcomandos que las aceptan (`add`, `commit`,
 /// `status`, `diff`): ahi una palabra como `--force` es dato, no opcion.
@@ -610,7 +642,22 @@ fn forma_de_update_ref(args: &[&str]) -> bool {
     }
 }
 
+/// Si `a` esta prohibido en `sub`, entero o, si es un grupo de opciones
+/// cortas (`-xyz`, un solo guion), por cualquiera de sus letras (`-x`, `-y`,
+/// `-z`): git acepta `push -qf` como `push -q -f`. Cierra ante la duda: un
+/// valor pegado (`-mfoo`) tambien se despliega.
 fn es_prohibido(sub: Subcomando, a: &str) -> bool {
+    let grupo = a
+        .strip_prefix('-')
+        .filter(|r| !r.starts_with('-') && r.chars().count() > 1)
+        .unwrap_or_default();
+    es_prohibido_solo(sub, a)
+        || grupo
+            .chars()
+            .any(|c| es_prohibido_solo(sub, &format!("-{c}")))
+}
+
+fn es_prohibido_solo(sub: Subcomando, a: &str) -> bool {
     if a.starts_with("--force") {
         return true;
     }
@@ -834,6 +881,11 @@ mod tests {
             (Subcomando::ReadTree, &["abc"]),
             (Subcomando::UpdateIndex, &["--add", "a"]),
             (Subcomando::WriteTree, &[]),
+            // Opciones cortas agrupadas que contienen una prohibida: git las
+            // acepta (A4-10 de la auditoria 4D).
+            (Subcomando::Push, &["-qf", "origin", "r"]),
+            (Subcomando::Branch, &["-qD", "x"]),
+            (Subcomando::Worktree, &["remove", "-ff", "w"]),
         ];
         for (sub, args) in casos {
             let r = git.ejecutar(Path::new("."), *sub, args);
@@ -850,6 +902,8 @@ mod tests {
         let git = git_sin_binario();
         let permitidos: &[(Subcomando, &[&str])] = &[
             (Subcomando::Push, &["--porcelain", "origin", "a:b"]),
+            // Agrupadas sin ninguna prohibida.
+            (Subcomando::Push, &["-qv", "--porcelain", "origin", "a:b"]),
             (
                 Subcomando::Commit,
                 &["-q", "-m", "--force no se usa", "--only", "--", "a.txt"],

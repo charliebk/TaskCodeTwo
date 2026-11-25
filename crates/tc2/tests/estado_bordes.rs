@@ -7,50 +7,13 @@
 
 mod comun;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
-use comun::ops::{Anotar, CrearUnico, FallaSi, catalogo};
+use comun::ops::{Anotar, CrearUnico, FallaSi, catalogo, escribir_estado, rapida};
 use comun::{Fixture, contrato, escribir, registro_permitido};
-use tc2::contrato::{Informe, Resultado};
+use tc2::contrato::Resultado;
 use tc2::estado::{self, Cerrojo, Contexto, Operacion, Politica};
-use tc2::git::Git;
-
-fn rapida() -> Politica {
-    Politica {
-        intentos: 3,
-        base: Duration::from_millis(1),
-        espera_cerrojo: Duration::from_secs(30),
-    }
-}
-
-fn escribir_estado(g: &Git, dir: &Path, op: &dyn Operacion) -> Informe {
-    let mut c = Contexto::nuevo(g, dir, &catalogo, None);
-    c.politica = rapida();
-    let i = estado::transaccion(&c, op);
-    contrato(&i);
-    i
-}
-
-fn rama_en(f: &Fixture, repo: &Path) -> String {
-    f.crudo(
-        repo,
-        &[
-            "for-each-ref",
-            "--format=%(objectname)",
-            "refs/heads/taskcodetwo/tareas",
-        ],
-    )
-}
-
-fn repo_sin_remoto(f: &Fixture, nombre: &str) -> PathBuf {
-    let solo = f.raiz.join(nombre);
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", nombre]);
-    escribir(&solo, "README.md", "x\n");
-    f.crudo(&solo, &["add", "README.md"]);
-    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
-    solo
-}
 
 fn ficheros(f: &Fixture, repo: &Path) -> String {
     f.crudo(
@@ -62,7 +25,7 @@ fn ficheros(f: &Fixture, repo: &Path) -> String {
 #[test]
 fn remoto_anadido_despues_publica_la_historia_local() {
     let f = Fixture::nueva("bordes-remoto-despues");
-    let solo = repo_sin_remoto(&f, "solo");
+    let solo = f.repo_sin_remoto("solo");
     let g = f.git();
     assert!(estado::montar(&g, &solo).resultado.es_exito());
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/a.md", true));
@@ -79,7 +42,7 @@ fn remoto_anadido_despues_publica_la_historia_local() {
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
     assert_eq!(i.valor("tareas"), Some("al-dia"), "{}", i.linea());
     assert_eq!(ficheros(&f, &bare), "LEEME.md\nnotas/a.md\nnotas/b.md\n");
-    assert_eq!(rama_en(&f, &solo), rama_en(&f, &bare));
+    assert_eq!(f.rama_en(&solo), f.rama_en(&bare));
     assert!(solo.join("tareas/notas/b.md").exists());
 }
 
@@ -123,16 +86,16 @@ fn tareas_con_cambios_o_divergente_lo_dice_y_no_pierde_nada() {
 
     // Sin remoto, el mismo choque no puede publicarse en ningun sitio:
     // `rechazada` y nada escrito.
-    let solo = repo_sin_remoto(&f, "solo");
+    let solo = f.repo_sin_remoto("solo");
     assert!(estado::montar(&g, &solo).resultado.es_exito());
     escribir(&solo.join("tareas"), "notas/y.md", "de la persona\n");
-    let antes = rama_en(&f, &solo);
+    let antes = f.rama_en(&solo);
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/y.md", true));
     assert_eq!(
         i.linea(),
         "estado rechazada operacion=anotar motivo=tareas-con-cambios"
     );
-    assert_eq!(rama_en(&f, &solo), antes);
+    assert_eq!(f.rama_en(&solo), antes);
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/otra.md", true));
     assert_eq!(i.valor("tareas"), Some("al-dia"), "{}", i.linea());
 }
@@ -200,7 +163,7 @@ fn cerrojo_ocupado_y_remoto_que_deniega_el_fetch() {
 #[test]
 fn rutas_que_chocan_por_mayusculas_y_llamadas_mal_formadas() {
     let f = Fixture::nueva("bordes-rutas");
-    let solo = repo_sin_remoto(&f, "solo");
+    let solo = f.repo_sin_remoto("solo");
     let g = f.git();
     assert!(estado::montar(&g, &solo).resultado.es_exito());
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/Mayus.md", true));
@@ -211,11 +174,11 @@ fn rutas_que_chocan_por_mayusculas_y_llamadas_mal_formadas() {
         "estado rechazada operacion=anotar motivo=ruta-duplicada"
     );
     // Una ruta no portable no llega a escribirse.
-    let antes = rama_en(&f, &solo);
+    let antes = f.rama_en(&solo);
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/aux.md", true));
     assert_eq!(i.resultado, Resultado::Error, "{}", i.linea());
     assert_eq!(i.valor("motivo"), Some("ruta-invalida"));
-    assert_eq!(rama_en(&f, &solo), antes);
+    assert_eq!(f.rama_en(&solo), antes);
 
     // Anotacion de varias lineas y politica sin intentos: `uso` (2).
     let i = escribir_estado(&g, &solo, &Anotar::nueva("notas/a\nb.md", true));
@@ -424,16 +387,16 @@ impl Operacion for Dos {
 #[test]
 fn dos_rutas_del_mismo_lote_que_chocan_por_mayusculas() {
     let f = Fixture::nueva("bordes-lote");
-    let solo = repo_sin_remoto(&f, "solo");
+    let solo = f.repo_sin_remoto("solo");
     let g = f.git();
     assert!(estado::montar(&g, &solo).resultado.es_exito());
-    let antes = rama_en(&f, &solo);
+    let antes = f.rama_en(&solo);
     let i = escribir_estado(&g, &solo, &Dos("notas/A.md", "notas/a.md"));
     assert_eq!(
         i.linea(),
         "estado rechazada operacion=dos motivo=ruta-duplicada"
     );
-    assert_eq!(rama_en(&f, &solo), antes);
+    assert_eq!(f.rama_en(&solo), antes);
     let i = escribir_estado(&g, &solo, &Dos("notas/A.md", "notas/B.md"));
     assert_eq!(i.resultado, Resultado::Ok, "{}", i.linea());
 }

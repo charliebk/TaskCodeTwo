@@ -255,11 +255,7 @@ fn escribir_que_falla_deja_el_indice_como_estaba() {
 #[test]
 fn zona_editada_sin_remoto() {
     let f = Fixture::nueva("roadmap-sin-remoto");
-    let solo = f.raiz.join("solo");
-    f.crudo(&f.raiz, &["init", "-q", "-b", "develop", "solo"]);
-    escribir(&solo, "README.md", "x\n");
-    f.crudo(&solo, &["add", "README.md"]);
-    f.crudo(&solo, &["commit", "-q", "-m", "inicial"]);
+    let solo = f.repo_sin_remoto("solo");
     con_codigo(&f, &solo, &["new", "Primera"], 0);
     assert!(estado::montar(&f.git(), &solo).resultado.es_exito());
     anotar_zona(&solo, "LOCAL");

@@ -161,9 +161,18 @@ exit 1
     assert_eq!(f.crudo(&bare, &["rev-parse", "develop"]), develop);
     let i = git::actualizar_rama(&g, &wt, &[std::time::Duration::ZERO; 2]);
     contrato(&i);
-    assert_eq!(i.resultado, Resultado::Denegada, "{}", i.linea());
-    assert_eq!(i.valor("motivo"), Some("remoto-rechaza"));
-    assert_eq!(i.valor("intentos"), Some("1"));
+    // La linea y el diagnostico enteros (TASK-142, A4-04: el informe de un
+    // publicar fallido es uno solo para push, tag-anotado y actualizar-rama).
+    assert_eq!(
+        i.linea(),
+        "actualizar-rama denegada rama=feature/task-007-login motivo=remoto-rechaza intentos=1"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.starts_with("push: [remote rejected] ")
+            && stderr.contains("; la rama esta actualizada en local; "),
+        "{stderr}"
+    );
 }
 
 #[test]
@@ -194,4 +203,43 @@ fn actualizar_rama_trae_lo_publicado_en_la_rama_por_fast_forward() {
         f.crudo(&wt, &["rev-parse", "HEAD"]),
         f.crudo(&otro, &["rev-parse", "HEAD"])
     );
+}
+
+/// TASK-142 (A4-06): `crear-rama-y-worktree` y `reanudar` rechazan una
+/// carpeta de worktree ya ocupada sin crear nada, con la ruta relativa en el
+/// diagnostico.
+#[test]
+fn carpeta_de_worktree_ocupada_en_crear_y_reanudar() {
+    let f = Fixture::nueva("limite-carpeta");
+    let (bare, clon) = f.remoto_y_clon();
+    let g = f.git();
+    escribir(&clon, ".taskcodetwo/worktrees/TASK-009/a.txt", "a\n");
+    escribir(&clon, ".taskcodetwo/worktrees/TASK-008/a.txt", "a\n");
+    f.crudo(&clon, &["branch", "feature/task-008-x"]);
+    let antes = f.huella(&bare, &clon);
+
+    let i = git::crear_rama_y_worktree(&g, &clon, "TASK-009", "feature", "y", "origin/develop");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "crear-rama-y-worktree rechazada rama=feature/task-009-y motivo=carpeta-ocupada"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.contains(".taskcodetwo/worktrees/TASK-009"),
+        "{stderr}"
+    );
+
+    let i = git::reanudar(&g, &clon, "TASK-008", "feature", "x");
+    contrato(&i);
+    assert_eq!(
+        i.linea(),
+        "reanudar rechazada rama=feature/task-008-x motivo=carpeta-ocupada"
+    );
+    let stderr = i.salida(false).stderr;
+    assert!(
+        stderr.contains(".taskcodetwo/worktrees/TASK-008"),
+        "{stderr}"
+    );
+    assert_eq!(antes, f.huella(&bare, &clon), "no se creo nada");
 }

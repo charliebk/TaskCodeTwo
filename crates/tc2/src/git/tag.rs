@@ -3,8 +3,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use super::remoto::publicar;
-use super::{Git, Paso, REMOTO, Subcomando, commit_de, correr, exigir};
+use super::remoto::{consultar_remoto, informe_publicacion, publicar};
+use super::{Git, Paso, REMOTO, Subcomando, commit_de, exigir};
 use crate::contrato::{Informe, Resultado, corto};
 use crate::i18n::Mensaje;
 use crate::i18n::catalogo::git as txt;
@@ -79,15 +79,11 @@ fn tag_paso(
         let refspec = format!("refs/tags/{tag}:refs/tags/{tag}");
         let p = publicar(git, dir, OP, &refspec, esperas)?;
         if !p.resultado.es_exito() {
-            let que_hacer = super::remoto::que_hacer_al_publicar(p.resultado);
-            let mut i = Informe::nuevo(OP, p.resultado).con("tag", tag);
-            if matches!(p.resultado, Resultado::Denegada | Resultado::Error) {
-                i = i.con("motivo", p.motivo);
-            }
-            return Ok(i.con("intentos", p.intentos.to_string()).diagnostico(
-                Mensaje::nuevo(&txt::TAG_SIN_PUBLICAR)
-                    .con("ultimo", p.ultimo)
-                    .con_mensaje("que_hacer", que_hacer),
+            return Ok(informe_publicacion(
+                OP,
+                p,
+                ("tag", tag),
+                &txt::TAG_SIN_PUBLICAR,
             ));
         }
     }
@@ -100,20 +96,9 @@ fn tag_paso(
 fn commit_remoto(git: &Git, dir: &Path, op: &str, tag: &str) -> Paso<Option<String>> {
     let r = format!("refs/tags/{tag}");
     let pelado = format!("{r}^{{}}");
-    let s = correr(
-        git,
-        dir,
-        op,
-        Subcomando::LsRemote,
-        &["--tags", REMOTO, &r, &pelado],
-    )?;
-    if !s.exito() {
-        return Err(Informe::nuevo(op, Resultado::Sinred)
-            .con("remoto", REMOTO)
-            .diagnostico(super::remoto::sin_red_remoto(op)));
-    }
+    let salida = consultar_remoto(git, dir, op, &["--tags", REMOTO, &r, &pelado])?;
     let mut directo = None;
-    for l in s.stdout.lines() {
+    for l in salida.lines() {
         let mut c = l.split('\t');
         let (Some(sha), Some(nombre)) = (c.next(), c.next()) else {
             continue;
