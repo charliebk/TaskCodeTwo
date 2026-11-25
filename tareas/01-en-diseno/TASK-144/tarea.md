@@ -6,10 +6,10 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: planificada
+estado: en-diseno
 plan_aprobado: false
 rama: fix/task-144-auditoria-4d-a6-estimacion-progreso-road
-asignado_a: null
+asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
 skills_recomendados: []
 regla_seleccion_skill: null
@@ -19,7 +19,7 @@ tokens_diseno: null
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
-actualizado: 2026-11-23
+actualizado: 2026-11-25
 dependencias: []
 ---
 ## Objetivo
@@ -33,3 +33,9 @@ Corregir los 6 casos IMPORTANTE del grupo A6 de `docs/auditoria-4d.md` (commit a
 - [ ] A6-05 y A6-06: `siguiente::tests` usa el `EnMemoria` de `roadmap::tests` (`siguiente.rs:139-149` ~ `roadmap/mod.rs:578-588`), y `c5_sin_red_y_sin_origin_sin_claves` llama a `start_de_luis` (`tests/solape.rs:514-529` ~ `:602-617`).
 - [ ] A6-07: `c7_fuera_de_un_repo` (`progreso/mod.rs:479-497`) tiene una entrada cuyo resultado depende de usar la carpeta del proceso como respaldo (adenda TASK-084 de F1-17, `orden_estado` en `:205-210`). Con el mutante de la ficha aplicado, `cargo test -p tc2 --lib progreso::tests::c7_fuera_de_un_repo` sale en rojo.
 - [ ] `cargo xtask verificar` en verde, y el `## Resultado` lista los 6 IDs con su commit.
+
+## Transiciones
+
+| fecha | fase | modo | decidido_por | version |
+|---|---|---|---|---|
+| 2026-11-25T04:29:29Z | plan | automatico | persona | 0.17.1 |
