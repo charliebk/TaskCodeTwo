@@ -503,19 +503,21 @@ fn ultima_linea(bytes: &[u8]) -> Option<String> {
         .map(|l| l.chars().take(300).collect())
 }
 
-/// Lanza `cmd` sin entrada y espera como mucho `limite`. `Ok(None)` si no
-/// termino a tiempo (se mata). stdout y stderr se leen en hilos aparte, hasta
-/// 1 MiB cada uno, para que un hijo que escribe mucho no se bloquee.
+/// Lanza `cmd` sin entrada, en un grupo propio, y espera como mucho `limite`
+/// ([`crate::proceso::esperar_con_plazo`]). `Ok(None)` si no termino a
+/// tiempo: entonces se mata el arbol entero (el hijo y lo que haya lanzado,
+/// con `taskkill /T` o `kill` al grupo), y con el se cierran las tuberias.
+/// stdout y stderr se leen en hilos aparte, hasta 1 MiB cada uno, para que
+/// un hijo que escribe mucho no se bloquee.
 ///
-/// El plazo vale para todo, tambien para leer la salida: si el hijo deja un
-/// nieto con las tuberias heredadas (un `.bat` que lanza otro proceso), las
-/// tuberias no se cierran al acabar el hijo y los hilos lectores siguen
-/// bloqueados. Entonces se espera al cierre hasta que se cumple el plazo (no
-/// mas) y se devuelve lo leido hasta ese momento: la salida del hijo, que
-/// acabo, no se pierde, pero la llamada tarda el plazo entero. Los hilos
-/// acaban solos cuando el nieto cierre las tuberias (o con el proceso). Al
-/// nieto no se le mata: no hay una forma portable de matar el arbol sin
-/// dependencias.
+/// El plazo vale para todo, tambien para leer la salida: si el hijo acaba a
+/// tiempo pero deja un nieto en segundo plano con las tuberias heredadas (un
+/// `.bat` que lanza otro proceso), las tuberias no se cierran y los hilos
+/// lectores siguen bloqueados. Entonces se espera al cierre hasta que se
+/// cumple el plazo (no mas) y se devuelve lo leido hasta ese momento: la
+/// salida del hijo, que acabo, no se pierde, pero la llamada tarda el plazo
+/// entero. A ese nieto no se le mata (el hijo acabo bien); los hilos acaban
+/// solos cuando cierre las tuberias (o con el proceso).
 pub(crate) fn ejecutar_con_limite(
     mut cmd: Command,
     limite: Duration,
@@ -523,7 +525,7 @@ pub(crate) fn ejecutar_con_limite(
     use std::io::Read;
     use std::sync::{Arc, Mutex, PoisonError, mpsc};
     const MAXIMO: usize = 1024 * 1024;
-    let mut hijo = cmd
+    let mut hijo = crate::proceso::grupo_propio(&mut cmd)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -572,24 +574,7 @@ pub(crate) fn ejecutar_con_limite(
             .map(|p| Box::new(p) as Box<dyn Read + Send>),
     );
     let fin = Instant::now() + limite;
-    let status = loop {
-        match hijo.try_wait() {
-            Ok(Some(s)) => break Some(s),
-            Ok(None) => {}
-            Err(e) => {
-                // Sin poder saber si sigue vivo: se mata antes de salir.
-                let _ = hijo.kill();
-                let _ = hijo.wait();
-                return Err(e);
-            }
-        }
-        if Instant::now() >= fin {
-            let _ = hijo.kill();
-            let _ = hijo.wait();
-            break None;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    };
+    let status = crate::proceso::esperar_con_plazo(&mut hijo, limite)?;
     // Lo que quede del plazo, con un margen corto para recoger la salida de
     // un hijo que acabo justo al limite.
     let restante = || {

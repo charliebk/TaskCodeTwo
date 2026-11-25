@@ -45,9 +45,6 @@ const LINEAS_RESUMEN: usize = 15;
 /// Tope de lo que se lee de stdin con `--hook`.
 const LIMITE_STDIN: u64 = 1 << 20;
 
-/// Cada cuanto se mira si el comando termino.
-const SONDEO: Duration = Duration::from_millis(10);
-
 /// `tc2 verificar` con los argumentos ya sin `--json`.
 pub fn orden(args: &[String], json: bool, idioma: Idioma) -> Salida {
     // Con `--hook`, nada que no sea el rojo de la rapida bloquea la parada:
@@ -372,48 +369,14 @@ fn lanzar(
             c.stdout(std::io::stderr()).stderr(Stdio::inherit());
         }
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        c.process_group(0);
-    }
-    let mut hijo = c.spawn()?;
-    let limite = Instant::now() + Duration::from_secs(u64::from(timeout));
-    loop {
-        if let Some(s) = hijo.try_wait()? {
-            return Ok(Fin::Codigo(s.code().unwrap_or(-1)));
-        }
-        if Instant::now() >= limite {
-            matar_arbol(hijo.id());
-            let _ = hijo.kill();
-            let _ = hijo.wait();
-            return Ok(Fin::Timeout);
-        }
-        std::thread::sleep(SONDEO);
-    }
-}
-
-/// Mata el comando y lo que haya lanzado (la shell sola dejaria vivos a sus
-/// hijos).
-fn matar_arbol(pid: u32) {
-    let pid = pid.to_string();
-    #[cfg(windows)]
-    let mut c = {
-        let mut c = Command::new("taskkill");
-        c.args(["/T", "/F", "/PID", &pid]);
-        c
-    };
-    #[cfg(not(windows))]
-    let mut c = {
-        let mut c = Command::new("kill");
-        c.args(["-KILL", "--", &format!("-{pid}")]);
-        c
-    };
-    let _ = c
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    // Al plazo cae el comando y lo que haya lanzado (la shell sola dejaria
+    // vivos a sus hijos).
+    let mut hijo = crate::proceso::grupo_propio(&mut c).spawn()?;
+    let plazo = Duration::from_secs(u64::from(timeout));
+    Ok(match crate::proceso::esperar_con_plazo(&mut hijo, plazo)? {
+        Some(s) => Fin::Codigo(s.code().unwrap_or(-1)),
+        None => Fin::Timeout,
+    })
 }
 
 /// Si el informe es un rojo de la verificacion (y no un «no se ejecuta»).

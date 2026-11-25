@@ -53,6 +53,7 @@ mod lectura;
 pub mod plan;
 mod plan_dato;
 pub mod plataforma;
+mod proceso;
 pub mod progreso;
 pub mod recursos;
 pub mod revision;
