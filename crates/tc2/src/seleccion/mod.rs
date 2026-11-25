@@ -847,7 +847,12 @@ mod tests {
             "| S12 | `revision` | `carril=fix` | `lanzador` | `general-purpose` |",
         );
         assert_ne!(adr, tabla::ADR);
-        let s = revision_con(&adr, &rutas, &c, &i, &ctx).unwrap_or_default();
+        // La copia se tiene que leer (un `Err` no vale como seleccion vacia)
+        // y dar una seleccion de verdad (M04), sin el lanzador de S12.
+        let r = revision_con(&adr, &rutas, &c, &i, &ctx);
+        assert!(r.is_ok(), "{r:?}");
+        let s = r.unwrap_or_default();
+        assert!(s.reglas.contains(&"M04".to_owned()), "{s:?}");
         assert!(s.agentes.is_empty(), "{s:?}");
         let roto = tabla::ADR.replace("`lanzador`", "`a-ojo`");
         assert!(revision_con(&roto, &rutas, &c, &i, &ctx).is_err());
