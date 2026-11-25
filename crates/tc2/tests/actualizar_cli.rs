@@ -118,8 +118,8 @@ fn lanzar(exe: &Path, base: &str, idioma: &str, args: &[&str]) -> Output {
     lanzar_con(exe, base, idioma, args, &[])
 }
 
-/// Como [`lanzar`], con variables de mas. Sin `TC2_GH` ni `GH_FALSO*`
-/// heredadas de quien corre los tests.
+/// Como [`lanzar`], con variables de mas. Sin `TC2_GH`, `GH_FALSO*` ni
+/// `TC2_FALSO_SHA256` heredadas de quien corre los tests.
 fn lanzar_con(
     exe: &Path,
     base: &str,
@@ -133,7 +133,8 @@ fn lanzar_con(
         .env("TC2_IDIOMA", idioma)
         .env_remove("TC2_GH")
         .env_remove("GH_FALSO")
-        .env_remove("GH_FALSO_REGISTRO");
+        .env_remove("GH_FALSO_REGISTRO")
+        .env_remove("TC2_FALSO_SHA256");
     for (k, v) in entorno {
         c.env(k, v);
     }
@@ -334,6 +335,46 @@ fn sha256_que_no_casa_es_rechazada_y_no_toca_nada() {
     // Y sigue siendo la vX.
     let v = Command::new(&exe).arg("--version").output().unwrap();
     assert_eq!(texto(&v.stdout), format!("tc2 {VERSION_X}\n"));
+}
+
+/// TASK-146 (A9-02): un binario nuevo que no responde bien a
+/// `version --json` se rechaza con `binario-no-arranca` (3), el instalado no
+/// cambia y no quedan restos. Tres casos: no arranca (no es un ejecutable),
+/// dice otra version (se publica como 9.9.8 el doble que dice 9.9.9) y da
+/// otro sha256 (`TC2_FALSO_SHA256`).
+#[test]
+fn el_binario_nuevo_que_no_responde_bien_es_rechazado_y_no_toca_nada() {
+    let _serie = serie();
+    let vy = binario_vy();
+    let otro = "0".repeat(64);
+    // (caso, version publicada, binario, sha256 que dice el doble)
+    let casos: [(&str, &str, &[u8], Option<&str>); 3] = [
+        ("no-arranca", VERSION_Y, b"binario-y", None),
+        ("otra-version", "9.9.8", &vy, None),
+        ("otro-sha256", VERSION_Y, &vy, Some(&otro)),
+    ];
+    for (nombre, version, binario, dice_sha256) in casos {
+        let entorno: Vec<(&str, &std::ffi::OsStr)> = dice_sha256
+            .map(|s| ("TC2_FALSO_SHA256", std::ffi::OsStr::new(s)))
+            .into_iter()
+            .collect();
+        let f = Carpeta::nueva(&format!("actualizar-{nombre}"));
+        let dir = f.raiz.join("bin");
+        let exe = instalar_vx(&dir);
+        let antes = sha256(&exe);
+        let srv = servir(release(version, binario, None));
+        let o = lanzar_con(&exe, &srv.base(), "es", &["actualizar", "--cli"], &entorno);
+        assert_eq!(o.status.code(), Some(3), "{nombre}: {}", texto(&o.stderr));
+        assert_eq!(
+            texto(&o.stdout),
+            "actualizar rechazada motivo=binario-no-arranca\n",
+            "{nombre}: {}",
+            texto(&o.stderr)
+        );
+        assert_eq!(sha256(&exe), antes, "{nombre}");
+        let quedan = restos(&dir, &exe);
+        assert!(quedan.is_empty(), "{nombre}: {quedan:?}");
+    }
 }
 
 /// Revision 1, IMP-1: con `gh` disponible se comprueba la attestation, como

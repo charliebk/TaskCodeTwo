@@ -5,7 +5,8 @@
 //!
 //! - `--version` → `tc2 9.9.9`;
 //! - `version --json` → `{version, protocolo, target, sha256}`, con el
-//!   sha256 de su propio fichero.
+//!   sha256 de su propio fichero, o el de `TC2_FALSO_SHA256` si existe
+//!   (TASK-146: un binario nuevo que da otro sha256; solo la pone el test).
 //!
 //! Solo usa `std` y la caja `distribucion`, no la biblioteca `tc2`, para que
 //! el binario sea pequeno: en Windows se ha visto (TASK-027) que la pila de
@@ -30,10 +31,12 @@ fn main() -> ExitCode {
     let texto = match args.as_slice() {
         ["--version"] => format!("tc2 {VERSION}\n"),
         ["version", "--json"] => {
-            let sha256 = std::env::current_exe()
-                .and_then(std::fs::read)
-                .map(|b| distribucion::sha256::hex(&b))
-                .unwrap_or_default();
+            let sha256 = std::env::var("TC2_FALSO_SHA256").unwrap_or_else(|_| {
+                std::env::current_exe()
+                    .and_then(std::fs::read)
+                    .map(|b| distribucion::sha256::hex(&b))
+                    .unwrap_or_default()
+            });
             let target = Target::actual().map_or("desconocido", |t| t.alias);
             // Los valores no llevan comillas ni barras: alias, version y hex.
             format!(
