@@ -467,18 +467,24 @@ mod tests {
         None
     }
 
-    /// M-2 de la ronda 1: quien se reasigna a si misma la tarea de otra
-    /// persona (inactiva, en un terminal) se la queda con su worktree de
-    /// este clon: no se rechaza `sin-publicar` aunque tenga trabajo sin
-    /// publicar (`&& !para_mi`) ni se intenta quitar (`if para_mi`).
-    #[test]
-    fn reasignarse_a_si_misma_no_toca_su_worktree() -> R<()> {
+    /// Escenario git de los dos tests: un bare `remoto.git` y su clon.
+    struct Repo {
+        _borrar: Carpeta,
+        raiz: PathBuf,
+        clon: PathBuf,
+        git: Git,
+    }
+
+    /// Monta en `tc2-tests/{nombre}-{pid}` un clon de `develop` con un
+    /// primer commit de `ficheros` (ruta relativa, contenido), crea `ramas`
+    /// en ese commit y publica `develop` y `ramas` en `origin` (el bare).
+    fn repo_con_remoto(nombre: &str, ficheros: &[(&str, &str)], ramas: &[&str]) -> R<Repo> {
         let raiz = std::env::temp_dir()
             .join("tc2-tests")
-            .join(format!("ciclo-para-mi-{}", std::process::id()));
+            .join(format!("{nombre}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&raiz);
         std::fs::create_dir_all(&raiz)?;
-        let _borrar = Carpeta(raiz.clone());
+        let borrar = Carpeta(raiz.clone());
         aislar(&raiz)?;
         sh(
             &raiz,
@@ -487,16 +493,49 @@ mod tests {
         )?;
         sh(&raiz, &raiz, &["init", "-q", "-b", "develop", "clon"])?;
         let (bare, clon) = (raiz.join("remoto.git"), raiz.join("clon"));
-        std::fs::create_dir_all(clon.join(".taskcode"))?;
-        std::fs::write(clon.join(crate::plataforma::personas::RUTA), PERSONAS)?;
+        for (ruta, contenido) in ficheros {
+            let ruta = clon.join(ruta);
+            if let Some(padre) = ruta.parent() {
+                std::fs::create_dir_all(padre)?;
+            }
+            std::fs::write(ruta, contenido)?;
+        }
         sh(&raiz, &clon, &["add", "."])?;
-        sh(&raiz, &clon, &["commit", "-q", "-m", "personas"])?;
-        sh(&raiz, &clon, &["branch", "main"])?;
+        sh(&raiz, &clon, &["commit", "-q", "-m", "inicial"])?;
+        for rama in ramas {
+            sh(&raiz, &clon, &["branch", rama])?;
+        }
         let url = bare.to_str().ok_or("ruta no UTF-8")?;
         sh(&raiz, &clon, &["remote", "add", "origin", url])?;
-        sh(&raiz, &clon, &["push", "-q", "origin", "develop", "main"])?;
+        let mut push = vec!["push", "-q", "origin", "develop"];
+        push.extend_from_slice(ramas);
+        sh(&raiz, &clon, &push)?;
         sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
-        let g = Git::nuevo().con_entorno(entorno(&raiz));
+        let git = Git::nuevo().con_entorno(entorno(&raiz));
+        Ok(Repo {
+            _borrar: borrar,
+            raiz,
+            clon,
+            git,
+        })
+    }
+
+    /// M-2 de la ronda 1: quien se reasigna a si misma la tarea de otra
+    /// persona (inactiva, en un terminal) se la queda con su worktree de
+    /// este clon: no se rechaza `sin-publicar` aunque tenga trabajo sin
+    /// publicar (`&& !para_mi`) ni se intenta quitar (`if para_mi`).
+    #[test]
+    fn reasignarse_a_si_misma_no_toca_su_worktree() -> R<()> {
+        let Repo {
+            _borrar,
+            clon,
+            git: g,
+            ..
+        } = repo_con_remoto(
+            "ciclo-para-mi",
+            &[(crate::plataforma::personas::RUTA, PERSONAS)],
+            &["main"],
+        )?;
         // TASK-001, de beto y empezada en este clon.
         let entrada = crate::alta::entrada_de_args(&["Uno".to_owned()]).map_err(|i| i.linea())?;
         let alta = crate::alta::Alta::con_entrada(entrada);
@@ -538,28 +577,12 @@ mod tests {
     /// (no el de por defecto en silencio); con una valida, su valor.
     #[test]
     fn umbral_sin_config_invalida_o_valida() -> R<()> {
-        let raiz = std::env::temp_dir()
-            .join("tc2-tests")
-            .join(format!("ciclo-umbral-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&raiz);
-        std::fs::create_dir_all(&raiz)?;
-        let _borrar = Carpeta(raiz.clone());
-        aislar(&raiz)?;
-        sh(
-            &raiz,
-            &raiz,
-            &["init", "-q", "--bare", "-b", "develop", "remoto.git"],
-        )?;
-        sh(&raiz, &raiz, &["init", "-q", "-b", "develop", "clon"])?;
-        let (bare, clon) = (raiz.join("remoto.git"), raiz.join("clon"));
-        std::fs::write(clon.join("README.md"), "linea 1\n")?;
-        sh(&raiz, &clon, &["add", "."])?;
-        sh(&raiz, &clon, &["commit", "-q", "-m", "inicial"])?;
-        let url = bare.to_str().ok_or("ruta no UTF-8")?;
-        sh(&raiz, &clon, &["remote", "add", "origin", url])?;
-        sh(&raiz, &clon, &["push", "-q", "origin", "develop"])?;
-        sh(&raiz, &clon, &["fetch", "-q", "origin"])?;
-        let g = Git::nuevo().con_entorno(entorno(&raiz));
+        let Repo {
+            _borrar,
+            raiz,
+            clon,
+            git: g,
+        } = repo_con_remoto("ciclo-umbral", &[("README.md", "linea 1\n")], &[])?;
         assert_eq!(
             umbral_de_inactividad(&g, &clon, LIBERAR).map_err(|i| i.linea()),
             Ok(DIAS_POR_DEFECTO)
