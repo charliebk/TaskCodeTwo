@@ -34,6 +34,8 @@
 
 pub mod liberar;
 pub mod operacion;
+#[cfg(test)]
+pub(crate) mod prueba;
 
 use std::path::Path;
 
