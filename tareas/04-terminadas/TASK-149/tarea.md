@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-149-auditoria-4d-capa-comun-de-ordenes-y-ope
 asignado_a: charlie.bk@gmail.com
@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 2514362
 tokens_implementacion: 21769944
-tokens_revision: null
+tokens_revision: 2650505
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -59,7 +59,7 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 860 ok,
 
 ### Hallazgo nuevo (copias fuera del plan, no corregidas)
 
-Para la segunda auditoria: `estado/transaccion.rs` `aplicar_en` (~467, conversion `Fallo -> Informe` con `operacion=` delante); `importar/mod.rs:322-326` (renombrar y `pendiente=no`, hermana de `lib.rs`); `importar/mod.rs:337-339` (otra copia de `escribir`; importar no usa `toma::Entorno`); `plan/aprobar.rs:178` y `:228` (variante del preambulo con dueno que devuelve tupla); `ciclo/liberar.rs:128` (`permiso`); `arreglo=tc2 actualizar` para `formato-1` repetido en `ciclo::con_rechazo` y `toma::rechazo_de_toma`.
+Para la segunda auditoria (y MEN-1 de la revision 1, aceptado: `AnotacionConDueno::leer` rechazaria el numero de hito de `approve-hito`, sin lector hoy): `estado/transaccion.rs` `aplicar_en` (~467, conversion `Fallo -> Informe` con `operacion=` delante); `importar/mod.rs:322-326` (renombrar y `pendiente=no`, hermana de `lib.rs`); `importar/mod.rs:337-339` (otra copia de `escribir`; importar no usa `toma::Entorno`); `plan/aprobar.rs:178` y `:228` (variante del preambulo con dueno que devuelve tupla); `ciclo/liberar.rs:128` (`permiso`); `arreglo=tc2 actualizar` para `formato-1` repetido en `ciclo::con_rechazo` y `toma::rechazo_de_toma`.
 
 ## Transiciones
 
@@ -69,6 +69,7 @@ Para la segunda auditoria: `estado/transaccion.rs` `aplicar_en` (~467, conversio
 | 2026-11-25T15:54:57Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T15:54:58Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T17:08:44Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T18:32:12Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -77,8 +78,16 @@ Para la segunda auditoria: `estado/transaccion.rs` `aplicar_en` (~467, conversio
 | 2026-11-25T15:54:57Z | diseno | agente:a2556eb46cdca27b1 | 64 | 125609 | 2363006 | 25683 | 55 | 2514362 | - | - |
 | 2026-11-25T17:08:44Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 24 | 16666 | 2732574 | 5373 | 0 | 2754637 | - | - |
 | 2026-11-25T17:08:44Z | implementacion | agente:a6264d9616ecb04fa | 226 | 489160 | 18456423 | 69498 | 5 | 19015307 | - | - |
+| 2026-11-25T17:41:50Z | revision | agente:ac841c54975d88539 | 44 | 292015 | 2347558 | 10888 | 5 | 2650505 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 959fdad
 - 4D — 959fdad: helper buscado, criterios citados, 8 tests mutados
+
+## Duracion
+
+- Estimada: 170 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 157 min
+- Paso de la hora: 157 min reales frente a 170 estimados
+- Cierre (finish): 3010 s, de 2026-11-25T17:42:02Z a 2026-11-25T18:32:12Z

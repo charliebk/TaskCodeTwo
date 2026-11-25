@@ -2,7 +2,7 @@
 
 > Generado automaticamente por taskctl finish el 2026-11-25. No editar a mano.
 
-## Planificadas (00-planificadas) — 47
+## Planificadas (00-planificadas) — 46
 
 ```text
 ID        Titulo                                                                                           Asignado
@@ -52,7 +52,6 @@ TASK-133  F11-5 Pestana Dashboard: progreso, produccion diaria, coste y persona 
 TASK-134  F11-6 Pestana Planificacion: tareas por persona y predecesoras                                   (sin asignar)
 TASK-135  F11-7 Proyeccion de fechas por persona con el ritmo medido                                       (sin asignar)
 TASK-136  F11-8 Pruebas E2E del panel y paridad con el dashboard de referencia de ToolsaWeb                (sin asignar)
-TASK-149  Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)                       (sin asignar)
 TASK-150  Auditoria 4D: utilidades comunes de E-S y tiempo (4 IMPORTANTE)                                  (sin asignar)
 ```
 
@@ -64,7 +63,7 @@ ID        Titulo                                Asignado
 TASK-039  F4-4 Orquestador del modo automatico  charlie.bk@gmail.com
 ```
 
-## Terminadas (04-terminadas) — 90
+## Terminadas (04-terminadas) — 91
 
 ```text
 ID         Titulo                                                                                                                     Asignado
@@ -159,4 +158,5 @@ TASK-148c  servidor HTTP de los tests con comun::http_mock (A8-11) (parte c de T
 TASK-148d  instantanea de carpeta comun (A8-12, absorbe A7-06) (parte d de TASK-148)                                                  charlie.bk@gmail.com
 TASK-148e  soporte comun de los tests unitarios (A8-18, A8-20 unitarios) (parte e de TASK-148)                                        charlie.bk@gmail.com
 TASK-148f  dobles de Plataforma con Parcial y Doble (A8-05, absorbe A2-06) (parte f de TASK-148)                                      charlie.bk@gmail.com
+TASK-149   Auditoria 4D: capa comun de ordenes y operaciones con dueno (6 IMPORTANTE)                                                 charlie.bk@gmail.com
 ```
