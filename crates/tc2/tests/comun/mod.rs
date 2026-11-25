@@ -14,6 +14,7 @@ pub mod lanzador;
 pub mod ops;
 pub mod plataforma;
 pub mod remoto;
+pub mod tareas;
 
 #[allow(unused_imports)] // cada fichero de tests usa una parte
 pub use instantanea::instantanea;

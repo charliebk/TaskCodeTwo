@@ -472,26 +472,10 @@ fn c10_uno_mas_k_mas_uno_procesos() {
 #[test]
 fn c5_sin_red_y_sin_origin_sin_claves() {
     let e = escena("solape-c5", &["src/x/a.rs"], &["src/x/a.rs"], nada);
-    let g = tc2::git::Git::nuevo().con_entorno(e.f.entorno_ssh());
-    let luis = || -> Result<Quien, tc2::contrato::Informe> {
-        Ok(Quien::Persona(Cuenta {
-            proveedor: Proveedor::GitHub,
-            id: 1002,
-            login: "luis".to_owned(),
-        }))
-    };
-    let entorno = tc2::toma::Entorno {
-        dir: &e.b,
-        git: &g,
-        quien: &luis,
-        catalogo: &sin_catalogo,
-        ahora: tc2::identidad::ahora(),
-    };
-    let (i, s) = tc2::toma::start_con_solape(&entorno, "TASK-002");
+    let (i, s, r) = start_de_luis(&e, "TASK-002");
     assert_eq!(i.resultado, Resultado::SinCambios, "{}", i.linea());
     assert_eq!(i.valor("asignado"), Some("luis"));
     assert!(s.is_some_and(|s| !s.cruces.is_empty()));
-    let r = g.registro();
     let fetch = r.iter().position(|l| l.starts_with("git fetch ")).unwrap();
     // Desde la lectura de los `tarea.md` del solape hasta el final.
     let desde = r

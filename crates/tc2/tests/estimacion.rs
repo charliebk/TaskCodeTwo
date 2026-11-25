@@ -15,11 +15,11 @@ use comun::{
     Fixture,
     ops::sin_catalogo,
     remoto::{Preparar, identificar},
-    texto, valor,
+    tareas, texto, valor,
 };
 use tc2::carril::Carril;
 use tc2::contrato::Resultado;
-use tc2::estado::{self, Cambio, Estado, Fallo, Leida, Operacion};
+use tc2::estado::{self, Leida};
 use tc2::estimacion::{
     self, Commits, Estimacion, Objetivo, PorFase, Rango, eventos, historico, real::real,
 };
@@ -202,61 +202,13 @@ fn correr(f: &Fixture, dir: &Path, args: &[&str]) -> (Option<i32>, String, Strin
     (o.status.code(), texto(&o.stdout), texto(&o.stderr))
 }
 
-/// Escribe ficheros en la rama de estado por la transaccion.
-struct Poner(Vec<(String, String)>);
-
-impl Operacion for Poner {
-    fn nombre(&self) -> &str {
-        "poner"
-    }
-    fn anotacion(&self) -> String {
-        "poner".to_owned()
-    }
-    fn exige_red(&self) -> bool {
-        true
-    }
-    fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
-        Ok(self
-            .0
-            .iter()
-            .map(|(r, t)| Cambio::nuevo(r.clone(), t.clone()))
-            .collect())
-    }
-}
-
-fn poner(f: &Fixture, dir: &Path, ficheros: &[(String, String)]) {
-    f.transaccion(dir, &Poner(ficheros.to_vec()));
-}
-
-/// 2026-10-01T09:00:00Z.
-const BASE: u64 = 1_790_845_200;
-
-fn fila(ts: u64, fase: &str) -> String {
-    format!(
-        "| {} | {fase} | manual | persona | 0.1 |\n",
-        tc2::toma::instante(ts)
-    )
-}
-
-/// Una terminada de formato 2 (carril funcionalidad, complejidad media, dos
-/// criterios) con `imp` minutos de implementacion (sin huecos de mas de 45),
-/// 10 de rondas y 5 de cierre, el dia `dia` desde [`BASE`].
+/// Una terminada de formato 2 ([`tareas::terminada`]) con carril
+/// funcionalidad, complejidad media y dos criterios.
 fn terminada(id: &str, dia: u64, imp: u64) -> (String, String) {
-    let mut t = Tarea::nueva(id, &format!("Hecha {id}"), "2026-10-01");
-    "terminada".clone_into(&mut t.estado);
-    t.carril = Some("funcionalidad".to_owned());
-    t.complejidad = Some("media".to_owned());
-    t.plan_aprobado = true;
-    let s = BASE + dia * 86_400;
-    let r1 = s + imp * 60;
-    let cuerpo = format!(
-        "## Objetivo\n\nHecha.\n\n## Criterios de aceptacion\n\n- [x] a\n- [x] b\n\n## Transiciones\n\n| fecha | fase | modo | decidido_por | version |\n|---|---|---|---|---|\n{}{}{}{}",
-        fila(s, "start"),
-        fila(r1, "review"),
-        fila(r1 + 600, "review"),
-        fila(r1 + 900, "finish"),
-    );
-    (format!("{id}/tarea.md"), t.escribir(&Cuerpo::leer(&cuerpo)))
+    tareas::terminada(id, dia, imp, "- [x] a\n- [x] b", |t| {
+        t.carril = Some("funcionalidad".to_owned());
+        t.complejidad = Some("media".to_owned());
+    })
 }
 
 /// El bloque `estimacion:` de un `tarea.md`.
@@ -284,7 +236,7 @@ fn c3_sin_datos_nunca_un_numero_inventado() {
     let tres: Vec<(String, String)> = (1..=3)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 10 * i))
         .collect();
-    poner(&f, &a, &tres);
+    f.poner(&a, &tres);
     let (c, out, err) = correr(
         &f,
         &a,
@@ -343,7 +295,7 @@ fn c4_new_import_y_estimar_rellenan_sin_tocar_las_terminadas() {
         }
         ficheros.push((format!("{id}/tarea.md"), t.escribir(&Cuerpo::plantilla())));
     }
-    poner(&f, &a, &ficheros);
+    f.poner(&a, &ficheros);
     // new
     let (c, out, err) = correr(
         &f,
@@ -432,7 +384,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     let cinco: Vec<(String, String)> = (1..=5)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
-    poner(&f, &a, &cinco);
+    f.poner(&a, &cinco);
     let (c, out, err) = correr(
         &f,
         &a,
@@ -442,7 +394,7 @@ fn c5_start_recalcula_y_el_ciclo_no_la_toca() {
     assert_eq!(valor(&out, "estimacion-n"), Some("5"), "{out}");
     // Termina una mas.
     let sexta = terminada("TASK-007", 7, 40);
-    poner(&f, &a, std::slice::from_ref(&sexta));
+    f.poner(&a, std::slice::from_ref(&sexta));
     let antes = f.publicado(&bare, "TASK-006/tarea.md");
     let t0 = tc2::identidad::ahora();
     let (c, out, err) = correr(&f, &a, &["start", "TASK-006"]);
@@ -575,8 +527,7 @@ fn tarea_c6(id: &str, con_estimacion: bool) -> (String, String) {
 fn c6_error_por_fase_y_total() {
     let f = Fixture::nueva("estimacion-c6");
     let (bare, a) = f.preparar(&Preparar::default());
-    poner(
-        &f,
+    f.poner(
         &a,
         &[tarea_c6("TASK-001", true), tarea_c6("TASK-002", false)],
     );
@@ -639,7 +590,7 @@ fn c7_un_git_log_y_nunca_ella_misma() {
     let seis: Vec<(String, String)> = (1..=6)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
-    poner(&f, &a, &seis);
+    f.poner(&a, &seis);
     let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let e = estimacion::Entorno {
         dir: &a,
@@ -683,7 +634,7 @@ fn c7_un_git_log_y_nunca_ella_misma() {
 fn r1_01_un_commit_de_develop_cambia_el_real() {
     let f = Fixture::nueva("estimacion-r1-01");
     let (bare, a) = f.preparar(&Preparar::default());
-    poner(&f, &a, &[tarea_c6("TASK-001", true)]);
+    f.poner(&a, &[tarea_c6("TASK-001", true)]);
     let error = |f: &Fixture| {
         let (c, out, err) = correr(f, &a, &["estimar", "--error", "TASK-001"]);
         assert_eq!(c, Some(0), "{out} {err}");
@@ -754,7 +705,7 @@ fn r1_05_un_git_log_en_new_import_y_start() {
     let seis: Vec<(String, String)> = (1..=6)
         .map(|i| terminada(&format!("TASK-{i:03}"), i, 5 * i + 5))
         .collect();
-    poner(&f, &a, &seis);
+    f.poner(&a, &seis);
     let (c, out, subs) = llamadas(
         &f,
         &a,
@@ -796,7 +747,7 @@ fn doctor_cuenta_el_historico() {
         .replacen("| review |", "| start |", 1);
     let mal = mal.replacen("| review-x |", "| review |", 1);
     fs.push((r, mal));
-    poner(&f, &a, &fs);
+    f.poner(&a, &fs);
     let g = tc2::git::Git::nuevo().con_entorno(f.entorno_ssh());
     let sin =
         |_: &tc2::plataforma::Personas| -> Result<tc2::tablero::Conectada, tc2::tablero::Consulta> {

@@ -11,10 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use comun::{Fixture, escribir};
-use tc2::estado;
 use tc2::tarea::{Cuerpo, Tarea};
-
-const RAMA: &str = estado::RAMA;
 
 fn skill(nombre: &str) -> String {
     format!("---\nname: {nombre}\ndescription: prueba\n---\n# {nombre}\n")
@@ -117,15 +114,13 @@ fn repo(f: &Fixture, config: Option<&str>, tareas: &[(&str, String)]) -> (PathBu
         f.crudo(&clon, &["commit", "-q", "-m", "config"]);
         f.crudo(&clon, &["push", "-q", "origin", "develop"]);
     }
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    escribir(&dir, "LEEME.md", "estado\n");
-    for (id, texto) in tareas {
-        escribir(&dir, &format!("{id}/tarea.md"), texto);
-    }
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
+    let mut ficheros = vec![("LEEME.md".to_owned(), "estado\n".to_owned())];
+    ficheros.extend(
+        tareas
+            .iter()
+            .map(|(id, texto)| (format!("{id}/tarea.md"), texto.clone())),
+    );
+    f.publicar_estado(&bare, &ficheros);
     f.crudo(&clon, &["fetch", "-q", "origin"]);
     escribir(&clon, ".claude/skills/proy/SKILL.md", &skill("proy"));
     escribir(&clon, ".claude/agents/proy-ag.md", &agente("proy-ag"));

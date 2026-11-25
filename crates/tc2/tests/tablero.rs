@@ -20,7 +20,6 @@ use tc2::plataforma::{Paso, Personas, PrAbierto, Rol};
 use tc2::tablero::{self, Conectada, Consulta, Entorno};
 use tc2::tarea::{Asignado, Cuerpo, Tarea};
 
-const RAMA: &str = estado::RAMA;
 const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PERSONAS: &str = "personas:\n  - {id: 7, login: \"ana\", correos: [\"ana@x.com\"]}\n";
 
@@ -66,9 +65,7 @@ fn con_estado(f: &Fixture) -> (PathBuf, PathBuf, String) {
     f.crudo(&clon, &["add", ".taskcode/personas.yml"]);
     f.crudo(&clon, &["commit", "-q", "-m", "personas"]);
     f.crudo(&clon, &["push", "-q", "origin", "develop"]);
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    for (id, md) in [
+    let ficheros = [
         ("TASK-001", tarea("TASK-001", "terminada", None, None)),
         (
             "TASK-002",
@@ -97,13 +94,9 @@ fn con_estado(f: &Fixture) -> (PathBuf, PathBuf, String) {
             "TASK-006",
             tarea("TASK-006", "en-diseno", Some("feature/task-006-f"), None),
         ),
-    ] {
-        escribir(&dir, &format!("{id}/tarea.md"), &md);
-    }
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
-    let commit = f.crudo(&dir, &["rev-parse", "HEAD"]).trim().to_owned();
+    ]
+    .map(|(id, md)| (format!("{id}/tarea.md"), md));
+    let commit = f.publicar_estado(&bare, &ficheros);
     f.crudo(&clon, &["fetch", "-q", "origin"]);
     (bare, clon, commit)
 }
@@ -580,11 +573,9 @@ fn c9_c10_inactivas_y_ya_no_tuyas() {
         t.asignado_a = quien;
         t.escribir(&Cuerpo::leer(vieja))
     };
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    for (id, texto) in [
+    let ficheros = [
         (
-            "TASK-002",
+            "TASK-002/tarea.md",
             md(
                 "TASK-002",
                 "en-curso",
@@ -593,7 +584,7 @@ fn c9_c10_inactivas_y_ya_no_tuyas() {
             ),
         ),
         (
-            "TASK-003",
+            "TASK-003/tarea.md",
             md(
                 "TASK-003",
                 "en-revision",
@@ -601,12 +592,8 @@ fn c9_c10_inactivas_y_ya_no_tuyas() {
                 Asignado::persona(7, "ana"),
             ),
         ),
-    ] {
-        escribir(&dir, &format!("{id}/tarea.md"), &texto);
-    }
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
+    ];
+    f.publicar_estado(&bare, &ficheros);
     // La rama de TASK-003 con un commit de ahora; la de TASK-002 no esta.
     f.crudo(
         &clon,

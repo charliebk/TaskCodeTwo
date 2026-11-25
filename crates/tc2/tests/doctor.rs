@@ -9,6 +9,7 @@ mod comun;
 use std::path::{Path, PathBuf};
 
 use comun::http_mock::{Mock, Simulada, serie};
+use comun::tareas::tarea;
 use comun::{Fixture, escribir};
 use tc2::doctor::{self, Entorno, Estado, Hallazgo, Resumen};
 use tc2::estado;
@@ -16,17 +17,8 @@ use tc2::i18n::Idioma;
 use tc2::plataforma::http::Base;
 use tc2::plataforma::{CredencialesFijas, GitHub, GitLab, Personas, Plataforma, Rol, Secreto};
 use tc2::tablero::{Conectada, Consulta};
-use tc2::tarea::{Cuerpo, Tarea};
 
-const RAMA: &str = estado::RAMA;
 const PERSONAS: &str = "personas:\n  - {id: 1001, login: \"ana\"}\n";
-
-fn tarea(id: &str, estado: &str) -> String {
-    let mut t = Tarea::nueva(id, &format!("Titulo de {id}"), "2026-01-01");
-    t.sprint = 1;
-    t.estado = estado.to_owned();
-    t.escribir(&Cuerpo::leer(""))
-}
 
 /// Remoto bare con personas en `develop` y la rama de estado publicada
 /// desde un repo aparte (con `extra` de mas); devuelve (bare, clon).
@@ -36,15 +28,16 @@ fn con_estado(f: &Fixture, extra: &[(&str, &str)]) -> (PathBuf, PathBuf) {
     f.crudo(&clon, &["add", ".taskcode/personas.yml"]);
     f.crudo(&clon, &["commit", "-q", "-m", "personas"]);
     f.crudo(&clon, &["push", "-q", "origin", "develop"]);
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    escribir(&dir, "TASK-001/tarea.md", &tarea("TASK-001", "planificada"));
-    for (ruta, texto) in extra {
-        escribir(&dir, ruta, texto);
-    }
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
+    let mut ficheros = vec![(
+        "TASK-001/tarea.md".to_owned(),
+        tarea("TASK-001", 1, "planificada", &[]),
+    )];
+    ficheros.extend(
+        extra
+            .iter()
+            .map(|(ruta, texto)| ((*ruta).to_owned(), (*texto).to_owned())),
+    );
+    f.publicar_estado(&bare, &ficheros);
     f.crudo(&clon, &["fetch", "-q", "origin"]);
     (bare, clon)
 }

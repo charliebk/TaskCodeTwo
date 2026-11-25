@@ -165,6 +165,28 @@ impl Operacion for Escribir {
     }
 }
 
+/// Escribe ficheros (ruta y texto) en la rama de estado por la transaccion.
+pub struct Poner(pub Vec<(String, String)>);
+
+impl Operacion for Poner {
+    fn nombre(&self) -> &str {
+        "poner"
+    }
+    fn anotacion(&self) -> String {
+        "poner".to_owned()
+    }
+    fn exige_red(&self) -> bool {
+        true
+    }
+    fn aplicar(&self, _: &dyn Estado) -> Result<Vec<Cambio>, Fallo> {
+        Ok(self
+            .0
+            .iter()
+            .map(|(r, t)| Cambio::nuevo(r.clone(), t.clone()))
+            .collect())
+    }
+}
+
 /// Catalogo vacio: ninguna pendiente que re-ejecutar.
 pub fn sin_catalogo(_: &str) -> Option<Box<dyn Operacion>> {
     None

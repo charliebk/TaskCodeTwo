@@ -9,9 +9,9 @@ mod comun;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
+use comun::tareas::{juego_de_next, tarea};
 use comun::{Fixture, escribir};
 use tc2::estado;
-use tc2::tarea::{Cuerpo, Tarea};
 
 const RAMA: &str = estado::RAMA;
 
@@ -37,64 +37,11 @@ fn next(f: &Fixture, dir: &Path, idioma: &str, args: &[&str]) -> (i32, String, S
     )
 }
 
-fn tarea(id: &str, sprint: u32, estado: &str, deps: &[&str]) -> String {
-    let mut t = Tarea::nueva(id, "t", "2026-01-01");
-    t.sprint = sprint;
-    t.estado = estado.to_owned();
-    if estado == "descartada" {
-        t.motivo = Some("ya no hace falta".to_owned());
-    }
-    t.dependencias = deps.iter().map(|d| (*d).to_owned()).collect();
-    t.escribir(&Cuerpo::leer(""))
-}
-
-/// Publica en `bare` la rama de estado con un juego de tareas: H2 va antes
-/// que H1 en la zona manual del ROADMAP; TASK-005 es ilegible y bloquea a
-/// TASK-010; TASK-007 esta descartada y bloquea a TASK-008. Devuelve el
-/// commit publicado.
-fn publicar_estado(f: &Fixture, bare: &Path) -> String {
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    for (id, md) in [
-        ("TASK-001", tarea("TASK-001", 1, "terminada", &[])),
-        (
-            "TASK-002",
-            tarea("TASK-002", 1, "planificada", &["TASK-001"]),
-        ),
-        ("TASK-003", tarea("TASK-003", 1, "en-curso", &[])),
-        (
-            "TASK-004",
-            tarea("TASK-004", 2, "planificada", &["TASK-003"]),
-        ),
-        ("TASK-005", "---\nid: TASK-005\nroto: [\n---\n".to_owned()),
-        ("TASK-006", tarea("TASK-006", 2, "planificada", &[])),
-        ("TASK-007", tarea("TASK-007", 2, "descartada", &[])),
-        (
-            "TASK-008",
-            tarea("TASK-008", 2, "planificada", &["TASK-007"]),
-        ),
-        (
-            "TASK-010",
-            tarea("TASK-010", 2, "planificada", &["TASK-005"]),
-        ),
-    ] {
-        escribir(&dir, &format!("{id}/tarea.md"), &md);
-    }
-    escribir(
-        &dir,
-        "ROADMAP.md",
-        "# Roadmap\n\n<!-- manual:inicio -->\n### H2 — Antes\n### H1 — Despues\n<!-- manual:fin -->\n",
-    );
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
-    f.crudo(&dir, &["rev-parse", "HEAD"]).trim().to_owned()
-}
-
-/// Clon con la rama de estado ya traida; devuelve (bare, clon, commit).
+/// Clon con la rama de estado ya traida, publicada con el juego de tareas
+/// de `next` ([`juego_de_next`]); devuelve (bare, clon, commit).
 fn con_estado(f: &Fixture) -> (PathBuf, PathBuf, String) {
     let (bare, clon) = f.remoto_y_clon();
-    let commit = publicar_estado(f, &bare);
+    let commit = f.publicar_estado(&bare, &juego_de_next());
     f.crudo(&clon, &["fetch", "-q", "origin"]);
     (bare, clon, commit)
 }

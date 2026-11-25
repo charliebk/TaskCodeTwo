@@ -8,6 +8,7 @@ mod comun;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use comun::tareas::{juego_de_next, tarea};
 use comun::{Fixture, escribir, texto, valor};
 use tc2::estado::{self, Estado, Fallo};
 use tc2::plataforma::Personas;
@@ -414,57 +415,6 @@ fn solo_cambia_la_rama_de_estado() {
     con_codigo(&f, &clon, &["roadmap", "--comparar"], 0);
 }
 
-/// Publica en `bare` el juego de tareas de `tests/siguiente.rs` (ilegible,
-/// descartada, H2 antes que H1) sin pasar por `tc2`.
-fn publicar_estado(f: &Fixture, bare: &Path) {
-    let dir = f.raiz.join("estado");
-    f.crudo(&f.raiz, &["init", "-q", "-b", RAMA, "estado"]);
-    let tarea = |id: &str, sprint: u32, estado: &str, deps: &[&str]| {
-        let mut t = Tarea::nueva(id, &format!("Titulo de {id}"), "2026-01-01");
-        t.sprint = sprint;
-        t.estado = estado.to_owned();
-        if estado == "descartada" {
-            t.motivo = Some("ya no hace falta".to_owned());
-        }
-        t.dependencias = deps.iter().map(|d| (*d).to_owned()).collect();
-        t.escribir(&Cuerpo::leer(""))
-    };
-    for (id, md) in [
-        ("TASK-001", tarea("TASK-001", 1, "terminada", &[])),
-        (
-            "TASK-002",
-            tarea("TASK-002", 1, "planificada", &["TASK-001"]),
-        ),
-        ("TASK-003", tarea("TASK-003", 1, "en-curso", &[])),
-        (
-            "TASK-004",
-            tarea("TASK-004", 2, "planificada", &["TASK-003"]),
-        ),
-        ("TASK-005", "---\nid: TASK-005\nroto: [\n---\n".to_owned()),
-        ("TASK-006", tarea("TASK-006", 2, "planificada", &[])),
-        ("TASK-007", tarea("TASK-007", 2, "descartada", &[])),
-        (
-            "TASK-008",
-            tarea("TASK-008", 2, "planificada", &["TASK-007"]),
-        ),
-        ("TASK-009", tarea("TASK-009", 2, "en-revision", &[])),
-        (
-            "TASK-010",
-            tarea("TASK-010", 2, "planificada", &["TASK-005"]),
-        ),
-    ] {
-        escribir(&dir, &format!("{id}/tarea.md"), &md);
-    }
-    escribir(
-        &dir,
-        ROADMAP,
-        "# Roadmap\n\n<!-- manual:inicio -->\n### H2 — Antes\n### H1 — Despues\n<!-- manual:fin -->\n",
-    );
-    f.crudo(&dir, &["add", "-A"]);
-    f.crudo(&dir, &["commit", "-q", "-m", "estado"]);
-    f.crudo(&dir, &["push", "-q", bare.to_str().unwrap(), RAMA]);
-}
-
 /// Valor de `clave=` (lista separada por comas) de una linea de contrato.
 fn lista(linea: &str, clave: &str) -> Vec<String> {
     valor(linea, clave)
@@ -483,7 +433,14 @@ fn lista(linea: &str, clave: &str) -> Vec<String> {
 fn roadmap_y_next_coinciden_y_escribir_es_idempotente() {
     let f = Fixture::nueva("roadmap-next");
     let (bare, clon) = f.remoto_y_clon();
-    publicar_estado(&f, &bare);
+    // El juego de `next` (ilegible, descartada, H2 antes que H1) y TASK-009
+    // en revision.
+    let mut juego = juego_de_next();
+    juego.push((
+        "TASK-009/tarea.md".to_owned(),
+        tarea("TASK-009", 2, "en-revision", &[]),
+    ));
+    f.publicar_estado(&bare, &juego);
     f.crudo(&clon, &["fetch", "-q", "origin"]);
     let next = con_codigo(&f, &clon, &["next"], 0);
     let impreso = con_codigo(&f, &clon, &["roadmap"], 0);

@@ -640,19 +640,7 @@ mod tests {
 
     /// IDs de la linea `- **<titulo>:** TASK-1 (x), TASK-2` del ROADMAP.
     fn linea_esperada(titulo: &str) -> Vec<String> {
-        let prefijo = format!("- **{titulo}:** ");
-        let resto = TW_ESPERADO
-            .lines()
-            .find_map(|l| l.trim_end_matches('\r').strip_prefix(prefijo.as_str()))
-            .unwrap_or_default();
-        if resto == "ninguna" {
-            return Vec::new();
-        }
-        resto
-            .split(", ")
-            .filter_map(|p| p.split(' ').next())
-            .map(str::to_owned)
-            .collect()
+        crate::roadmap::generar::ids_de_la_linea(TW_ESPERADO, titulo).unwrap_or_default()
     }
 
     /// C1: el nucleo da exactamente las listas del ROADMAP de ToolsaWeb,
