@@ -39,15 +39,25 @@ const LITERALES_ERR: &[(&str, usize)] = &[
     ("verificacion/informe.rs", 1),
 ];
 
-/// Cuantos `Err("...")` de `codigo` llevan un literal con espacios.
-fn literales_err(codigo: &str) -> usize {
+/// Cuantas llamadas `{llamada}"..."` de `codigo` llevan como primer
+/// argumento un literal con espacios (prosa), aunque el literal empiece en
+/// la linea siguiente.
+fn con_prosa(codigo: &str, llamada: &str) -> usize {
     codigo
-        .match_indices("Err(\"")
+        .match_indices(llamada)
         .filter(|(i, m)| {
-            let resto = &codigo[i + m.len()..];
-            resto.split('"').next().is_some_and(|l| l.contains(' '))
+            let resto = codigo[i + m.len()..].trim_start();
+            resto
+                .strip_prefix('"')
+                .and_then(|r| r.split('"').next())
+                .is_some_and(|l| l.contains(' '))
         })
         .count()
+}
+
+/// Cuantos `Err("...")` de `codigo` llevan un literal con espacios.
+fn literales_err(codigo: &str) -> usize {
+    con_prosa(codigo, "Err(")
 }
 
 fn fuentes(dir: &Path, base: &Path, v: &mut Vec<(String, String)>) {
@@ -104,6 +114,14 @@ fn ningun_literal_fuera_del_catalogo() {
         let n = literales_err(codigo);
         if n > 0 {
             literales.insert(rel.as_str(), n);
+        }
+        // `externo("...")` (el de `Mensaje` o el de `plan_dato`) con prosa:
+        // un texto de `tc2` sin catalogo que sale tal cual en cualquier
+        // idioma. Sin excepciones.
+        if con_prosa(codigo, "externo(") > 0 {
+            fallos.push(format!(
+                "{rel}: externo(\"...\") con prosa: pasa el texto al catalogo"
+            ));
         }
     }
     let permitidos: BTreeMap<&str, usize> = EXTERNOS.iter().copied().collect();

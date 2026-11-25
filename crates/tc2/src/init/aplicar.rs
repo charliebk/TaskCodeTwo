@@ -204,6 +204,40 @@ mod tests {
         Ok(())
     }
 
+    /// A7-07 (MEN-2 de la revision): un fallo de git al aplicar `Excluir`
+    /// llega como mensaje y sale en ingles con `en`, igual que el
+    /// diagnostico del informe de git (no un texto ya puesto en espanol).
+    #[test]
+    fn fallo_de_git_al_excluir_en_ingles() {
+        let principal = std::env::temp_dir()
+            .join("tc2-tests")
+            .join(format!("init-excluir-no-existe-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&principal);
+        let git = Git::nuevo();
+        let credenciales = crate::plataforma::de_entorno;
+        let c = Contexto {
+            dir: &principal,
+            git: &git,
+            credenciales: &credenciales,
+        };
+        let r = aplicar(
+            &Efecto::Excluir {
+                principal: principal.clone(),
+            },
+            &c,
+        );
+        let Some(linea) = LINEAS_EXCLUDE.first() else {
+            unreachable!("LINEAS_EXCLUDE no esta vacia")
+        };
+        let i = crate::git::rama::excluir(&git, &principal, NOMBRE, linea).err();
+        let (es, en) = (
+            i.as_ref().and_then(|i| i.diagnostico_en(Idioma::Es)),
+            i.as_ref().and_then(|i| i.diagnostico_en(Idioma::En)),
+        );
+        assert!(en.is_some() && es != en, "{es:?} {en:?}");
+        assert_eq!(r.err().map(|m| m.texto(Idioma::En)), en);
+    }
+
     /// A7-07: el informe de un paso que falla entra en `{error}` como
     /// mensaje (se traduce); sin diagnostico, la linea de contrato tal cual.
     #[test]
