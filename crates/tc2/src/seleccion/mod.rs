@@ -256,12 +256,13 @@ impl Estado<'_> {
         self.entrada.dominios.iter().any(|(x, _)| x == d)
     }
 
-    /// Revisoras declaradas para el dominio `d`, por id.
+    /// Revisoras declaradas e instaladas para el dominio `d`, por id (S10 y
+    /// S11: una declarada y no instalada cuenta como «sin revisora»).
     fn revisoras_de(&self, d: &str) -> Vec<String> {
         self.cat
             .revisoras()
             .iter()
-            .filter(|r| r.dominios.iter().any(|x| x == d))
+            .filter(|r| r.dominios.iter().any(|x| x == d) && self.instalado(&r.id))
             .map(|r| r.id.clone())
             .collect()
     }
@@ -1325,6 +1326,68 @@ mod tests {
         let (_, i) = con(&["k3"]);
         assert_eq!(i.skills, ["e-m"]);
         assert_eq!(i.avisos, ["empate-por-id:e-m,e-n"]);
+    }
+
+    /// A5-03 (TASK-143, F1-15 S10 y S11): una revisora de dominio declarada
+    /// en `recursos:` y no instalada cuenta como «sin revisora»: S11 con el
+    /// aviso `dominio-sin-revisora`, sin S10, S14 ni `no-instalado`.
+    /// Instalada, S10 la anade sin aviso.
+    #[test]
+    fn revisora_de_dominio_no_instalada_es_dominio_sin_revisora() {
+        let (cat, inv) = catalogo_muestra(&[]);
+        let mut rs: Vec<Revisora> = cat.revisoras().iter().chain(cat.otros()).cloned().collect();
+        rs.extend(catalogo::de_config(&[crate::config::Recurso {
+            id: "security-review".to_owned(),
+            tipo: "skill".to_owned(),
+            rol: Some("revisor".to_owned()),
+            dominios: vec!["puertas-seguridad".to_owned()],
+            etiquetas: Vec::new(),
+            prioridad: None,
+        }]));
+        let cat = Catalogo::nuevo(rs);
+        let criterios = vec!["criterio".to_owned()];
+        let puertas = dominios::Texto {
+            objetivo: "El check obligatorio",
+            criterios: &criterios,
+            etiquetas: &[],
+        };
+        let rutas = vec!["src/a.rs".to_owned()];
+        let r = |inv: &Inventario| {
+            tres(
+                "feature",
+                Carril::Funcionalidad,
+                "media",
+                &puertas,
+                &rutas,
+                &cat,
+                inv,
+                &todos(),
+                1,
+            )
+            .r
+        };
+        let s = r(&inv);
+        assert_eq!(s.avisos, ["dominio-sin-revisora:puertas-seguridad"]);
+        assert!(s.reglas.contains(&"S11".to_owned()), "{s:?}");
+        assert!(!s.reglas.iter().any(|x| x == "S10" || x == "S14"), "{s:?}");
+        assert!(
+            !s.revisoras.contains(&"security-review".to_owned()),
+            "{s:?}"
+        );
+        // Instalada: S10 sin aviso.
+        let mut es = inv.entradas().to_vec();
+        es.push(Entrada {
+            tipo: Tipo::Skill,
+            id: "security-review".to_owned(),
+            origen: Origen::Proyecto,
+        });
+        let s = r(&Inventario::nuevo(es, Vec::new()));
+        assert!(s.revisoras.contains(&"security-review".to_owned()), "{s:?}");
+        assert!(
+            s.reglas.contains(&"S10".to_owned()) && !s.reglas.contains(&"S11".to_owned()),
+            "{s:?}"
+        );
+        assert!(s.avisos.is_empty(), "{s:?}");
     }
 
     /// Criterio 3 (RR-17): el nucleo de `seleccion` no nombra procesos, red,
