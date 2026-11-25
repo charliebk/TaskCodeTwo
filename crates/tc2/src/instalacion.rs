@@ -298,23 +298,43 @@ mod tests {
         ] {
             assert_eq!(detectar_modo(instalador), Modo::Instalador, "{instalador}");
         }
-        for (ruta, gestor) in [
+        // Cada fila fija el texto exacto de la orden que desinstala su gestor.
+        let npm = "npm uninstall -g taskcodetwo";
+        let brew = "brew uninstall taskcodetwo";
+        let winget = "winget uninstall taskcodetwo";
+        let scoop = "scoop uninstall taskcodetwo";
+        let cargo = "cargo uninstall tc2";
+        for (ruta, gestor, orden) in [
             (
                 r"C:\Users\ana\AppData\Roaming\npm\node_modules\taskcodetwo\bin\tc2.exe",
                 "npm",
+                npm,
             ),
-            ("/opt/homebrew/Cellar/tc2/2.0.0/bin/tc2", "homebrew"),
+            ("/opt/homebrew/Cellar/tc2/2.0.0/bin/tc2", "homebrew", brew),
+            // Solo la rama del prefijo `/opt/homebrew`, sin `Cellar`.
+            ("/opt/homebrew/bin/tc2", "homebrew", brew),
             (
                 r"C:\Users\ana\AppData\Local\Microsoft\WinGet\Packages\x\tc2.exe",
                 "winget",
+                winget,
             ),
-            (r"C:\Users\ana\scoop\apps\tc2\current\tc2.exe", "scoop"),
-            ("/home/ana/.cargo/bin/tc2", "cargo"),
-            ("/home/linuxbrew/.linuxbrew/bin/tc2", "homebrew"),
-            (r"C:\Users\ana\scoop\shims\tc2.exe", "scoop"),
+            // Solo la rama de `WinGet\Links`, sin `Packages`.
+            (
+                r"C:\Users\ana\AppData\Local\Microsoft\WinGet\Links\tc2.exe",
+                "winget",
+                winget,
+            ),
+            (
+                r"C:\Users\ana\scoop\apps\tc2\current\tc2.exe",
+                "scoop",
+                scoop,
+            ),
+            ("/home/ana/.cargo/bin/tc2", "cargo", cargo),
+            ("/home/linuxbrew/.linuxbrew/bin/tc2", "homebrew", brew),
+            (r"C:\Users\ana\scoop\shims\tc2.exe", "scoop", scoop),
         ] {
             assert_eq!(detectar_modo(ruta), Modo::Gestor(gestor), "{ruta}");
-            assert!(!orden_del_gestor(gestor).is_empty(), "{gestor}");
+            assert_eq!(orden_del_gestor(gestor), orden, "{gestor}");
         }
         // Revision 1, MEN-1: un nombre de gestor suelto en la ruta no basta.
         for propia in [
@@ -353,6 +373,16 @@ mod tests {
             vec![PathBuf::from("C:/u/L/taskcodetwo")]
         );
         assert_eq!(w.dir_claude(), Some(PathBuf::from("C:/u/.claude")));
+        // `TC2_INSTALL_DIR` igual a la carpeta por defecto: sale una sola vez.
+        let repetida = |k: &str| match k {
+            "TC2_INSTALL_DIR" => Some("C:/u/L/taskcodetwo/bin".to_owned()),
+            otra => vars(otra),
+        };
+        let wr = Entorno::de_variables(Sistema::Windows, "C:/x/tc2.exe".into(), 1, repetida);
+        assert_eq!(
+            wr.dirs_de_instalacion(),
+            vec![PathBuf::from("C:/u/L/taskcodetwo/bin")]
+        );
         let l = Entorno::de_variables(Sistema::Linux, "/h/.local/bin/tc2".into(), 1, vars);
         assert_eq!(
             l.dirs_de_instalacion(),
