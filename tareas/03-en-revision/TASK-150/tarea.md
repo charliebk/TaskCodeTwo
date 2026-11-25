@@ -17,7 +17,7 @@ ultimo_commit_revisado: null
 revision_codex: false
 tokens_diseno: 1470926
 tokens_implementacion: 14586326
-tokens_revision: null
+tokens_revision: 2683737
 creado: 2026-11-23
 actualizado: 2026-11-25
 dependencias: []
@@ -53,6 +53,7 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 - `seleccion::orden::Entorno.stdin` devuelve `io::Result<Option<Vec<u8>>>` para comprobar el tope en un solo sitio.
 - Si falla `try_wait` en `verificacion`, ahora tambien mata el arbol antes de devolver el error.
 - El mutante de frontera se expresa como frontera estricta (el codigo usa `<=`).
+- Revision 1, IMP-1 y MEN-1 (3c1d524): las entradas que no son informes (respuesta, diff, contexto, JSON y rutas de `hallazgos`; `--rutas` y `--tarea` de `seleccion`) vuelven a leerse lossy con `lectura::texto_con_tope_lossy`, como en develop; el estricto queda solo para los informes del revisor. Test `diff_y_respuesta_no_utf8_se_leen`. MEN-2 (9ce49a2): doc de `escritura::atomica`. Suite: 866 ok, 0 fallidos, 13 ignorados.
 
 ### Fuera del plan (no tocado)
 
@@ -74,8 +75,10 @@ Suite completa (`cargo test --workspace --no-fail-fast`, target propio): 865 ok,
 | 2026-11-25T18:41:46Z | diseno | agente:afaf9edd246673d34 | 52 | 89610 | 1355310 | 25954 | 51 | 1470926 | - | - |
 | 2026-11-25T19:42:14Z | implementacion | sesion:f5474097-7166-4a1c-ae42-79e139302dce | 18 | 13274 | 2413773 | 4291 | 0 | 2431356 | - | - |
 | 2026-11-25T19:42:14Z | implementacion | agente:a75fa5f062ea72442 | 158 | 407532 | 11694112 | 53168 | 7 | 12154970 | - | - |
+| 2026-11-25T20:00:30Z | revision | agente:af7b3472141f92569 | 42 | 141134 | 2529203 | 13358 | 2 | 2683737 | 1 | rust-wasm-reviewer |
 
 ## Autorrevision
 
 - rust-wasm-reviewer — 689cb93
 - 4D — 689cb93: helper buscado, criterios citados, 9 tests mutados
+- rust-wasm-reviewer — 9ce49a2
