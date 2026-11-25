@@ -181,9 +181,9 @@ pub fn entrada_de_args(args: &[String]) -> Result<Entrada, crate::contrato::Info
         if !conocida || (!repetible && !vistas.insert(opcion)) {
             return Err(uso("argumentos-de-mas", &ti::USO_NEW_CAMPOS));
         }
-        let Some(v) = it.next() else {
-            return Err(uso("falta-valor", &ti::USO_NEW_CAMPOS).con("opcion", &opcion[2..]));
-        };
+        let v = &crate::contrato::valor_de(&mut it, |m| {
+            uso(m, &ti::USO_NEW_CAMPOS).con("opcion", &opcion[2..])
+        })?;
         match opcion {
             "--tipo" if crate::tarea::TIPOS.contains(&v.as_str()) => v.clone_into(&mut e.tipo),
             "--tipo" => return Err(invalido(opcion, v, &crate::tarea::TIPOS.join(", "))),

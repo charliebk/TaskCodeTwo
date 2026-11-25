@@ -306,6 +306,18 @@ impl LineaAccion<'_> {
     }
 }
 
+/// Motivo de una opcion sin valor al final de los argumentos.
+pub(crate) const FALTA_VALOR: &str = "falta-valor";
+
+/// El valor de la opcion que se acaba de leer: el siguiente argumento, o el
+/// `uso` de la orden con [`FALTA_VALOR`] si no hay (copias de TASK-140).
+pub(crate) fn valor_de<'a>(
+    it: &mut impl Iterator<Item = &'a String>,
+    uso: impl FnOnce(&str) -> Informe,
+) -> Result<String, Informe> {
+    it.next().cloned().ok_or_else(|| uso(FALTA_VALOR))
+}
+
 /// Hash abreviado a 12 caracteres, como fija el contrato.
 pub fn corto(hash: &str) -> String {
     hash.chars().take(12).collect()
@@ -353,6 +365,21 @@ pub(crate) fn cadena_json(t: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Copias de `valor` (TASK-140): el siguiente argumento, o el `uso` de la
+    /// orden con `falta-valor` si no queda ninguno.
+    #[test]
+    fn valor_de_la_opcion_o_falta_valor() {
+        let args = ["--rutas".to_owned(), "a.txt".to_owned()];
+        let uso = |m: &str| Informe::nuevo("seleccion", Resultado::Uso).con("motivo", m);
+        let mut it = args.iter();
+        assert_eq!(it.next().map(String::as_str), Some("--rutas"));
+        assert_eq!(valor_de(&mut it, uso), Ok("a.txt".to_owned()));
+        assert_eq!(
+            valor_de(&mut it, uso).map_err(|i| i.linea()),
+            Err("seleccion uso motivo=falta-valor".to_owned())
+        );
+    }
 
     #[test]
     fn codigos_de_la_tabla_fijada_en_f2_3() {
