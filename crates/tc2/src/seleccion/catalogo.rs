@@ -5,8 +5,9 @@
 //! `umbral_dominios`) y, para las ajenas, los que declara `recursos:` de la
 //! configuracion ([`de_config`], F4-6).
 //!
-//! Se apoya en [`crate::inventario`] sin cambiarlo: el inventario dice que
-//! existe; el catalogo lee, de las mismas carpetas, que declara cada skill.
+//! Se apoya en [`crate::inventario`]: el inventario dice que existe (y lee
+//! las skills de una carpeta, `inventario::skills_de`); el catalogo saca,
+//! de esas mismas cabeceras, que declara cada skill.
 //! Solo se lee la cabecera de cada `SKILL.md` ([`MAX_CABECERA`]): un bloque
 //! que cae mas alla no cuenta (la skill queda sin metadatos y no se elige).
 //!
@@ -19,7 +20,6 @@
 //! - [`de_base`]: `.claude/skills` del proyecto **en la base**
 //!   (`origin/develop`), nunca del worktree del PR (decision 2).
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -27,7 +27,7 @@ use serde_json::Value;
 
 use crate::contrato::Informe;
 use crate::git::{Git, Subcomando};
-use crate::inventario::{self, Entrada, Inventario, MAX_CABECERA, Origen, Tipo};
+use crate::inventario::{self, Entrada, Incidencia, Inventario, MAX_CABECERA, Origen, Tipo};
 
 /// Roles que puede declarar una entrada del catalogo.
 pub const ROLES: [&str; 3] = ["revisor", "diseno", "ejecucion"];
@@ -192,6 +192,11 @@ pub struct Lectura {
     pub entradas: Vec<Entrada>,
     /// Entradas del catalogo (revisoras y skills de diseno o ejecucion).
     pub revisoras: Vec<Revisora>,
+    /// Lo que no se pudo leer (C8): no cuenta como instalado ni como
+    /// ausente.
+    pub ilegibles: Vec<Incidencia>,
+    /// Avisos que no impiden leer (`nombre-distinto`).
+    pub avisos: Vec<Incidencia>,
 }
 
 /// Las entradas que declara `recursos:` de la configuracion (F1-14, F4-6):
@@ -216,43 +221,17 @@ pub fn de_config(recursos: &[crate::config::Recurso]) -> Vec<Revisora> {
         .collect()
 }
 
-/// Lee como mucho [`MAX_CABECERA`] bytes de `p`.
-fn cabecera(p: &Path) -> Option<String> {
-    let mut b = Vec::new();
-    std::fs::File::open(p)
-        .ok()?
-        .take(MAX_CABECERA)
-        .read_to_end(&mut b)
-        .ok()?;
-    Some(String::from_utf8_lossy(&b).into_owned())
-}
-
 /// Las skills de `skills` (`<n>/SKILL.md`) con el `prefijo` de ids
-/// (`plugin:` o vacio) y su `origen`.
+/// (`plugin:` o vacio) y su `origen`, leidas con
+/// `inventario::skills_de`: lo que no se puede leer queda en
+/// [`Lectura::ilegibles`] (C8), y cada cabecera se lee una sola vez.
 pub fn de_carpeta(skills: &Path, prefijo: &str, origen: &Origen) -> Lectura {
     let mut l = Lectura::default();
-    let mut hijos: Vec<PathBuf> = std::fs::read_dir(skills)
-        .map(|d| d.filter_map(Result::ok).map(|e| e.path()).collect())
-        .unwrap_or_default();
-    hijos.sort();
-    for d in hijos {
-        let f = d.join("SKILL.md");
-        let (Some(carpeta), Some(texto)) = (
-            d.file_name().and_then(|n| n.to_str()).map(str::to_owned),
-            f.is_file().then(|| cabecera(&f)).flatten(),
-        ) else {
-            continue;
-        };
-        let nombre = inventario::nombre_del_frontmatter(&texto).unwrap_or(carpeta);
-        let id = format!("{prefijo}{nombre}");
-        l.entradas.push(Entrada {
-            tipo: Tipo::Skill,
-            id: id.clone(),
-            origen: origen.clone(),
-        });
-        if let Some(r) = recurso_de(&id, &texto, &f.display().to_string()) {
+    for s in inventario::skills_de(skills, prefijo, origen, &mut l.ilegibles, &mut l.avisos) {
+        if let Some(r) = recurso_de(&s.entrada.id, &s.cabecera, &s.ruta.display().to_string()) {
             l.revisoras.push(r);
         }
+        l.entradas.push(s.entrada);
     }
     l
 }
@@ -332,8 +311,7 @@ pub fn de_base(git: &Git, dir: &Path, base: &str) -> Result<Lectura, Informe> {
         let carpeta = ruta
             .trim_start_matches(".claude/skills/")
             .trim_end_matches("/SKILL.md");
-        let nombre =
-            inventario::nombre_del_frontmatter(&texto).unwrap_or_else(|| carpeta.to_owned());
+        let nombre = inventario::nombre_de(&texto, carpeta);
         l.entradas.push(Entrada {
             tipo: Tipo::Skill,
             id: nombre.clone(),

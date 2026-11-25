@@ -373,9 +373,9 @@ fn cabecera(p: &Path) -> std::io::Result<String> {
 /// Hijos de `dir` ordenados (vacio si no existe). Si la carpeta o una de
 /// sus entradas no se puede leer (p. ej. sin permiso), una incidencia
 /// `no-se-lee` de `id` en `ilegibles`: nunca cuenta como vacia sin decirlo.
-fn hijos(dir: &Path, id: &str, a: &mut Acumulado) -> Vec<PathBuf> {
+fn hijos(dir: &Path, id: &str, ilegibles: &mut Vec<Incidencia>) -> Vec<PathBuf> {
     let mut no_se_lee = || {
-        a.ilegibles.push(Incidencia {
+        ilegibles.push(Incidencia {
             id: id.to_owned(),
             motivo: "no-se-lee",
             ruta: t(dir),
@@ -404,13 +404,13 @@ fn nombre_utf8(
     n: Option<&std::ffi::OsStr>,
     prefijo: &str,
     ruta: &Path,
-    a: &mut Acumulado,
+    ilegibles: &mut Vec<Incidencia>,
 ) -> Option<String> {
     let n = n?;
     if let Some(s) = n.to_str() {
         return Some(s.to_owned());
     }
-    a.ilegibles.push(Incidencia {
+    ilegibles.push(Incidencia {
         id: format!("{prefijo}{}", n.to_string_lossy()),
         motivo: "nombre-no-utf8",
         ruta: t(ruta),
@@ -418,57 +418,108 @@ fn nombre_utf8(
     None
 }
 
-/// Lee las skills de `dir` (`<n>/SKILL.md`) y los agentes de `agentes`
-/// (`<n>.md`) con el `prefijo` y el `origen` dados.
-fn leer_carpetas(skills: &Path, agentes: &Path, prefijo: &str, origen: &Origen, a: &mut Acumulado) {
-    let mut ficheros: Vec<(Tipo, PathBuf, String)> = Vec::new();
-    for d in hijos(skills, &format!("{prefijo}skills"), a) {
-        let f = d.join("SKILL.md");
-        if d.is_dir()
-            && f.is_file()
-            && let Some(n) = nombre_utf8(d.file_name(), prefijo, &d, a)
-        {
-            ficheros.push((Tipo::Skill, f, n));
-        }
+/// El id (sin prefijo) de una skill o un agente: el `name:` del frontmatter
+/// de su `cabecera` o, si no lo dice, el nombre de su `carpeta` (o fichero).
+pub(crate) fn nombre_de(cabecera: &str, carpeta: &str) -> String {
+    nombre_del_frontmatter(cabecera).unwrap_or_else(|| carpeta.to_owned())
+}
+
+/// Una skill o un agente leido de una carpeta: su entrada, el fichero y la
+/// cabecera que se leyo (como mucho [`MAX_CABECERA`] bytes).
+pub(crate) struct Leida {
+    /// La entrada del inventario.
+    pub(crate) entrada: Entrada,
+    /// `SKILL.md` o `<n>.md`.
+    pub(crate) ruta: PathBuf,
+    /// Su cabecera.
+    pub(crate) cabecera: String,
+}
+
+/// Lee la cabecera de `f` (de `tipo`, con nombre de carpeta o fichero
+/// `carpeta`) y calcula su id: `no-se-lee` en `ilegibles` si no se lee y
+/// `nombre-distinto` en `avisos` si el `name:` no coincide con `carpeta`.
+fn leer_una(
+    tipo: Tipo,
+    f: PathBuf,
+    carpeta: &str,
+    prefijo: &str,
+    origen: &Origen,
+    ilegibles: &mut Vec<Incidencia>,
+    avisos: &mut Vec<Incidencia>,
+) -> Option<Leida> {
+    let Ok(cabecera) = cabecera(&f) else {
+        ilegibles.push(Incidencia {
+            id: format!("{prefijo}{carpeta}"),
+            motivo: "no-se-lee",
+            ruta: t(&f),
+        });
+        return None;
+    };
+    let id = nombre_de(&cabecera, carpeta);
+    if id != carpeta {
+        avisos.push(Incidencia {
+            id: format!("{prefijo}{id}"),
+            motivo: "nombre-distinto",
+            ruta: t(&f),
+        });
     }
-    for f in hijos(agentes, &format!("{prefijo}agents"), a) {
-        if f.is_file()
-            && f.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
-            && let Some(n) = nombre_utf8(f.file_stem(), prefijo, &f, a)
-        {
-            ficheros.push((Tipo::Agente, f, n));
-        }
-    }
-    for (tipo, f, carpeta) in ficheros {
-        let nombre = match cabecera(&f) {
-            Ok(c) => nombre_del_frontmatter(&c),
-            Err(_) => {
-                a.ilegibles.push(Incidencia {
-                    id: format!("{prefijo}{carpeta}"),
-                    motivo: "no-se-lee",
-                    ruta: t(&f),
-                });
-                continue;
-            }
-        };
-        let id = match nombre {
-            Some(n) => {
-                if n != carpeta {
-                    a.avisos.push(Incidencia {
-                        id: format!("{prefijo}{n}"),
-                        motivo: "nombre-distinto",
-                        ruta: t(&f),
-                    });
-                }
-                n
-            }
-            None => carpeta,
-        };
-        a.entradas.push(Entrada {
+    Some(Leida {
+        entrada: Entrada {
             tipo,
             id: format!("{prefijo}{id}"),
             origen: origen.clone(),
-        });
+        },
+        ruta: f,
+        cabecera,
+    })
+}
+
+/// Las skills de `dir` (`<n>/SKILL.md`, ordenadas) con el `prefijo` de ids
+/// (`plugin:` o vacio) y su `origen`. Lo que no se puede leer va a
+/// `ilegibles` y un `name:` distinto de su carpeta a `avisos` (C8): es la
+/// unica lectura de skills de una carpeta (la usa tambien el catalogo).
+pub(crate) fn skills_de(
+    dir: &Path,
+    prefijo: &str,
+    origen: &Origen,
+    ilegibles: &mut Vec<Incidencia>,
+    avisos: &mut Vec<Incidencia>,
+) -> Vec<Leida> {
+    let mut v = Vec::new();
+    for d in hijos(dir, &format!("{prefijo}skills"), ilegibles) {
+        let f = d.join("SKILL.md");
+        if d.is_dir()
+            && f.is_file()
+            && let Some(n) = nombre_utf8(d.file_name(), prefijo, &d, ilegibles)
+            && let Some(l) = leer_una(Tipo::Skill, f, &n, prefijo, origen, ilegibles, avisos)
+        {
+            v.push(l);
+        }
+    }
+    v
+}
+
+/// Lee las skills de `dir` (`<n>/SKILL.md`) y los agentes de `agentes`
+/// (`<n>.md`) con el `prefijo` y el `origen` dados.
+fn leer_carpetas(skills: &Path, agentes: &Path, prefijo: &str, origen: &Origen, a: &mut Acumulado) {
+    let leidas = skills_de(skills, prefijo, origen, &mut a.ilegibles, &mut a.avisos);
+    a.entradas.extend(leidas.into_iter().map(|l| l.entrada));
+    for f in hijos(agentes, &format!("{prefijo}agents"), &mut a.ilegibles) {
+        if f.is_file()
+            && f.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
+            && let Some(n) = nombre_utf8(f.file_stem(), prefijo, &f, &mut a.ilegibles)
+            && let Some(l) = leer_una(
+                Tipo::Agente,
+                f,
+                &n,
+                prefijo,
+                origen,
+                &mut a.ilegibles,
+                &mut a.avisos,
+            )
+        {
+            a.entradas.push(l.entrada);
+        }
     }
 }
 
@@ -712,7 +763,10 @@ fn leer_sincronizados(dir_claude: &Path, ajustes: &Ajustes, a: &mut Acumulado) {
     }
     let raiz = dir_claude.join("plugins").join("synced");
     let mut cuentas: Vec<(Option<i64>, PathBuf, Value)> = Vec::new();
-    for c in hijos(&raiz, "synced", a).into_iter().filter(|c| c.is_dir()) {
+    for c in hijos(&raiz, "synced", &mut a.ilegibles)
+        .into_iter()
+        .filter(|c| c.is_dir())
+    {
         let id = format!(
             "synced/{}",
             c.file_name()
@@ -1381,6 +1435,47 @@ mod tests {
             );
             assert!(l.inventario.plugins().is_empty());
         }
+    }
+
+    /// A5-01 (TASK-143): `skills_de` es la unica lectura de skills de una
+    /// carpeta. Una carpeta `skills` que no se lista deja `no-se-lee` con el
+    /// prefijo del plugin, tambien por el catalogo (C8); una legible da las
+    /// mismas entradas y avisos que [`leer`].
+    #[test]
+    fn skills_de_una_carpeta_deja_incidencias() {
+        let m = Tmp::nueva("a5-01");
+        m.escribir("p/skills", "no soy una carpeta");
+        let roto = m.0.join("p").join("skills");
+        let o = Origen::Plugin {
+            nombre: "p".to_owned(),
+            version: None,
+        };
+        let esperada = vec![Incidencia {
+            id: "p:skills".to_owned(),
+            motivo: "no-se-lee",
+            ruta: t(&roto),
+        }];
+        let (mut il, mut av) = (Vec::new(), Vec::new());
+        assert!(skills_de(&roto, "p:", &o, &mut il, &mut av).is_empty());
+        assert_eq!((&il, &av), (&esperada, &Vec::new()));
+        let c = crate::seleccion::catalogo::de_carpeta(&roto, "p:", &o);
+        assert_eq!((c.ilegibles, c.entradas), (esperada, Vec::new()));
+        // Legible: lo mismo que el inventario del proyecto.
+        m.escribir("q/.claude/skills/a/SKILL.md", &skill("a"));
+        m.escribir("q/.claude/skills/b/SKILL.md", &skill("otro"));
+        let (mut il, mut av) = (Vec::new(), Vec::new());
+        let dir = m.0.join("q").join(".claude").join("skills");
+        let v = skills_de(&dir, "", &Origen::Proyecto, &mut il, &mut av);
+        let l = leer(None, &m.0.join("q"));
+        let skills: Vec<&Entrada> = l
+            .inventario
+            .entradas()
+            .iter()
+            .filter(|e| e.tipo == Tipo::Skill)
+            .collect();
+        assert_eq!(v.iter().map(|x| &x.entrada).collect::<Vec<_>>(), skills);
+        assert_eq!((il, av), (l.ilegibles, l.avisos));
+        assert!(v.iter().all(|x| x.cabecera.starts_with("---\nname: ")));
     }
 
     /// H2 (ronda 1): una carpeta `skills` o `agents` que no se puede listar
