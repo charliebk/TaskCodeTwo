@@ -230,3 +230,39 @@ fn rutas_por_stdin_por_encima_del_tope_fallan() {
     assert_ne!(codigo, Some(0), "{linea}");
     assert!(linea.starts_with("revisoras error"), "{linea}");
 }
+
+/// A5-01 (TASK-143, C8): con `--plugin`, una carpeta `skills` que no se
+/// puede listar (un fichero en su lugar, como sin permiso) no desaparece sin
+/// rastro: sale el aviso `ilegible:no-se-lee:<plugin>:skills`; el plugin
+/// legible sigue dando su revisora.
+#[test]
+fn plugin_con_skills_ilegible_da_aviso() {
+    let f = Fixture::nueva("revisoras-ilegible");
+    let (_bare, clon) = f.remoto_y_clon();
+    escribir(&f.raiz, "roto/skills", "no soy una carpeta");
+    let bueno = format!("taskcode-plugin={}", plugin().display());
+    let roto = format!("roto={}", f.raiz.join("roto").display());
+    let args = [
+        "--json",
+        "--rutas",
+        "-",
+        "--complejidad",
+        "simple",
+        "--plugin",
+        &bueno,
+        "--plugin",
+        &roto,
+    ];
+    let (codigo, json) = revisoras(&f, &clon, &args, "src/a.rs\n");
+    assert_eq!(codigo, Some(0), "{json}");
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let avisos = v["claves"]["avisos"].as_array().unwrap();
+    assert!(
+        avisos.contains(&serde_json::json!("ilegible:no-se-lee:roto:skills")),
+        "{json}"
+    );
+    assert_eq!(
+        v["claves"]["revisoras"],
+        serde_json::json!(["taskcode-plugin:rust-wasm-reviewer"])
+    );
+}

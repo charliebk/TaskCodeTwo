@@ -93,7 +93,8 @@ pub struct Fuentes {
     /// Las entradas con metadatos (revisoras y skills de diseno o
     /// ejecucion).
     pub catalogo: Catalogo,
-    /// Avisos (`sin-base`).
+    /// Avisos (`sin-base`, `sin-skills-de-base` y, con `--plugin`,
+    /// `ilegible:<motivo>:<id>` de lo que no se pudo leer).
     pub avisos: Vec<String>,
 }
 
@@ -120,9 +121,7 @@ pub fn fuentes(
     let mut lista_plugins = Vec::new();
     if plugins.is_empty() {
         let l = inventario::leer(claude, dir);
-        if let Some(c) = claude {
-            revisoras.extend(catalogo::de_instalados(c, &l.inventario));
-        }
+        revisoras.extend(catalogo::de_instalados(&l.inventario));
         entradas.extend(
             l.inventario
                 .entradas()
@@ -138,6 +137,12 @@ pub fn fuentes(
                 version: None,
             };
             let l = catalogo::de_carpeta(&d.join("skills"), &format!("{nombre}:"), &origen);
+            // Lo que no se lee no desaparece sin rastro (C8).
+            avisos.extend(
+                l.ilegibles
+                    .iter()
+                    .map(|i| format!("ilegible:{}:{}", i.motivo, i.id)),
+            );
             entradas.extend(l.entradas);
             revisoras.extend(l.revisoras);
         }

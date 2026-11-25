@@ -504,22 +504,37 @@ fn adaptador(prov: Prov, base: &str, personas: &Personas) -> Box<dyn Plataforma>
     }
 }
 
+/// Conecta como persona con el adaptador de `prov` contra `base`.
+fn conectar(prov: Prov, base: String) -> impl Fn(&Personas) -> Result<Conectada, Consulta> {
+    move |p: &Personas| {
+        Ok(Conectada {
+            plataforma: adaptador(prov, &base, p),
+            rol: Rol::Persona,
+        })
+    }
+}
+
+/// `doctor` en `clon` (de `f`) contra `caso` servido como `prov`:
+/// hallazgos, resumen, peticiones recibidas y el `Git` con su registro.
+fn doctor_contra_en(
+    f: &Fixture,
+    clon: &Path,
+    prov: Prov,
+    caso: &Caso,
+) -> (Vec<Hallazgo>, Resumen, Vec<String>, tc2::git::Git) {
+    let m = servir(prov, caso);
+    let g = f.git();
+    let (hs, r) = hallazgos(&g, clon, &conectar(prov, m.base()));
+    let recibidas = m.recibidas().into_iter().map(|r| r.linea).collect();
+    (hs, r, recibidas, g)
+}
+
 /// `doctor` en un clon con estado contra `caso` servido como `prov`:
 /// hallazgos, resumen y peticiones recibidas.
 fn doctor_contra(prov: Prov, caso: &Caso) -> (Vec<Hallazgo>, Resumen, Vec<String>) {
     let f = Fixture::nueva("doctor-plataforma");
     let (_, clon) = con_estado(&f, &[]);
-    let m = servir(prov, caso);
-    let base = m.base();
-    let conectar = move |p: &Personas| {
-        Ok(Conectada {
-            plataforma: adaptador(prov, &base, p),
-            rol: Rol::Persona,
-        })
-    };
-    let g = f.git();
-    let (hs, r) = hallazgos(&g, &clon, &conectar);
-    let recibidas = m.recibidas().into_iter().map(|r| r.linea).collect();
+    let (hs, r, recibidas, _) = doctor_contra_en(&f, &clon, prov, caso);
     (hs, r, recibidas)
 }
 
@@ -945,17 +960,7 @@ fn salida_acotada_y_json_con_todo() {
     assert!(!out.contains('\u{1b}') && !err.contains('\u{1b}'));
     let (cj, json, _) = tc2(&f, &clon, &["doctor", "--json"], &[]);
     assert_eq!(cj, c);
-    assert_eq!(json.lines().count(), 1);
-    assert!(!json.contains('\u{1b}'));
-    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-    let n = |k: &str| v["claves"][k].as_str().unwrap().parse::<usize>().unwrap();
-    let malos = n("fallos") + n("avisos") + n("no-comprobado");
-    let todos = v["hallazgos"].as_array().unwrap();
-    let oks = todos.iter().filter(|h| h["estado"] == "ok").count();
-    assert_eq!(todos.len(), malos + oks);
-    assert!(malos > 4, "el caso tiene que no caber: {json}");
-    assert_eq!(lineas.len(), 5);
-    assert_eq!(lineas[4], format!("y {} mas: tc2 doctor --json", malos - 3));
+    comun::salida_acotada(&lineas, &json, "tc2 doctor --json");
 }
 
 /// Lo que `doctor` no puede cambiar: refs, `git worktree list`, el arbol de
@@ -997,21 +1002,12 @@ fn doctor_no_escribe_nada() {
     escribir(&clon, ".git/taskcodetwo/identidad.yml", "x: 1\n");
     let antes = foto(&f, &clon);
     for prov in [Prov::GitHub, Prov::GitLab] {
-        let m = servir(prov, &Caso::bien(prov));
-        let base = m.base();
-        let conectar = move |p: &Personas| {
-            Ok(Conectada {
-                plataforma: adaptador(prov, &base, p),
-                rol: Rol::Persona,
-            })
-        };
-        let g = f.git();
-        let _ = hallazgos(&g, &clon, &conectar);
+        // Solo importa el efecto: `hallazgos` ya falla si `comprobar` da `Err`.
+        let (_, _, recibidas, g) = doctor_contra_en(&f, &clon, prov, &Caso::bien(prov));
         assert_eq!(foto(&f, &clon), antes, "{prov:?} cambio algo");
-        let recibidas = m.recibidas();
         assert!(!recibidas.is_empty());
         assert!(
-            recibidas.iter().all(|r| r.linea.starts_with("GET ")),
+            recibidas.iter().all(|r| r.starts_with("GET ")),
             "{prov:?}: {recibidas:?}"
         );
         const LECTURAS: [&str; 11] = [
@@ -1079,13 +1075,8 @@ fn sin_red_sin_credenciales_o_sin_plataforma_no_comprueba() {
     }
     // Sin red: nadie escucha en el puerto 1, en las dos plataformas.
     for prov in [Prov::GitHub, Prov::GitLab] {
-        let conectar = move |p: &Personas| {
-            Ok(Conectada {
-                plataforma: adaptador(prov, "http://127.0.0.1:1", p),
-                rol: Rol::Persona,
-            })
-        };
-        let (hs, r) = hallazgos(&g, &clon, &conectar);
+        let sin_red = conectar(prov, "http://127.0.0.1:1".to_owned());
+        let (hs, r) = hallazgos(&g, &clon, &sin_red);
         assert_eq!(r.plataforma, "sin-red", "{prov:?}");
         assert_eq!(
             lineas_de(&hs, "proteccion"),

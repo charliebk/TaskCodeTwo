@@ -365,25 +365,11 @@ fn texto_acotado_y_json_completo() {
 
     let (cj, sj, _) = tc2(&f, &clon, &claude, &["doctor", "--recursos", "--json"]);
     assert_eq!(cj, c);
-    assert_eq!(sj.lines().count(), 1);
-    assert!(!sj.contains('\u{1b}'));
-    let v = json(&sj);
-    let n = |k: &str| v["claves"][k].as_str().unwrap().parse::<usize>().unwrap();
-    let malos = n("fallos") + n("avisos") + n("no-comprobado");
+    let v = comun::salida_acotada(&lineas, &sj, "tc2 doctor --recursos --json");
     let todos = v["hallazgos"].as_array().unwrap();
     assert!(todos.iter().any(|h| h["estado"] == "ok"), "{sj}");
-    assert_eq!(
-        todos.len(),
-        malos + todos.iter().filter(|h| h["estado"] == "ok").count()
-    );
     assert_eq!(v["claves"]["inventario"], huella);
     assert!(v["inventario"].as_array().is_some_and(|a| a.len() == 10));
-    assert!(malos > 4, "el caso tiene que no caber: {sj}");
-    assert_eq!(lineas.len(), 5);
-    assert_eq!(
-        lineas[4],
-        format!("y {} mas: tc2 doctor --recursos --json", malos - 3)
-    );
 }
 
 /// Huella de una carpeta: rutas, fecha de modificacion y contenido,

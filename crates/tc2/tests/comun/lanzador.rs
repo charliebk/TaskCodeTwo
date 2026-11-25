@@ -72,6 +72,30 @@ pub fn salida(o: &Output) -> (Option<i32>, String) {
     (o.status.code(), out.trim_end().to_owned())
 }
 
+/// Salida acotada de `doctor` (F1-4 decision 4) en un caso que no cabe:
+/// `json` (la de `--json`) en una linea, sin ANSI y con todos los
+/// hallazgos; mas de 4 que no son `ok`, y `lineas` (las del texto) son 5 con
+/// la ultima `y N mas: <detalle>`. Da el JSON leido.
+pub fn salida_acotada(lineas: &[&str], json: &str, detalle: &str) -> serde_json::Value {
+    assert_eq!(json.lines().count(), 1, "{json}");
+    assert!(!json.contains('\u{1b}'), "{json}");
+    let v: serde_json::Value = serde_json::from_str(json).unwrap_or_else(|e| panic!("{e}: {json}"));
+    let n = |k: &str| {
+        v["claves"][k]
+            .as_str()
+            .and_then(|x| x.parse::<usize>().ok())
+            .unwrap_or_else(|| panic!("sin {k}: {json}"))
+    };
+    let malos = n("fallos") + n("avisos") + n("no-comprobado");
+    let todos = v["hallazgos"].as_array().expect("hallazgos");
+    let oks = todos.iter().filter(|h| h["estado"] == "ok").count();
+    assert_eq!(todos.len(), malos + oks, "{json}");
+    assert!(malos > 4, "el caso tiene que no caber: {json}");
+    assert_eq!(lineas.len(), 5, "{lineas:?}");
+    assert_eq!(lineas[4], format!("y {} mas: {detalle}", malos - 3));
+    v
+}
+
 /// Codigo, stdout y stderr de una salida, para el mensaje de un assert.
 pub fn volcado(o: &Output) -> String {
     format!(

@@ -345,6 +345,7 @@ mod tests {
             nombre: nombre.to_owned(),
             clave: format!("{nombre}@mk"),
             version: Some("1.0.0".to_owned()),
+            carpeta: None,
         }
     }
 
