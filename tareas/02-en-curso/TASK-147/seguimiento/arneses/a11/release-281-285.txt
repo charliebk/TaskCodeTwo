@@ -1,0 +1,5 @@
+          base="${VERSION%%-*}"
+          vy="$(echo "$base" | awk -F. '{ print $1 "." $2 "." $3 + 1 }')"
+          sed -i.orig "s/^version = \"$VERSION\"$/version = \"$vy\"/" Cargo.toml
+          ! cmp -s Cargo.toml Cargo.toml.orig || { echo "::error::el sed no cambio la version de Cargo.toml ($VERSION -> $vy)"; exit 1; }
+          rm Cargo.toml.orig

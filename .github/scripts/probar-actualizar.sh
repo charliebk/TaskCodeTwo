@@ -57,7 +57,7 @@ cat "$vy_dir"/*.sha256 >"$tmp/srv/y/SHA256SUMS"
 cp "$tmp"/srv/y/tc2-* "$tmp/srv/malo/"
 awk '{ c = substr($1, 1, 1); print (c == "0" ? "1" : "0") substr($1, 2) "  " $2 }' \
   "$tmp/srv/y/SHA256SUMS" >"$tmp/srv/malo/SHA256SUMS"
-! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS"
+! cmp -s "$tmp/srv/y/SHA256SUMS" "$tmp/srv/malo/SHA256SUMS" || rojo "el SHA256SUMS alterado es igual al bueno"
 
 py=python
 command -v python >/dev/null 2>&1 || py=python3
