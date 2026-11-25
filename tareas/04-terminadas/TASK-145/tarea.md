@@ -6,7 +6,7 @@ sprint: 0
 etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
-estado: en-revision
+estado: terminada
 plan_aprobado: true
 rama: fix/task-145-auditoria-4d-a7-config-init-desinstalar
 asignado_a: charlie.bk@gmail.com
@@ -71,6 +71,7 @@ Corregidos los 8 IMPORTANTE del grupo A7 (A7-02 va en A8-04/TASK-150; A7-06 lo c
 | 2026-11-25T07:04:06Z | approve | automatico | persona | 0.17.1 |
 | 2026-11-25T07:04:07Z | start | automatico | persona | 0.17.1 |
 | 2026-11-25T08:59:20Z | review | automatico | persona | 0.17.1 |
+| 2026-11-25T11:31:35Z | finish | automatico | persona | 0.17.1 |
 
 ## Coste
 
@@ -89,3 +90,10 @@ Corregidos los 8 IMPORTANTE del grupo A7 (A7-02 va en A8-04/TASK-150; A7-06 lo c
 ## Verificacion ligera
 
 - 2026-11-25T09:38:35Z: ronda 1; commit revisado fce8bd62afb7e421e03fef98b93e6c8ff949cadf; commit verificado 131dff3c8d2b33ccb0dbc4393174506f7fa86b65; ficheros: crates/tc2/src/i18n/guarda.rs, crates/tc2/src/init/aplicar.rs; corregidos: MEN-1, MEN-2; pendientes: MEN-3
+
+## Duracion
+
+- Estimada: 210 min
+- Real (de la rama abierta al cierre con merge, sin pausas): 267 min
+- Paso de la hora: 267 min reales frente a 210 estimados
+- Cierre (finish): 2826 s, de 2026-11-25T10:44:29Z a 2026-11-25T11:31:35Z
