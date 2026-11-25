@@ -7,7 +7,7 @@ etiquetas: []
 complejidad: null
 modelo_sugerido: sonnet
 estado: en-diseno
-plan_aprobado: false
+plan_aprobado: true
 rama: fix/task-147-auditoria-4d-a10-scripts-de-ci-e-instala
 asignado_a: charlie.bk@gmail.com
 agente_revisor: general-purpose
@@ -15,7 +15,7 @@ skills_recomendados: []
 regla_seleccion_skill: null
 ultimo_commit_revisado: null
 revision_codex: false
-tokens_diseno: null
+tokens_diseno: 496824
 tokens_implementacion: null
 tokens_revision: null
 creado: 2026-11-23
@@ -38,3 +38,10 @@ Corregir los 4 casos IMPORTANTE del grupo A10 de `docs/auditoria-4d.md` (commit 
 | fecha | fase | modo | decidido_por | version |
 |---|---|---|---|---|
 | 2026-11-25T14:53:54Z | plan | automatico | persona | 0.17.1 |
+| 2026-11-25T14:59:20Z | approve | automatico | persona | 0.17.1 |
+
+## Coste
+
+| fecha | fase | fuente | entrada | cache_escritura | cache_lectura | salida | lecturas | total | ronda | revisor |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-25T14:59:19Z | diseno | agente:a85ef397f5f461ba9 | 22 | 62171 | 419494 | 15137 | 25 | 496824 | - | - |
